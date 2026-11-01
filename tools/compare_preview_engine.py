@@ -16,10 +16,12 @@ user's projects are never touched.  Cases:
 * ``periods-new`` – the same line with the step's own defaults (Kb 0.30, Ke 0.8): every
                   period below 90° transversely and longitudinally.
 * ``v3-<W>``    – one HWR at φs = −30° (V3 = 0), Ke = 1.36, beam energy W MeV
-                  (``--energies``); compare the energy gain mainly.  The preview finds no entry
-                  phase giving −30° at 0.2–0.3 and 0.7–1.0 MeV (it warns and takes the closest φs);
-                  the engine then stops with "scan phase fails to find the RF phase".  The
-                  preview's numbers are reported even when the engine fails.
+                  (``--energies``); compare the energy gain mainly.  No entry phase gives an
+                  accelerating −30° at 0.15–0.35 and 0.7–1.05 MeV.  Where the solution 180° away
+                  exists (0.7–0.75 and 1.05 MeV) the engine and the preview take it (the cavity
+                  decelerates); elsewhere the engine stops with "scan phase fails to find the RF
+                  phase" and the preview warns and takes the closest φs.  The preview's numbers are
+                  reported even when the engine fails.
 
 For each case the table gives final and maximum rms x / y / z (mm) and the final energy
 (MeV) of the engine (mean and spread over ``--repeat`` runs: the engine is multi-threaded
@@ -210,7 +212,10 @@ def _rel(a, b):
 def _diff(key, a, b):
     """% difference, or for phases the difference in degrees (wrapped to ±180°)."""
     if key in PHASES:
-        return (a - b + 180.0) % 360.0 - 180.0 if np.isfinite(a) and np.isfinite(b) else float("nan")
+        if not (np.isfinite(a) and np.isfinite(b)):
+            return float("nan")
+        period = 180.0 if key == "phis" else 360.0         # the engine writes the requested phi_s also for the
+        return (a - b + period / 2) % period - period / 2   # decelerating solution 180 deg away
     return _rel(a, b)
 
 
@@ -307,9 +312,9 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--repeat", type=int, default=1, help="engine runs per case (default 1)")
     ap.add_argument("--periods", type=int, default=8, help="periods of the tutorial case (default 8)")
-    ap.add_argument("--energies", default="0.3,0.4,0.6,0.7,1.0,1.1",
-                    help="beam energies of the V3 = 0 cases, MeV (default 0.3,0.4,0.6,0.7,1.0,1.1: both edges of the "
-                         "0.2–0.3 and 0.7–1.0 MeV bands where the preview finds no solution)")
+    ap.add_argument("--energies", default="0.3,0.4,0.6,0.7,0.8,1.0,1.05,1.1",
+                    help="beam energies of the V3 = 0 cases, MeV (default 0.3,0.4,0.6,0.7,0.8,1.0,1.05,1.1: accelerating, "
+                         "decelerating (180° away) and unsolvable cases and the edges between them)")
     ap.add_argument("--old-ref", help=f"Git revision of the old preview (default {OLD_REF}, before the preview fixes)")
     ap.add_argument("--work", help="work folder (default: a new temporary folder)")
     ap.add_argument("--cases", help="comma-separated subset: example,periods,periods-new,v3-0.4,...")
@@ -323,7 +328,7 @@ def main(argv=None):
     header = [f"work folder: {work}", f"old preview: {old_desc}", f"new preview: checked-out code ({head or 'unknown'})",
               f"engine runs per case: {0 if args.no_engine else args.repeat}",
               "energy = DataSet mean of all macro-particles (previews: reference particle); sync energy and phases = "
-              "engine synData.txt (synchronous particle); phase rows compare in degrees, the others in per cent"]
+              "engine synData.txt (synchronous particle); phase rows compare in degrees (phi_s modulo 180: the engine writes the requested phi_s also for the decelerating solution), the others in per cent"]
     use_engine = not args.no_engine
     if use_engine:
         reason = engine_available()

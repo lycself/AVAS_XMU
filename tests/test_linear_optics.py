@@ -315,6 +315,24 @@ def test_v3_0_without_solution_uses_the_closest_phase_and_warns(energy, reach, m
     assert again["energy"][-1] == pytest.approx(runs[0][1], abs=1e-6)
 
 
+@pytest.mark.parametrize("energy,entry,gain", [(0.7, -107.7, -0.1129)])
+def test_v3_0_takes_the_decelerating_solution_like_the_engine(energy, entry, gain):
+    # 0.7 MeV, phi_s = -30 deg: no accelerating solution; the engine (Windows, 2026-11-02) ran with the entry
+    # phase -107.7 deg, wrote phi_s = -29.92 deg to synData.txt and its synchronous particle lost 0.1129 MeV:
+    # the solution 180 deg away (atan2 gives 150 deg), on the rising branch of phi_s(phi_0)
+    if not os.path.exists(os.path.join(EXAMPLE_INPUT, "hwr010.edz")):
+        pytest.skip("example field maps not installed")
+    beam = lo.read_beam(EXAMPLE_INPUT)
+    beam["energy"] = energy
+    lattice = "start\ndrift 0.05 0.02 0\nfield 0.21 0.02 0 1 162.5e6 -30 1.36 -1.36 hwr010\ndrift 0.2 0.02 0\nend\n"
+    res = lo.linear_preview(lattice, beam, [EXAMPLE_INPUT], space_charge=False)
+    cav = [e for e in res["elements"] if e["phase_rf"] is not None][0]
+    assert cav["phase_rf"] == pytest.approx(entry, abs=0.5)
+    assert cav["phase_s"] == pytest.approx(150.0, abs=1e-6)
+    assert res["energy"][-1] - energy == pytest.approx(gain, rel=5e-3)
+    assert "180° away" in texts(res) and "decelerates" in texts(res)
+
+
 def test_missing_field_map_is_a_warning_not_an_exception(tmp_path):
     beam = make_beam()
     res = lo.linear_preview("start\nfield 0.3 0.02 0 3 0 0 1 1 nomap\nfield 0.2 0.02 0 1 162.5e6 -30 1 1 nocav\nend\n",

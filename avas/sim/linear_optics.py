@@ -12,8 +12,8 @@ Model
   particle enters the map.  The phase parameter of ``field`` depends on V3:
   0 synchronous phase φs = atan2(∫E·sinφ dz, ∫E·cosφ dz) (φ0 is solved for:
   fixed-point iteration, else a scan of φ0 with bisection; far below the
-  cavity's design β some φs cannot be reached, then the closest one is used
-  with a warning), 1 entry phase φ0, 2 phase at t = 0 (φ0 = φ + 360°·f·t_in).
+  cavity's design β some φs cannot be reached: then, like the engine, the
+  decelerating solution φs + 180° is taken, else the closest φs, with a warning), 1 entry phase φ0, 2 phase at t = 0 (φ0 = φ + 360°·f·t_in).
 * Second moments of (x, x', y, y', z, δ = Δp/p) are pushed with 6×6 matrices.
   Field maps are cut into 1 mm slices for the reference particle and 4 mm
   slices for the optics (all maps of a superpose block summed); each optics
@@ -828,71 +828,100 @@ class _Tracker:
 
         φs(φ0) is computed along the trajectory that φ0 itself produces.  For slow particles
         (far below the cavity's design β) it need not cover all phases (the cavity's net
-        accelerating vector nearly cancels); then no φ0 gives the requested φs and the closest
-        reachable one is used, with a warning.  Returns the result of :meth:`_iterate`.
+        accelerating vector nearly cancels).  Like the engine (checked on Windows, 2026-11-02),
+        when no φ0 gives the requested φs the solution 180° away is taken (the cavity then
+        decelerates; the engine's synData.txt still writes the requested φs), with a warning;
+        when neither exists the engine stops with a "scan phase" error and the preview uses the
+        closest reachable φs, with a warning.  Among several roots the one on a rising branch of
+        φs(φ0) is used (the engine's choice at 0.7 MeV), then the largest energy gain.
+        Returns the result of :meth:`_iterate`.
         """
         target = math.radians(cav["phase"])
 
-        def miss(phi0):
+        def miss(phi0, aim=target):
             wb, _tb, status = self._iterate(hf, ez_static, cavities, {id(cav): phi0})
             ps = self._phase_s(cav) if status == "ok" else None
             if ps is None:
                 return math.nan, ps, -math.inf
-            return math.remainder(ps - target, 2 * math.pi), ps, float(wb[-1])
+            return math.remainder(ps - aim, 2 * math.pi), ps, float(wb[-1])
 
         grid = np.radians(np.arange(-180.0, 180.0, PHASE_SCAN_STEP))
         scan = [miss(p) for p in grid]
-        f = np.array([m[0] for m in scan])
-        roots = []
-        for i in range(grid.size):
-            j = (i + 1) % grid.size
-            fa, fb = f[i], f[j]
-            if not (np.isfinite(fa) and np.isfinite(fb)) or abs(fa) + abs(fb) > math.pi:
-                continue                                    # no data, or a jump of the wrapped phase
-            if fa == 0 or fa * fb < 0:
-                lo_, hi = grid[i], grid[i] + math.radians(PHASE_SCAN_STEP)
-                for _ in range(50):
-                    mid = (lo_ + hi) / 2
-                    fm = miss(mid)[0]
-                    if not np.isfinite(fm):
-                        break
-                    if (fm < 0) == (fa < 0):
-                        lo_ = mid
-                    else:
-                        hi = mid
-                roots.append((lo_ + hi) / 2)
+        phis = np.array([np.nan if m[1] is None else m[1] for m in scan])
+
+        def roots(aim):
+            """``[(φ0, rising, final energy)]`` of φs(φ0) = *aim*."""
+            f = np.array([math.remainder(v - aim, 2 * math.pi) if np.isfinite(v) else np.nan for v in phis])
+            out = []
+            for i in range(grid.size):
+                fa, fb = f[i], f[(i + 1) % grid.size]
+                if not (np.isfinite(fa) and np.isfinite(fb)) or abs(fa) + abs(fb) > math.pi:
+                    continue                                # no data, or a jump of the wrapped phase
+                if fa == 0 or fa * fb < 0:
+                    lo_, hi = grid[i], grid[i] + math.radians(PHASE_SCAN_STEP)
+                    for _ in range(50):
+                        mid = (lo_ + hi) / 2
+                        fm = miss(mid, aim)[0]
+                        if not np.isfinite(fm):
+                            break
+                        if (fm < 0) == (fa < 0):
+                            lo_ = mid
+                        else:
+                            hi = mid
+                    root = (lo_ + hi) / 2
+                    out.append((root, fb > fa, miss(root, aim)[2]))
+            return out
+
+        def pick(found):
+            return max(found, key=lambda r: (r[1], r[2]))[0]
+
         line = cav["line"] + 1
-        if roots:
-            gains = [miss(r)[2] for r in roots]
-            best = roots[int(np.argmax(gains))]
-            if len(roots) > 1:
-                self.warn.add(f"Line {line}: {len(roots)} entry phases give the synchronous phase {cav['phase']:g}°; "
-                              "the preview uses the one with the largest energy gain.",
-                              f"第 {line} 行：有 {len(roots)} 个入口相位都给出同步相位 {cav['phase']:g}°，"
-                              "预览取能量增益最大的一个。")
-        else:
-            finite = np.isfinite(f)
-            if not finite.any():
-                return self._iterate(hf, ez_static, cavities)
-            i = int(np.nanargmin(np.where(finite, np.abs(f), np.nan)))
-            lo_, hi = grid[i] - math.radians(PHASE_SCAN_STEP), grid[i] + math.radians(PHASE_SCAN_STEP)
-            for _ in range(60):                             # golden-section search of |miss|
-                a = hi - (hi - lo_) / GOLDEN
-                b = lo_ + (hi - lo_) / GOLDEN
-                fa, fb = abs(miss(a)[0]), abs(miss(b)[0])
-                if not fb < fa:
-                    hi = b
-                else:
-                    lo_ = a
-            best = (lo_ + hi) / 2
-            reach = np.degrees(np.unwrap([m[1] for m, ok in zip(scan, finite) if ok]))
-            lo_s, hi_s = _wrap(float(reach.min())), _wrap(float(reach.max()))
-            got = miss(best)[1]
-            self.warn.add(f"Line {line}: at this energy no RF phase gives the synchronous phase {cav['phase']:g}° "
-                          f"(reachable about {lo_s:.0f}° … {hi_s:.0f}°); the preview uses the closest, "
-                          f"{math.degrees(got):.1f}°.",
-                          f"第 {line} 行：在此能量下，任何射频相位都给不出同步相位 {cav['phase']:g}°"
-                          f"（可达范围约 {lo_s:.0f}° … {hi_s:.0f}°）；预览取最接近的 {math.degrees(got):.1f}°。")
+        found = roots(target)
+        if found:
+            best = pick(found)
+            if len(found) > 1:
+                self.warn.add(f"Line {line}: {len(found)} entry phases give the synchronous phase {cav['phase']:g}°; "
+                              "the preview uses the one on a rising branch with the largest energy gain.",
+                              f"第 {line} 行：有 {len(found)} 个入口相位都给出同步相位 {cav['phase']:g}°，"
+                              "预览取上升分支上能量增益最大的一个。")
+            return self._iterate(hf, ez_static, cavities, {id(cav): best})
+        flipped = roots(target + math.pi)
+        if flipped:
+            best = pick(flipped)
+            result = self._iterate(hf, ez_static, cavities, {id(cav): best})
+            got = math.degrees(self._phase_s(cav) or 0.0)
+            self.warn.add(f"Line {line}: at this energy no RF phase gives an accelerating synchronous phase of "
+                          f"{cav['phase']:g}°; like the engine, the preview takes the solution 180° away "
+                          f"(φs = {got:.1f}°, which the engine's synData.txt writes as {cav['phase']:g}°): "
+                          "the cavity decelerates the beam.",
+                          f"第 {line} 行：在此能量下，任何射频相位都给不出加速的同步相位 {cav['phase']:g}°；"
+                          f"预览与内核一样取相差 180° 的解（φs = {got:.1f}°，内核 synData.txt 记为 {cav['phase']:g}°），"
+                          "这个腔使束流减速。")
+            return result
+        finite = np.isfinite(phis)
+        if not finite.any():
+            return self._iterate(hf, ez_static, cavities)
+        f = np.array([abs(m[0]) if np.isfinite(m[0]) else np.nan for m in scan])
+        i = int(np.nanargmin(f))
+        lo_, hi = grid[i] - math.radians(PHASE_SCAN_STEP), grid[i] + math.radians(PHASE_SCAN_STEP)
+        for _ in range(60):                                 # golden-section search of |miss|
+            a = hi - (hi - lo_) / GOLDEN
+            b = lo_ + (hi - lo_) / GOLDEN
+            fa, fb = abs(miss(a)[0]), abs(miss(b)[0])
+            if not fb < fa:
+                hi = b
+            else:
+                lo_ = a
+        best = (lo_ + hi) / 2
+        reach = np.degrees(np.unwrap(phis[finite]))
+        lo_s, hi_s = _wrap(float(reach.min())), _wrap(float(reach.max()))
+        got = miss(best)[1]
+        self.warn.add(f"Line {line}: at this energy no RF phase gives the synchronous phase {cav['phase']:g}° "
+                      f"or {_wrap(cav['phase'] + 180):g}° (reachable about {lo_s:.0f}° … {hi_s:.0f}°); the engine stops "
+                      f"with a \"scan phase\" error, the preview uses the closest, {math.degrees(got):.1f}°.",
+                      f"第 {line} 行：在此能量下，任何射频相位都给不出同步相位 {cav['phase']:g}° 或 "
+                      f"{_wrap(cav['phase'] + 180):g}°（可达范围约 {lo_s:.0f}° … {hi_s:.0f}°）；内核会报“scan phase”错误，"
+                      f"预览取最接近的 {math.degrees(got):.1f}°。")
         return self._iterate(hf, ez_static, cavities, {id(cav): best})
 
     def _reference(self, zb, hf, ez_static, cavities):
