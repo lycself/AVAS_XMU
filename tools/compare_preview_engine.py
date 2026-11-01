@@ -52,6 +52,7 @@ sys.path.insert(0, ROOT)
 
 from avas import paths  # noqa: E402
 from avas.data.dataset_stream import dataset_envelope  # noqa: E402
+from avas.post.analysis.run_diagnostics import read_dataset_array  # noqa: E402
 from avas.data.lattice_edit import set_keyword_value  # noqa: E402
 from avas.data.segment import SegmentError, read_syndata  # noqa: E402
 from avas.learn import tutorial  # noqa: E402
@@ -61,7 +62,10 @@ METRICS = [("x_end", "rms x end", "mm"), ("y_end", "rms y end", "mm"), ("z_end",
            ("x_max", "rms x max", "mm"), ("y_max", "rms y max", "mm"), ("z_max", "rms z max", "mm"),
            ("w_end", "energy end", "MeV"), ("gain", "energy gain", "MeV"),
            ("w_sync", "sync energy end", "MeV"), ("gain_sync", "sync energy gain", "MeV"),
-           ("phi0", "1st cavity entry phase", "deg"), ("phis", "1st cavity phi_s", "deg")]
+           ("phi0", "1st cavity entry phase", "deg"), ("phis", "1st cavity phi_s", "deg"),
+           ("ex_growth", "emittance x growth", "%"), ("ey_growth", "emittance y growth", "%"),
+           ("ez_growth", "emittance z growth", "%"), ("cx_max", "centroid x max", "mm"), ("cy_max", "centroid y max", "mm")]
+ENGINE_ONLY = ("ex_growth", "ey_growth", "ez_growth", "cx_max", "cy_max")   # the linear preview has no such numbers
 PHASES = ("phi0", "phis")
 OLD_REF = "63085a9~1"              # the linear preview before the solenoid-fringe and V3 = 0 fixes          # compared as differences in degrees, not in per cent
 V3_LATTICE = ("start\ndrift 0.05 0.02 0\nfield 0.21 0.02 0 1 162.5e6 -30 1.36 -1.36 hwr010\n"
@@ -200,6 +204,21 @@ def run_engine(input_dir, output_dir):
     return env
 
 
+def dataset_extras(path):
+    """Emittance growth (%) from the first to the last valid DataSet row and the largest centroid offsets (mm)."""
+    d = read_dataset_array(path)
+    valid = np.isfinite(d[:, 13:16]).all(axis=1) & (d[:, 28] > 0)
+    if not valid.any():
+        return {}
+    first, last = np.flatnonzero(valid)[[0, -1]]
+    out = {}
+    for key, col in (("ex_growth", 13), ("ey_growth", 14), ("ez_growth", 15)):
+        out[key] = (d[last, col] / d[first, col] - 1) * 100 if d[first, col] else np.nan
+    out["cx_max"] = float(np.nanmax(np.abs(d[:, 1] + d[:, 29]))) * 1e3
+    out["cy_max"] = float(np.nanmax(np.abs(d[:, 3] + d[:, 31]))) * 1e3
+    return out
+
+
 # --------------------------------------------------------------------------- report
 def _fmt(v, digits=4):
     return "" if v is None or not np.isfinite(v) else f"{v:.{digits}g}"
@@ -219,9 +238,15 @@ def _diff(key, a, b):
     return _rel(a, b)
 
 
-def compare_case(name, build, desc, old, repeat, use_engine, work):
+def compare_case(name, build, desc, old, repeat, use_engine, work, particles=None):
     print(f"\n=== {name}: {desc}")
     input_dir = build()
+    if particles:
+        path = os.path.join(input_dir, "beam.txt")
+        with open(path) as fh:
+            text = fh.read()
+        with open(path, "w", newline="\n") as fh:
+            fh.write(set_keyword_value(text, "particlenumber", int(particles)))
     beam = new_lo.read_beam(input_dir)
     w_in, mass = float(beam["energy"]), float(beam["mass"])
     curves, syncs = {}, {}
@@ -243,6 +268,7 @@ def compare_case(name, build, desc, old, repeat, use_engine, work):
                 notes.append(f"engine: {exc}")
                 break
             env["sync"] = engine_sync(out, mass)
+            env["extra"] = dataset_extras(os.path.join(out, "DataSet.txt"))
             print(f"  engine run {k + 1}/{repeat}: {env['seconds']:.0f} s, {int(env['rows'])} rows, "
                   f"transmission {env['alive'][-1] / env['alive'][0] * 100:.1f} %")
             runs.append(env)
@@ -251,7 +277,8 @@ def compare_case(name, build, desc, old, repeat, use_engine, work):
     z_end = min([float(c[0][-1]) for c in curves.values()] + [float(e["z"][-1]) for e in runs])
     values = {label: _metrics(*c, z_end, w_in, syncs[label]) for label, c in curves.items()}
     if runs:
-        per_run = [_metrics(e["z"], e["rmsX"], e["rmsY"], e["rmsZ"], e["energy"], z_end, w_in, e["sync"]) for e in runs]
+        per_run = [dict(_metrics(e["z"], e["rmsX"], e["rmsY"], e["rmsZ"], e["energy"], z_end, w_in, e["sync"]),
+                        **{k: e["extra"].get(k, np.nan) for k in ENGINE_ONLY}) for e in runs]
         values["engine"] = {k: float(np.mean([m[k] for m in per_run])) for k in per_run[0]}
         values["engine spread"] = {k: float(np.max([m[k] for m in per_run]) - np.min([m[k] for m in per_run]))
                                    for k in per_run[0]}
@@ -319,6 +346,8 @@ def main(argv=None):
     ap.add_argument("--work", help="work folder (default: a new temporary folder)")
     ap.add_argument("--cases", help="comma-separated subset: example,periods,periods-new,v3-0.4,...")
     ap.add_argument("--no-engine", action="store_true", help="compare the two previews only")
+    ap.add_argument("--particles", type=int, help="macro-particles of every engine run (default: as in each case; "
+                                                  "the tutorial cases use 2000, the example 5260)")
     args = ap.parse_args(argv)
 
     work = os.path.abspath(args.work) if args.work else tempfile.mkdtemp(prefix="avas_preview_compare_")
@@ -326,7 +355,8 @@ def main(argv=None):
     old, old_desc = load_old_preview(args.old_ref, work)
     head = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
     header = [f"work folder: {work}", f"old preview: {old_desc}", f"new preview: checked-out code ({head or 'unknown'})",
-              f"engine runs per case: {0 if args.no_engine else args.repeat}",
+              f"engine runs per case: {0 if args.no_engine else args.repeat}"
+              + (f", {args.particles} macro-particles each" if args.particles else ""),
               "energy = DataSet mean of all macro-particles (previews: reference particle); sync energy and phases = "
               "engine synData.txt (synchronous particle); phase rows compare in degrees (phi_s modulo 180: the engine writes the requested phi_s also for the decelerating solution), the others in per cent"]
     use_engine = not args.no_engine
@@ -345,7 +375,7 @@ def main(argv=None):
     all_rows, notes = [], {"_failed": []}
     for name, build, desc in cases:
         try:
-            rows, case_notes = compare_case(name, build, desc, old, max(1, args.repeat), use_engine, work)
+            rows, case_notes = compare_case(name, build, desc, old, max(1, args.repeat), use_engine, work, args.particles)
             all_rows += rows
             notes[name] = case_notes
         except Exception as exc:  # noqa: BLE001 - one failing case must not stop the others
