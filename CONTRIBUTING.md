@@ -77,7 +77,7 @@ pytest
 
 ### 线性预览与内核对比
 
-`tools/compare_preview_engine.py` 用真实内核检查线性包络预览：在临时文件夹里复制示例项目、引导教程的多周期束线（`sol` + HWR）和低能 V3 = 0 腔，运行内核，并与**旧**预览（`main` 上的 `avas/sim/linear_optics.py`，作为独立模块载入，不用切换分支）和**新**预览（当前检出的代码）比较末端与最大 rms x / y / z 及末端能量。示例项目和用户项目都不会被改动。需要能运行内核的 Windows 机器（Mac 只能用 `--no-engine` 比较两个预览）。
+`tools/compare_preview_engine.py` 用真实内核检查线性包络预览：在临时文件夹里复制示例项目、引导教程的多周期束线（`sol` + HWR，第 3 步参数 `periods` 与第 4 步默认值 `periods-new` 各一条）和若干低能 V3 = 0 腔，运行内核，并与**旧**预览（修复前的 `avas/sim/linear_optics.py`，默认取提交 `63085a9~1`，作为独立模块载入，不用切换分支）和**新**预览（当前检出的代码）比较末端与最大 rms x / y / z、DataSet 的平均能量，以及 synData.txt 中同步粒子的能量、第一个腔的入口相位和同步相位（相位比较的是度数差）。示例项目和用户项目都不会被改动。需要能运行内核的 Windows 机器（Mac 只能用 `--no-engine` 比较两个预览）。
 
 在 Windows 的仓库目录里（PowerShell 或 cmd）：
 
@@ -86,14 +86,14 @@ git fetch origin
 ```
 
 ```bash
-git switch claude/mystifying-neumann-4bb3f2
+git switch claude/preview-followups
 ```
 
 ```bash
 .venv\Scripts\python.exe tools\compare_preview_engine.py --repeat 3
 ```
 
-本机没有 `main` 分支时自动改用 `origin/main`；也可以用 `--old-ref <提交>` 指定旧版本。`--repeat N` 每个算例运行内核 N 次并给出差值范围（内核多线程，结果略有差别）；`--cases example,periods` 只跑部分算例，`--periods 8`、`--energies 0.5,0.3,1.0` 改算例参数，`--work 文件夹` 指定输出位置。表格打印在终端，同时写成工作文件夹里的 `comparison.md` 和 `comparison.csv`（每次内核运行的日志在 `OutputFile_<n>.log`）。内核无法载入时会说明原因并只比较两个预览；某个算例失败不影响其他算例，退出码为 1。这个脚本不在 `tests/` 里，快速 pytest 不会运行它。
+（分支合并后改用 `git switch main` 和 `git pull`。）`--old-ref <提交>` 指定别的旧版本。`--repeat N` 每个算例运行内核 N 次并给出差值范围（内核多线程，结果略有差别）；`--cases example,periods-new` 只跑部分算例，`--periods 8`、`--energies 0.3,0.4,0.6,0.7,1.0,1.1`（默认值，覆盖预览判定无解的 0.2–0.3、0.7–1.0 MeV 两段的边界）改算例参数，`--work 文件夹` 指定输出位置。表格打印在终端，同时写成工作文件夹里的 `comparison.md` 和 `comparison.csv`（每次内核运行的日志在 `OutputFile_<n>.log`）。内核无法载入时会说明原因并只比较两个预览；某次内核运行失败（例如 V3 = 0 无解时的 scan phase 错误）时照样列出两个预览的结果和预览的警告；算例本身出错不影响其他算例，退出码为 1。这个脚本不在 `tests/` 里，快速 pytest 不会运行它。
 
 ---
 
@@ -207,7 +207,7 @@ touches it. More conventions (environment, common commands, the pre-change check
 
 ### Linear preview against the engine
 
-`tools/compare_preview_engine.py` checks the linear envelope preview with the real engine: in a temporary folder it copies the example project, the primer tutorial's multi-period line (`sol` + HWR) and a low-energy V3 = 0 cavity, runs the engine and compares the final and maximum rms x / y / z and the final energy with the **old** preview (`avas/sim/linear_optics.py` of `main`, loaded as a separate module, no branch switch needed) and the **new** one (the checked-out code). Neither the example project nor any user project is touched. It needs a Windows machine where the engine runs (elsewhere `--no-engine` compares the two previews only).
+`tools/compare_preview_engine.py` checks the linear envelope preview with the real engine: in a temporary folder it copies the example project, the primer tutorial's multi-period line (`sol` + HWR, once with the step-3 settings as `periods` and once with the step-4 defaults as `periods-new`) and several low-energy V3 = 0 cavities, runs the engine and compares the final and maximum rms x / y / z, the DataSet mean energy, and the synchronous particle's energy, entry phase and synchronous phase of the first cavity from synData.txt (phases as differences in degrees) with the **old** preview (`avas/sim/linear_optics.py` before the fixes, by default commit `63085a9~1`, loaded as a separate module, no branch switch needed) and the **new** one (the checked-out code). Neither the example project nor any user project is touched. It needs a Windows machine where the engine runs (elsewhere `--no-engine` compares the two previews only).
 
 In the repository folder on Windows (PowerShell or cmd):
 
@@ -216,11 +216,11 @@ git fetch origin
 ```
 
 ```bash
-git switch claude/mystifying-neumann-4bb3f2
+git switch claude/preview-followups
 ```
 
 ```bash
 .venv\Scripts\python.exe tools\compare_preview_engine.py --repeat 3
 ```
 
-Without a local `main` branch it uses `origin/main`; `--old-ref <revision>` picks another old version. `--repeat N` runs the engine N times per case and shows the spread (the engine is multi-threaded and varies a little); `--cases example,periods` runs a subset, `--periods 8` and `--energies 0.5,0.3,1.0` change the cases, `--work DIR` sets the output folder. The table is printed and also written as `comparison.md` and `comparison.csv` in the work folder (each engine run's log is `OutputFile_<n>.log`). If the engine cannot be loaded the script says why and compares the previews only; a failing case does not stop the others and makes the exit code 1. The script is not under `tests/`, so the fast pytest run does not collect it.
+(Once the branch is merged, use `git switch main` and `git pull` instead.) `--old-ref <revision>` picks another old version. `--repeat N` runs the engine N times per case and shows the spread (the engine is multi-threaded and varies a little); `--cases example,periods-new` runs a subset, `--periods 8` and `--energies 0.3,0.4,0.6,0.7,1.0,1.1` (the default: both edges of the 0.2–0.3 and 0.7–1.0 MeV bands where the preview finds no solution) change the cases, `--work DIR` sets the output folder. The table is printed and also written as `comparison.md` and `comparison.csv` in the work folder (each engine run's log is `OutputFile_<n>.log`). If the engine cannot be loaded the script says why and compares the previews only; when an engine run fails (for example the scan-phase error of an unsolvable V3 = 0 phase) the two previews and the preview's warnings are still listed; a case that breaks does not stop the others and makes the exit code 1. The script is not under `tests/`, so the fast pytest run does not collect it.

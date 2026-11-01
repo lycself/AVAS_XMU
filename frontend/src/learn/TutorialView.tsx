@@ -129,8 +129,11 @@ export function TutorialView() {
   const setParam = (k: string, v: number) => setValues((s) => ({ ...s, [step.id]: { ...s[step.id], [k]: v } }));
   const goto = (i: number) => {
     const next = steps[i];
-    // carry the settings the reader already chose into the next step
-    setValues((s) => ({ ...s, [next.id]: { ...defaults(next, { ...s[step.id] }), ...(i > active ? {} : s[next.id]) } }));
+    // carry the settings the reader changed into the next step; untouched ones take the next step's own
+    // defaults (steps 4 and 5 start from gentler Kb / Ke than step 3)
+    const own = defaults(step);
+    const changed = Object.fromEntries(Object.entries(values[step.id] ?? {}).filter(([k, v]) => v !== own[k]));
+    setValues((s) => ({ ...s, [next.id]: { ...defaults(next, changed), ...(i > active ? {} : s[next.id]) } }));
     setActive(i);
   };
   const running = run.status === "running";

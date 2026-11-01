@@ -325,7 +325,7 @@ Linear preview: final energy about $2.89\ \mathrm{MeV}$, largest rms size about 
 - **Steerers and diagnostics**: reserve places in the period for `steerer` (zero length, acting on the next element) and `diag_position` / `diag_size` / `diag_energy`, used by error correction (see [errors and correction](#errors)).
 - **No matrix elements at the ends**: in multi-particle simulations avoid `quad`, `solenoid` and other matrix elements as the first and last element; add a short `drift`.
 - **Output planes**: `outputplane V1` writes the particle distribution V1 metres downstream (or upstream) of its position; it must not lie beyond the end of the lattice, 5 mm from the end fails, 2 cm or more works (see [simulation settings and output](#simulation)).
-- **Linear preview first**: while you drag parameters in the visual editor the linear envelope updates at once (energy to about 0.01 %, rms usually to 1–2 %); once it looks reasonable, run the multi-particle engine.
+- **Linear preview first**: while you drag parameters in the visual editor the linear envelope updates at once (reference-particle energy to about 0.01 %, rms usually to 1–2 %; the engine's mean energy feels the off-axis field and can differ by a few per cent of the gain); once it looks reasonable, run the multi-particle engine.
 - **Aperture and losses**: the second parameter `R` (m) of every element is its aperture radius, which the engine uses to decide particle losses (with `boundary 1` in `input.txt`, `boundary.txt` is used instead). The linear preview warns "expect losses" where $3\times$ rms exceeds the aperture.
 
 The step-by-step construction is in the [hands-on tutorial](#tutorial).

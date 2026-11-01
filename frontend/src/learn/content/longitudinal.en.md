@@ -400,7 +400,7 @@ Example: put a 0.1 m drift before the example cavity. The reference particle rea
 
 ### Longitudinal model of the linear preview
 
-The linear preview integrates the reference particle's energy and time along the axis in 1 mm steps, solves iteratively for the entrance phase of V3 = 0 cavities (when the iteration does not converge it scans the entrance phase and bisects; when the requested synchronous phase cannot be reached it warns and takes the closest one), and pushes the second moments with the linear bunching in $(z, \delta)$ and the damping from the momentum gain. It contains no longitudinal non-linearity and so cannot show the growth of the longitudinal emittance in low-energy cavities; the energy is accurate to about 0.01 %, rms sizes typically to 1–2 %. See [Multi-particle simulation](#simulation).
+The linear preview integrates the reference particle's energy and time along the axis in 1 mm steps, solves iteratively for the entrance phase of V3 = 0 cavities (when the iteration does not converge it scans the entrance phase and bisects; when the requested synchronous phase cannot be reached it warns and takes the closest one), and pushes the second moments with the linear bunching in $(z, \delta)$ and the damping from the momentum gain. It contains no longitudinal non-linearity and so cannot show the growth of the longitudinal emittance in low-energy cavities; the reference energy is accurate to about 0.01 % (compared with the engine's synchronous particle; the energy in the engine's DataSet is the mean of all macro-particles, which see a different $E_z$ off axis: in the example HWR the mean gain is about 5 % above the reference particle's), rms sizes typically to 1–2 %. See [Multi-particle simulation](#simulation).
 
 ### Common problems
 

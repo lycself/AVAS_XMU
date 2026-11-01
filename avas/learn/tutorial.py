@@ -39,19 +39,39 @@ _P = {
 
 
 class Step:
-    def __init__(self, id_, title, params):
+    """A tutorial step; *defaults* overrides the defaults of :data:`_P` for this step."""
+
+    def __init__(self, id_, title, params, defaults=None):
         self.id, self.title, self.params = id_, title, params
+        self.defaults = defaults or {}
+
+    def default(self, key):
+        return self.defaults.get(key, _P[key].default)
 
     def public(self):
-        return {"id": self.id, "title": list(self.title), "params": [_P[k].public() for k in self.params]}
+        params = []
+        for k in self.params:
+            p = _P[k].public()
+            p["default"] = self.default(k)
+            params.append(p)
+        return {"id": self.id, "title": list(self.title), "params": params}
+
+
+# Steps 4 and 5 repeat "solenoid + cavity": with the single-cavity settings of step 3 (Kb 0.35, Ke 1.36)
+# the first period has a longitudinal phase advance of about 128° (transverse about 90°), above the 90° rule,
+# and the engine loses particles from the bucket on long lines.  Kb 0.30 / Ke 0.8 keeps every period below
+# 90° in both planes (first period about 75° / 86°) without bringing the two close together.
+PERIOD_DEFAULTS = {"Kb": 0.30, "Ke": 0.8}
 
 
 STEPS = [
     Step("drift", ("1 · A beam in a drift", "1 · 漂移段中的束流"), ["L", "particles"]),
     Step("focus", ("2 · Focusing with a solenoid", "2 · 用螺线管聚焦"), ["Kb", "gap", "particles"]),
     Step("accelerate", ("3 · Accelerating in a cavity", "3 · 在腔中加速"), ["Kb", "phase", "Ke", "particles"]),
-    Step("periods", ("4 · A periodic accelerating section", "4 · 周期性加速段"), ["periods", "Kb", "phase", "Ke", "particles"]),
-    Step("current", ("5 · Adding beam current", "5 · 加入束流流强"), ["periods", "Kb", "phase", "Ke", "I", "particles"]),
+    Step("periods", ("4 · A periodic accelerating section", "4 · 周期性加速段"), ["periods", "Kb", "phase", "Ke", "particles"],
+         PERIOD_DEFAULTS),
+    Step("current", ("5 · Adding beam current", "5 · 加入束流流强"), ["periods", "Kb", "phase", "Ke", "I", "particles"],
+         PERIOD_DEFAULTS),
 ]
 STEP_BY_ID = {s.id: s for s in STEPS}
 
@@ -77,7 +97,7 @@ def values(step_id, params=None):
     for key in step.params:
         p = _P[key]
         try:
-            v = float(params.get(key, p.default))
+            v = float(params.get(key, step.default(key)))
         except (TypeError, ValueError):
             raise LabError(f"{p.label[0]}: not a number") from None
         v = min(max(v, p.min), p.max)

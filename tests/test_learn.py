@@ -305,6 +305,38 @@ def test_tutorial_steps_grow_the_line():
     assert tutorial.lattice("periods", {"periods": 4}).count("hwr010") == 4
 
 
+def test_tutorial_periodic_steps_have_their_own_gentler_defaults():
+    defs = {s["id"]: {p["key"]: p["default"] for p in s["params"]} for s in tutorial.definitions()}
+    assert defs["accelerate"]["Kb"] == 0.35 and defs["accelerate"]["Ke"] == 1.36
+    for step in ("periods", "current"):
+        assert defs[step]["Kb"] == tutorial.PERIOD_DEFAULTS["Kb"] and defs[step]["Ke"] == tutorial.PERIOD_DEFAULTS["Ke"]
+        _step, v = tutorial.values(step)
+        assert (v["Kb"], v["Ke"]) == (0.30, 0.8)
+    assert tutorial.values("periods", {"Kb": 0.4})[1]["Kb"] == 0.4          # the reader's value still wins
+
+
+@needs_example
+@pytest.mark.parametrize("settings,below_90", [({}, True), ({"Kb": 0.35, "Ke": 1.36}, False)])
+def test_tutorial_default_period_keeps_the_longitudinal_phase_advance_below_90_degrees(settings, below_90):
+    # with the single-cavity settings of step 3 the first period has about 128 deg longitudinally and the
+    # engine loses particles from the bucket on an 8-period line (Windows, 2026-11-02)
+    from avas.sim import linear_optics as lo
+    text = tutorial.lattice("periods", dict(settings, periods=1))
+    _doc, tracker, _warn = lo._track(text, tutorial.preview_beam("periods"), [paths.example_input_dir()])
+    steps = tracker.arrays()
+    period = (steps["z"] > 0.05 + 1e-9) & (steps["z"] <= 0.81 + 1e-9)       # sol entry to the next period's entry
+    m = np.eye(6)
+    for step in steps["mats"][period]:
+        m = step @ m
+    mz = m[4:6, 4:6]
+    cos_mu = np.trace(mz) / 2 / np.sqrt(abs(np.linalg.det(mz)))
+    assert (0 < cos_mu < 1) == below_90                                    # 0 < sigma_l < 90 deg
+    # transversely stable: all eigenvalues on the unit circle once the momentum gain is divided out
+    gain = lo._kin(float(np.interp(0.81, steps["z"], steps["w"])), tracker.mass)[3] / lo._kin(tutorial.preview_beam("periods")["energy"], tracker.mass)[3]
+    moduli = np.abs(np.linalg.eigvals(np.diag([1, gain, 1, gain]) @ m[:4, :4]))
+    assert np.allclose(moduli, 1, atol=2e-3)
+
+
 @needs_example
 def test_tutorial_beam_sets_current_and_particles():
     text = tutorial.beam_text("current", {"I": 7.5, "particles": 1500})

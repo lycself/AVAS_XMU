@@ -5,27 +5,36 @@ Run from the repository root, on a machine where the engine runs (Windows):
     .venv\\Scripts\\python.exe tools\\compare_preview_engine.py [--repeat 3] [--work DIR]
 
 "Old" is ``avas/sim/linear_optics.py`` of another Git revision (``--old-ref``, default
-``main``, else ``origin/main``), loaded as a separate module; "new" is the checked-out
-code.  Every case runs on copies in a temporary work folder; the example project and the
+``63085a9~1``: the last version before the 2026-11-02 preview fixes), loaded as a separate
+module; "new" is the checked-out code.  Every case runs on copies in a temporary work folder; the example project and the
 user's projects are never touched.  Cases:
 
 * ``example``   – ``examples/hwr010`` as it is (one HWR cavity): nothing may get worse.
-* ``periods``   – the primer tutorial's ``periods`` step (``--periods`` × "sol + HWR"),
-                  where the solenoid-fringe fix matters most.
+* ``periods``   – the primer tutorial's ``periods`` step (``--periods`` × "sol + HWR") with the
+                  settings of step 3 (Kb 0.35, Ke 1.36), where the solenoid-fringe fix matters
+                  most; the first period's longitudinal phase advance is about 128°.
+* ``periods-new`` – the same line with the step's own defaults (Kb 0.30, Ke 0.8): every
+                  period below 90° transversely and longitudinally.
 * ``v3-<W>``    – one HWR at φs = −30° (V3 = 0), Ke = 1.36, beam energy W MeV
-                  (``--energies``); compare the energy gain mainly.  At 0.3 and 1.0 MeV
-                  no entry phase gives −30°; the new preview warns and takes the closest φs.
+                  (``--energies``); compare the energy gain mainly.  The preview finds no entry
+                  phase giving −30° at 0.2–0.3 and 0.7–1.0 MeV (it warns and takes the closest φs);
+                  the engine then stops with "scan phase fails to find the RF phase".  The
+                  preview's numbers are reported even when the engine fails.
 
 For each case the table gives final and maximum rms x / y / z (mm) and the final energy
 (MeV) of the engine (mean and spread over ``--repeat`` runs: the engine is multi-threaded
 and varies a little), the old and the new preview, and each preview's relative difference
 to the engine.  "Final" is taken at the last z both the engine and the preview reach.
+"energy" is DataSet column 0, the mean of all macro-particles; "sync energy" and the phases
+of the first cavity come from the engine's synData.txt (synchronous particle) and, for the
+previews, from their on-axis reference particle.  Phase rows give differences in degrees.
 The table is printed and written as ``comparison.md`` / ``comparison.csv`` in the work folder.
 ``--no-engine`` compares the two previews only (works on any machine).
 """
 import argparse
 import csv
 import importlib.util
+import math
 import os
 import shutil
 import subprocess
@@ -42,20 +51,25 @@ sys.path.insert(0, ROOT)
 from avas import paths  # noqa: E402
 from avas.data.dataset_stream import dataset_envelope  # noqa: E402
 from avas.data.lattice_edit import set_keyword_value  # noqa: E402
+from avas.data.segment import SegmentError, read_syndata  # noqa: E402
 from avas.learn import tutorial  # noqa: E402
 from avas.sim import linear_optics as new_lo  # noqa: E402
 
 METRICS = [("x_end", "rms x end", "mm"), ("y_end", "rms y end", "mm"), ("z_end", "rms z end", "mm"),
            ("x_max", "rms x max", "mm"), ("y_max", "rms y max", "mm"), ("z_max", "rms z max", "mm"),
-           ("w_end", "energy end", "MeV"), ("gain", "energy gain", "MeV")]
+           ("w_end", "energy end", "MeV"), ("gain", "energy gain", "MeV"),
+           ("w_sync", "sync energy end", "MeV"), ("gain_sync", "sync energy gain", "MeV"),
+           ("phi0", "1st cavity entry phase", "deg"), ("phis", "1st cavity phi_s", "deg")]
+PHASES = ("phi0", "phis")
+OLD_REF = "63085a9~1"              # the linear preview before the solenoid-fringe and V3 = 0 fixes          # compared as differences in degrees, not in per cent
 V3_LATTICE = ("start\ndrift 0.05 0.02 0\nfield 0.21 0.02 0 1 162.5e6 -30 1.36 -1.36 hwr010\n"
               "drift 0.2 0.02 0\nend\n")
 
 
 # --------------------------------------------------------------------------- old preview
 def load_old_preview(ref, work):
-    """``(module, description)`` of ``avas/sim/linear_optics.py`` at Git revision *ref* (or main / origin/main)."""
-    refs = [ref] if ref else ["main", "origin/main"]
+    """``(module, description)`` of ``avas/sim/linear_optics.py`` at Git revision *ref*."""
+    refs = [ref or OLD_REF]
     for r in refs:
         try:
             sha = subprocess.run(["git", "rev-parse", "--short", r], cwd=ROOT, capture_output=True, text=True,
@@ -73,7 +87,7 @@ def load_old_preview(ref, work):
         with open(new_lo.__file__, "rb") as fh:
             same = fh.read().replace(b"\r\n", b"\n") == text.replace(b"\r\n", b"\n")
         return module, f"{r} ({sha})" + (" – identical to the checked-out code!" if same else "")
-    raise SystemExit("Cannot read avas/sim/linear_optics.py from main or origin/main (git fetch first, or pass --old-ref).")
+    raise SystemExit(f"Cannot read avas/sim/linear_optics.py at {refs[0]} (git fetch first, or pass --old-ref).")
 
 
 # --------------------------------------------------------------------------- cases
@@ -89,9 +103,11 @@ def make_cases(work, periods, energies):
     def example():
         return _copy_example(os.path.join(work, "example"))
 
-    def tutorial_periods():
-        folder = tutorial.export(os.path.join(work, "periods"), "periods", {"periods": periods})
-        return os.path.join(folder, "InputFile")
+    def tutorial_periods(name, settings):
+        def build():
+            folder = tutorial.export(os.path.join(work, name), "periods", dict(settings, periods=periods))
+            return os.path.join(folder, "InputFile")
+        return build
 
     def v3(energy):
         def build():
@@ -111,16 +127,22 @@ def make_cases(work, periods, energies):
         return build
 
     cases = [("example", example, "examples/hwr010 as it is (HWR cavity, phi_s = -33 deg)"),
-             ("periods", tutorial_periods, f"primer tutorial 'periods' step, {periods} x (sol + HWR)")]
+             ("periods", tutorial_periods("periods", {"Kb": 0.35, "Ke": 1.36}),
+              f"primer tutorial 'periods' step, {periods} x (sol + HWR), step-3 settings Kb 0.35 / Ke 1.36"),
+             ("periods-new", tutorial_periods("periods-new", {}),
+              f"primer tutorial 'periods' step, {periods} x (sol + HWR), its defaults Kb 0.30 / Ke 0.8")]
     cases += [(f"v3-{e:g}", v3(e), f"HWR at V3 = 0, phi_s = -30 deg, Ke = 1.36, W = {e:g} MeV") for e in energies]
     return cases
 
 
 # --------------------------------------------------------------------------- metrics
-def _metrics(z, x, y, rz, w, z_end, w_in):
+def _metrics(z, x, y, rz, w, z_end, w_in, sync=None):
+    """The table's quantities; *sync* = ``(w_sync_end, phi0, phis)`` of the synchronous / reference particle."""
     z, x, y, rz, w = (np.asarray(a, dtype=float) for a in (z, x, y, rz, w))
     inside = z <= z_end + 1e-9
+    w_sync, phi0, phis = sync or (np.nan, np.nan, np.nan)
     return {
+        "w_sync": w_sync, "gain_sync": w_sync - w_in, "phi0": phi0, "phis": phis,
         "x_end": float(np.interp(z_end, z, x)), "y_end": float(np.interp(z_end, z, y)),
         "z_end": float(np.interp(z_end, z, rz)),
         "x_max": float(np.nanmax(x[inside])), "y_max": float(np.nanmax(y[inside])), "z_max": float(np.nanmax(rz[inside])),
@@ -129,12 +151,27 @@ def _metrics(z, x, y, rz, w, z_end, w_in):
 
 
 def preview(module, input_dir):
-    """The preview of *module* on the case's input: ``(curves, warnings)``."""
+    """The preview of *module* on the case's input: ``(curves, sync, warnings)``."""
     with open(paths.lattice_source_path(input_dir), encoding="utf-8", errors="replace") as fh:
         text = fh.read()
     res = module.linear_preview(text, module.read_beam(input_dir), [input_dir])
     curves = (res["z"], res["rms_x"], res["rms_y"], res["rms_z"], res["energy"])
-    return curves, [en for en, _zh in res["warnings"]]
+    cav = next((e for e in res["elements"] if e.get("phase_rf") is not None), None)
+    sync = (float(res["energy"][-1]), cav["phase_rf"] if cav else np.nan,
+            cav["phase_s"] if cav and cav["phase_s"] is not None else np.nan)
+    return curves, sync, [en for en, _zh in res["warnings"]]
+
+
+def engine_sync(output_dir, mass):
+    """``(w_end, phi0, phis)`` of the engine's synchronous particle from synData.txt (NaN when missing)."""
+    try:
+        rows = read_syndata(os.path.join(output_dir, "synData.txt"))
+    except (OSError, SegmentError):
+        return np.nan, np.nan, np.nan
+    last = next((r for r in rows if r["name"].lower() == "exitplane"), rows[-1])
+    cav = next((r for r in rows if r["phis"] is not None), None)
+    w_end = mass * (math.sqrt(1.0 + last["gb"] ** 2) - 1.0)
+    return w_end, (cav["phirf"] if cav and cav["phirf"] is not None else np.nan), (cav["phis"] if cav else np.nan)
 
 
 def engine_available():
@@ -170,15 +207,23 @@ def _rel(a, b):
     return (a - b) / b * 100 if b and np.isfinite(a) and np.isfinite(b) else float("nan")
 
 
+def _diff(key, a, b):
+    """% difference, or for phases the difference in degrees (wrapped to ±180°)."""
+    if key in PHASES:
+        return (a - b + 180.0) % 360.0 - 180.0 if np.isfinite(a) and np.isfinite(b) else float("nan")
+    return _rel(a, b)
+
+
 def compare_case(name, build, desc, old, repeat, use_engine, work):
     print(f"\n=== {name}: {desc}")
     input_dir = build()
-    w_in = float(new_lo.read_beam(input_dir)["energy"])
-    curves = {}
+    beam = new_lo.read_beam(input_dir)
+    w_in, mass = float(beam["energy"]), float(beam["mass"])
+    curves, syncs = {}, {}
     notes = []
     for label, module in (("old preview", old), ("new preview", new_lo)):
         try:
-            curves[label], warns = preview(module, input_dir)
+            curves[label], syncs[label], warns = preview(module, input_dir)
             notes += [f"{label}: {w}" for w in warns]
         except Exception as exc:  # noqa: BLE001 - reported, the other source still runs
             notes.append(f"{label} failed: {exc}")
@@ -186,14 +231,22 @@ def compare_case(name, build, desc, old, repeat, use_engine, work):
     if use_engine:
         for k in range(repeat):
             out = os.path.join(os.path.dirname(input_dir), f"OutputFile_{k + 1}")
-            env = run_engine(input_dir, out)
+            try:
+                env = run_engine(input_dir, out)
+            except RuntimeError as exc:        # the previews are still reported
+                print(f"  engine run {k + 1}/{repeat}: {exc}")
+                notes.append(f"engine: {exc}")
+                break
+            env["sync"] = engine_sync(out, mass)
             print(f"  engine run {k + 1}/{repeat}: {env['seconds']:.0f} s, {int(env['rows'])} rows, "
                   f"transmission {env['alive'][-1] / env['alive'][0] * 100:.1f} %")
             runs.append(env)
+    if not curves and not runs:
+        raise RuntimeError("; ".join(notes) or "nothing to compare")
     z_end = min([float(c[0][-1]) for c in curves.values()] + [float(e["z"][-1]) for e in runs])
-    values = {label: _metrics(*c, z_end, w_in) for label, c in curves.items()}
+    values = {label: _metrics(*c, z_end, w_in, syncs[label]) for label, c in curves.items()}
     if runs:
-        per_run = [_metrics(e["z"], e["rmsX"], e["rmsY"], e["rmsZ"], e["energy"], z_end, w_in) for e in runs]
+        per_run = [_metrics(e["z"], e["rmsX"], e["rmsY"], e["rmsZ"], e["energy"], z_end, w_in, e["sync"]) for e in runs]
         values["engine"] = {k: float(np.mean([m[k] for m in per_run])) for k in per_run[0]}
         values["engine spread"] = {k: float(np.max([m[k] for m in per_run]) - np.min([m[k] for m in per_run]))
                                    for k in per_run[0]}
@@ -203,8 +256,8 @@ def compare_case(name, build, desc, old, repeat, use_engine, work):
         for src in ("engine", "engine spread", "old preview", "new preview"):
             row[src] = values.get(src, {}).get(key, float("nan"))
         for src in ("old preview", "new preview"):
-            row[f"{src} vs engine %"] = _rel(row[src], row["engine"])
-        row["new vs old %"] = _rel(row["new preview"], row["old preview"])
+            row[f"{src} vs engine %"] = _diff(key, row[src], row["engine"])
+        row["new vs old %"] = _diff(key, row["new preview"], row["old preview"])
         rows.append(row)
     _print_rows(rows)
     for n in notes:
@@ -217,7 +270,7 @@ COLUMNS = ["quantity", "engine", "engine spread", "old preview", "new preview", 
 
 
 def _print_rows(rows):
-    widths = [20, 10, 15, 13, 13, 25, 25, 13]
+    widths = [30, 10, 15, 13, 13, 25, 25, 13]
     print("  " + "".join(c.ljust(w) for c, w in zip(COLUMNS, widths)))
     for r in rows:
         cells = [r["quantity"]] + [_fmt(r[c]) if "%" not in c else _fmt(r[c], 3) for c in COLUMNS[1:]]
@@ -254,10 +307,12 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--repeat", type=int, default=1, help="engine runs per case (default 1)")
     ap.add_argument("--periods", type=int, default=8, help="periods of the tutorial case (default 8)")
-    ap.add_argument("--energies", default="0.5,0.3,1.0", help="beam energies of the V3 = 0 cases, MeV (default 0.5,0.3,1.0)")
-    ap.add_argument("--old-ref", help="Git revision of the old preview (default main, else origin/main)")
+    ap.add_argument("--energies", default="0.3,0.4,0.6,0.7,1.0,1.1",
+                    help="beam energies of the V3 = 0 cases, MeV (default 0.3,0.4,0.6,0.7,1.0,1.1: both edges of the "
+                         "0.2–0.3 and 0.7–1.0 MeV bands where the preview finds no solution)")
+    ap.add_argument("--old-ref", help=f"Git revision of the old preview (default {OLD_REF}, before the preview fixes)")
     ap.add_argument("--work", help="work folder (default: a new temporary folder)")
-    ap.add_argument("--cases", help="comma-separated subset: example,periods,v3-0.5,...")
+    ap.add_argument("--cases", help="comma-separated subset: example,periods,periods-new,v3-0.4,...")
     ap.add_argument("--no-engine", action="store_true", help="compare the two previews only")
     args = ap.parse_args(argv)
 
@@ -266,7 +321,9 @@ def main(argv=None):
     old, old_desc = load_old_preview(args.old_ref, work)
     head = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
     header = [f"work folder: {work}", f"old preview: {old_desc}", f"new preview: checked-out code ({head or 'unknown'})",
-              f"engine runs per case: {0 if args.no_engine else args.repeat}"]
+              f"engine runs per case: {0 if args.no_engine else args.repeat}",
+              "energy = DataSet mean of all macro-particles (previews: reference particle); sync energy and phases = "
+              "engine synData.txt (synchronous particle); phase rows compare in degrees, the others in per cent"]
     use_engine = not args.no_engine
     if use_engine:
         reason = engine_available()

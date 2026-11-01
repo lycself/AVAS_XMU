@@ -109,7 +109,7 @@ The visual editor's **linear envelope preview** (`avas.sim.linear_optics`) does 
 
 | Item | Linear preview | Multi-particle engine |
 |---|---|---|
-| Energy | about 0.01 % error | reference |
+| Energy | reference particle within about 0.01 % (against the engine's synchronous particle); the engine's DataSet gives the macro-particle mean, which feels the off-axis field: about 5 % of the gain in the example cavity | reference |
 | rms sizes | usually within 1–2 %, up to 13 % where multi-particle effects are strong | reference |
 | Non-linearities, emittance growth, halo | not included | included |
 | Losses | only a warning when 3 × rms exceeds the aperture | decided particle by particle |

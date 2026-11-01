@@ -100,7 +100,7 @@ The energy curve in the 2D view is a staircase: one step per cavity, the steps 0
 
 The envelope does not repeat exactly from period to period: here the RFQ beam enters the first period directly, without an MEBT, with a mismatch factor of about 0.3–0.4, and the rms $x$ at the period entrances jumps between 0.94 mm and 1.64 mm. The beam line of the [MEBT](#journey-mebt) chapter puts an MEBT in front, and the same periods then vary much less.
 
-> **Think about it**: in [the guided tutorial](#tutorial) all six periods use $K_e = 1.36$ and $K_b = 0.35$ and reach 4.99 MeV, much more than 3.94 MeV here. Why are the first cavities turned down?
+> **Think about it**: with the single-cavity settings of step 3 of [the guided tutorial](#tutorial), $K_e = 1.36$ and $K_b = 0.35$, in all six periods the line would reach 4.99 MeV, much more than 3.94 MeV here. Why are the first cavities turned down?
 > Answer: to keep the 90° rule. From the period matrices of the linear preview, with all cavities at full field the first period has a longitudinal phase advance of about 128° and a transverse one of about 94°, both above 90°; only in the third period do they drop to about 95° and 62°. The longitudinal phase advance goes as $\sqrt{E_0T\sin(-\varphi_s)/(\beta\gamma)^3}$, and at $\beta = 0.057$ the cavity is "too strong". Turning the first cavities down costs about 1 MeV and buys a stable working point in every period. Real designs also often keep the cavities below full gradient at the low-energy end.
 
 ## The synchronous phase: a compromise between acceleration and stability {#journey-sc-phase}
@@ -189,7 +189,7 @@ beam:readparticledistribution outputplane
 
 ### Running and checking
 
-- Tune `Kb`, `Ke` and the phases first with the linear preview of the visual editor: energy agrees to about 0.01 %, rms sizes usually within 1–2 %; longitudinal non-linearity and emittance growth do not show, and the multi-particle engine has the final word. [The guided tutorial](#tutorial) runs the engine in a sandbox for direct comparison.
+- Tune `Kb`, `Ke` and the phases first with the linear preview of the visual editor: reference-particle energy agrees to about 0.01 % (the engine's mean energy feels the off-axis field and can differ by a few per cent of the gain), rms sizes usually within 1–2 %; longitudinal non-linearity and emittance growth do not show, and the multi-particle engine has the final word. [The guided tutorial](#tutorial) runs the engine in a sandbox for direct comparison.
 - `steppercycle` in `input.txt` is the number of integration steps per RF period, 50 in the example; `scanphase` decides whether the cavity phases are scanned or read from `scanData.txt`; the linear preview ignores it.
 - `multithreading` may only be 1 or absent: 0 makes the engine lose all particles at the start (verified with the example).
 - In a segmented run, phases with V3 = 2 must be converted with $\varphi_{RF} - 360^\circ\cdot f\cdot(t_{in} - T_{entry})$; AVAS's segmented runs do this automatically.
