@@ -68,7 +68,9 @@ export default function RunPage() {
         ? t("Assistant: {task}", { task: t(job?.label ?? "") })
         : source === "scan"
           ? t("Parameter scan: {task}", { task: job?.label ?? "" })
-          : t("Full lattice");
+          : source === "learn"
+            ? t("Primer tutorial (sandbox)")
+            : t("Full lattice");
   const stageText = running && run.stages && run.stages > 1 ? `${run.stage} / ${run.stages}  ${t(run.stageLabel ?? "")}` : null;
   const stepText =
     run.step != null && run.all_step ? (source === "assistant" || source === "scan" ? t("simulation {i} of {n}", { i: run.step, n: run.all_step }) : `${run.step} / ${run.all_step}`) : null;

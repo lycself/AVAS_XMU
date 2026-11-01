@@ -1,6 +1,7 @@
 // Assistant state: panel layout, provider config, the open conversation and
 // its items (kept in sync with avas/gui/services/assistant.py through
 // "assistant.event").
+import { useLearn } from "../learn/store";
 import { create } from "zustand";
 import { call, on } from "../bridge";
 import { reportError } from "../components/overlays";
@@ -156,7 +157,8 @@ function uiContext() {
   const dirty = Object.entries(useDirty.getState().dirty)
     .filter(([, v]) => v)
     .map(([k]) => k);
-  return { page: app.page, selection: currentLatticeSelection(), dirty };
+  const primer = app.page === "learn" ? { chapter: useLearn.getState().chapter, section: useLearn.getState().anchor } : undefined;
+  return { page: app.page, selection: currentLatticeSelection(), dirty, primer };
 }
 
 export async function sendMessage(text: string) {

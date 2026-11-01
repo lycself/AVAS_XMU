@@ -31,7 +31,7 @@ export type LiveBandItem = { label: string; group: string | null; time: string |
 
 export type LiveRunInfo = {
   id: string;
-  kind: "project" | "segment" | "assistant" | "scan";
+  kind: "project" | "segment" | "assistant" | "scan" | "learn";
   label: string;
   mode: string;
   started: string;
@@ -203,7 +203,7 @@ function handle(e: any) {
         },
         version: st.version + 1,
       });
-      if (st.run?.kind === "assistant" || st.run?.kind === "scan") refreshLive(); // every evaluation has its own lattice
+      if (st.run?.kind === "assistant" || st.run?.kind === "scan" || st.run?.kind === "learn") refreshLive(); // every evaluation has its own lattice
       return;
     case "rows": {
       const ep = st.episode;

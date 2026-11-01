@@ -695,8 +695,10 @@ def _facts(ui):
     from avas.gui.services import projects
     facts = []
     p = context.project()
+    ui = ui or {}
     if not p.is_open:
-        return ["No project is open."], None
+        facts = ["No project is open (the primer tools still work)."]
+        return facts + _ui_facts(ui), None
     facts.append(f"Project folder: {p.path}")
     facts.append(f"Lattice used for the run: {p.lattice_name()}")
     try:
@@ -720,14 +722,21 @@ def _facts(ui):
     elapsed = (p.last_run() or {}).get("elapsed_s")
     if elapsed:
         run_time = f"{float(elapsed):.0f} s (last run)"
-    ui = ui or {}
+    return facts + _ui_facts(ui), run_time
+
+
+def _ui_facts(ui):
+    facts = []
     if ui.get("page"):
-        facts.append(f"The user is on the {ui['page']} page")
+        facts.append(f"The user is on the {'primer (learn)' if ui['page'] == 'learn' else ui['page']} page")
+    primer = ui.get("primer") or {}
+    if primer.get("chapter"):
+        facts.append(f"Open primer chapter: {primer['chapter']}" + (f", section {primer['section']}" if primer.get("section") else ""))
     if ui.get("selection"):
         facts.append(f"Selected in the lattice editor: {ui['selection']}")
     if ui.get("dirty"):
         facts.append(f"Pages with unsaved edits: {', '.join(ui['dirty'])}")
-    return facts, run_time
+    return facts
 
 
 class _EventSink:

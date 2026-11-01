@@ -49,6 +49,17 @@ def manual_path():
     return None
 
 
+EXAMPLE_PROJECT = "hwr010"
+
+
+def example_input_dir():
+    """InputFile of the example project (``examples/hwr010``): the primer's labs and tutorial use its
+    beam and field maps.  Source trees have it next to the package, frozen builds ship a copy beside
+    the bundled package (see packaging/avas.spec).  None when it is missing."""
+    candidate = os.path.join(os.path.dirname(PACKAGE_DIR), "examples", EXAMPLE_PROJECT, "InputFile")
+    return candidate if os.path.isfile(os.path.join(candidate, "beam.txt")) else None
+
+
 def resolve_io_dirs(project_path=None, input_file=None, output_file=None):
     """Return ``(input_dir, output_dir)``.
 

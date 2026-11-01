@@ -7,8 +7,10 @@ import { initLive } from "./live";
 import type { BuildInfo } from "../components/VersionStamp";
 
 export type ThemeMode = "system" | "light" | "dark";
-export type PageId = "project" | "beam" | "lattice" | "settings" | "files" | "run" | "scan" | "results";
-export const PAGES: PageId[] = ["project", "beam", "lattice", "settings", "files", "run", "scan", "results"];
+export type PageId = "project" | "beam" | "lattice" | "settings" | "files" | "run" | "scan" | "results" | "learn";
+export const PAGES: PageId[] = ["project", "beam", "lattice", "settings", "files", "run", "scan", "results", "learn"];
+/** Pages that work without an open project. */
+export const PROJECTLESS_PAGES: PageId[] = ["project", "learn"];
 export const SCALES = [90, 100, 110, 125, 150];
 
 export type RunInfo = {
@@ -42,7 +44,7 @@ export type RunState = {
   running: boolean;
   paused?: boolean;
   /** project: normal run; segment: part of the lattice; assistant: the assistant's sandbox study */
-  source?: "project" | "segment" | "assistant" | "scan";
+  source?: "project" | "segment" | "assistant" | "scan" | "learn";
   label?: string;
   outputDir?: string;
   stage?: number;
@@ -290,5 +292,5 @@ export async function initApp() {
   const summary = await call<ProjectSummary>("project.restoreLast");
   setProject(summary);
   const last = s["ui/lastPage"] as PageId;
-  set({ page: summary.open && PAGES.includes(last) ? last : "project", ready: true });
+  set({ page: PAGES.includes(last) && (summary.open || PROJECTLESS_PAGES.includes(last)) ? last : "project", ready: true });
 }

@@ -39,6 +39,7 @@ IDLE_EXIT_TICKS = 30                 # the thread ends after this many idle poll
 ROW_KEYS = ("z", "rmsX", "rmsY", "rmsZ", "maxX", "maxY", "energy", "alive")
 BAND_POINTS = 1500
 ERROR_MODES = ("stat", "dyn", "stat_dyn")
+STUDY_KINDS = ("assistant", "scan", "learn")    # sandbox studies: every simulation has its own lattice
 
 
 def _lists(arrays):
@@ -98,7 +99,7 @@ class Episode:
 class LiveRun:
     def __init__(self, kind, key, label="", mode="basic", lattice=None, previous=None, output_dir=None, project=None):
         self.id = uuid.uuid4().hex[:12]
-        self.kind = kind                      # project | segment | assistant
+        self.kind = kind                      # project | segment (jobs); assistant | scan | learn (sandbox studies)
         self.project = project                # project folder (jobs)
         self.key = key
         self.label = label
@@ -219,7 +220,7 @@ class Monitor:
                                   _lattice_info(job.project.lattice_path(), job.project.lattice_name(), job.project.field_dirs()),
                                   None, job.output_dir, job.project.path)
                 else:
-                    run = LiveRun("assistant", owner, study["label"])
+                    run = LiveRun(study.get("source") or "assistant", owner, study["label"])
                 self.run = run
                 bridge.emit("run.live", {"type": "begin", "run": run.meta()})
             spec = self._job_episode(rstate, job, stage) if job is not None else self._study_episode(study)
@@ -312,7 +313,7 @@ class Monitor:
                 return None
             out = run.meta()
             ep = run.episode
-            lattice = ep.lattice if run.kind == "assistant" and ep is not None else run.lattice
+            lattice = ep.lattice if run.kind in STUDY_KINDS and ep is not None else run.lattice
             out["lattice"] = None if lattice is None else {k: lattice[k] for k in ("name", "text", "fieldDirs", "hash")}
             prev = run.previous
             out["previous"] = None if prev is None else {

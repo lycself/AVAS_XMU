@@ -1130,6 +1130,56 @@ def build_tools(host):
         host.front("ui.select", {"line": st.line_no}, timeout=3)
         return {"shown": True, "line": st.line_no + 1, "name": st.name, "keyword": st.keyword}
 
+    # ------------------------------------------------------------------ primer (teaching; no project needed)
+    def _front(method, params):
+        r = host.front(method, params, timeout=8)
+        if r is None:
+            raise ToolError("The AVAS window did not answer; the primer is read from the open page.")
+        if isinstance(r, dict) and r.get("error"):
+            raise ToolError(r["error"])
+        return r
+
+    def primer_contents(args, ctx):
+        return {"chapters": _front("learn.contents", {"lang": args.get("lang")})}
+
+    def primer_search(args, ctx):
+        return {"hits": _front("learn.search", {"query": str(args.get("query") or ""), "lang": args.get("lang"),
+                                                "limit": int(args.get("limit") or 8)})}
+
+    def primer_read(args, ctx):
+        return _front("learn.read", {"id": str(args.get("id") or ""), "lang": args.get("lang")})
+
+    def primer_show(args, ctx):
+        if not _front("learn.show", {"id": str(args.get("id") or "")}):
+            raise ToolError(f"No primer chapter or section '{args.get('id')}'.")
+        return {"shown": True, "id": args.get("id")}
+
+    def primer_lab(args, ctx):
+        from avas.learn import labs as lab_core
+        lab_id = str(args.get("lab") or "")
+        if not lab_id:
+            return {"labs": [{"id": d["id"], "title": d["title"][0], "summary": d["summary"][0],
+                              "params": {p["key"]: f"{p['label'][0]} [{p['unit']}] default {p['default']}, {p['min']}…{p['max']}"
+                                         for p in d["params"]}} for d in lab_core.definitions()]}
+        try:
+            res = lab_core.run(lab_id, args.get("params") or {})
+        except lab_core.LabError as exc:
+            raise ToolError(str(exc)) from exc
+
+        def curve(series):
+            y = np.asarray(series["y"], dtype=float)
+            ok = y[np.isfinite(y)]
+            return {"name": series["name"][0], "points": int(len(y)),
+                    "min": _g(ok.min()) if ok.size else None, "max": _g(ok.max()) if ok.size else None,
+                    "last": _g(y[-1]) if len(y) else None}
+
+        return {"lab": lab_id, "params": res["params"], "model": res["model"][0],
+                "values": [{"name": v["label"][0], "value": _g(v["value"]), "unit": v["unit"]} for v in res["values"]],
+                "curves": [{"plot": p["title"][0], "series": [curve(s) for s in p["series"]]} for p in res["plots"]],
+                "matrices": [{"title": m["title"][0], "labels": m["labels"], "rows": [[_g(v, 5) for v in row] for row in m["rows"]]}
+                             for m in res["matrices"]],
+                "warnings": [w[0] for w in res["warnings"]], "lattice": res["lattice"]}
+
     # ------------------------------------------------------------------ declarations
     TARGET = {"line": {"type": "integer", "description": "1-based line number in the lattice file"},
               "name": {"type": "string", "description": "element name (or field map name if unique)"},
@@ -1225,4 +1275,15 @@ def build_tools(host):
            "reason": REASON},
           run_segment, long_running=True),
         T("show_element", "Select an element in the lattice editor so the user sees it.", TARGET, show_element),
+        T("primer_contents", "Chapters and section ids of the built-in accelerator primer (加速器入门 page): physics of linacs and of every AVAS component. Works without a project.",
+          {"lang": {"type": "string", "enum": ["zh", "en"]}}, primer_contents),
+        T("primer_search", "Search the accelerator primer; returns section ids with snippets. Works without a project.",
+          {"query": {"type": "string"}, "lang": {"type": "string", "enum": ["zh", "en"]}, "limit": {"type": "integer"}},
+          primer_search, required=["query"]),
+        T("primer_read", "Read a primer chapter (its intro and section list) or one section by id, in Markdown with LaTeX formulas. The chapter's review status tells whether a physicist has checked it.",
+          {"id": {"type": "string"}, "lang": {"type": "string", "enum": ["zh", "en"]}}, primer_read, required=["id"]),
+        T("primer_show", "Open the primer page at a chapter or section id so the user sees it.",
+          {"id": {"type": "string"}}, primer_show, required=["id"]),
+        T("primer_lab", "Evaluate one of the primer's interactive labs (kinematics, phase-space, fodo, solenoid, dipole, rf-cavity, space-charge) with given parameters, using AVAS's linear-optics code; without 'lab' it lists the labs and their parameters. Use it to put numbers on an explanation. Works without a project.",
+          {"lab": {"type": "string"}, "params": {"type": "object"}}, primer_lab),
     ]

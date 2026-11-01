@@ -29,6 +29,7 @@ import { LANGUAGES, t as tr, useT, type Language } from "../i18n";
 import { keyMatches, SHORTCUT, SHORTCUTS, type ShortcutId } from "./shortcuts";
 import {
   PAGES,
+  PROJECTLESS_PAGES,
   persist,
   SCALES,
   setLanguage,
@@ -46,6 +47,7 @@ import {
   type PageId,
 } from "../store/app";
 import { useDirty } from "../store/pages";
+import { showLearn } from "../learn/store";
 import { LogPanel, useLog } from "./LogPanel";
 import { setAssistantOpen, setAssistantWidth, useAssistant } from "../assistant/store";
 const AssistantPanel = lazy(() => import("../assistant/AssistantPanel").then((m) => ({ default: m.AssistantPanel })));
@@ -60,6 +62,7 @@ const FilesPage = lazy(() => import("../pages/FilesPage"));
 const RunPage = lazy(() => import("../pages/RunPage"));
 const ResultsPage = lazy(() => import("../pages/ResultsPage"));
 const ScanPage = lazy(() => import("../pages/ScanPage"));
+const LearnPage = lazy(() => import("../pages/LearnPage"));
 
 const PAGE_META: Record<PageId, { label: string; icon: string; render: () => ReactNode }> = {
   project: { label: "Project", icon: "home", render: () => <ProjectPage /> },
@@ -70,6 +73,7 @@ const PAGE_META: Record<PageId, { label: string; icon: string; render: () => Rea
   run: { label: "Run", icon: "play-circle", render: () => <RunPage /> },
   scan: { label: "Scan", icon: "graph-scatter", render: () => <ScanPage /> },
   results: { label: "Results", icon: "graph-line", render: () => <ResultsPage /> },
+  learn: { label: "Primer", icon: "mortar-board", render: () => <LearnPage /> },
 };
 
 const COLLAPSED_WIDTH = 48;
@@ -241,6 +245,7 @@ function MenuBar() {
       label: t("Help"),
       items: () => [
         { label: t("User manual"), icon: "book", onClick: openManual },
+        { label: t("Accelerator primer"), icon: "mortar-board", onClick: () => void showLearn() },
         { label: t("Keyboard shortcuts"), icon: "keyboard", onClick: () => void showShortcuts() },
         { type: "separator" },
         { label: t("About AVAS"), icon: "info", onClick: showAbout },
@@ -351,7 +356,7 @@ function Sidebar() {
       {PAGES.map((p) => {
         const meta = PAGE_META[p];
         const busy = p === "run" && running;
-        const needsProject = p !== "project";
+        const needsProject = !PROJECTLESS_PAGES.includes(p);
         return (
           <button
             key={p}
@@ -412,6 +417,8 @@ function StatusBar() {
         ? t(run.paused ? "Assistant {task} paused" : "Assistant {task} running", { task: t(run.label ?? "") })
         : run.source === "scan"
           ? t(run.paused ? "Parameter scan {task} paused" : "Parameter scan {task} running", { task: run.label ?? "" })
+        : run.source === "learn"
+          ? t(run.paused ? "Primer tutorial run paused" : "Primer tutorial run in progress")
         : run.source === "segment"
           ? t(run.paused ? "Segment {label} paused" : "Segment {label} running", { label: run.label ?? "" })
           : t(run.paused ? "Simulation paused" : "Simulation running");
@@ -475,7 +482,7 @@ function useShortcuts() {
       else if (is("zoomIn")) stepScale(1);
       else if (is("zoomOut")) stepScale(-1);
       else if (is("zoomReset")) setScale(100);
-      else if (ctrl && !e.shiftKey && !e.altKey && /^[1-8]$/.test(e.key) && !isTyping(e)) setPage(PAGES[Number(e.key) - 1]); // SHORTCUT.pages
+      else if (ctrl && !e.shiftKey && !e.altKey && /^[1-9]$/.test(e.key) && !isTyping(e)) setPage(PAGES[Number(e.key) - 1]); // SHORTCUT.pages
       else if (e.key === "F12" || (ctrl && e.shiftKey && key === "i")) handled = false;
       else if (ctrl && key === "r" && !isTyping(e)) handled = true; // no page reload
       else if (e.key === "F5" || (ctrl && key === "p") || (ctrl && key === "f" && !isTyping(e))) handled = true;

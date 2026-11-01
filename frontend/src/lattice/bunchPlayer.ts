@@ -58,7 +58,7 @@ export type Track = {
 export type BunchFrame = {
   source: "live" | "replay";
   /** live: kind of the run (the visual editor ignores assistant studies) */
-  kind: "project" | "segment" | "assistant" | "scan";
+  kind: "project" | "segment" | "assistant" | "scan" | "learn";
   z: number;
   rmsX: number;
   rmsY: number;

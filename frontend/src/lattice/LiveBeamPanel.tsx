@@ -20,7 +20,7 @@ import { PlayerBar } from "./PlayerBar";
 import { loadSchema, type LatticeDoc, type Schema } from "./types";
 
 const SHOW: LayoutShow = { run: false, preview: false, aperture: true, losses: true, max: false, energy: false, scale: "beam", band: true };
-const ALL_KINDS: ("project" | "segment" | "assistant" | "scan")[] = ["project", "segment", "assistant", "scan"];
+const ALL_KINDS: ("project" | "segment" | "assistant" | "scan" | "learn")[] = ["project", "segment", "assistant", "scan", "learn"];
 const COMPARE_KEY = "avas.live.compare";
 const HEIGHT_KEY = "avas.live.height";
 const MIN_HEIGHT = 240;
@@ -149,7 +149,7 @@ export function LiveBeamPanel() {
   let task = "";
   if (showRecord) task = recordLabel(record!, t);
   else if (run) {
-    task = run.kind === "segment" ? t("Segment {label}", { label: run.label }) : run.kind === "assistant" ? t("Assistant: {task}", { task: t(run.label) }) : run.kind === "scan" ? t("Parameter scan: {task}", { task: run.label }) : t("Full lattice");
+    task = run.kind === "segment" ? t("Segment {label}", { label: run.label }) : run.kind === "assistant" ? t("Assistant: {task}", { task: t(run.label) }) : run.kind === "scan" ? t("Parameter scan: {task}", { task: run.label }) : run.kind === "learn" ? t("Primer tutorial (sandbox)") : t("Full lattice");
     if (episode?.stageLabel && run.kind === "segment") task += ` · ${t("stage {i} of {n}: {label}", { i: episode.index ?? "?", n: episode.total ?? "?", label: t(episode.stageLabel) })}`;
     else if ((run.kind === "assistant" || run.kind === "scan") && episode?.index) task += ` · ${t("simulation {i} of {n}", { i: episode.index, n: episode.total ?? "?" })}`;
     else if (run.mode && run.mode !== "basic" && episode?.index) task += ` · ${t("error seed {i} of {n}", { i: episode.index, n: episode.total ?? "?" })}`;
@@ -163,7 +163,7 @@ export function LiveBeamPanel() {
   const segmentRange: [number, number] | null = zOffset > 0 && live ? [zOffset, Math.max(zOffset, live.z[live.z.length - 1] ?? zOffset)] : null;
   const canCompare = !showRecord && run?.kind === "project" && !!previous;
   const noLattice = lattice === null && !running;
-  const restMassFor = !showRecord && (run?.kind === "assistant" || run?.kind === "scan") ? null : restMass;
+  const restMassFor = !showRecord && (run?.kind === "assistant" || run?.kind === "scan" || run?.kind === "learn") ? null : restMass;
 
   return (
     <div className={`live-beam${maximized ? " maximized" : ""}`}>

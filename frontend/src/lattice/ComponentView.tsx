@@ -6,6 +6,8 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { call } from "../bridge";
 import { cx, Icon, IconButton } from "../components/ui";
 import { pick, useT } from "../i18n";
+import { chapterForKeyword } from "../learn/chapters";
+import { showLearn } from "../learn/store";
 import type { FieldSource } from "../files/FieldSlice";
 import { crossSection, type ElementField } from "./analyticField";
 import { useFieldWindow } from "./FieldWindow";
@@ -401,6 +403,7 @@ export function ComponentView({ st, kw, fieldDirs, readOnly, energy, onDraft, on
   const typeTitle = elementType(st, new Map(schemaNow()?.lattice.map((k) => [k.key, k]) ?? [])).label;
   const windowTitle = `${st.name ? st.name + " · " : ""}${typeTitle} · ${t("line {n}", { n: st.line + 1 })}`;
   const openField = () => source && useFieldWindow.getState().show(source, windowTitle);
+  const primer = st.key === "field" ? (st.fieldType === "1" ? "rf-cavity" : "static-fields") : chapterForKeyword(st.key);
   // While the field window is open it follows this view: another element replaces
   // it, and a dragged slider redraws the field live (the title is unchanged, so
   // the window keeps the plane and component the user chose).
@@ -789,12 +792,19 @@ export function ComponentView({ st, kw, fieldDirs, readOnly, energy, onDraft, on
         <Defs />
         {drawing}
       </svg>
-      {source && (
+      {(source || primer) && (
         <div className="cv-diagram-actions">
-          <button className="btn btn-small" onClick={openField}
-            data-tip={source.kind === "map" ? t("Open the field map in a window: slices, components and direction") : t("Open the field in a window: cross-section, cut along z and direction")}>
-            <Icon name="graph" /> {source.kind === "map" ? t("View field map") : t("View field distribution")}
-          </button>
+          {source && (
+            <button className="btn btn-small" onClick={openField}
+              data-tip={source.kind === "map" ? t("Open the field map in a window: slices, components and direction") : t("Open the field in a window: cross-section, cut along z and direction")}>
+              <Icon name="graph" /> {source.kind === "map" ? t("View field map") : t("View field distribution")}
+            </button>
+          )}
+          {primer && (
+            <button className="btn btn-small" onClick={() => showLearn(primer)} data-tip={t("Open the primer chapter on this element: physics, equations and parameters")}>
+              <Icon name="mortar-board" /> {t("Learn about this element")}
+            </button>
+          )}
         </div>
       )}
       </div>

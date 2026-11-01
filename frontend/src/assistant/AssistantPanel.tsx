@@ -1,5 +1,6 @@
 // AI assistant side panel: conversation, tool activity, change proposals
 // with Apply / Reject / Undo, charts and the message box.
+import { showLearn } from "../learn/store";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { confirmDialog, openMenuBelow, promptDialog, reportError, type MenuItem } from "../components/overlays";
 import { Badge, Button, cx, Icon, IconButton, ProgressBar, Select, Spinner } from "../components/ui";
@@ -485,6 +486,11 @@ export function AssistantPanel() {
       <div
         className="as-messages"
         ref={listRef}
+        onClick={(e) => {
+          // [title](#section-id) in an answer opens the primer there
+          const href = (e.target as HTMLElement).closest("a")?.getAttribute("href");
+          if (href?.startsWith("#") && showLearn(href.slice(1))) e.preventDefault();
+        }}
         onScroll={(e) => {
           const el = e.currentTarget;
           stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
@@ -498,7 +504,7 @@ export function AssistantPanel() {
             <p className="muted">
               {tt("It reads the lattice, beam and results, proposes parameter changes for your approval, runs simulations, scans and optimisations. Works with local models (Ollama, vLLM, LM Studio) and OpenAI-compatible APIs.")}
             </p>
-            {!projectOpen && <p className="warning-text">{tt("Open a project first.")}</p>}
+            {!projectOpen && <p className="warning-text">{tt("No project is open: you can ask about accelerator physics and the primer; open a project to work on it.")}</p>}
             <div className="as-suggestions">
               {SUGGESTIONS.map((s) => (
                 <button key={s} className="as-suggestion" disabled={!projectOpen} onClick={() => setText(tt(s))}>
@@ -556,7 +562,7 @@ export function AssistantPanel() {
           className="input as-input"
           value={text}
           rows={Math.min(8, Math.max(2, text.split("\n").length))}
-          placeholder={projectOpen ? tt("Ask or instruct… (Enter to send, Shift+Enter for a new line)") : tt("Open a project first.")}
+          placeholder={projectOpen ? tt("Ask or instruct… (Enter to send, Shift+Enter for a new line)") : tt("Ask about accelerator physics… (Enter to send)")}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -572,7 +578,7 @@ export function AssistantPanel() {
               {tt("Stop")}
             </Button>
           ) : (
-            <Button small variant="primary" icon="send" disabled={!text.trim() || !projectOpen} onClick={submit}>
+            <Button small variant="primary" icon="send" disabled={!text.trim()} onClick={submit}>
               {tt("Send")}
             </Button>
           )}

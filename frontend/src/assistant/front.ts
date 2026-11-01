@@ -2,12 +2,23 @@
 // requests): read the lattice being edited, apply an approved change to the
 // open editor (one undo step) and save it, reload pages after a file changed,
 // start a run exactly like the Run button (or only prepare one that Python
-// starts, e.g. a segment run), switch pages and show an element.
+// starts, e.g. a segment run), switch pages and show an element, and search,
+// read or show the primer (its texts load on first use).
 import { call, on } from "../bridge";
 import { prepareRun, runSimulation } from "../actions";
+import { isZh } from "../i18n";
 import { setPage, useApp, type PageId } from "../store/app";
 import { requestLatticeSelection } from "../store/latticeUi";
 import { fileSaved, getPage, useDirty } from "../store/pages";
+import { showLearn, useLearn } from "../learn/store";
+
+const PRIMER_TEXT = 6000; // characters of one section returned to the model
+
+async function primer(lang?: string) {
+  const content = await import("../learn/content");
+  const l = lang === "en" || lang === "zh" ? lang : isZh() ? "zh" : "en";
+  return { content, chapters: content.loadChapters(l) };
+}
 
 export type LatticeEditorApi = {
   name: () => string | null;
@@ -62,6 +73,7 @@ const handlers: Record<string, Handler> = {
       .map(([k]) => k),
   "ui.state": () => ({
     page: useApp.getState().page,
+    primer: useApp.getState().page === "learn" ? { chapter: useLearn.getState().chapter, section: useLearn.getState().anchor } : undefined,
     selection: currentLatticeSelection(),
     dirty: Object.entries(useDirty.getState().dirty)
       .filter(([, v]) => v)
@@ -82,6 +94,28 @@ const handlers: Record<string, Handler> = {
     if (useApp.getState().run.running) return { ok: false, error: "A simulation is already running." };
     return prepareRun();
   },
+  "learn.contents": async ({ lang }: { lang?: string }) => {
+    const { chapters } = await primer(lang);
+    return chapters.map((c) => ({ id: c.id, part: c.part, title: c.title, status: c.status, sections: c.sections.map((s) => ({ id: s.id, title: s.title })) }));
+  },
+  "learn.search": async ({ query, lang, limit }: { query: string; lang?: string; limit?: number }) => {
+    const { content, chapters } = await primer(lang);
+    return content.searchChapters(chapters, query, Math.min(limit ?? 8, 20)).map((h) => ({
+      id: h.section?.id ?? h.chapter.id, chapter: h.chapter.title, section: h.section?.title ?? null, snippet: h.snippet,
+    }));
+  },
+  "learn.read": async ({ id, lang }: { id: string; lang?: string }) => {
+    const { content, chapters } = await primer(lang);
+    const hit = content.locate(chapters, id);
+    if (!hit) return { error: `No primer chapter or section '${id}'.` };
+    const text = hit.section ? hit.section.text : [hit.chapter.intro, ...hit.chapter.sections.map((s) => `## ${s.title} {#${s.id}}\n${s.text}`)].join("\n");
+    return {
+      id, chapter: hit.chapter.title, section: hit.section?.title ?? null, status: hit.chapter.status,
+      text: text.length > PRIMER_TEXT ? text.slice(0, PRIMER_TEXT) + "\n… (truncated; read a section id for the rest)" : text,
+      sections: hit.section ? undefined : hit.chapter.sections.map((s) => ({ id: s.id, title: s.title })),
+    };
+  },
+  "learn.show": ({ id }: { id: string }) => showLearn(id),
   "ui.page": ({ page }: { page: PageId }) => {
     setPage(page);
     return true;

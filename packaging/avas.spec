@@ -29,6 +29,10 @@ datas += collect_data_files("avas", subdir="engine")
 datas += collect_data_files("avas", subdir="static")
 datas += [(os.path.join(ROOT, "avas", "gui", "web"), os.path.join("avas", "gui", "web"))]
 datas += collect_data_files("webview")                  # pywebview's JavaScript glue
+# the primer's labs and tutorial read the example beam and field maps (avas.paths.example_input_dir)
+example = os.path.join(ROOT, "examples", "hwr010", "InputFile")
+for name in ["beam.txt", "input.txt", "ini.ini"] + sorted(n for n in os.listdir(example) if n.split(".")[0] in ("hwr010", "sol")):
+    datas += [(os.path.join(example, name), os.path.join("examples", "hwr010", "InputFile"))]
 manual = os.path.join(ROOT, "docs", "使用说明20260427.docx")   # Original physics reference; the floating manual is bundled in gui/web
 if os.path.isfile(manual):
     datas += [(manual, "docs")]
