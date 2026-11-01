@@ -158,7 +158,7 @@ This step is the best one to check with the engine: the engine solves the self-f
 When comparing, note:
 
 - The preview's energy is that of the on-axis reference particle; the engine curve is the mean energy of all macro-particles. Off axis the particles see a different $E_z$: the example HWR map gives a few per cent more gain 1–2 mm off axis than on the axis, so the engine's mean energy gain is usually about 5 % higher than the preview's (the example's one cavity, around 1.5 MeV); at low energy the difference can be larger and of either sign. A difference of tens of per cent usually means a wrong phase or field factor.
-- At low current the rms sizes should be close (within a few per cent); at high current the difference grows, and the engine is the reference.
+- At low current the rms sizes of one cavity should agree within 1 %; over many periods the differences add up: in the engine the particles move in non-linear fields, the transverse emittance grows (about 16 % over the 8 periods of the step-4 defaults) and the beam centroid moves a few tenths of a millimetre off the axis, none of which the linear preview can compute, so after 8 periods rms sizes can differ by about 10 %. At high current the difference is larger, and the engine is the reference. With few macro-particles the engine's own results also scatter by a few per cent.
 - If you changed parameters without running again, the tool tells you that the engine result belongs to the earlier parameters.
 
 "Save as a new project" turns the current step into an ordinary AVAS project and opens it. You can then edit it further on the Lattice page (add output planes, errors, diagnostics …), run it on the Run page and analyse it on the Results page.

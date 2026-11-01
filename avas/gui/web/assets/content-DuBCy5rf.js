@@ -13802,7 +13802,7 @@ This step is the best one to check with the engine: the engine solves the self-f
 When comparing, note:
 
 - The preview's energy is that of the on-axis reference particle; the engine curve is the mean energy of all macro-particles. Off axis the particles see a different $E_z$: the example HWR map gives a few per cent more gain 1–2 mm off axis than on the axis, so the engine's mean energy gain is usually about 5 % higher than the preview's (the example's one cavity, around 1.5 MeV); at low energy the difference can be larger and of either sign. A difference of tens of per cent usually means a wrong phase or field factor.
-- At low current the rms sizes should be close (within a few per cent); at high current the difference grows, and the engine is the reference.
+- At low current the rms sizes of one cavity should agree within 1 %; over many periods the differences add up: in the engine the particles move in non-linear fields, the transverse emittance grows (about 16 % over the 8 periods of the step-4 defaults) and the beam centroid moves a few tenths of a millimetre off the axis, none of which the linear preview can compute, so after 8 periods rms sizes can differ by about 10 %. At high current the difference is larger, and the engine is the reference. With few macro-particles the engine's own results also scatter by a few per cent.
 - If you changed parameters without running again, the tool tells you that the engine result belongs to the earlier parameters.
 
 "Save as a new project" turns the current step into an ordinary AVAS project and opens it. You can then edit it further on the Lattice page (add output planes, errors, diagnostics …), run it on the Run page and analyse it on the Results page.
@@ -14008,7 +14008,7 @@ $$
 比较时请注意：
 
 - 预览的能量是轴上参考粒子的能量，内核曲线是全部宏粒子的平均能量。粒子离轴时感受到的 $E_z$ 与轴上不同，示例 HWR 场图在离轴 1～2 mm 处的增益比轴上高几个百分点，所以内核平均能量的增益通常比预览高约 5 %（示例的一个腔，1.5 MeV 附近），低能时差别可以更大，方向也可能相反。两者相差几十个百分点，多半是相位或场系数设置有误。
-- rms 尺寸在低流强时应接近（百分之几以内）；流强大时差别变大，以内核为准。
+- rms 尺寸在低流强时，一个腔应相差 1 % 以内；周期多了差别会累积：内核里的粒子在非线性场中运动，横向发射度会增长（第 4 步默认的 8 个周期约 16 %），束流质心也会偏离轴线零点几毫米，线性预览都算不出来，所以 8 个周期后 rms 可差到约 10 %。流强大时差别更大，以内核为准。宏粒子少时内核结果本身也有几个百分点的统计起伏。
 - 如果参数改过而没有重新运行，工具会提示内核结果属于之前的参数。
 
 「另存为新项目」把当前这一步保存成普通 AVAS 项目并直接打开它。之后就可以在结构页里继续编辑（加输出平面、误差、诊断……），用运行页运行、结果页分析。
