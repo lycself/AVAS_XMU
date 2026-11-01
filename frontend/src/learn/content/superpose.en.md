@@ -4,7 +4,7 @@ In an AVAS lattice the elements follow one another end to end, each one owning i
 
 This chapter answers with one fact: Maxwell's equations in vacuum are linear, so fields computed separately can be added, provided the two elements do not change each other's field. On that basis it explains how AVAS's `superpose` command fixes the longitudinal position of each element, what superposition actually changes in the example, and the difference between `superposeend` and `superposeout`. Read [Field maps](#field-maps) first; the physics of field-map elements is in [RF cavity](#rf-cavity) and [Electrostatic and magnetostatic field maps](#static-fields).
 
-Below is the superposed group of the manual's example: the solenoid sol and the cavity hwr010 overlap by 5 mm. The 2D view draws overlapping elements in stacked layers (the layers are only a drawing aid, not a transverse offset). In the linear preview the block starts at $z = 0.085\ \mathrm{m}$ and ends at 0.64 m; the beam reaches a waist downstream of the solenoid at $z \approx 0.42\ \mathrm{m}$ (rms x 0.27 mm), the cavity raises the kinetic energy from 1.527 MeV to 1.866 MeV, and at the end (0.94 m) rms x is 5.25 mm.
+Below is the superposed group of the manual's example: the solenoid sol and the cavity hwr010 overlap by 5 mm. The 2D view draws overlapping elements in stacked layers (the layers are only a drawing aid, not a transverse offset). In the linear preview the block starts at $z = 0.085\ \mathrm{m}$ and ends at 0.64 m; the beam reaches a waist downstream of the solenoid at $z \approx 0.42\ \mathrm{m}$ (rms x 0.27 mm), the cavity raises the kinetic energy from 1.527 MeV to 1.866 MeV, and at the end (0.94 m) rms x is 5.35 mm.
 
 ```avas-beamline
 drift 0.085 0.02 0
@@ -104,16 +104,16 @@ A comparison (linear preview, no space charge): change only the $z_0$ of the sup
 
 | $z_0$ / m | Overlap with the solenoid | Cavity occupies / m | Exit energy / MeV | rms x at the end / mm | Cavity field off / mm |
 |---|---|---|---|---|---|
-| 0.35 | none (equivalent to end to end) | 0.435 – 0.645 | 1.8665 | 5.36 | 4.80 |
-| 0.345 | 5 mm | 0.430 – 0.640 | 1.8665 | 5.32 | 4.80 |
-| 0.30 | 50 mm | 0.385 – 0.595 | 1.8665 | 4.82 | 4.81 |
-| 0.25 | 100 mm | 0.335 – 0.545 | 1.8665 | 4.13 | 4.79 |
+| 0.35 | none (equivalent to end to end) | 0.435 – 0.645 | 1.8665 | 5.46 | 4.87 |
+| 0.345 | 5 mm | 0.430 – 0.640 | 1.8665 | 5.42 | 4.88 |
+| 0.30 | 50 mm | 0.385 – 0.595 | 1.8665 | 4.94 | 4.90 |
+| 0.25 | 100 mm | 0.335 – 0.545 | 1.8665 | 4.22 | 4.86 |
 
 Three things stand out:
 
 - **The exit energy hardly changes** (by less than 0.1 keV): the magnetostatic field does no work, and the cavity's synchronous phase is set with V3 = 0, so the engine (and the preview) solves for the entrance phase again at the new position ($52.67^\circ$ in all four cases).
-- **The solenoid tail itself does almost nothing**: the last column (solenoid only) stays between 4.79 and 4.81 mm; even with 100 mm of overlap the tail holds only 0.4 % of $\int B_z^2$.
-- **The change comes from the cavity's position relative to the waist**: the solenoid focuses the beam to a waist at $z \approx 0.42\ \mathrm{m}$ (rms x 0.27 mm). The smaller $z_0$, the closer the cavity is to the waist: for $z_0 = 0.35$ rms x at the cavity centre is about 1.2 mm, for $z_0 = 0.25$ only about 0.3 mm. Most of the cavity's defocusing comes from its first gap (at this low β the first gap sits far from its crest, see [RF cavity](#rf-cavity-transverse)), about 6.5 cm behind the cavity entrance. For $z_0 = 0.35$ that gap is about 8 cm downstream of the waist, where the beam already diverges: the outward kick adds to the angles and the end size grows (5.36 mm against 4.80 mm). For $z_0 = 0.25$ the gap sits about 2 cm *upstream* of the waist, where the beam still converges: the same outward kick now cancels part of the converging angles, so the angular spread after the cavity is smaller. Together with adiabatic damping from the acceleration (angles shrink by about 10 %) the end size becomes smaller than with the cavity off (4.13 mm against 4.79 mm). A two-thin-lens estimate of the cavity reproduces this trend (5.14, 5.10, 4.65, 4.07 mm for the four rows).
+- **The solenoid tail itself does almost nothing**: the last column (solenoid only) stays between 4.86 and 4.90 mm; even with 100 mm of overlap the tail holds only 0.4 % of $\int B_z^2$.
+- **The change comes from the cavity's position relative to the waist**: the solenoid focuses the beam to a waist at $z \approx 0.42\ \mathrm{m}$ (rms x 0.27 mm). The smaller $z_0$, the closer the cavity is to the waist: for $z_0 = 0.35$ rms x at the cavity centre is about 1.2 mm, for $z_0 = 0.25$ only about 0.3 mm. Most of the cavity's defocusing comes from its first gap (at this low β the first gap sits far from its crest, see [RF cavity](#rf-cavity-transverse)), about 6.5 cm behind the cavity entrance. For $z_0 = 0.35$ that gap is about 8 cm downstream of the waist, where the beam already diverges: the outward kick adds to the angles and the end size grows (5.46 mm against 4.87 mm). For $z_0 = 0.25$ the gap sits about 2 cm *upstream* of the waist, where the beam still converges: the same outward kick now cancels part of the converging angles, so the angular spread after the cavity is smaller. Together with adiabatic damping from the acceleration (angles shrink by about 10 %) the end size becomes smaller than with the cavity off (4.22 mm against 4.86 mm). A two-thin-lens estimate of the cavity reproduces this trend (5.14, 5.10, 4.65, 4.07 mm for the four rows).
 
 In the manual's example, then, `superpose` matters mainly because it **puts the cavity where it really is** while keeping the complete fringes of both maps, not because of the field in the overlap. The field in the overlap really counts when steering coils sit inside the main magnet, or when fringe fields are long.
 

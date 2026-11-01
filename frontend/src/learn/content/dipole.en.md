@@ -64,7 +64,7 @@ $$
 
 with $x$ pointing from the reference orbit away from the centre of curvature. $n$ is the **field index**, written `N` in AVAS. $n = 0$ is a uniform field (parallel pole faces); a dipole with $n \ne 0$ also has a quadrupole component (a combined-function magnet). By Maxwell's equation $\partial B_x/\partial y = \partial B_y/\partial x$, a horizontal gradient necessarily comes with $B_x = -n B_0\,y/\rho$: for $n > 0$ the field lines bulge outwards and particles that leave the median plane are pushed back to it.
 
-With $n = 0.5$ the field changes linearly across the bending plane (**schematic**). At the edge of a 3 cm aperture the field is only 1.5 % weaker or stronger than on the axis — the field index is a very gentle gradient. Note that the schematic only draws the variation of $B_y$ with $x$, not the $B_x$ proportional to $y$ described above.
+With $n = 0.5$ the field changes linearly across the bending plane (**schematic**). At the edge of a 3 cm aperture the field is only 1.5 % weaker or stronger than on the axis — the field index is a very gentle gradient. The schematic draws both the variation of $B_y$ with $x$ and the $B_x$ proportional to $y$ described above; the direction of the gradient depends only on $n$, not on the bending direction (bending the other way flips $B_0$ and the "outside" together).
 
 ```avas-field
 dipole B=0.18 N=0.5 rho=1 L=0.785 R=0.03

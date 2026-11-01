@@ -10,15 +10,20 @@ Model
   the summed on-axis Ez of RF and static-electric field maps.  An RF map acts
   as ``Ke·Ez(s)·cos(ω(t − t_in) + φ0)`` with φ0 the RF phase when the reference
   particle enters the map.  The phase parameter of ``field`` depends on V3:
-  0 synchronous phase φs = atan2(∫E·sinφ dz, ∫E·cosφ dz) (φ0 is solved for),
-  1 entry phase φ0, 2 phase at t = 0 (φ0 = φ + 360°·f·t_in).
+  0 synchronous phase φs = atan2(∫E·sinφ dz, ∫E·cosφ dz) (φ0 is solved for:
+  fixed-point iteration, else a scan of φ0 with bisection; far below the
+  cavity's design β some φs cannot be reached, then the closest one is used
+  with a warning), 1 entry phase φ0, 2 phase at t = 0 (φ0 = φ + 360°·f·t_in).
 * Second moments of (x, x', y, y', z, δ = Δp/p) are pushed with 6×6 matrices.
   Field maps are cut into 1 mm slices for the reference particle and 4 mm
   slices for the optics (all maps of a superpose block summed); each optics
-  slice is a half step in the local Bz (solenoid body, no edge kicks), a thin
-  kick from the near-axis gradients of the maps (∂Ex/∂x, ∂Ey/∂y, ∂By/∂x,
-  ∂Bx/∂y and the skew / radial terms, which carry the solenoid fringes) and
-  the linear RF bunching, and another half step.  Momentum gain damps x', y',
+  slice is a solenoid edge, a half step in the slice-mean Bz (solenoid body),
+  a thin kick from the near-axis gradients of the maps (∂Ex/∂x, ∂Ey/∂y,
+  ∂By/∂x, ∂Bx/∂y and the skew terms) and the linear RF bunching, another half
+  step and an edge.  The solenoid fringe (the radial part ∂Bx/∂x + ∂By/∂y of
+  the static magnetic field) is −∂Bz/∂z of the summed Bz, carried by the
+  edges, so the Bz part is exactly symplectic; a map's own Bx, By only add
+  their divergence-free part.  Momentum gain damps x', y',
   δ and scales z.  drift / quad / solenoid / bend (sector, field index) / edge
   use the usual matrices; steerers and diagnostics are identities.
 * Space charge (optional): linear kick of the rms-equivalent uniform ellipsoid
@@ -59,6 +64,8 @@ BLOWUP = 1.0                 # m, an rms size above this counts as a lost beam
 APERTURE_SIGMAS = 3.0
 MAX_ITER = 20                # reference-particle fixed-point iterations per field section
 ENERGY_TOL = 1e-9            # relative convergence of the slice energies
+PHASE_SCAN_STEP = 5.0        # deg, entry-phase scan when the V3 = 0 fixed point does not converge
+GOLDEN = (1 + 5 ** 0.5) / 2
 SC_GROUP = 4                 # steps between two space-charge kicks
 
 _RF_EXT = ("edz", "edx", "edy")
@@ -451,6 +458,15 @@ def _to_int(text):
         return 0
 
 
+def _solenoid_edges(dk):
+    """Thin solenoid edges (6×6, arrays) where ``k = Bz/(2Bρ)`` steps up by *dk*: x' += dk·y, y' −= dk·x."""
+    m = np.zeros(np.shape(dk) + (6, 6))
+    m[..., range(6), range(6)] = 1.0
+    m[..., 1, 2] = dk
+    m[..., 3, 0] = -dk
+    return m
+
+
 def _half_axial_derivative(values, hf):
     """−½ ∂f/∂z per slice from slice-centre values that are zero outside the element.
 
@@ -704,14 +720,18 @@ class _Tracker:
                 if "bsx" in prof and "bsy" in prof:
                     for acc, ext, key in zip(b_grad, ("bsy", "bsy", "bsx", "bsx"), ("dx", "dy", "dy", "dx")):
                         acc += self._sample(prof[ext], key, s, st.length) * kb
-                else:                                       # Maxwell: ∂Bx/∂x = ∂By/∂y = −½ ∂Bz/∂z
-                    half = _half_axial_derivative(bz_el, hf)
-                    b_grad[1] += half
-                    b_grad[3] += half
                 self._dipole_check(st, prof, kb)
             else:
                 self.warn.add(f"Line {line}: field type '{st.param(3)}' is not supported; treated as a drift.",
                               f"第 {line} 行：不支持的场类型“{st.param(3)}”，按漂移段处理。")
+        # The radial (solenoid fringe) part ∂Bx/∂x + ∂By/∂y of the static magnetic field is −∂Bz/∂z by
+        # Maxwell.  It comes from the summed Bz as edge kicks at the slice boundaries (see _field_steps),
+        # never from the maps' own Bx, By: in noisy maps (examples/hwr010 sol) they disagree with Bz and
+        # the period matrix is then not symplectic.  The maps keep their divergence-free part (normal and
+        # skew quadrupole content).
+        skew = (b_grad[3] - b_grad[1]) / 2
+        b_grad[3], b_grad[1] = skew, -skew
+        bz_bounds = np.concatenate(([0.0], (bz[:-1] + bz[1:]) / 2, [0.0]))
 
         wb, tb, stop = self._reference(zb, hf, ez_static, cavities)
         if stop is not None:                                # reference particle stopped: keep the slices before
@@ -723,6 +743,7 @@ class _Tracker:
                 return
             zb, hf, zc, wb, tb = zb[:keep + 1], hf[:keep], zc[:keep], wb[:keep + 1], tb[:keep + 1]
             ez_static, bz, aperture = ez_static[:keep], bz[:keep], aperture[:keep]
+            bz_bounds = bz_bounds[:keep + 1]
             e_grad = [g[:keep] for g in e_grad]
             b_grad = [g[:keep] for g in b_grad]
             for cav in cavities:
@@ -731,7 +752,7 @@ class _Tracker:
                 cav["grads"] = [g[:keep] for g in cav["grads"]]
                 cav["bgrads"] = cav["bgrads"] and [g[:keep] for g in cav["bgrads"]]
             nf = keep
-        self._field_steps(zb, hf, wb, e_grad, b_grad, bz, aperture, cavities, stmts[0].line_no)
+        self._field_steps(zb, hf, wb, e_grad, b_grad, bz, bz_bounds, aperture, cavities, stmts[0].line_no)
         self.z, self.t, self.w = float(zb[-1]), float(tb[-1]), float(wb[-1])
 
     def _dipole_check(self, st, prof, kb):
@@ -750,12 +771,16 @@ class _Tracker:
                 "steering and bending are not modelled.",
                 f"第 {st.line_no + 1} 行：场图“{st.param(8)}”使束流偏转约 {angle * 1e3:.1f} mrad，预览不计偏转。")
 
-    def _reference(self, zb, hf, ez_static, cavities):
-        """W and t on the fine boundaries; V3 = 0 phases solved on the way.  Returns ``(wb, tb, stop_index)``."""
+    def _iterate(self, hf, ez_static, cavities, fixed=None):
+        """Fixed-point iteration of the slice energies: ``(wb, tb, status)``, status "ok" | "stop" | "open".
+
+        V3 = 0 phases are re-solved in every pass unless *fixed* (``{id(cav): φ0 [rad]}``) holds them;
+        the state of the last pass is left in the cavity dicts.
+        """
         mass, q = self.mass, self.q
-        nf = hf.size
-        wc = np.full(nf, self.w)
+        wc = np.full(hf.size, self.w)
         wb = tb = None
+        status = "open"
         for _it in range(MAX_ITER):
             _g, _bg, beta, _p = _kin(wc, mass)
             dt = hf / (np.maximum(beta, 1e-12) * C_LIGHT)
@@ -767,7 +792,9 @@ class _Tracker:
                 rel = omega * (tc - tb[cav["i_in"]])
                 cav["sinc"] = np.sinc(omega * dt / (2 * math.pi))    # phase slip inside one slice
                 weight = cav["ez"] * hf * cav["sinc"]
-                if cav["v3"] == 0:
+                if fixed and id(cav) in fixed:
+                    phi0 = fixed[id(cav)]
+                elif cav["v3"] == 0:
                     a, b = np.dot(weight, np.cos(rel)), np.dot(weight, np.sin(rel))
                     phi0 = math.radians(cav["phase"]) - math.atan2(b, a) if (a or b) else math.radians(cav["phase"])
                     cav["no_field"] = not (a or b)
@@ -779,27 +806,127 @@ class _Tracker:
                 dw = dw + q * weight * np.cos(rel + phi0)
             wb = self.w + np.concatenate(([0.0], np.cumsum(dw)))
             if not np.all(wb[1:] > 0):
+                status = "stop"
                 break
             new = (wb[:-1] + wb[1:]) / 2
             done = np.max(np.abs(new - wc)) < ENERGY_TOL * self.w
             wc = new
             if done:
+                status = "ok"
                 break
+        return wb, tb, status
+
+    @staticmethod
+    def _phase_s(cav):
+        """Synchronous phase [rad] of the last pass (atan2(∫E sinφ, ∫E cosφ)), or None without field."""
+        phase = cav["rel"] + cav["phi0"]
+        s, c = np.dot(cav["weight"], np.sin(phase)), np.dot(cav["weight"], np.cos(phase))
+        return math.atan2(s, c) if (s or c) else None
+
+    def _solve_phase(self, hf, ez_static, cavities, cav):
+        """V3 = 0 when the fixed point does not converge: scan the entry phase φ0, then bisect.
+
+        φs(φ0) is computed along the trajectory that φ0 itself produces.  For slow particles
+        (far below the cavity's design β) it need not cover all phases (the cavity's net
+        accelerating vector nearly cancels); then no φ0 gives the requested φs and the closest
+        reachable one is used, with a warning.  Returns the result of :meth:`_iterate`.
+        """
+        target = math.radians(cav["phase"])
+
+        def miss(phi0):
+            wb, _tb, status = self._iterate(hf, ez_static, cavities, {id(cav): phi0})
+            ps = self._phase_s(cav) if status == "ok" else None
+            if ps is None:
+                return math.nan, ps, -math.inf
+            return math.remainder(ps - target, 2 * math.pi), ps, float(wb[-1])
+
+        grid = np.radians(np.arange(-180.0, 180.0, PHASE_SCAN_STEP))
+        scan = [miss(p) for p in grid]
+        f = np.array([m[0] for m in scan])
+        roots = []
+        for i in range(grid.size):
+            j = (i + 1) % grid.size
+            fa, fb = f[i], f[j]
+            if not (np.isfinite(fa) and np.isfinite(fb)) or abs(fa) + abs(fb) > math.pi:
+                continue                                    # no data, or a jump of the wrapped phase
+            if fa == 0 or fa * fb < 0:
+                lo_, hi = grid[i], grid[i] + math.radians(PHASE_SCAN_STEP)
+                for _ in range(50):
+                    mid = (lo_ + hi) / 2
+                    fm = miss(mid)[0]
+                    if not np.isfinite(fm):
+                        break
+                    if (fm < 0) == (fa < 0):
+                        lo_ = mid
+                    else:
+                        hi = mid
+                roots.append((lo_ + hi) / 2)
+        line = cav["line"] + 1
+        if roots:
+            gains = [miss(r)[2] for r in roots]
+            best = roots[int(np.argmax(gains))]
+            if len(roots) > 1:
+                self.warn.add(f"Line {line}: {len(roots)} entry phases give the synchronous phase {cav['phase']:g}°; "
+                              "the preview uses the one with the largest energy gain.",
+                              f"第 {line} 行：有 {len(roots)} 个入口相位都给出同步相位 {cav['phase']:g}°，"
+                              "预览取能量增益最大的一个。")
+        else:
+            finite = np.isfinite(f)
+            if not finite.any():
+                return self._iterate(hf, ez_static, cavities)
+            i = int(np.nanargmin(np.where(finite, np.abs(f), np.nan)))
+            lo_, hi = grid[i] - math.radians(PHASE_SCAN_STEP), grid[i] + math.radians(PHASE_SCAN_STEP)
+            for _ in range(60):                             # golden-section search of |miss|
+                a = hi - (hi - lo_) / GOLDEN
+                b = lo_ + (hi - lo_) / GOLDEN
+                fa, fb = abs(miss(a)[0]), abs(miss(b)[0])
+                if not fb < fa:
+                    hi = b
+                else:
+                    lo_ = a
+            best = (lo_ + hi) / 2
+            reach = np.degrees(np.unwrap([m[1] for m, ok in zip(scan, finite) if ok]))
+            lo_s, hi_s = _wrap(float(reach.min())), _wrap(float(reach.max()))
+            got = miss(best)[1]
+            self.warn.add(f"Line {line}: at this energy no RF phase gives the synchronous phase {cav['phase']:g}° "
+                          f"(reachable about {lo_s:.0f}° … {hi_s:.0f}°); the preview uses the closest, "
+                          f"{math.degrees(got):.1f}°.",
+                          f"第 {line} 行：在此能量下，任何射频相位都给不出同步相位 {cav['phase']:g}°"
+                          f"（可达范围约 {lo_s:.0f}° … {hi_s:.0f}°）；预览取最接近的 {math.degrees(got):.1f}°。")
+        return self._iterate(hf, ez_static, cavities, {id(cav): best})
+
+    def _reference(self, zb, hf, ez_static, cavities):
+        """W and t on the fine boundaries; V3 = 0 phases solved on the way.  Returns ``(wb, tb, stop_index)``."""
+        wb, tb, status = self._iterate(hf, ez_static, cavities)
+        if status == "open":
+            free = [cav for cav in cavities if cav["v3"] == 0 and not cav.get("no_field")]
+            if len(free) == 1:
+                wb, tb, status = self._solve_phase(hf, ez_static, cavities, free[0])
+        if status == "open":
+            z0 = self.z
+            self.warn.add(f"The reference particle does not converge in the field section at z = {z0:.3f} m; "
+                          "its energy and RF phases there are not self-consistent.",
+                          f"参考粒子在 z = {z0:.3f} m 处的场段中不收敛，该处的能量和射频相位不自洽。")
         bad = np.nonzero(~(wb > 0))[0]
         stop = int(bad[0]) - 1 if bad.size else None
         for cav in cavities:
-            phase = cav["rel"] + cav["phi0"]
-            s, c = np.dot(cav["weight"], np.sin(phase)), np.dot(cav["weight"], np.cos(phase))
-            phase_s = math.degrees(math.atan2(s, c)) if (s or c) else None
-            self.rf[cav["line"]] = (_wrap(math.degrees(cav["phi0"])), phase_s)
+            phase_s = self._phase_s(cav)
+            self.rf[cav["line"]] = (_wrap(math.degrees(cav["phi0"])), None if phase_s is None else math.degrees(phase_s))
             if cav.get("no_field"):
                 self.warn.add(f"Line {cav['line'] + 1}: no accelerating field, the synchronous phase cannot be set; "
                               "the phase is used as entry phase.",
                               f"第 {cav['line'] + 1} 行：没有加速场，无法设置同步相位，相位按入口相位处理。")
         return wb, tb, (max(stop, 0) if stop is not None else None)
 
-    def _field_steps(self, zb, hf, wb, e_grad, b_grad, bz, aperture, cavities, line):
-        """Merge fine slices into kick slices and build their 6×6 matrices."""
+    def _field_steps(self, zb, hf, wb, e_grad, b_grad, bz, bz_bounds, aperture, cavities, line):
+        """Merge fine slices into kick slices and build their 6×6 matrices.
+
+        A kick slice is ``edge · body · kick · body · edge``: the body is the slice-mean Bz without edges,
+        and the two thin edges step the solenoid strength from its value at the slice boundary
+        (*bz_bounds*, zero at the ends of the section) to the slice mean and back.  The edges of
+        neighbouring slices add up to the jump of the mean, so the Bz part of the section is a product
+        of hard-edge solenoids and exactly symplectic, however Bz varies inside a slice.
+        """
         q, mass, k = self.q, self.mass, SLICES_PER_KICK
         wc = (wb[:-1] + wb[1:]) / 2
         _g, _bg, beta, p = _kin(wc, mass)
@@ -848,7 +975,9 @@ class _Tracker:
         rd = (bb[:-1] * pb[:-1]) / (bb[1:] * pb[1:])          # δ of a fixed energy offset
         kick[:, 5, 5] = rd
         kick[:, 5, 4] = rd * azz
-        mats = half @ kick @ half
+        kb_edge = q * MEV_TM * bz_bounds[::k][:n + 1] / (2 * pb)
+        edge_in, edge_out = _solenoid_edges(ksol - kb_edge[:-1]), _solenoid_edges(kb_edge[1:] - ksol)
+        mats = edge_out @ half @ kick @ half @ edge_in
         ap = aperture[:n * k].reshape(n, k).min(axis=1)
         ap = np.where(np.isfinite(ap), ap, 0.0)
         self._push(mats, zb_c[1:], wb_c[1:], h, wmid, ap, line)

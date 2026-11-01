@@ -64,7 +64,7 @@ $$
 
 with $x$ pointing from the reference orbit away from the centre of curvature. $n$ is the **field index**, written \`N\` in AVAS. $n = 0$ is a uniform field (parallel pole faces); a dipole with $n \\ne 0$ also has a quadrupole component (a combined-function magnet). By Maxwell's equation $\\partial B_x/\\partial y = \\partial B_y/\\partial x$, a horizontal gradient necessarily comes with $B_x = -n B_0\\,y/\\rho$: for $n > 0$ the field lines bulge outwards and particles that leave the median plane are pushed back to it.
 
-With $n = 0.5$ the field changes linearly across the bending plane (**schematic**). At the edge of a 3 cm aperture the field is only 1.5 % weaker or stronger than on the axis — the field index is a very gentle gradient. Note that the schematic only draws the variation of $B_y$ with $x$, not the $B_x$ proportional to $y$ described above.
+With $n = 0.5$ the field changes linearly across the bending plane (**schematic**). At the edge of a 3 cm aperture the field is only 1.5 % weaker or stronger than on the axis — the field index is a very gentle gradient. The schematic draws both the variation of $B_y$ with $x$ and the $B_x$ proportional to $y$ described above; the direction of the gradient depends only on $n$, not on the bending direction (bending the other way flips $B_0$ and the "outside" together).
 
 \`\`\`avas-field
 dipole B=0.18 N=0.5 rho=1 L=0.785 R=0.03
@@ -420,7 +420,7 @@ $$
 
 $x$ 从中心轨道指向曲率中心的外侧。$n$ 称为**场梯度指数**（field index），AVAS 中记为 \`N\`。$n = 0$ 是均匀场（极面平行）；$n \\ne 0$ 的二极铁同时带有四极分量（组合作用磁铁）。由 Maxwell 方程 $\\partial B_x/\\partial y = \\partial B_y/\\partial x$，水平方向的梯度必然伴随 $B_x = -n B_0\\,y/\\rho$：$n > 0$ 时场线向外鼓出，离开中平面的粒子被推回中平面。
 
-$n = 0.5$ 时场沿弯转平面线性变化（**示意**）。在 3 cm 的孔径边缘，场只比轴上弱或强 1.5 %——场梯度指数是一个很温和的梯度。注意示意图只画了 $B_y$ 随 $x$ 的变化，没有画上面那个与 $y$ 成正比的 $B_x$。
+$n = 0.5$ 时场沿弯转平面线性变化（**示意**）。在 3 cm 的孔径边缘，场只比轴上弱或强 1.5 %——场梯度指数是一个很温和的梯度。示意图同时画出了 $B_y$ 随 $x$ 的变化和上面那个与 $y$ 成正比的 $B_x$；梯度的方向只取决于 $n$，与弯转方向无关（反向弯转时 $B_0$ 和“外侧”一起反号）。
 
 \`\`\`avas-field
 dipole B=0.18 N=0.5 rho=1 L=0.785 R=0.03
@@ -2490,7 +2490,7 @@ The example project's half-wave cavity hwr010 is written as 6 text files of 46 7
 
 This chapter explains what a field map is physically (a sampled solution of Maxwell's equations), why AVAS integrates step by step in the map with its t-code instead of using transfer matrices, what grid, storage order, interpolation and noise each do, and how to check whether a new map can be trusted. The three uses of field maps are covered in [RF cavity](#rf-cavity) (field type 1) and [Electrostatic and magnetostatic field maps](#static-fields) (types 2 and 3).
 
-The example project \`examples/hwr010/InputFile\` contains two maps: the half-wave cavity \`hwr010\` (\`.edx/.edy/.edz/.bdx/.bdy/.bdz\`, 0.21 m long) and the solenoid \`sol\` (\`.bsx/.bsy/.bsz\`, 0.35 m long). \`efield.*\` and \`bfield.*\` are byte-identical copies of these two sets. Below, the two field-map elements follow each other: the magnetostatic solenoid sol, then the RF cavity hwr010, one period of the guided tutorial. In the linear preview the solenoid focuses the beam to a waist at $z \\approx 0.55\\ \\mathrm{m}$ (rms x 0.86 mm); the cavity starts at $z = 0.50\\ \\mathrm{m}$ and raises the kinetic energy from 1.527 MeV to 1.884 MeV. At the end rms x is 1.67 mm; with the cavity field switched off (Ke = Kb = 0) it would be 1.19 mm: the cavity's RF defocusing is written in the map too.
+The example project \`examples/hwr010/InputFile\` contains two maps: the half-wave cavity \`hwr010\` (\`.edx/.edy/.edz/.bdx/.bdy/.bdz\`, 0.21 m long) and the solenoid \`sol\` (\`.bsx/.bsy/.bsz\`, 0.35 m long). \`efield.*\` and \`bfield.*\` are byte-identical copies of these two sets. Below, the two field-map elements follow each other: the magnetostatic solenoid sol, then the RF cavity hwr010, one period of the guided tutorial. In the linear preview the solenoid focuses the beam to a waist at $z \\approx 0.55\\ \\mathrm{m}$ (rms x 0.85 mm); the cavity starts at $z = 0.50\\ \\mathrm{m}$ and raises the kinetic energy from 1.527 MeV to 1.884 MeV. At the end rms x is 1.65 mm; with the cavity field switched off (Ke = Kb = 0) it would be 1.19 mm: the cavity's RF defocusing is written in the map too.
 
 \`\`\`avas-beamline
 drift 0.05 0.02 0
@@ -2600,7 +2600,7 @@ K_e\\,\\nabla\\times\\boldsymbol{E}_{map} = -\\omega K_b\\,\\boldsymbol{B}_{map}
 K_b\\,\\nabla\\times\\boldsymbol{B}_{map} = -\\frac{\\omega}{c^2}\\,K_e\\,\\boldsymbol{E}_{map}
 $$
 
-so a map fixes not only the shapes but also the ratio $K_b/K_e$ that makes E and B one solution. When transverse component files are missing, the linear preview derives the transverse gradients from the on-axis component with the first pair of relations.
+so a map fixes not only the shapes but also the ratio $K_b/K_e$ that makes E and B one solution. When transverse component files are missing, the linear preview derives the transverse gradients from the on-axis component with the first pair of relations; for static magnetic maps the radial part (the solenoid fringe) always comes from the on-axis $B_z$, and the map's $B_x$, $B_y$ only supply the divergence-free part.
 
 These relations are also tools for checking a map, but beware of noise. Try the first one on hwr010: the map's own $E_x(x{=}1\\,\\mathrm{cm})$ has a maximum of 1.89 MV/m along $z$ (raw map value); differentiating the on-axis $E_z$ after a 5-point moving average gives a maximum of $\\tfrac{r}{2}\\lvert\\partial E_z/\\partial z\\rvert$ of 2.04 MV/m, about 8 % apart, so the transverse and longitudinal components are consistent. Differentiating the raw data directly gives 5.4 MV/m instead: the noise is amplified almost threefold by the derivative.
 
@@ -2746,7 +2746,7 @@ map sol
 
 本章说明场图在物理上是什么（Maxwell 方程的一个采样解），AVAS 为什么要在场图里用 t-code 逐步积分而不是用传输矩阵，网格、存储顺序、插值和噪声各自会带来什么问题，以及拿到一张新场图时怎样检查它是否可信。场图的三类用法分别见 [射频腔](#rf-cavity)（场类型 1）与 [静电与静磁场图](#static-fields)（类型 2、3）。
 
-示例项目 \`examples/hwr010/InputFile\` 带有两张场图：半波长腔 \`hwr010\`（\`.edx/.edy/.edz/.bdx/.bdy/.bdz\`，长 0.21 m）和螺线管 \`sol\`（\`.bsx/.bsy/.bsz\`，长 0.35 m）。\`efield.*\` 与 \`bfield.*\` 分别是这两组文件逐字节相同的副本。下面两个场图元件依次排列，静磁螺线管 sol 后接射频腔 hwr010，即引导教程中的一个周期。线性预览中螺线管把束流聚到 $z \\approx 0.55\\ \\mathrm{m}$ 处的束腰（rms x 0.86 mm），腔从 $z = 0.50\\ \\mathrm{m}$ 开始，把动能从 1.527 MeV 提到 1.884 MeV；末端 rms x 为 1.67 mm，若把腔场关掉（Ke = Kb = 0）则是 1.19 mm——腔的射频散焦同样写在场图里。
+示例项目 \`examples/hwr010/InputFile\` 带有两张场图：半波长腔 \`hwr010\`（\`.edx/.edy/.edz/.bdx/.bdy/.bdz\`，长 0.21 m）和螺线管 \`sol\`（\`.bsx/.bsy/.bsz\`，长 0.35 m）。\`efield.*\` 与 \`bfield.*\` 分别是这两组文件逐字节相同的副本。下面两个场图元件依次排列，静磁螺线管 sol 后接射频腔 hwr010，即引导教程中的一个周期。线性预览中螺线管把束流聚到 $z \\approx 0.55\\ \\mathrm{m}$ 处的束腰（rms x 0.85 mm），腔从 $z = 0.50\\ \\mathrm{m}$ 开始，把动能从 1.527 MeV 提到 1.884 MeV；末端 rms x 为 1.65 mm，若把腔场关掉（Ke = Kb = 0）则是 1.19 mm——腔的射频散焦同样写在场图里。
 
 \`\`\`avas-beamline
 drift 0.05 0.02 0
@@ -2856,7 +2856,7 @@ K_e\\,\\nabla\\times\\boldsymbol{E}_{map} = -\\omega K_b\\,\\boldsymbol{B}_{map}
 K_b\\,\\nabla\\times\\boldsymbol{B}_{map} = -\\frac{\\omega}{c^2}\\,K_e\\,\\boldsymbol{E}_{map}
 $$
 
-所以一张场图不仅定下了场形，也定下了让 E 和 B 成为同一个解的比值 $K_b/K_e$。线性预览在缺少横向分量文件时就是用第一组关系由轴上分量推出横向梯度的。
+所以一张场图不仅定下了场形，也定下了让 E 和 B 成为同一个解的比值 $K_b/K_e$。线性预览在缺少横向分量文件时就是用第一组关系由轴上分量推出横向梯度的；静磁场的径向部分（螺线管边缘场）则总是由轴上 $B_z$ 求出，场图的 $B_x$、$B_y$ 只提供无散的部分。
 
 这些关系也是检查场图的工具，但要小心噪声。在 hwr010 中试一下第一个关系：场图自己的 $E_x(x{=}1\\,\\mathrm{cm})$ 沿 $z$ 的最大值是 1.89 MV/m（场图原值）；由轴上 $E_z$ 做 5 点滑动平均后求导，$\\tfrac{r}{2}\\lvert\\partial E_z/\\partial z\\rvert$ 的最大值是 2.04 MV/m，二者相差约 8 %，说明横向分量与纵向分量是自洽的。可如果直接对原始数据求导，得到的是 5.4 MV/m——噪声被微分放大了近 3 倍。
 
@@ -3446,10 +3446,10 @@ drift 0.3 0.02 0
 
 Look at the energy curve in the 2D view: through the MEBT the energy stays at 1.527 MeV (the bunchers add nothing); in the superconducting section the two cavities raise it to 1.733 MeV and 1.985 MeV. Then the envelope: in the MEBT the beam alternately widens and narrows in $x$ and $y$ between the quadrupoles, with a largest rms size of about 3.7 mm (aperture 20 mm, so 3 × rms stays inside); at the end of the MEBT the rms $x$ and $y$ are back to about 1.2 mm and the rms bunch length is 1.48 mm (5.1°). With both bunchers switched off ($K_e = 0$) the rms bunch length at the end of the MEBT would be about 10 mm, the 35° of the previous section.
 
-The effect of matching shows best in the superconducting section: the rms $x$ at the entrance of each period is 1.24, 1.32 and 1.15 mm; what variation remains comes from the acceleration itself (the energy changes, so a strictly periodic solution does not exist). For comparison, if the RFQ beam enters the same periods directly without an MEBT (as in the beam line of the [superconducting section](#journey-sc) chapter), the rms $x$ at the period entrances is 1.05, 1.66, 0.99 and 1.42 mm, a beat of about ±25 %: what a mismatch factor of 0.3–0.4 looks like.
+The effect of matching shows best in the superconducting section: the rms $x$ at the entrance of each period is 1.24, 1.30 and 1.15 mm; what variation remains comes from the acceleration itself (the energy changes, so a strictly periodic solution does not exist). For comparison, if the RFQ beam enters the same periods directly without an MEBT (as in the beam line of the [superconducting section](#journey-sc) chapter), the rms $x$ at the period entrances is 1.05, 1.64, 0.99 and 1.41 mm, a beat of about ±25 %: what a mismatch factor of 0.3–0.4 looks like.
 
 > **Think about it**: these settings were computed at zero current. Do they still work at higher current?
-> Answer: not as they are. With the same settings and 2 mA, the rms $x$ at the entrances of the first six superconducting periods jumps between 1.0 and 1.8 mm; at 5 mA between 0.9 and 2.7 mm, and the largest rms size in the MEBT grows from 3.7 mm to 6.0 mm. Space charge acts as a defocusing lens that depends on the beam size; it changes the transport of every element, so the matching must be redone at the real current (the linear preview can include linear space charge; the multi-particle engine has the final word). Space charge is strongest at low energy, which makes the MEBT the section most sensitive to the current.
+> Answer: not as they are. With the same settings and 2 mA, the rms $x$ at the entrances of the first six superconducting periods jumps between 1.0 and 1.8 mm; at 5 mA between 0.95 and 2.7 mm, and the largest rms size in the MEBT grows from 3.7 mm to 6.0 mm. Space charge acts as a defocusing lens that depends on the beam size; it changes the transport of every element, so the matching must be redone at the real current (the linear preview can include linear space charge; the multi-particle engine has the final word). Space charge is strongest at low energy, which makes the MEBT the section most sensitive to the current.
 
 The lab below is a quadrupole FODO channel. \`mismatch = 1.3\` makes the entrance β deviate from the matched value, so the envelope beats from cell to cell, with a largest rms size of about 3.05 mm; drag it back to 1 and the envelope repeats every cell, with a largest rms size of 1.91 mm. That beat is what a matching section removes.
 
@@ -3658,10 +3658,10 @@ drift 0.3 0.02 0
 
 看二维图里的能量曲线：MEBT 里能量一直是 1.527 MeV（聚束腔不增能），进入超导段后两个腔把它加到 1.733 MeV 和 1.985 MeV。再看包络：MEBT 里束流在四极铁之间交替地在 $x$、$y$ 方向变宽变窄，rms 尺寸最大约 3.7 mm（孔径 20 mm，3 倍 rms 仍在孔径内）；到 MEBT 末端 rms $x$、$y$ 回到约 1.2 mm，纵向 rms 1.48 mm（5.1°）。如果把两个聚束腔关掉（$K_e = 0$），MEBT 末端的 rms 束长是约 10 mm，也就是上一节说的 35°。
 
-匹配的效果在超导段里看得最清楚：每个周期入口处的 rms $x$ 是 1.24、1.32、1.15 mm，起伏来自加速本身（能量在变，严格的周期解并不存在）。作为对比，如果不要 MEBT、让 RFQ 出口的束流直接进入同样的周期（[超导段](#journey-sc) 一章的束线就是这样），周期入口的 rms $x$ 是 1.05、1.66、0.99、1.42 mm，拍振幅度约 ±25 %，正是 0.3–0.4 的失配因子的表现。
+匹配的效果在超导段里看得最清楚：每个周期入口处的 rms $x$ 是 1.24、1.30、1.15 mm，起伏来自加速本身（能量在变，严格的周期解并不存在）。作为对比，如果不要 MEBT、让 RFQ 出口的束流直接进入同样的周期（[超导段](#journey-sc) 一章的束线就是这样），周期入口的 rms $x$ 是 1.05、1.64、0.99、1.41 mm，拍振幅度约 ±25 %，正是 0.3–0.4 的失配因子的表现。
 
 > **想一想**：这组参数是按零流强算的，流强升高后还能用吗？
-> 答：不能直接用。同一组参数下，把流强提高到 2 mA，超导段前六个周期入口的 rms $x$ 在 1.0–1.8 mm 之间跳；5 mA 时在 0.9–2.7 mm 之间，MEBT 里最大 rms 尺寸也从 3.7 mm 涨到 6.0 mm。空间电荷相当于一个依赖束流尺寸的散焦透镜，它改变了每一段的传输，匹配参数必须在实际流强下重新求（线性预览可以计入线性空间电荷，最终要用多粒子内核确认）。低能处空间电荷最强，所以 MEBT 是对流强最敏感的一段。
+> 答：不能直接用。同一组参数下，把流强提高到 2 mA，超导段前六个周期入口的 rms $x$ 在 1.0–1.8 mm 之间跳；5 mA 时在 0.95–2.7 mm 之间，MEBT 里最大 rms 尺寸也从 3.7 mm 涨到 6.0 mm。空间电荷相当于一个依赖束流尺寸的散焦透镜，它改变了每一段的传输，匹配参数必须在实际流强下重新求（线性预览可以计入线性空间电荷，最终要用多粒子内核确认）。低能处空间电荷最强，所以 MEBT 是对流强最敏感的一段。
 
 下面的实验是一个四极铁 FODO 通道。\`mismatch = 1.3\` 表示入口束流的 β 偏离匹配值，包络会逐周期拍振，最大 rms 约 3.05 mm；把它拖回 1，包络逐周期重复，最大 rms 降到 1.91 mm。这就是匹配段要消除的东西。
 
@@ -4714,7 +4714,7 @@ drift 0.3 0.02 0
 
 The energy curve in the 2D view is a staircase: one step per cavity, the steps 0.21, 0.25, 0.37, 0.43, 0.56 and 0.59 MeV high, reaching 3.94 MeV after six periods. The steps grow partly because $K_e$ rises and partly because the proton approaches the velocity the cavity is made for, so $T(\\beta)$ grows. The rms envelope swings between 0.7 and 2.0 mm, with a largest value of about 2.0 mm, comfortably inside the 20 mm aperture.
 
-The envelope does not repeat exactly from period to period: here the RFQ beam enters the first period directly, without an MEBT, with a mismatch factor of about 0.3–0.4, and the rms $x$ at the period entrances jumps between 0.94 mm and 1.66 mm. The beam line of the [MEBT](#journey-mebt) chapter puts an MEBT in front, and the same periods then vary much less.
+The envelope does not repeat exactly from period to period: here the RFQ beam enters the first period directly, without an MEBT, with a mismatch factor of about 0.3–0.4, and the rms $x$ at the period entrances jumps between 0.94 mm and 1.64 mm. The beam line of the [MEBT](#journey-mebt) chapter puts an MEBT in front, and the same periods then vary much less.
 
 > **Think about it**: in [the guided tutorial](#tutorial) all six periods use $K_e = 1.36$ and $K_b = 0.35$ and reach 4.99 MeV, much more than 3.94 MeV here. Why are the first cavities turned down?
 > Answer: to keep the 90° rule. From the period matrices of the linear preview, with all cavities at full field the first period has a longitudinal phase advance of about 128° and a transverse one of about 94°, both above 90°; only in the third period do they drop to about 95° and 62°. The longitudinal phase advance goes as $\\sqrt{E_0T\\sin(-\\varphi_s)/(\\beta\\gamma)^3}$, and at $\\beta = 0.057$ the cavity is "too strong". Turning the first cavities down costs about 1 MeV and buys a stable working point in every period. Real designs also often keep the cavities below full gradient at the low-energy end.
@@ -4922,7 +4922,7 @@ drift 0.3 0.02 0
 
 二维图的能量曲线像台阶：每过一只腔上一级，台阶依次高 0.21、0.25、0.37、0.43、0.56、0.59 MeV，六个周期后到 3.94 MeV。台阶越来越高，一半是因为 $K_e$ 加大，一半是因为质子越来越接近这只腔适合的速度，$T(\\beta)$ 在增大。rms 包络在 0.7–2.0 mm 之间起伏，最大约 2.0 mm，孔径 20 mm 内很宽裕。
 
-包络并不严格逐周期重复：这里直接用 RFQ 出口的束流进入第一个周期，没有经过 MEBT，失配因子约 0.3–0.4，周期入口的 rms $x$ 在 0.94 mm 和 1.66 mm 之间跳。[中能传输段](#journey-mebt) 一章的束线在前面加了一段 MEBT，同样的周期里起伏就小得多。
+包络并不严格逐周期重复：这里直接用 RFQ 出口的束流进入第一个周期，没有经过 MEBT，失配因子约 0.3–0.4，周期入口的 rms $x$ 在 0.94 mm 和 1.64 mm 之间跳。[中能传输段](#journey-mebt) 一章的束线在前面加了一段 MEBT，同样的周期里起伏就小得多。
 
 > **想一想**：[引导教程](#tutorial) 里六个周期都用 $K_e = 1.36$、$K_b = 0.35$，出口能到 4.99 MeV，比这里的 3.94 MeV 高得多。为什么这里要把前几只腔调弱？
 > 答：为了守住 90° 的规则。按线性预览的周期矩阵，全部满场时第一个周期的纵向相移约 128°，横向约 94°，都超过了 90°；到第三个周期才分别降到约 95° 和 62°。纵向相移 $\\propto\\sqrt{E_0T\\sin(-\\varphi_s)/(\\beta\\gamma)^3}$，在 $\\beta = 0.057$ 时腔太"强"了。把头几只腔调低，代价是少了约 1 MeV 能量，换来每个周期都在稳定的工作点上。真实设计在低能端同样常常不让腔满梯度运行。
@@ -6145,7 +6145,7 @@ drift  0.1  0.02  0
 outputplane -0.05
 \`\`\`
 
-Linear preview: final energy about $2.89\\ \\mathrm{MeV}$, largest rms size about $1.6\\ \\mathrm{mm}$ (aperture 20 mm, aperture ratio about 13). The solenoid factor \`Kb\` affects the envelope strongly: at \`Kb = 0.45\` the largest rms is about $2.7\\ \\mathrm{mm}$, and at \`Kb = 0.531\` the line is already overfocused and the preview reports 3 × rms beyond the aperture. The input beam is not the matched beam of this period, so the envelope is not strictly periodic — exactly the problem the [matching](#matching) chapter addresses.
+Linear preview: final energy about $2.89\\ \\mathrm{MeV}$, largest rms size about $1.6\\ \\mathrm{mm}$ (aperture 20 mm, aperture ratio about 13). The solenoid factor \`Kb\` affects the envelope strongly: at \`Kb = 0.45\` the largest rms is about $2.8\\ \\mathrm{mm}$, and at \`Kb = 0.531\` the line is already overfocused and the preview reports 3 × rms beyond the aperture. The input beam is not the matched beam of this period, so the envelope is not strictly periodic — exactly the problem the [matching](#matching) chapter addresses.
 
 ### Other points
 
@@ -6484,7 +6484,7 @@ drift  0.1  0.02  0
 outputplane -0.05
 \`\`\`
 
-线性预览：末端能量约 $2.89\\ \\mathrm{MeV}$，rms 尺寸最大约 $1.6\\ \\mathrm{mm}$（孔径 20 mm，孔径比约 13）。螺线管系数 \`Kb\` 对包络非常敏感：\`Kb = 0.45\` 时最大 rms 约 $2.7\\ \\mathrm{mm}$，\`Kb = 0.531\` 时已经过聚焦，预览报告 3 倍 rms 超过孔径。入口束流并不是这个周期的匹配束，所以包络并不严格周期——这正是 [匹配](#matching) 一章要解决的问题。
+线性预览：末端能量约 $2.89\\ \\mathrm{MeV}$，rms 尺寸最大约 $1.6\\ \\mathrm{mm}$（孔径 20 mm，孔径比约 13）。螺线管系数 \`Kb\` 对包络非常敏感：\`Kb = 0.45\` 时最大 rms 约 $2.8\\ \\mathrm{mm}$，\`Kb = 0.531\` 时已经过聚焦，预览报告 3 倍 rms 超过孔径。入口束流并不是这个周期的匹配束，所以包络并不严格周期——这正是 [匹配](#matching) 一章要解决的问题。
 
 ### 其他要点
 
@@ -7676,7 +7676,7 @@ Example: put a 0.1 m drift before the example cavity. The reference particle rea
 
 ### Longitudinal model of the linear preview
 
-The linear preview integrates the reference particle's energy and time along the axis in 1 mm steps, solves iteratively for the entrance phase of V3 = 0 cavities, and pushes the second moments with the linear bunching in $(z, \\delta)$ and the damping from the momentum gain. It contains no longitudinal non-linearity and so cannot show the growth of the longitudinal emittance in low-energy cavities; the energy is accurate to about 0.01 %, rms sizes typically to 1–2 %. See [Multi-particle simulation](#simulation).
+The linear preview integrates the reference particle's energy and time along the axis in 1 mm steps, solves iteratively for the entrance phase of V3 = 0 cavities (when the iteration does not converge it scans the entrance phase and bisects; when the requested synchronous phase cannot be reached it warns and takes the closest one), and pushes the second moments with the linear bunching in $(z, \\delta)$ and the damping from the momentum gain. It contains no longitudinal non-linearity and so cannot show the growth of the longitudinal emittance in low-energy cavities; the energy is accurate to about 0.01 %, rms sizes typically to 1–2 %. See [Multi-particle simulation](#simulation).
 
 ### Common problems
 
@@ -8094,7 +8094,7 @@ V3 = 0 最方便设计：物理上有意义的是同步相位，入口相位由�
 
 ### 线性预览中的纵向模型
 
-线性预览按 1 mm 步长沿轴积分参考粒子的能量和时间，对 V3 = 0 的腔迭代求出入口相位，再以 $(z, \\delta)$ 的线性聚束项和动量增加带来的阻尼推进二阶矩。它不包含纵向非线性，因而不能给出低能腔中纵向发射度的增长；能量的误差约 0.01 %，rms 尺寸通常差 1–2 %。见 [多粒子模拟要点](#simulation)。
+线性预览按 1 mm 步长沿轴积分参考粒子的能量和时间，对 V3 = 0 的腔迭代求出入口相位（不收敛时改为扫描入口相位并二分求根；要求的同步相位达不到时给出警告并取最接近的值），再以 $(z, \\delta)$ 的线性聚束项和动量增加带来的阻尼推进二阶矩。它不包含纵向非线性，因而不能给出低能腔中纵向发射度的增长；能量的误差约 0.01 %，rms 尺寸通常差 1–2 %。见 [多粒子模拟要点](#simulation)。
 
 ### 常见问题
 
@@ -10337,7 +10337,7 @@ In a real machine nobody knows which reading of the RF source corresponds to "$\
 rf-cavity phase=-30 Ke=1.36 W=1.527
 \`\`\`
 
-At $W = 1.527\\ \\mathrm{MeV}$ and $\\varphi_s = -30^\\circ$ the lab gives $\\Delta W = 0.357\\ \\mathrm{MeV}$, only 74 % of the scan maximum of 0.482 MeV, while $\\cos 30^\\circ = 0.866$; the scan is also asymmetric (minimum near $\\varphi_0 \\approx -106^\\circ$ with $\\Delta W \\approx -0.31\\ \\mathrm{MeV}$). With W set to 4.727 MeV the ratio returns to 0.866. Do not push W much lower in this lab: far below the geometric β (for this cavity below roughly 1.2 MeV at Ke = 1.36) the entrance phase that V3 = 0 must solve for depends so strongly on the trajectory that the linear preview may not find a consistent solution, and the numbers shown are then meaningless; a ratio $\\Delta W/\\Delta W_{max}$ above 1 is the tell-tale sign.
+At $W = 1.527\\ \\mathrm{MeV}$ and $\\varphi_s = -30^\\circ$ the lab gives $\\Delta W = 0.357\\ \\mathrm{MeV}$, only 74 % of the scan maximum of 0.482 MeV, while $\\cos 30^\\circ = 0.866$; the scan is also asymmetric (minimum near $\\varphi_0 \\approx -106^\\circ$ with $\\Delta W \\approx -0.31\\ \\mathrm{MeV}$). With W set to 4.727 MeV the ratio returns to 0.866. Take care with very low W: far below the geometric β the two gaps nearly cancel, the synchronous phase as defined covers only part of the circle, and some $\\varphi_s$ have no solution at all. For example at Ke = 1.36 and $\\varphi_s = -30^\\circ$: scanning the entrance phase at 0.3 MeV gives $\\varphi_s$ only between about $65^\\circ$ and $107^\\circ$, at 1.0 MeV between about $14^\\circ$ and $144^\\circ$ (yet 0.5 MeV and 1.1 MeV have a solution). The linear preview then warns, gives the reachable range and continues with the synchronous phase closest to the requested one; the lab's "synchronous phase" shows the value actually reached. What the engine does in this case the manual does not say; the engine is the reference.
 
 > **Think about it**: an operator says "this cavity is set $-30^\\circ$ from crest". Is that the same setting as V3 = 0 with \`phase\` = −30 in AVAS?
 >
@@ -10713,7 +10713,7 @@ rf-cavity phase=-30 Ke=1.36 W=4.727
 rf-cavity phase=-30 Ke=1.36 W=1.527
 \`\`\`
 
-在 $W = 1.527\\ \\mathrm{MeV}$、$\\varphi_s = -30^\\circ$ 时，实验给出 $\\Delta W = 0.357\\ \\mathrm{MeV}$，只有扫相最大值 0.482 MeV 的 74 %，而 $\\cos 30^\\circ = 0.866$；扫相曲线也不对称（最小值约在 $\\varphi_0 \\approx -106^\\circ$，$\\Delta W \\approx -0.31\\ \\mathrm{MeV}$）。把 W 改成 4.727 MeV，比值回到 0.866。不要在这个实验里把 W 调得太低：远低于几何 β 时（这个腔在 Ke = 1.36 时大约低于 1.2 MeV），V3 = 0 要反解的入口相位对轨迹极其敏感，线性预览可能找不到自洽解，此时显示的数字没有意义；$\\Delta W/\\Delta W_{max}$ 大于 1 就是信号。
+在 $W = 1.527\\ \\mathrm{MeV}$、$\\varphi_s = -30^\\circ$ 时，实验给出 $\\Delta W = 0.357\\ \\mathrm{MeV}$，只有扫相最大值 0.482 MeV 的 74 %，而 $\\cos 30^\\circ = 0.866$；扫相曲线也不对称（最小值约在 $\\varphi_0 \\approx -106^\\circ$，$\\Delta W \\approx -0.31\\ \\mathrm{MeV}$）。把 W 改成 4.727 MeV，比值回到 0.866。把 W 调得很低时要小心：远低于几何 β 时，腔的两个间隙几乎互相抵消，按定义算出的同步相位只覆盖一部分角度，某些 $\\varphi_s$ 根本无解。例如 Ke = 1.36、$\\varphi_s = -30^\\circ$ 时，0.3 MeV 下扫遍入口相位，$\\varphi_s$ 只在约 $65^\\circ$～$107^\\circ$ 之间，1.0 MeV 下约 $14^\\circ$～$144^\\circ$（0.5 MeV 和 1.1 MeV 却有解）。这时线性预览给出警告和可达范围，取最接近要求的同步相位继续计算，实验里“同步相位”一栏显示实际达到的值。内核遇到这种情况怎样处理，手册没有说明，以内核为准。
 
 > **想一想**：运行人员说"这个腔设在离波峰 $-30^\\circ$"，和 AVAS 里写 V3 = 0、\`phase\` = −30，是同一个设置吗？
 >
@@ -11120,7 +11120,7 @@ In every row the solenoid needs about 25 times the quadrupole's pole-tip field. 
 > **Think about it**: quadrupoles need a FODO to focus both planes, and the net focusing of a FODO is also of second order ($1/F = d/f^2$). Is the comparison fair?
 > Answer: it is, and the conclusion stands. Two thin lenses $\\pm f$ a distance $d$ apart have $1/F = (G L_q/B\\rho)^2 d$, which scales as $1/(B\\rho)^2$ like the solenoid; the two are equal when $B = 2G\\sqrt{L_q d}$. (taking the solenoid as long as one quadrupole, $L_q$). A doublet with $G = 6$ T/m, $L_q = 0.1$ m, $d = 0.3$ m (pole tip 0.12 T at $R = 2$ cm) is equivalent to a 0.1 m solenoid of 2.1 T, 17 times the pole-tip field. The quadrupole buys an enormous "lever" with its transverse gradient; the price is that the envelopes of the two planes oscillate alternately and the beam is not round.
 
-A real solenoid has wide fringe fields. The two beam lines below compare the example map \`sol\` (\`Kb = 0.35\`, smoothed peak about 2.9 T, the default of the [tutorial](#tutorial)) with a hard-edge solenoid with **the same integrals**: both $\\int B\\,\\dd z$ and $\\int B^2\\,\\dd z$ equal to those of the map ($L = 0.13$ m, $B = 1.95$ T), centred on the peak of the map. Both give a waist at $z \\approx 0.6$ m with an rms size of about 0.8 mm (map: $x$ waist 0.82 mm, $y$ waist 0.77 mm; hard edge: 0.79 mm in both planes): once the two integrals agree, the hard-edge model represents this solenoid well. The Larmor rotation is about 41° in both. The $x$–$y$ difference of the map is its own: with identical Twiss parameters in both planes the map still gives 0.82 / 0.76 mm, because its $x$ and $y$ gradients differ (see [above](#solenoid-field)). The hard-edge values use the raw integrals of the map; with the smoothed $\\int B^2\\,\\dd z$ (3.91 instead of 4.04, see [In AVAS](#solenoid-in-avas)) the equivalent becomes $B = 1.88$ T, $L = 0.136$ m and its waist 0.83 mm — the noise of the map makes the "equivalent" solenoid uncertain by a few per cent.
+A real solenoid has wide fringe fields. The two beam lines below compare the example map \`sol\` (\`Kb = 0.35\`, smoothed peak about 2.9 T, the default of the [tutorial](#tutorial)) with a hard-edge solenoid with **the same integrals**: both $\\int B\\,\\dd z$ and $\\int B^2\\,\\dd z$ equal to those of the map ($L = 0.13$ m, $B = 1.95$ T), centred on the peak of the map. Both give a waist at $z \\approx 0.6$ m with an rms size of about 0.8 mm (map: $x$ waist 0.81 mm, $y$ waist 0.75 mm; hard edge: 0.79 mm in both planes): once the two integrals agree, the hard-edge model represents this solenoid well. The Larmor rotation is about 41° in both. The $x$–$y$ difference of the map is its own: with identical Twiss parameters in both planes the map still gives 0.81 / 0.75 mm, because its $x$ and $y$ gradients differ (see [above](#solenoid-field); the linear preview takes only their difference, a skew-quadrupole term, from the map and derives the radial part from $B_z$). The hard-edge values use the raw integrals of the map; with the smoothed $\\int B^2\\,\\dd z$ (3.91 instead of 4.04, see [In AVAS](#solenoid-in-avas)) the equivalent becomes $B = 1.88$ T, $L = 0.136$ m and its waist 0.83 mm — the noise of the map makes the "equivalent" solenoid uncertain by a few per cent.
 
 \`\`\`avas-beamline
 drift 0.05 0.02 0
@@ -11206,7 +11206,7 @@ Integrating the map gives $\\int B\\,\\dd z \\approx 0.729\\,\\mathrm{Kb}$ T·m 
 | 0.2 | ≈ 1.7 T | 23.4° | 0.79 m |
 | 0.35 | ≈ 2.9 T | 40.9° | 0.26 m |
 
-Field-map elements are tracked by the t-code, fringe fields included; the linear preview computes the fringe effect from the near-axis gradients of the map (radial components included, see the notes in \`linear_optics.py\`). Map format, storage order and normalisation are in [field maps](#field-maps); how to overlap a solenoid with an RF cavity is in [superpose](#superpose).
+Field-map elements are tracked by the t-code, fringe fields included; the linear preview derives the radial fringe field from the on-axis $B_z$ by $\\nabla\\cdot\\boldsymbol{B} = 0$, and the map's $B_x$, $B_y$ only supply the divergence-free normal and skew quadrupole content (see the notes in \`linear_optics.py\`): as shown above, the transverse components of the example map do not agree point by point with $-\\tfrac{r}{2}B_z'$, and using them directly would make the period transfer matrix non-symplectic. Map format, storage order and normalisation are in [field maps](#field-maps); how to overlap a solenoid with an RF cavity is in [superpose](#superpose).
 
 ### Typical values
 
@@ -11467,7 +11467,7 @@ solenoid L=0.2 B=1 W=1.527 mass=938.272 q=1 emit=0.1377 d1=0.2 d2=0.6
 > **想一想**：四极铁要排成 FODO 才有两个平面的净聚焦，而 FODO 的净聚焦也是二阶的（$1/F = d/f^2$）。这样比较还公平吗？
 > 答：公平，而且结论不变。两个薄透镜 $\\pm f$ 相距 $d$ 的净聚焦 $1/F = (G L_q/B\\rho)^2 d$，和螺线管一样 $\\propto 1/(B\\rho)^2$；两者相等要求 $B = 2G\\sqrt{L_q d}$（螺线管长度取一块四极铁的长度 $L_q$）。$G = 6$ T/m、$L_q = 0.1$ m、$d = 0.3$ m 的双合透镜（$R = 2$ cm 时极头场 0.12 T）相当于一个 0.1 m、2.1 T 的螺线管，是极头场的 17 倍。四极铁用横向梯度换来了巨大的"杠杆"，代价是两个平面的包络交替起伏、束流不圆。
 
-真实的螺线管有宽阔的边缘场。下面两条束线比较示例场图 \`sol\`（\`Kb = 0.35\`，平滑峰值约 2.9 T，即[教程](#tutorial)的默认值）和一个**积分量相同**的硬边螺线管：后者取 $\\int B\\,\\dd z$ 与 $\\int B^2\\,\\dd z$ 都与场图相同（$L = 0.13$ m、$B = 1.95$ T），中心放在场图峰值处。两者的束腰都在 $z \\approx 0.6$ m 处，rms 约 0.8 mm（场图的 $x$ 束腰 0.82 mm、$y$ 束腰 0.77 mm，硬边模型两个平面都是 0.79 mm）：只要两个积分量对上，硬边模型就能很好地代表这个螺线管。拉莫尔转角都约为 41°。场图的 $x$、$y$ 差别来自场图本身：即使两个平面的 Twiss 参数完全相同，场图给出的仍是 0.82 / 0.76 mm，因为它的 $x$、$y$ 梯度不同（见[上文](#solenoid-field)）。硬边参数用的是场图的原始积分；若改用平滑后的 $\\int B^2\\,\\dd z$（3.91 而不是 4.04，见[在 AVAS 中](#solenoid-in-avas)），等效螺线管变为 $B = 1.88$ T、$L = 0.136$ m，束腰 0.83 mm——场图噪声使"等效"螺线管本身有几个百分点的不确定。
+真实的螺线管有宽阔的边缘场。下面两条束线比较示例场图 \`sol\`（\`Kb = 0.35\`，平滑峰值约 2.9 T，即[教程](#tutorial)的默认值）和一个**积分量相同**的硬边螺线管：后者取 $\\int B\\,\\dd z$ 与 $\\int B^2\\,\\dd z$ 都与场图相同（$L = 0.13$ m、$B = 1.95$ T），中心放在场图峰值处。两者的束腰都在 $z \\approx 0.6$ m 处，rms 约 0.8 mm（场图的 $x$ 束腰 0.81 mm、$y$ 束腰 0.75 mm，硬边模型两个平面都是 0.79 mm）：只要两个积分量对上，硬边模型就能很好地代表这个螺线管。拉莫尔转角都约为 41°。场图的 $x$、$y$ 差别来自场图本身：即使两个平面的 Twiss 参数完全相同，场图给出的仍是 0.81 / 0.75 mm，因为它的 $x$、$y$ 梯度不同（见[上文](#solenoid-field)；线性预览从场图中只取两者之差这一斜四极成分，径向部分由 $B_z$ 求出）。硬边参数用的是场图的原始积分；若改用平滑后的 $\\int B^2\\,\\dd z$（3.91 而不是 4.04，见[在 AVAS 中](#solenoid-in-avas)），等效螺线管变为 $B = 1.88$ T、$L = 0.136$ m，束腰 0.83 mm——场图噪声使"等效"螺线管本身有几个百分点的不确定。
 
 \`\`\`avas-beamline
 drift 0.05 0.02 0
@@ -11553,7 +11553,7 @@ field 0.35 0.02 0 3 0 0 0 Kb sol
 | 0.2 | ≈ 1.7 T | 23.4° | 0.79 m |
 | 0.35 | ≈ 2.9 T | 40.9° | 0.26 m |
 
-场图元件由 t-code 跟踪，包含边缘场；线性预览用场图的近轴梯度（含径向分量）计算边缘作用（见 \`linear_optics.py\` 说明）。场图的格式、存储顺序和归一化见[场图](#field-maps)，与射频腔叠加放置的方法见[叠加场](#superpose)。
+场图元件由 t-code 跟踪，包含边缘场；线性预览的径向边缘场由轴上 $B_z$ 按 $\\nabla\\cdot\\boldsymbol{B} = 0$ 求出，场图的 $B_x$、$B_y$ 只提供无散的四极、斜四极成分（见 \`linear_optics.py\` 说明）：上面看到，示例场图的横向分量与 $-\\tfrac{r}{2}B_z'$ 逐点并不一致，直接用它们会使周期传输矩阵不再是辛矩阵。场图的格式、存储顺序和归一化见[场图](#field-maps)，与射频腔叠加放置的方法见[叠加场](#superpose)。
 
 ### 典型取值
 
@@ -12218,7 +12218,7 @@ A 30 keV proton leaving an ion source feels the same force in a 1 T magnetic fie
 
 This chapter answers both with two ideas: the electric force does not depend on velocity while the magnetic force is proportional to it; and a static field in vacuum is completely determined by its distribution on the axis, whose longitudinal shape (the fringe field) acts on the beam in a way the hard-edge model leaves out. Field type 2 of the \`field\` element is an **electrostatic field** (einzel lenses, electrostatic quadrupoles, deflector plates …), type 3 a **magnetostatic field** (solenoids, quadrupoles, magnets with bending components … described by maps). Read [Solenoid](#solenoid) and [Quadrupole](#quadrupole) first; the field-map files themselves are covered in [Field maps](#field-maps).
 
-Start with the example project's magnetostatic solenoid map sol (Kb = 0.35, smoothed on-axis peak about 2.9 T). Click the element to see the on-axis distribution of the map. In the linear preview, rms x is largest near the solenoid centre (about 1.40 mm), the beam is then focused to a waist of 0.82 mm at $z \\approx 0.62\\ \\mathrm{m}$, and it is 0.98 mm at the end; with Kb set to 0 it would be 3.09 mm at the end.
+Start with the example project's magnetostatic solenoid map sol (Kb = 0.35, smoothed on-axis peak about 2.9 T). Click the element to see the on-axis distribution of the map. In the linear preview, rms x is largest near the solenoid centre (about 1.40 mm), the beam is then focused to a waist of 0.81 mm at $z \\approx 0.62\\ \\mathrm{m}$, and it is 0.97 mm at the end; with Kb set to 0 it would be 3.09 mm at the end.
 
 \`\`\`avas-beamline
 drift 0.05 0.02 0
@@ -12345,7 +12345,7 @@ r'' + \\left(\\frac{B_z(z)}{2B\\rho}\\right)^{2} r = 0,\\qquad
 \\frac{1}{f} \\approx \\int\\left(\\frac{B_z}{2B\\rho}\\right)^{2}\\dd z
 $$
 
-The focusing strength is proportional to $B_z^2$ and **independent of the field direction**; changing the sign of $K_b$ only changes the sense of rotation of the beam. Check with the beam line above: changing Kb from 0.35 to −0.35 leaves the rms curves of the linear preview exactly the same (waist at $z = 0.62\\ \\mathrm{m}$, 0.82 mm, in both cases).
+The focusing strength is proportional to $B_z^2$ and **independent of the field direction**; changing the sign of $K_b$ only changes the sense of rotation of the beam. Check with the beam line above: changing Kb from 0.35 to −0.35 leaves the rms curves of the linear preview exactly the same (waist at $z = 0.62\\ \\mathrm{m}$, 0.81 mm, in both cases).
 
 ### The example solenoid sol
 
@@ -12402,14 +12402,14 @@ The $B_{eff}$ and $L_{eff}$ of the table above are chosen so that the hard-edge 
 
 ### How good is the hard-edge equivalent
 
-Compare two lattices in the example (no space charge, linear preview, rms $x$): drift 0.05 m + map \`sol\` + drift 0.3 m, against the equivalent hard-edge \`solenoid\` ($L = 0.136\\ \\mathrm{m}$) at the same centre position:
+Compare two lattices in the example (example current 0.184 mA with the preview's linear space charge, rms $x$): drift 0.05 m + map \`sol\` + drift 0.3 m, against the equivalent hard-edge \`solenoid\` ($L = 0.136\\ \\mathrm{m}$) at the same centre position:
 
 | | Map rms waist | Hard-edge rms waist | At $z = 0.7\\ \\mathrm{m}$, map / hard edge |
 |---|---|---|---|
-| $K_b = 0.35$ ($B_{eff} = 1.88\\ \\mathrm{T}$, $f/L_{eff} \\approx 2$) | 0.823 mm @ 0.62 m | 0.830 mm @ 0.63 m | 0.854 / 0.859 mm |
-| $K_b = 0.531$ ($B_{eff} = 2.85\\ \\mathrm{T}$, $f/L_{eff} \\approx 0.85$) | 0.287 mm @ 0.388 m | 0.310 mm @ 0.399 m | 2.68 / 2.42 mm |
+| $K_b = 0.35$ ($B_{eff} = 1.88\\ \\mathrm{T}$, $f/L_{eff} \\approx 2$) | 0.811 mm @ 0.62 m | 0.828 mm @ 0.62 m | 0.845 / 0.857 mm |
+| $K_b = 0.531$ ($B_{eff} = 2.85\\ \\mathrm{T}$, $f/L_{eff} \\approx 0.85$) | 0.285 mm @ 0.388 m | 0.311 mm @ 0.402 m | 2.73 / 2.42 mm |
 
-With weak focusing the two differ by less than 1 %; with strong focusing they are about 10 % apart at $z = 0.7\\ \\mathrm{m}$. Rule of thumb: when $f$ is several times the element length the hard-edge equivalent is good enough for a first design; when $f$ is comparable to the length, accurate work should use the map.
+With weak focusing the two differ by about 2 %; with strong focusing they are about 13 % apart at $z = 0.7\\ \\mathrm{m}$. Rule of thumb: when $f$ is several times the element length the hard-edge equivalent is good enough for a first design; when $f$ is comparable to the length, accurate work should use the map.
 
 Below is the schematic field of the $K_b = 0.531$ equivalent hard-edge solenoid (computed from the parameters, hard edge, not map data); compare its longitudinal distribution with the map above:
 
@@ -12427,7 +12427,7 @@ solenoid L=0.136 B=2.85 W=1.527 d1=0.05 d2=0.3
 >
 > Answer: write the measured field as $B + n$, with $n$ noise of zero mean. In the linear integral $n$ cancels between positive and negative values; the squared integral gains an extra $\\int n^2\\,\\dd z$, which is always positive and never cancels. A solenoid focal length computed from a noisy map is therefore too short.
 
-> **AVAS convention**: the linear preview slices a map into 4 mm pieces and treats each as "half a step of solenoid body + a thin lens from the near-axis transverse gradients + half a step"; the solenoid's fringe action comes from the gradient term. The engine integrates directly in the 3D field. Both include the fringe fields; the engine also includes the nonlinear terms.
+> **AVAS convention**: the linear preview slices a map into 4 mm pieces and treats each as "edge + half a step of solenoid body + a thin lens from the near-axis transverse gradients + half a step of body + edge". The solenoid's radial fringe field comes from the summed on-axis $B_z$ by Maxwell's equations ($\\partial B_x/\\partial x + \\partial B_y/\\partial y = -\\partial B_z/\\partial z$) and sits at both ends of each slice, which keeps the transfer matrices exactly symplectic; the map's $B_x$, $B_y$ only supply the divergence-free part (normal and skew quadrupole content), because in a noisy map these two components disagree with $B_z$. The engine integrates directly in the 3D field. Both include the fringe fields; the engine also includes the nonlinear terms.
 
 ## Common misconceptions {#static-fields-pitfalls}
 
@@ -12499,7 +12499,7 @@ Since the focusing strength is $\\propto K_b^2$ (solenoid) or $\\propto K_b$ (qu
 
 本章用两个想法回答这两个问题：一是电力与速度无关、磁力正比于速度；二是真空中的静态场由轴上分布完全决定，它的纵向形状（边缘场）会改变束流，而硬边模型把这部分丢掉了。\`field\` 元件的场类型 2 是**静电场**（单透镜、静电四极、静电偏转板等），类型 3 是**静磁场**（用场图描述的螺线管、四极铁、带偏转成分的磁铁等）。建议先读 [螺线管](#solenoid) 和 [四极铁](#quadrupole)；场图文件本身见 [场图](#field-maps)。
 
-先看示例项目的静磁场图螺线管 sol（Kb = 0.35，平滑后的轴上峰值约 2.9 T）。点开元件可以看到场图的轴上分布。线性预览中，束流在螺线管中心附近 rms x 最大（约 1.40 mm），之后被聚到 $z \\approx 0.62\\ \\mathrm{m}$ 处的束腰（0.82 mm），末端为 0.98 mm；把 Kb 改成 0，末端会是 3.09 mm。
+先看示例项目的静磁场图螺线管 sol（Kb = 0.35，平滑后的轴上峰值约 2.9 T）。点开元件可以看到场图的轴上分布。线性预览中，束流在螺线管中心附近 rms x 最大（约 1.40 mm），之后被聚到 $z \\approx 0.62\\ \\mathrm{m}$ 处的束腰（0.81 mm），末端为 0.97 mm；把 Kb 改成 0，末端会是 3.09 mm。
 
 \`\`\`avas-beamline
 drift 0.05 0.02 0
@@ -12626,7 +12626,7 @@ r'' + \\left(\\frac{B_z(z)}{2B\\rho}\\right)^{2} r = 0,\\qquad
 \\frac{1}{f} \\approx \\int\\left(\\frac{B_z}{2B\\rho}\\right)^{2}\\dd z
 $$
 
-聚焦强度正比于 $B_z^2$，**与场的方向无关**；改变 $K_b$ 的符号只改变束流旋转的方向。用上面的束线验证：把 Kb 从 0.35 改成 −0.35，线性预览的 rms 曲线完全不变（束腰都在 $z = 0.62\\ \\mathrm{m}$，0.82 mm）。
+聚焦强度正比于 $B_z^2$，**与场的方向无关**；改变 $K_b$ 的符号只改变束流旋转的方向。用上面的束线验证：把 Kb 从 0.35 改成 −0.35，线性预览的 rms 曲线完全不变（束腰都在 $z = 0.62\\ \\mathrm{m}$，0.81 mm）。
 
 ### 示例螺线管 sol
 
@@ -12683,14 +12683,14 @@ $$
 
 ### 硬边等效有多准
 
-在示例中比较两个 lattice（无空间电荷，线性预览，rms $x$）：漂移 0.05 m + 场图 \`sol\` + 漂移 0.3 m，与在相同中心位置放置等效的硬边 \`solenoid\`（$L = 0.136\\ \\mathrm{m}$）：
+在示例中比较两个 lattice（示例流强 0.184 mA，线性预览计入线性空间电荷，rms $x$）：漂移 0.05 m + 场图 \`sol\` + 漂移 0.3 m，与在相同中心位置放置等效的硬边 \`solenoid\`（$L = 0.136\\ \\mathrm{m}$）：
 
 | | 场图 rms 束腰 | 硬边 rms 束腰 | $z = 0.7\\ \\mathrm{m}$ 处场图 / 硬边 |
 |---|---|---|---|
-| $K_b = 0.35$（$B_{eff} = 1.88\\ \\mathrm{T}$，$f/L_{eff} \\approx 2$） | 0.823 mm @ 0.62 m | 0.830 mm @ 0.63 m | 0.854 / 0.859 mm |
-| $K_b = 0.531$（$B_{eff} = 2.85\\ \\mathrm{T}$，$f/L_{eff} \\approx 0.85$） | 0.287 mm @ 0.388 m | 0.310 mm @ 0.399 m | 2.68 / 2.42 mm |
+| $K_b = 0.35$（$B_{eff} = 1.88\\ \\mathrm{T}$，$f/L_{eff} \\approx 2$） | 0.811 mm @ 0.62 m | 0.828 mm @ 0.62 m | 0.845 / 0.857 mm |
+| $K_b = 0.531$（$B_{eff} = 2.85\\ \\mathrm{T}$，$f/L_{eff} \\approx 0.85$） | 0.285 mm @ 0.388 m | 0.311 mm @ 0.402 m | 2.73 / 2.42 mm |
 
-弱聚焦时两者相差不到 1 %，强聚焦时到 $z = 0.7\\ \\mathrm{m}$ 已差约 10 %。经验是：$f$ 比元件长度大几倍时硬边等效足够做初步设计；$f$ 与长度可比时，精确计算应使用场图。
+弱聚焦时两者相差约 2 %，强聚焦时到 $z = 0.7\\ \\mathrm{m}$ 已差约 13 %。经验是：$f$ 比元件长度大几倍时硬边等效足够做初步设计；$f$ 与长度可比时，精确计算应使用场图。
 
 下图是 $K_b = 0.531$ 等效硬边螺线管的示意场（由参数计算，硬边，不是场图数据），与上面的场图对比纵向分布的差别：
 
@@ -12708,7 +12708,7 @@ solenoid L=0.136 B=2.85 W=1.527 d1=0.05 d2=0.3
 >
 > 答：把测得的场写成 $B + n$，$n$ 是平均为零的噪声。线性积分里 $n$ 正负抵消；平方积分里多出一项 $\\int n^2\\,\\dd z$，它总是正的，不会抵消。所以由噪声场图算出的螺线管焦距偏短。
 
-> **AVAS 约定**：线性预览把场图切成 4 mm 的薄片，每片做"半步螺线管主体 + 由轴附近横向梯度给出的薄透镜 + 半步"的处理，螺线管的边缘作用由梯度项给出；内核则直接在三维场中积分，二者都包含边缘场，后者还包含非线性项。
+> **AVAS 约定**：线性预览把场图切成 4 mm 的薄片，每片做"边缘 + 半步螺线管主体 + 由轴附近横向梯度给出的薄透镜 + 半步主体 + 边缘"的处理。螺线管的径向边缘场由叠加后的轴上 $B_z$ 按 Maxwell 方程（$\\partial B_x/\\partial x + \\partial B_y/\\partial y = -\\partial B_z/\\partial z$）得出，放在每片两端，保证传输矩阵严格辛；场图的 $B_x$、$B_y$ 只提供无散的部分（四极、斜四极成分），因为带噪声的场图里这两个分量与 $B_z$ 并不一致；内核则直接在三维场中积分，二者都包含边缘场，后者还包含非线性项。
 
 ## 容易误解的地方 {#static-fields-pitfalls}
 
@@ -13260,7 +13260,7 @@ In an AVAS lattice the elements follow one another end to end, each one owning i
 
 This chapter answers with one fact: Maxwell's equations in vacuum are linear, so fields computed separately can be added, provided the two elements do not change each other's field. On that basis it explains how AVAS's \`superpose\` command fixes the longitudinal position of each element, what superposition actually changes in the example, and the difference between \`superposeend\` and \`superposeout\`. Read [Field maps](#field-maps) first; the physics of field-map elements is in [RF cavity](#rf-cavity) and [Electrostatic and magnetostatic field maps](#static-fields).
 
-Below is the superposed group of the manual's example: the solenoid sol and the cavity hwr010 overlap by 5 mm. The 2D view draws overlapping elements in stacked layers (the layers are only a drawing aid, not a transverse offset). In the linear preview the block starts at $z = 0.085\\ \\mathrm{m}$ and ends at 0.64 m; the beam reaches a waist downstream of the solenoid at $z \\approx 0.42\\ \\mathrm{m}$ (rms x 0.27 mm), the cavity raises the kinetic energy from 1.527 MeV to 1.866 MeV, and at the end (0.94 m) rms x is 5.25 mm.
+Below is the superposed group of the manual's example: the solenoid sol and the cavity hwr010 overlap by 5 mm. The 2D view draws overlapping elements in stacked layers (the layers are only a drawing aid, not a transverse offset). In the linear preview the block starts at $z = 0.085\\ \\mathrm{m}$ and ends at 0.64 m; the beam reaches a waist downstream of the solenoid at $z \\approx 0.42\\ \\mathrm{m}$ (rms x 0.27 mm), the cavity raises the kinetic energy from 1.527 MeV to 1.866 MeV, and at the end (0.94 m) rms x is 5.35 mm.
 
 \`\`\`avas-beamline
 drift 0.085 0.02 0
@@ -13360,16 +13360,16 @@ A comparison (linear preview, no space charge): change only the $z_0$ of the sup
 
 | $z_0$ / m | Overlap with the solenoid | Cavity occupies / m | Exit energy / MeV | rms x at the end / mm | Cavity field off / mm |
 |---|---|---|---|---|---|
-| 0.35 | none (equivalent to end to end) | 0.435 – 0.645 | 1.8665 | 5.36 | 4.80 |
-| 0.345 | 5 mm | 0.430 – 0.640 | 1.8665 | 5.32 | 4.80 |
-| 0.30 | 50 mm | 0.385 – 0.595 | 1.8665 | 4.82 | 4.81 |
-| 0.25 | 100 mm | 0.335 – 0.545 | 1.8665 | 4.13 | 4.79 |
+| 0.35 | none (equivalent to end to end) | 0.435 – 0.645 | 1.8665 | 5.46 | 4.87 |
+| 0.345 | 5 mm | 0.430 – 0.640 | 1.8665 | 5.42 | 4.88 |
+| 0.30 | 50 mm | 0.385 – 0.595 | 1.8665 | 4.94 | 4.90 |
+| 0.25 | 100 mm | 0.335 – 0.545 | 1.8665 | 4.22 | 4.86 |
 
 Three things stand out:
 
 - **The exit energy hardly changes** (by less than 0.1 keV): the magnetostatic field does no work, and the cavity's synchronous phase is set with V3 = 0, so the engine (and the preview) solves for the entrance phase again at the new position ($52.67^\\circ$ in all four cases).
-- **The solenoid tail itself does almost nothing**: the last column (solenoid only) stays between 4.79 and 4.81 mm; even with 100 mm of overlap the tail holds only 0.4 % of $\\int B_z^2$.
-- **The change comes from the cavity's position relative to the waist**: the solenoid focuses the beam to a waist at $z \\approx 0.42\\ \\mathrm{m}$ (rms x 0.27 mm). The smaller $z_0$, the closer the cavity is to the waist: for $z_0 = 0.35$ rms x at the cavity centre is about 1.2 mm, for $z_0 = 0.25$ only about 0.3 mm. Most of the cavity's defocusing comes from its first gap (at this low β the first gap sits far from its crest, see [RF cavity](#rf-cavity-transverse)), about 6.5 cm behind the cavity entrance. For $z_0 = 0.35$ that gap is about 8 cm downstream of the waist, where the beam already diverges: the outward kick adds to the angles and the end size grows (5.36 mm against 4.80 mm). For $z_0 = 0.25$ the gap sits about 2 cm *upstream* of the waist, where the beam still converges: the same outward kick now cancels part of the converging angles, so the angular spread after the cavity is smaller. Together with adiabatic damping from the acceleration (angles shrink by about 10 %) the end size becomes smaller than with the cavity off (4.13 mm against 4.79 mm). A two-thin-lens estimate of the cavity reproduces this trend (5.14, 5.10, 4.65, 4.07 mm for the four rows).
+- **The solenoid tail itself does almost nothing**: the last column (solenoid only) stays between 4.86 and 4.90 mm; even with 100 mm of overlap the tail holds only 0.4 % of $\\int B_z^2$.
+- **The change comes from the cavity's position relative to the waist**: the solenoid focuses the beam to a waist at $z \\approx 0.42\\ \\mathrm{m}$ (rms x 0.27 mm). The smaller $z_0$, the closer the cavity is to the waist: for $z_0 = 0.35$ rms x at the cavity centre is about 1.2 mm, for $z_0 = 0.25$ only about 0.3 mm. Most of the cavity's defocusing comes from its first gap (at this low β the first gap sits far from its crest, see [RF cavity](#rf-cavity-transverse)), about 6.5 cm behind the cavity entrance. For $z_0 = 0.35$ that gap is about 8 cm downstream of the waist, where the beam already diverges: the outward kick adds to the angles and the end size grows (5.46 mm against 4.87 mm). For $z_0 = 0.25$ the gap sits about 2 cm *upstream* of the waist, where the beam still converges: the same outward kick now cancels part of the converging angles, so the angular spread after the cavity is smaller. Together with adiabatic damping from the acceleration (angles shrink by about 10 %) the end size becomes smaller than with the cavity off (4.22 mm against 4.86 mm). A two-thin-lens estimate of the cavity reproduces this trend (5.14, 5.10, 4.65, 4.07 mm for the four rows).
 
 In the manual's example, then, \`superpose\` matters mainly because it **puts the cavity where it really is** while keeping the complete fringes of both maps, not because of the field in the overlap. The field in the overlap really counts when steering coils sit inside the main magnet, or when fringe fields are long.
 
@@ -13454,7 +13454,7 @@ map sol
 
 本章用一个事实回答这些问题：真空中的 Maxwell 方程是线性的，所以分别算出的场可以相加——前提是两个元件彼此不改变对方的场。在此基础上说明 AVAS 的 \`superpose\` 命令怎样确定每个元件的纵向位置，叠加在示例里实际改变了什么，以及 \`superposeend\` 与 \`superposeout\` 的区别。需要先读 [场图](#field-maps)；场图元件的物理见 [射频腔](#rf-cavity) 与 [静电与静磁场图](#static-fields)。
 
-下面是手册示例的叠加组：螺线管 sol 与腔 hwr010 重叠 5 mm。2D 图把重叠的元件上下分层画出（分层只是示意，不表示横向偏移）。线性预览中，块从 $z = 0.085\\ \\mathrm{m}$ 开始、在 0.64 m 结束，束流在螺线管下游 $z \\approx 0.42\\ \\mathrm{m}$ 处到达束腰（rms x 0.27 mm），腔把动能从 1.527 MeV 提到 1.866 MeV，末端（0.94 m）rms x 为 5.25 mm。
+下面是手册示例的叠加组：螺线管 sol 与腔 hwr010 重叠 5 mm。2D 图把重叠的元件上下分层画出（分层只是示意，不表示横向偏移）。线性预览中，块从 $z = 0.085\\ \\mathrm{m}$ 开始、在 0.64 m 结束，束流在螺线管下游 $z \\approx 0.42\\ \\mathrm{m}$ 处到达束腰（rms x 0.27 mm），腔把动能从 1.527 MeV 提到 1.866 MeV，末端（0.94 m）rms x 为 5.35 mm。
 
 \`\`\`avas-beamline
 drift 0.085 0.02 0
@@ -13554,16 +13554,16 @@ end
 
 | $z_0$ / m | 与螺线管的重叠 | 腔占据 / m | 出口能量 / MeV | 末端 rms x / mm | 腔场关掉时 / mm |
 |---|---|---|---|---|---|
-| 0.35 | 无（等价于依次排列） | 0.435 – 0.645 | 1.8665 | 5.36 | 4.80 |
-| 0.345 | 5 mm | 0.430 – 0.640 | 1.8665 | 5.32 | 4.80 |
-| 0.30 | 50 mm | 0.385 – 0.595 | 1.8665 | 4.82 | 4.81 |
-| 0.25 | 100 mm | 0.335 – 0.545 | 1.8665 | 4.13 | 4.79 |
+| 0.35 | 无（等价于依次排列） | 0.435 – 0.645 | 1.8665 | 5.46 | 4.87 |
+| 0.345 | 5 mm | 0.430 – 0.640 | 1.8665 | 5.42 | 4.88 |
+| 0.30 | 50 mm | 0.385 – 0.595 | 1.8665 | 4.94 | 4.90 |
+| 0.25 | 100 mm | 0.335 – 0.545 | 1.8665 | 4.22 | 4.86 |
 
 三件事一目了然：
 
 - **出口能量几乎不变**（差别小于 0.1 keV）：静磁场不做功，而腔用 V3 = 0 指定同步相位，内核（以及预览）会按新的位置重新反解入口相位（示例四种情况都是 $52.67^\\circ$）。
-- **螺线管尾部本身几乎没有作用**：最后一列（只有螺线管）在 4.79–4.81 mm 之间，即使重叠 100 mm，尾部也只含 $\\int B_z^2$ 的 0.4 %。
-- **变化来自腔相对束腰的位置**：螺线管把束流聚到 $z \\approx 0.42\\ \\mathrm{m}$ 的束腰（rms x 0.27 mm）。$z_0$ 越小，腔越靠近束腰：$z_0 = 0.35$ 时腔中心处 rms x 约 1.2 mm，$z_0 = 0.25$ 时只有约 0.3 mm。腔的散焦大部分来自第一个间隙（在这么低的 β 下，第一个间隙远离自己的波峰，见 [射频腔](#rf-cavity-transverse)），它位于腔入口后约 6.5 cm。$z_0 = 0.35$ 时这个间隙在束腰下游约 8 cm，束流已经在发散，向外的冲量叠加到角度上，末端尺寸变大（5.36 mm，不开腔为 4.80 mm）；$z_0 = 0.25$ 时它在束腰**上游**约 2 cm，束流还在会聚，同样向外的冲量反而抵消了一部分会聚角，腔后的角度分散变小，再加上加速带来的绝热阻尼（角度缩小约 10 %），末端尺寸比不开腔时还小（4.13 mm 对 4.79 mm）。把腔近似成两个薄透镜的估算重现了这个趋势（四行依次为 5.14、5.10、4.65、4.07 mm）。
+- **螺线管尾部本身几乎没有作用**：最后一列（只有螺线管）在 4.86–4.90 mm 之间，即使重叠 100 mm，尾部也只含 $\\int B_z^2$ 的 0.4 %。
+- **变化来自腔相对束腰的位置**：螺线管把束流聚到 $z \\approx 0.42\\ \\mathrm{m}$ 的束腰（rms x 0.27 mm）。$z_0$ 越小，腔越靠近束腰：$z_0 = 0.35$ 时腔中心处 rms x 约 1.2 mm，$z_0 = 0.25$ 时只有约 0.3 mm。腔的散焦大部分来自第一个间隙（在这么低的 β 下，第一个间隙远离自己的波峰，见 [射频腔](#rf-cavity-transverse)），它位于腔入口后约 6.5 cm。$z_0 = 0.35$ 时这个间隙在束腰下游约 8 cm，束流已经在发散，向外的冲量叠加到角度上，末端尺寸变大（5.46 mm，不开腔为 4.87 mm）；$z_0 = 0.25$ 时它在束腰**上游**约 2 cm，束流还在会聚，同样向外的冲量反而抵消了一部分会聚角，腔后的角度分散变小，再加上加速带来的绝热阻尼（角度缩小约 10 %），末端尺寸比不开腔时还小（4.22 mm 对 4.86 mm）。把腔近似成两个薄透镜的估算重现了这个趋势（四行依次为 5.14、5.10、4.65、4.07 mm）。
 
 所以在手册示例里，\`superpose\` 的意义主要是**把腔放在它真实的位置上**、同时保留两张场图完整的边缘，而不是重叠区里的场本身。重叠区的场真正起作用的，是校正线圈嵌在主磁铁里、或边缘场很长的情形。
 
@@ -13702,7 +13702,7 @@ $$
 
 The example protons have $B\\rho \\approx 0.179\\ \\mathrm{T\\,m}$. For the \`sol\` map ($K_b = 1$) the integrals along the axis are $\\int B_z\\,\\dd z = 0.729\\ \\mathrm{T\\,m}$ and $\\int B_z^2\\,\\dd z \\approx 4.04\\ \\mathrm{T^2\\,m}$ (the map noise makes the latter slightly too large). So $K_b = 0.25$, 0.35 and 0.45 give focal lengths of about 0.51, 0.26 and 0.16 m, and Larmor rotation angles $\\theta = \\int k\\,\\dd z$ of about $29^\\circ$, $41^\\circ$ and $53^\\circ$.
 
-In the preview: at the default $K_b = 0.35$ (peak about 2.9 T) the beam forms a waist at $z \\approx 0.6\\ \\mathrm{m}$ (about 0.2 m after the solenoid exit) with a minimum rms $x$ of about 0.82 mm; $K_b = 0.25$ is too weak and rms $x$ only comes down to about 1.5 mm; $K_b = 0.45$ is too strong: the waist comes earlier and is narrower (about 0.43 mm), after which the beam diverges faster and reaches 3.1 mm at the exit.
+In the preview: at the default $K_b = 0.35$ (peak about 2.9 T) the beam forms a waist at $z \\approx 0.6\\ \\mathrm{m}$ (about 0.2 m after the solenoid exit) with a minimum rms $x$ of about 0.81 mm; $K_b = 0.25$ is too weak and rms $x$ only comes down to about 1.5 mm; $K_b = 0.45$ is too strong: the waist comes earlier and is narrower (about 0.42 mm), after which the beam diverges faster and reaches 3.2 mm at the exit.
 
 > **Think about it**: why does changing $K_b$ only from 0.25 to 0.35 make such a difference?
 >
@@ -13737,7 +13737,7 @@ see [longitudinal dynamics](#longitudinal). The preview of the cavity with $K_e 
 
 Near $\\varphi_s = 0$ the gain is largest (on crest) but the bunch lengthens; with $\\varphi_s < 0$ the gain is slightly smaller but the bunch is compressed — **phase stability**: with AVAS's $\\cos(\\omega t+\\varphi)$ convention a negative synchronous phase gives late particles more energy, so they catch up with the reference particle. On the positive side ($+20^\\circ$) there is no longitudinal focusing and the bunch lengthens quickly.
 
-The price is [RF defocusing](#longitudinal): by Laplace's equation, the stronger the longitudinal focusing, the stronger the transverse defocusing. In the preview the largest rms $x$ is about 1.40 mm at $\\varphi_s = 0^\\circ$, 1.95 mm at $-30^\\circ$ and 2.43 mm at $-60^\\circ$.
+The price is [RF defocusing](#longitudinal): by Laplace's equation, the stronger the longitudinal focusing, the stronger the transverse defocusing. In the preview the largest rms $x$ is about 1.40 mm at $\\varphi_s = 0^\\circ$, 1.94 mm at $-30^\\circ$ and 2.41 mm at $-60^\\circ$.
 
 > **Think about it**: the longitudinal focusing is strongest at $\\varphi_s = -60^\\circ$, so why is the exit rms $z$ (2.15 mm) larger than at $-30^\\circ$ (1.12 mm)?
 >
@@ -13769,11 +13769,11 @@ Some points (details in [lattice design](#lattice-design)):
 
 > **Think about it**: with the default parameters, does the phase advance per period stay below 90°?
 >
-> Answer: not entirely. Estimated from the period transfer matrices of the linear preview, the first period has a transverse phase advance (in the Larmor rotating frame) of about $94^\\circ$ and a longitudinal one of about $128^\\circ$; by the 3rd period they have dropped to about $62^\\circ$ and $95^\\circ$, by the 5th to about $48^\\circ$ and $71^\\circ$. They fall from period to period because $B\\rho$ and $\\beta^3\\gamma^3$ grow with energy and the same solenoid and cavity become "weaker". For a weak 0.18 mA beam this does not matter (single particles only need less than $180^\\circ$), but at high current the first period would already be a problem. This is exactly why a real design lets $K_b$ and $K_e$ change with energy.
+> Answer: not entirely. Estimated from the period transfer matrices of the linear preview, the first period has a transverse phase advance (in the Larmor rotating frame, $x$ and $y$ planes) of about $90^\\circ$–$94^\\circ$ and a longitudinal one of about $128^\\circ$; by the 3rd period they have dropped to about $59^\\circ$–$62^\\circ$ and $95^\\circ$, by the 5th to about $46^\\circ$–$48^\\circ$ and $71^\\circ$. They fall from period to period because $B\\rho$ and $\\beta^3\\gamma^3$ grow with energy and the same solenoid and cavity become "weaker". For a weak 0.18 mA beam this does not matter (single particles only need less than $180^\\circ$), but at high current the first period would already be a problem. This is exactly why a real design lets $K_b$ and $K_e$ change with energy.
 >
-> A caveat about these numbers: the preview's 4 × 4 period matrix is not exactly symplectic. Its eigenvalues should all have modulus 1 (the period starts and ends in field-free drifts, and the cavity's damping is divided out), but they come out as about 0.95 and 1.05, and about 0.96 and 1.04 even at $K_e = 0$. This is not physics, and it does not come from using $x'$ instead of the canonical momentum (at field-free ends the two coincide, and the preview's split into solenoid body and fringe kicks is consistent). It comes from the noisy \`sol\` map: the preview takes the radial fringe field from the map's own $B_x$, $B_y$ components, which are not consistent with $-\\tfrac12\\,\\partial B_z/\\partial z$ of its $B_z$ component (on average about 12 % weaker, plus point-to-point noise). With the fringe derived from $B_z$ alone (Maxwell's equations) the moduli are 0.997–1.003 and the phase advances change by less than 1°, so the numbers above can be trusted to about a degree.
+> A note about these numbers: the period starts and ends in field-free drifts, so with the cavity's damping divided out the period transfer matrix should be symplectic, with all eigenvalues of modulus 1. The linear preview gives moduli between 0.9995 and 1.0005 (exactly 1 at $K_e = 0$); the small remainder comes from the cavity, since with acceleration $(x, x')$ are not canonical coordinates. Earlier versions of the preview took the solenoid's radial fringe field from the \`sol\` map's own $B_x$, $B_y$, which disagree point by point with $-\\tfrac12\\,\\partial B_z/\\partial z$ (the map's transverse field is lower and broader than the slope of its on-axis field suggests, see [solenoid](#solenoid-field)); the moduli were then 0.95 and 1.05, and on a long line one mode grew by about 4 % per period. The radial fringe now comes from $B_z$ by Maxwell's equations, and the phase advances above changed by less than 1°.
 
-**Try it**: raise the number of periods to 8 and see whether the energy grows linearly (it does not: the gain first grows, then saturates); set $K_b$ to 0.25 or 0.45 and see the envelope run away. The two fail for different reasons: at $K_b = 0.25$ the solenoid is too weak to overcome the RF defocusing of the cavity (the solenoid alone gives about $73^\\circ$; in the smooth approximation the RF defocusing subtracts $\\sigma_{0l}^2/2$ from $\\sigma_{0t}^2$, and $128^\\circ/\\sqrt2 \\approx 90^\\circ$ is more than the solenoid provides; the smooth approximation is crude at such large phase advances, but the full period matrix confirms the instability), the first period has no stable solution, rms $x$ grows to about 8.3 mm and the preview warns that 3 × rms exceeds the aperture; at $K_b = 0.45$ the solenoid is too strong, with a focal length of about 0.16 m it alone exceeds the stability limit of the period ($\\lvert\\cos\\sigma\\rvert > 1$), and rms $x$ grows to about 4.0 mm.
+**Try it**: raise the number of periods to 8 and see whether the energy grows linearly (it does not: the gain first grows, then saturates); set $K_b$ to 0.25 or 0.45 and see the envelope run away. The two fail for different reasons: at $K_b = 0.25$ the solenoid is too weak to overcome the RF defocusing of the cavity (the solenoid alone gives about $73^\\circ$; in the smooth approximation the RF defocusing subtracts $\\sigma_{0l}^2/2$ from $\\sigma_{0t}^2$, and $128^\\circ/\\sqrt2 \\approx 90^\\circ$ is more than the solenoid provides; the smooth approximation is crude at such large phase advances, but the full period matrix confirms the instability), the first period has no stable solution, rms $x$ grows to about 8.2 mm and the preview warns that 3 × rms exceeds the aperture; at $K_b = 0.45$ the solenoid is too strong, with a focal length of about 0.16 m it alone exceeds the stability limit of the period ($\\lvert\\cos\\sigma\\rvert > 1$), and rms $x$ grows to about 4.2 mm.
 
 ## Step 5: adding beam current {#tutorial-step5}
 
@@ -13787,7 +13787,7 @@ $$
 
 (the generalized perveance of a continuous beam; for a bunched beam the average charge is used as an approximation.) The $(\\beta\\gamma)^3$ in the denominator has three sources: at low velocity the same current means a higher line charge density ($1/\\beta$); the magnetic attraction between moving charges cancels part of the electric repulsion, leaving $1/\\gamma^2$, and at low velocity hardly anything is cancelled; and the smaller the particle's momentum and velocity, the more a given transverse force deflects it ($1/\\beta^2\\gamma$). At the example's entrance $(\\beta\\gamma)^3 = 1.86\\times 10^{-4}$, and 5 mA gives $K \\approx 1.7\\times 10^{-6}$.
 
-In the preview, the largest rms $x$ over 3 periods is about 1.8 mm at 0.18 mA, 2.8 mm at 5 mA, 4.6 mm at 15 mA and 6.7 mm at 30 mA. The largest rms $z$ is about 3.1, 2.8, 3.6 and 4.7 mm: it does not change monotonically with current, at 5 mA it is even slightly smaller, and only above 15 mA does it grow clearly. Do not assume that every quantity grows monotonically with current; look at the curves.
+In the preview, the largest rms $x$ over 3 periods is about 1.8 mm at 0.18 mA, 2.7 mm at 5 mA, 4.5 mm at 15 mA and 6.6 mm at 30 mA. The largest rms $z$ is about 3.1, 2.8, 3.6 and 4.7 mm: it does not change monotonically with current, at 5 mA it is even slightly smaller, and only above 15 mA does it grow clearly. Do not assume that every quantity grows monotonically with current; look at the curves.
 
 > **Think about it**: how much weaker is the space charge of the same 10 mA beam at 100 MeV?
 >
@@ -13908,7 +13908,7 @@ $$
 
 示例质子 $B\\rho \\approx 0.179\\ \\mathrm{T\\,m}$。对 \`sol\` 场图（$K_b = 1$），沿轴积分得 $\\int B_z\\,\\dd z = 0.729\\ \\mathrm{T\\,m}$、$\\int B_z^2\\,\\dd z \\approx 4.04\\ \\mathrm{T^2\\,m}$（场图噪声使后者略偏大）。于是 $K_b = 0.25$、0.35、0.45 时焦距约为 0.51、0.26、0.16 m，束流绕轴旋转的拉莫尔角 $\\theta = \\int k\\,\\dd z$ 约为 $29^\\circ$、$41^\\circ$、$53^\\circ$。
 
-预览中：默认 $K_b = 0.35$（峰值约 2.9 T）时，束流在 $z \\approx 0.6\\ \\mathrm{m}$（螺线管出口后约 0.2 m）处形成腰，rms $x$ 最小约 0.82 mm；$K_b = 0.25$ 太弱，rms $x$ 最小只降到约 1.5 mm；$K_b = 0.45$ 太强，腰更早、更细（约 0.43 mm），之后发散得更快，到出口反而有 3.1 mm。
+预览中：默认 $K_b = 0.35$（峰值约 2.9 T）时，束流在 $z \\approx 0.6\\ \\mathrm{m}$（螺线管出口后约 0.2 m）处形成腰，rms $x$ 最小约 0.81 mm；$K_b = 0.25$ 太弱，rms $x$ 最小只降到约 1.5 mm；$K_b = 0.45$ 太强，腰更早、更细（约 0.42 mm），之后发散得更快，到出口反而有 3.2 mm。
 
 > **想一想**：$K_b$ 只从 0.25 改到 0.35，为什么效果差这么多？
 >
@@ -13943,7 +13943,7 @@ $$
 
 $\\varphi_s = 0$ 附近增益最大（波峰），但束团被拉长；$\\varphi_s < 0$ 时增益略少，束团却被压缩——这就是 **相稳定性**：在 AVAS 的 $\\cos(\\omega t+\\varphi)$ 约定下，负的同步相位使晚到的粒子获得更多能量，从而追上参考粒子。正相位（$+20^\\circ$）一侧没有纵向聚焦，束团迅速变长。
 
-代价是 [射频散焦](#longitudinal)：由 Laplace 方程，纵向聚焦越强，横向散焦也越强。预览中横向最大 rms $x$ 在 $\\varphi_s = 0^\\circ$ 时约 1.40 mm，$-30^\\circ$ 时 1.95 mm，$-60^\\circ$ 时 2.43 mm。
+代价是 [射频散焦](#longitudinal)：由 Laplace 方程，纵向聚焦越强，横向散焦也越强。预览中横向最大 rms $x$ 在 $\\varphi_s = 0^\\circ$ 时约 1.40 mm，$-30^\\circ$ 时 1.94 mm，$-60^\\circ$ 时 2.41 mm。
 
 > **想一想**：$\\varphi_s = -60^\\circ$ 时纵向聚焦最强，为什么出口 rms $z$（2.15 mm）反而比 $-30^\\circ$ 时（1.12 mm）大？
 >
@@ -13975,11 +13975,11 @@ drift 0.1 0.02 0
 
 > **想一想**：默认参数下，每个周期的相移满足"小于 90°"吗？
 >
-> 答：不完全满足。按线性预览的周期传输矩阵估计，第 1 个周期横向相移（在拉莫尔旋转坐标中）约 $94^\\circ$、纵向约 $128^\\circ$；到第 3 个周期分别降到约 $62^\\circ$ 和 $95^\\circ$，第 5 个周期约 $48^\\circ$ 和 $71^\\circ$。相移逐周期下降，是因为 $B\\rho$ 和 $\\beta^3\\gamma^3$ 随能量增大，同样的螺线管和腔变"弱"了。对 0.18 mA 的弱流束这无关紧要（单粒子只要求小于 $180^\\circ$），但强流时第一个周期就会出问题。这正说明真实设计为什么要让 $K_b$、$K_e$ 随能量变化。
+> 答：不完全满足。按线性预览的周期传输矩阵估计，第 1 个周期横向相移（在拉莫尔旋转坐标中，$x$、$y$ 两个平面）约 $90^\\circ$～$94^\\circ$、纵向约 $128^\\circ$；到第 3 个周期分别降到约 $59^\\circ$～$62^\\circ$ 和 $95^\\circ$，第 5 个周期约 $46^\\circ$～$48^\\circ$ 和 $71^\\circ$。相移逐周期下降，是因为 $B\\rho$ 和 $\\beta^3\\gamma^3$ 随能量增大，同样的螺线管和腔变"弱"了。对 0.18 mA 的弱流束这无关紧要（单粒子只要求小于 $180^\\circ$），但强流时第一个周期就会出问题。这正说明真实设计为什么要让 $K_b$、$K_e$ 随能量变化。
 >
-> 关于这些数值要说明一点：预览给出的 4 × 4 周期矩阵并不严格辛。周期首尾都在无场漂移段中，又已除去腔的加速阻尼，它的本征值模应该都是 1，实际却是约 0.95 和 1.05，即使 $K_e = 0$ 也有约 0.96 和 1.04。这不是物理效应，也不是用 $x'$ 代替正则动量造成的（在无场的首尾两者相同，预览把螺线管分成主体与边缘踢的做法也是自洽的）。原因在于有噪声的 \`sol\` 场图：预览取场图自己的 $B_x$、$B_y$ 分量计算边缘径向场，而它们与 $B_z$ 分量的 $-\\tfrac12\\,\\partial B_z/\\partial z$ 并不一致（平均弱约 12 %，另有逐点噪声）。改用只由 $B_z$ 按麦克斯韦方程求出的边缘场后，模为 0.997～1.003，相移的变化不到 1°，所以上面的相移可以信到 1° 左右。
+> 关于这些数值要说明一点：周期首尾都在无场漂移段中，除去腔的加速阻尼后，周期传输矩阵应当是辛矩阵，本征值的模都是 1。线性预览给出的模在 0.9995～1.0005 之间（$K_e = 0$ 时严格为 1），剩下的一点偏差来自腔：有加速时 $(x, x')$ 本来就不是正则坐标。早先的预览取 \`sol\` 场图自己的 $B_x$、$B_y$ 计算螺线管边缘的径向场，而这两个分量与 $-\\tfrac12\\,\\partial B_z/\\partial z$ 逐点并不一致（场图的横向场比轴上场斜率所暗示的更低、更宽，见 [螺线管](#solenoid-field)），模一度是 0.95 和 1.05，长束线上一个模式每周期增长约 4 %。现在径向边缘场由 $B_z$ 按 Maxwell 方程求出，上面的相移与改动前相差不到 1°。
 
-**试一试**：把周期数加到 8，看能量是否线性增长（不是：增益先增大后饱和）；把 $K_b$ 调到 0.25 或 0.45，看包络如何失控。两者失控的原因不同：$K_b = 0.25$ 时螺线管太弱，抵不过腔的射频散焦（螺线管单独约 $73^\\circ$；按平滑近似，射频散焦从 $\\sigma_{0t}^2$ 中减去 $\\sigma_{0l}^2/2$，而 $128^\\circ/\\sqrt2 \\approx 90^\\circ$，比螺线管能给的还多；相移这么大时平滑近似很粗糙，但完整的周期矩阵同样给出不稳定），第一个周期没有稳定解，rms $x$ 增大到约 8.3 mm，预览提示 3 倍 rms 超过孔径；$K_b = 0.45$ 时螺线管太强，焦距约 0.16 m，单独就超过了周期稳定的极限（$\\lvert\\cos\\sigma\\rvert > 1$），rms $x$ 增大到约 4.0 mm。
+**试一试**：把周期数加到 8，看能量是否线性增长（不是：增益先增大后饱和）；把 $K_b$ 调到 0.25 或 0.45，看包络如何失控。两者失控的原因不同：$K_b = 0.25$ 时螺线管太弱，抵不过腔的射频散焦（螺线管单独约 $73^\\circ$；按平滑近似，射频散焦从 $\\sigma_{0t}^2$ 中减去 $\\sigma_{0l}^2/2$，而 $128^\\circ/\\sqrt2 \\approx 90^\\circ$，比螺线管能给的还多；相移这么大时平滑近似很粗糙，但完整的周期矩阵同样给出不稳定），第一个周期没有稳定解，rms $x$ 增大到约 8.2 mm，预览提示 3 倍 rms 超过孔径；$K_b = 0.45$ 时螺线管太强，焦距约 0.16 m，单独就超过了周期稳定的极限（$\\lvert\\cos\\sigma\\rvert > 1$），rms $x$ 增大到约 4.2 mm。
 
 ## 第 5 步：加入束流流强 {#tutorial-step5}
 
@@ -13993,7 +13993,7 @@ $$
 
 （连续束的广义导流系数；束团束用平均电荷近似。）分母中的 $(\\beta\\gamma)^3$ 有三个来源：速度低时同样的电流意味着更高的线电荷密度（$1/\\beta$）；运动电荷之间的磁吸引会抵消一部分电排斥，抵消后剩下 $1/\\gamma^2$，低速时几乎不抵消；粒子的动量和速度越小，同样的横向力造成的偏折越大（$1/\\beta^2\\gamma$）。示例入口 $(\\beta\\gamma)^3 = 1.86\\times 10^{-4}$，5 mA 时 $K \\approx 1.7\\times 10^{-6}$。
 
-预览中 3 个周期的最大 rms $x$：0.18 mA 时约 1.8 mm，5 mA 时约 2.8 mm，15 mA 时约 4.6 mm，30 mA 时约 6.7 mm。纵向最大 rms $z$ 依次约为 3.1、2.8、3.6、4.7 mm：并不随流强单调变化，5 mA 时反而略小，15 mA 以上才明显变大。不要预设每个量都随流强单调增大，要看曲线。
+预览中 3 个周期的最大 rms $x$：0.18 mA 时约 1.8 mm，5 mA 时约 2.7 mm，15 mA 时约 4.5 mm，30 mA 时约 6.6 mm。纵向最大 rms $z$ 依次约为 3.1、2.8、3.6、4.7 mm：并不随流强单调变化，5 mA 时反而略小，15 mA 以上才明显变大。不要预设每个量都随流强单调增大，要看曲线。
 
 > **想一想**：同样 10 mA 的束流，到 100 MeV 时空间电荷会弱多少？
 >

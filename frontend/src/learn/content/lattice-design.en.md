@@ -317,7 +317,7 @@ drift  0.1  0.02  0
 outputplane -0.05
 ```
 
-Linear preview: final energy about $2.89\ \mathrm{MeV}$, largest rms size about $1.6\ \mathrm{mm}$ (aperture 20 mm, aperture ratio about 13). The solenoid factor `Kb` affects the envelope strongly: at `Kb = 0.45` the largest rms is about $2.7\ \mathrm{mm}$, and at `Kb = 0.531` the line is already overfocused and the preview reports 3 × rms beyond the aperture. The input beam is not the matched beam of this period, so the envelope is not strictly periodic — exactly the problem the [matching](#matching) chapter addresses.
+Linear preview: final energy about $2.89\ \mathrm{MeV}$, largest rms size about $1.6\ \mathrm{mm}$ (aperture 20 mm, aperture ratio about 13). The solenoid factor `Kb` affects the envelope strongly: at `Kb = 0.45` the largest rms is about $2.8\ \mathrm{mm}$, and at `Kb = 0.531` the line is already overfocused and the preview reports 3 × rms beyond the aperture. The input beam is not the matched beam of this period, so the envelope is not strictly periodic — exactly the problem the [matching](#matching) chapter addresses.
 
 ### Other points
 

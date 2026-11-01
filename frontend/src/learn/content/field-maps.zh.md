@@ -4,7 +4,7 @@
 
 本章说明场图在物理上是什么（Maxwell 方程的一个采样解），AVAS 为什么要在场图里用 t-code 逐步积分而不是用传输矩阵，网格、存储顺序、插值和噪声各自会带来什么问题，以及拿到一张新场图时怎样检查它是否可信。场图的三类用法分别见 [射频腔](#rf-cavity)（场类型 1）与 [静电与静磁场图](#static-fields)（类型 2、3）。
 
-示例项目 `examples/hwr010/InputFile` 带有两张场图：半波长腔 `hwr010`（`.edx/.edy/.edz/.bdx/.bdy/.bdz`，长 0.21 m）和螺线管 `sol`（`.bsx/.bsy/.bsz`，长 0.35 m）。`efield.*` 与 `bfield.*` 分别是这两组文件逐字节相同的副本。下面两个场图元件依次排列，静磁螺线管 sol 后接射频腔 hwr010，即引导教程中的一个周期。线性预览中螺线管把束流聚到 $z \approx 0.55\ \mathrm{m}$ 处的束腰（rms x 0.86 mm），腔从 $z = 0.50\ \mathrm{m}$ 开始，把动能从 1.527 MeV 提到 1.884 MeV；末端 rms x 为 1.67 mm，若把腔场关掉（Ke = Kb = 0）则是 1.19 mm——腔的射频散焦同样写在场图里。
+示例项目 `examples/hwr010/InputFile` 带有两张场图：半波长腔 `hwr010`（`.edx/.edy/.edz/.bdx/.bdy/.bdz`，长 0.21 m）和螺线管 `sol`（`.bsx/.bsy/.bsz`，长 0.35 m）。`efield.*` 与 `bfield.*` 分别是这两组文件逐字节相同的副本。下面两个场图元件依次排列，静磁螺线管 sol 后接射频腔 hwr010，即引导教程中的一个周期。线性预览中螺线管把束流聚到 $z \approx 0.55\ \mathrm{m}$ 处的束腰（rms x 0.85 mm），腔从 $z = 0.50\ \mathrm{m}$ 开始，把动能从 1.527 MeV 提到 1.884 MeV；末端 rms x 为 1.65 mm，若把腔场关掉（Ke = Kb = 0）则是 1.19 mm——腔的射频散焦同样写在场图里。
 
 ```avas-beamline
 drift 0.05 0.02 0
@@ -114,7 +114,7 @@ K_e\,\nabla\times\boldsymbol{E}_{map} = -\omega K_b\,\boldsymbol{B}_{map},\qquad
 K_b\,\nabla\times\boldsymbol{B}_{map} = -\frac{\omega}{c^2}\,K_e\,\boldsymbol{E}_{map}
 $$
 
-所以一张场图不仅定下了场形，也定下了让 E 和 B 成为同一个解的比值 $K_b/K_e$。线性预览在缺少横向分量文件时就是用第一组关系由轴上分量推出横向梯度的。
+所以一张场图不仅定下了场形，也定下了让 E 和 B 成为同一个解的比值 $K_b/K_e$。线性预览在缺少横向分量文件时就是用第一组关系由轴上分量推出横向梯度的；静磁场的径向部分（螺线管边缘场）则总是由轴上 $B_z$ 求出，场图的 $B_x$、$B_y$ 只提供无散的部分。
 
 这些关系也是检查场图的工具，但要小心噪声。在 hwr010 中试一下第一个关系：场图自己的 $E_x(x{=}1\,\mathrm{cm})$ 沿 $z$ 的最大值是 1.89 MV/m（场图原值）；由轴上 $E_z$ 做 5 点滑动平均后求导，$\tfrac{r}{2}\lvert\partial E_z/\partial z\rvert$ 的最大值是 2.04 MV/m，二者相差约 8 %，说明横向分量与纵向分量是自洽的。可如果直接对原始数据求导，得到的是 5.4 MV/m——噪声被微分放大了近 3 倍。
 

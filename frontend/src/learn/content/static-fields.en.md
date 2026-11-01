@@ -4,7 +4,7 @@ A 30 keV proton leaving an ion source feels the same force in a 1 T magnetic fie
 
 This chapter answers both with two ideas: the electric force does not depend on velocity while the magnetic force is proportional to it; and a static field in vacuum is completely determined by its distribution on the axis, whose longitudinal shape (the fringe field) acts on the beam in a way the hard-edge model leaves out. Field type 2 of the `field` element is an **electrostatic field** (einzel lenses, electrostatic quadrupoles, deflector plates …), type 3 a **magnetostatic field** (solenoids, quadrupoles, magnets with bending components … described by maps). Read [Solenoid](#solenoid) and [Quadrupole](#quadrupole) first; the field-map files themselves are covered in [Field maps](#field-maps).
 
-Start with the example project's magnetostatic solenoid map sol (Kb = 0.35, smoothed on-axis peak about 2.9 T). Click the element to see the on-axis distribution of the map. In the linear preview, rms x is largest near the solenoid centre (about 1.40 mm), the beam is then focused to a waist of 0.82 mm at $z \approx 0.62\ \mathrm{m}$, and it is 0.98 mm at the end; with Kb set to 0 it would be 3.09 mm at the end.
+Start with the example project's magnetostatic solenoid map sol (Kb = 0.35, smoothed on-axis peak about 2.9 T). Click the element to see the on-axis distribution of the map. In the linear preview, rms x is largest near the solenoid centre (about 1.40 mm), the beam is then focused to a waist of 0.81 mm at $z \approx 0.62\ \mathrm{m}$, and it is 0.97 mm at the end; with Kb set to 0 it would be 3.09 mm at the end.
 
 ```avas-beamline
 drift 0.05 0.02 0
@@ -131,7 +131,7 @@ r'' + \left(\frac{B_z(z)}{2B\rho}\right)^{2} r = 0,\qquad
 \frac{1}{f} \approx \int\left(\frac{B_z}{2B\rho}\right)^{2}\dd z
 $$
 
-The focusing strength is proportional to $B_z^2$ and **independent of the field direction**; changing the sign of $K_b$ only changes the sense of rotation of the beam. Check with the beam line above: changing Kb from 0.35 to −0.35 leaves the rms curves of the linear preview exactly the same (waist at $z = 0.62\ \mathrm{m}$, 0.82 mm, in both cases).
+The focusing strength is proportional to $B_z^2$ and **independent of the field direction**; changing the sign of $K_b$ only changes the sense of rotation of the beam. Check with the beam line above: changing Kb from 0.35 to −0.35 leaves the rms curves of the linear preview exactly the same (waist at $z = 0.62\ \mathrm{m}$, 0.81 mm, in both cases).
 
 ### The example solenoid sol
 
@@ -188,14 +188,14 @@ The $B_{eff}$ and $L_{eff}$ of the table above are chosen so that the hard-edge 
 
 ### How good is the hard-edge equivalent
 
-Compare two lattices in the example (no space charge, linear preview, rms $x$): drift 0.05 m + map `sol` + drift 0.3 m, against the equivalent hard-edge `solenoid` ($L = 0.136\ \mathrm{m}$) at the same centre position:
+Compare two lattices in the example (example current 0.184 mA with the preview's linear space charge, rms $x$): drift 0.05 m + map `sol` + drift 0.3 m, against the equivalent hard-edge `solenoid` ($L = 0.136\ \mathrm{m}$) at the same centre position:
 
 | | Map rms waist | Hard-edge rms waist | At $z = 0.7\ \mathrm{m}$, map / hard edge |
 |---|---|---|---|
-| $K_b = 0.35$ ($B_{eff} = 1.88\ \mathrm{T}$, $f/L_{eff} \approx 2$) | 0.823 mm @ 0.62 m | 0.830 mm @ 0.63 m | 0.854 / 0.859 mm |
-| $K_b = 0.531$ ($B_{eff} = 2.85\ \mathrm{T}$, $f/L_{eff} \approx 0.85$) | 0.287 mm @ 0.388 m | 0.310 mm @ 0.399 m | 2.68 / 2.42 mm |
+| $K_b = 0.35$ ($B_{eff} = 1.88\ \mathrm{T}$, $f/L_{eff} \approx 2$) | 0.811 mm @ 0.62 m | 0.828 mm @ 0.62 m | 0.845 / 0.857 mm |
+| $K_b = 0.531$ ($B_{eff} = 2.85\ \mathrm{T}$, $f/L_{eff} \approx 0.85$) | 0.285 mm @ 0.388 m | 0.311 mm @ 0.402 m | 2.73 / 2.42 mm |
 
-With weak focusing the two differ by less than 1 %; with strong focusing they are about 10 % apart at $z = 0.7\ \mathrm{m}$. Rule of thumb: when $f$ is several times the element length the hard-edge equivalent is good enough for a first design; when $f$ is comparable to the length, accurate work should use the map.
+With weak focusing the two differ by about 2 %; with strong focusing they are about 13 % apart at $z = 0.7\ \mathrm{m}$. Rule of thumb: when $f$ is several times the element length the hard-edge equivalent is good enough for a first design; when $f$ is comparable to the length, accurate work should use the map.
 
 Below is the schematic field of the $K_b = 0.531$ equivalent hard-edge solenoid (computed from the parameters, hard edge, not map data); compare its longitudinal distribution with the map above:
 
@@ -213,7 +213,7 @@ solenoid L=0.136 B=2.85 W=1.527 d1=0.05 d2=0.3
 >
 > Answer: write the measured field as $B + n$, with $n$ noise of zero mean. In the linear integral $n$ cancels between positive and negative values; the squared integral gains an extra $\int n^2\,\dd z$, which is always positive and never cancels. A solenoid focal length computed from a noisy map is therefore too short.
 
-> **AVAS convention**: the linear preview slices a map into 4 mm pieces and treats each as "half a step of solenoid body + a thin lens from the near-axis transverse gradients + half a step"; the solenoid's fringe action comes from the gradient term. The engine integrates directly in the 3D field. Both include the fringe fields; the engine also includes the nonlinear terms.
+> **AVAS convention**: the linear preview slices a map into 4 mm pieces and treats each as "edge + half a step of solenoid body + a thin lens from the near-axis transverse gradients + half a step of body + edge". The solenoid's radial fringe field comes from the summed on-axis $B_z$ by Maxwell's equations ($\partial B_x/\partial x + \partial B_y/\partial y = -\partial B_z/\partial z$) and sits at both ends of each slice, which keeps the transfer matrices exactly symplectic; the map's $B_x$, $B_y$ only supply the divergence-free part (normal and skew quadrupole content), because in a noisy map these two components disagree with $B_z$. The engine integrates directly in the 3D field. Both include the fringe fields; the engine also includes the nonlinear terms.
 
 ## Common misconceptions {#static-fields-pitfalls}
 
