@@ -179,7 +179,7 @@ R_{56} &= \frac{L}{\gamma^2} - \frac{h^2\,(L - S_x)}{K_x}.
 \end{aligned}
 $$
 
-This is `bend_matrix(L, angle, n_index, plane, gamma)` of AVAS's linear preview. $R_{51}$ and $R_{52}$ are tied to $R_{16}$ and $R_{26}$ by the symplectic condition; they describe how the transverse coordinates change the path length: a particle displaced outwards at the entrance ($x > 0$) travels further and its $z$ decreases.
+This is the sector-magnet matrix used by AVAS's linear envelope preview. $R_{51}$ and $R_{52}$ are tied to $R_{16}$ and $R_{26}$ by the symplectic condition; they describe how the transverse coordinates change the path length: a particle displaced outwards at the entrance ($x > 0$) travels further and its $z$ decreases.
 
 For a uniform-field ($n = 0$) sector magnet, $\theta = L/\rho$:
 
@@ -215,7 +215,7 @@ $$
 \psi = K_1\,G\,h\,\frac{1 + \sin^2\beta}{\cos\beta}\,\left(1 - K_1 K_2\,G\,h\tan\beta\right),
 $$
 
-where $G$ is the total (full) gap of the magnet and $K_1$, $K_2$ are integrals describing the shape of the fringe field. $K_1 = 0$ gives $\psi = 0$, the hard-edge model. This is `edge_matrix(beta, rho, gap, k1, k2, plane)` of the linear preview. A fringe field of finite extent weakens the vertical focusing: with $\beta = 22.5^\circ$, $\rho = 1$ m, $G = 0.05$ m, $K_1 = 0.45$, $K_2 = 2.8$, $\psi = 1.56^\circ$ and the vertical focusing of one edge drops from $\tan 22.5^\circ = 0.414$ m⁻¹ to 0.383 m⁻¹, about 8 % weaker.
+where $G$ is the total (full) gap of the magnet and $K_1$, $K_2$ are integrals describing the shape of the fringe field. $K_1 = 0$ gives $\psi = 0$, the hard-edge model. This is the pole-face edge matrix used by AVAS's linear envelope preview. A fringe field of finite extent weakens the vertical focusing: with $\beta = 22.5^\circ$, $\rho = 1$ m, $G = 0.05$ m, $K_1 = 0.45$, $K_2 = 2.8$, $\psi = 1.56^\circ$ and the vertical focusing of one edge drops from $\tan 22.5^\circ = 0.414$ m⁻¹ to 0.383 m⁻¹, about 8 % weaker.
 
 ### The rectangular magnet
 
@@ -308,7 +308,7 @@ $K_1 = 0.45$ and $K_2 = 2.8$ are typical values often quoted in the TraceWin doc
 
 ### The z coordinate in bends
 
-Without dipoles, $z$ in DataSet.txt is column 5 + column 33. With dipoles, the AVAS interface accumulates the path step by step through the bending steps (column 35 marks the bending steps) and keeps accumulating afterwards; the $z$ in the interface is therefore the **path length** $s$ along the reference orbit, not a straight-line distance in the laboratory frame (see AGENTS.md §6 and `dataset_stream.PathLength`).
+Without dipoles, $z$ in DataSet.txt is column 5 + column 33. With dipoles, the AVAS interface accumulates the path step by step through the bending steps (column 35 marks the bending steps) and keeps accumulating afterwards; the $z$ in the interface is therefore the **path length** $s$ along the reference orbit, not a straight-line distance in the laboratory frame.
 
 ### Typical values
 

@@ -217,7 +217,7 @@ $$
 \varepsilon_{\Delta\varphi\Delta W} = \frac{2\pi}{\beta\lambda}\,\beta^2\gamma\,mc^2\;\varepsilon_{z\delta}
 $$
 
-（以度为相位单位时把 $2\pi$ 换成 $360$。）$\lambda$ 是束流频率对应的波长。示例束流：纵向 rms 长度 1.316 mm 对应 162.5 MHz 下 4.51° 的 rms 相宽；$\delta_{\mathrm{rms}} = 3.532\times10^{-3}$ 对应 rms 能散 10.78 keV（0.71 %）；纵向几何 rms 发射度 4.644 mm·mrad 换算为 48.5 deg·keV。纵向相空间的运动——同步相位、相稳定区、纵向聚焦——在 [纵向运动](#longitudinal) 一章讨论。
+（以度为相位单位时把 $2\pi$ 换成 $360$。）$\lambda$ 是束流频率对应的波长。按示例 `beam.txt` 的 `twissz` 参数：纵向 rms 长度 1.316 mm 对应 162.5 MHz 下 4.51° 的 rms 相宽；$\delta_{\mathrm{rms}} = 3.532\times10^{-3}$ 对应 rms 能散 10.78 keV（0.71 %）；纵向几何 rms 发射度 4.644 mm·mrad 换算为 48.5 deg·keV（直接统计粒子文件 `part_rfq.dst` 则为 1.24 mm、4.26°、11.4 keV、48.7 deg·keV，两套口径的对照见[初始分布：在 AVAS 中](#distributions-in-avas)）。纵向相空间的运动——同步相位、相稳定区、纵向聚焦——在 [纵向运动](#longitudinal) 一章讨论。
 
 ## 容易误解的地方 {#phase-space-misconceptions}
 

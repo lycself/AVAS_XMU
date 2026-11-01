@@ -217,7 +217,7 @@ $$
 \varepsilon_{\Delta\varphi\Delta W} = \frac{2\pi}{\beta\lambda}\,\beta^2\gamma\,mc^2\;\varepsilon_{z\delta}
 $$
 
-(with the phase in degrees, replace $2\pi$ by $360$). $\lambda$ is the wavelength of the beam frequency. For the example beam: the longitudinal rms length 1.316 mm corresponds to an rms phase width of 4.51° at 162.5 MHz; $\delta_{\mathrm{rms}} = 3.532\times10^{-3}$ to an rms energy spread of 10.78 keV (0.71 %); the longitudinal geometric rms emittance 4.644 mm·mrad converts to 48.5 deg·keV. Motion in longitudinal phase space — synchronous phase, stable region, longitudinal focusing — is discussed in [Longitudinal motion](#longitudinal).
+(with the phase in degrees, replace $2\pi$ by $360$). $\lambda$ is the wavelength of the beam frequency. From the `twissz` parameters of the example `beam.txt`: the longitudinal rms length 1.316 mm corresponds to an rms phase width of 4.51° at 162.5 MHz; $\delta_{\mathrm{rms}} = 3.532\times10^{-3}$ to an rms energy spread of 10.78 keV (0.71 %); the longitudinal geometric rms emittance 4.644 mm·mrad converts to 48.5 deg·keV (whereas direct statistics of the particle file `part_rfq.dst` give 1.24 mm, 4.26°, 11.4 keV and 48.7 deg·keV; the two sets are compared in [Initial distributions: In AVAS](#distributions-in-avas)). Motion in longitudinal phase space — synchronous phase, stable region, longitudinal focusing — is discussed in [Longitudinal motion](#longitudinal).
 
 ## Common misconceptions {#phase-space-misconceptions}
 

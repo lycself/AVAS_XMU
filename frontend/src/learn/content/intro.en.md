@@ -114,7 +114,7 @@ Each chapter first builds understanding; its "In AVAS" part collects keywords, p
 
 - **Labs are linear models.** They update live as you drag the sliders and are meant to build intuition; their accuracy is given under [The linear preview](#intro-preview).
 - **Field pictures** distinguish data from schematics: slices of field-map files are data; the fields of matrix elements are schematics drawn from the parameters and are labelled as such. Cross-sections are always viewed from downstream looking upstream, with the beam coming out of the screen (⊙), so that force directions can be checked directly with $\boldsymbol F = q\boldsymbol v \times \boldsymbol B$.
-- **"AVAS convention"** boxes mark conventions in which AVAS differs from textbooks or the manual and which have been verified with the kernel (for example the units of the Twiss parameters, `displacepos` being read in mm, `multithreading` accepting only 1).
+- **"AVAS convention"** boxes mark conventions in which AVAS differs from textbooks or the manual and which have been verified with the kernel (for example the units of the Twiss parameters, `displacepos` being read in mm, `multithreading` accepting only 1); a complete summary table of coordinate/sign conventions, differences from TraceWin and known kernel pitfalls is in [References: In AVAS](#references-in-avas) for quick lookup.
 - Every chapter carries a review status. The current chapters are **written by AI, awaiting review**: formulas and numbers have been checked by computation, but have not yet been reviewed line by line by a physicist; please report problems to the maintainer.
 
 ## Common misconceptions {#intro-misconceptions}

@@ -46,7 +46,7 @@ This is what "the current is tied to the extraction gap" means. To extract more 
 
 The ion source sets a lower bound on the beam emittance, which afterwards generally only grows (unless a collimator cuts away part of the particles). There are two contributions.
 
-The first is temperature. The ions move randomly in the plasma, and a temperature $kT$ corresponds to a transverse momentum spread $\sigma_{p_x} = \sqrt{mkT}$. For extraction from a uniform round aperture of radius $a$ the rms position is $a/2$, and the product of the two divided by $mc$ is the normalised rms emittance:
+The first is temperature. The ions move randomly in the plasma, and a temperature $kT$ corresponds to a transverse momentum spread $\sigma_{p_x} = \sqrt{mkT}$. For extraction from a uniform round aperture of radius $a$ the rms position is $a/2$, and the product of the two divided by $mc$ is the **normalised rms emittance** (an invariant measuring the "position × angle" phase-space area occupied by the beam with the effect of later acceleration divided out; the $\pi$ in `π·mm·mrad` is simply a label meaning the ellipse area has been divided by $\pi$, and `mrad` is the trajectory angle in thousandths of a radian; see [phase space and emittance](#phase-space)):
 
 $$
 \varepsilon_{n,\mathrm{rms}} = \frac{a}{2}\sqrt{\frac{kT}{mc^2}}

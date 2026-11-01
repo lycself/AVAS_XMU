@@ -114,7 +114,7 @@ t-code 按时间步前进，内核随之对全部宏粒子做统计，写成 `Da
 
 - **动手实验**是线性模型，拖动滑块时结果实时更新，适合建立直觉；精度见 [线性预览](#intro-preview)。
 - **场的图形**区分数据与示意：场图文件的切片是数据；矩阵元件的场是按参数画出的示意图，图中会标明。横截面一律从下游往上游看，束流垂直屏幕向外（⊙），这样可以直接用 $\boldsymbol F = q\boldsymbol v \times \boldsymbol B$ 核对受力方向。
-- **“AVAS 约定”** 框标出 AVAS 与教科书或手册不同、并已用内核核实的约定（例如 Twiss 的单位、`displacepos` 按 mm 读取、`multithreading` 只能写 1）。
+- **“AVAS 约定”** 框标出 AVAS 与教科书或手册不同、并已用内核核实的约定（例如 Twiss 的单位、`displacepos` 按 mm 读取、`multithreading` 只能写 1）；全书所有坐标系、与 TraceWin 的差异和内核避坑清单已汇总在[参考文献：在 AVAS 中](#references-in-avas)，熟手可直接按表速查。
 - 各章标有审核状态。当前章节为 **AI 撰写，待审核**：公式和数值经过计算核对，但尚未经物理学家逐条审阅；发现问题请反馈给维护者。
 
 ## 容易误解的地方 {#intro-misconceptions}

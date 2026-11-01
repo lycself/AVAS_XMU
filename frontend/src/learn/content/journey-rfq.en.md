@@ -85,25 +85,20 @@ How high can the voltage be? The field on the vane surface must stay below break
 
 A pure quadrupole field has only transverse components; it can neither accelerate nor bunch. The RFQ's trick is to make the vane surfaces undulate along $z$: where the horizontal pair comes close to the axis, the vertical pair moves away, and half a period later the other way round. The period of the undulation is $\beta\lambda$, and each half period ($\beta\lambda/2$) is called a cell, so the RFQ cell length grows with the proton velocity: 8.0 mm at the 35 keV entrance and 52.6 mm at the 1.527 MeV exit.
 
-Why does the undulation create a longitudinal field? In one cell the horizontal vanes are closer to the axis, so the potential on axis leans towards that of the horizontal vanes; in the next cell the vertical vanes are closer, and the potential on axis leans towards the other pole. Neighbouring cells therefore have an axial potential difference, and hence an axial electric field. The lowest-order potential is a sum of two terms (the Kapchinsky–Teplyakov form):
+Why does the undulation create a longitudinal field? Let the minimum distance from the vane tip to the axis be $a$, and the maximum distance where it recedes be $ma$ ($m > 1$ is the modulation factor). In one cell the horizontal vanes are close to the axis (at $a$) while the vertical ones are far (at $ma$), so the on-axis potential leans towards the horizontal vanes; in the next cell it is the other way round, and the on-axis potential leans towards the vertical vanes. Neighbouring cells therefore have an axial potential difference proportional to the inter-vane voltage $V$, and hence an axial accelerating field.
 
-$$
-U = \frac{V}{2}\left[X\left(\frac{r}{a}\right)^2\cos2\theta + A\,I_0(kr)\cos kz\right]\sin(\omega t + \varphi), \qquad k = \frac{2\pi}{\beta\lambda}
-$$
+The same inter-vane voltage $V$ is thus split into two competing parts described by two dimensionless coefficients (the full Kapchinsky–Teplyakov potential expansion with the modified Bessel function $I_0$ is in [In AVAS](#journey-rfq-in-avas) at the end of this chapter):
 
-The first term is the quadrupole focusing term, the second the accelerating term, and $I_0$ is the modified Bessel function of order zero. $A$ and $X$ are set by the minimum vane aperture $a$ and the modulation factor $m$ (maximum aperture $ma$):
+- **Accelerating efficiency $A$** ($0 \le A < 1$): sets the share of voltage that goes into the on-axis longitudinal field $E_z(z) = \frac{kAV}{2}\sin kz\,\sin(\omega t + \varphi)$ ($k = 2\pi/(\beta\lambda)$). Without modulation ($m = 1$), $A = 0$; deeper modulation (larger $m$) gives a larger $A$.
+- **Focusing efficiency $X$** ($0 < X \le 1$): because the vanes spend half the distance further out at $ma$, the transverse quadrupole focusing is reduced to $X$ times its unmodulated value (which is why the focusing parameter $B$ in the previous section carries the factor $X$). Stronger longitudinal acceleration (larger $A$) leaves less transverse focusing (smaller $X$).
 
-$$
-A = \frac{m^2 - 1}{m^2 I_0(ka) + I_0(mka)}, \qquad X = 1 - A\,I_0(ka)
-$$
-
-Differentiating with respect to $z$ gives the longitudinal field on axis, $E_z = \frac{kAV}{2}\sin kz\,\sin(\omega t + \varphi)$. Its average amplitude over a cell is $E_0 = 2AV/(\beta\lambda)$ and its transit-time factor $T = \pi/4$, so the energy gain per cell is
+Averaging the sinusoidal on-axis $E_z$ over one cell gives an average field amplitude $E_0 = 2AV/(\beta\lambda)$ and a transit-time factor $T = \pi/4$, so the energy gain per cell is
 
 $$
 \Delta W_{\mathrm{cell}} = qE_0T\cos\varphi_s\cdot\frac{\beta\lambda}{2} = \frac{\pi}{4}\,qAV\cos\varphi_s
 $$
 
-Two points about this result. First, the energy gain per cell does not depend on the cell length, only on $A$ and $V$; but the average accelerating gradient $E_0T = \pi AV/(2\beta\lambda)$ falls as $1/\beta$ with increasing velocity. Second, $A$ depends on $ka = 2\pi a/(\beta\lambda)$: at low velocity the cells are short, not much longer than the aperture, $ka$ is large, $I_0(ka)$ is large and $A$ is small; the longitudinal field is "hidden" near the vanes and hardly reaches the axis.
+Two points about this result. First, the energy gain of a single cell does not depend on the cell length, only on $A$ and $V$; but the average accelerating gradient per unit length, $E_0T = \pi AV/(2\beta\lambda)$, falls as $1/\beta$ with increasing velocity. Second, the accelerating efficiency $A$ depends on the ratio of aperture to cell length (the dimensionless ratio $ka = 2\pi a/(\beta\lambda)$): at low velocity the cells are short, not much longer than the aperture, so the longitudinal field created by the vane undulation is "shielded" near the vane tips and hardly reaches the axis, making $A$ small.
 
 With $m = 2$, $a = 6$ mm, $V = 65$ kV and $\varphi_s = -30°$: at 35 keV, $ka = 2.37$, $A = 0.090$ and the gain per cell is only 4.0 keV; at 0.3 MeV, $A = 0.47$ and 20.6 keV; at 1.527 MeV, $ka = 0.36$, $A = 0.57$, 25.2 keV, and an average gradient $E_0T = 0.55$ MV/m. This explains the division of labour in the RFQ: at low energy $A$ is naturally small, just right for gentle shaping and bunching; at high energy $A$ is close to saturation while the average gradient falls as $1/\beta$, so accelerating further in the RFQ pays off less and less, and the beam is handed to the next section at around 1.5–3 MeV (typical values).
 
@@ -162,7 +157,7 @@ readparticledistribution part_rfq.dst
 
 The file goes into `InputFile/`. The Beam page of the GUI can import a particle file (copying it into `InputFile/`) and switch between "generate from parameters" and "read particle file" with `use_dst`. When a particle file is read, every keyword in `beam.txt` except `numofcharge` is ignored: number of particles, current, frequency, energy and distribution all come from the file. An `.edst` file can describe a mixed beam of several particle species.
 
-`.dst` is the binary TraceWin format. AVAS reads it (`avas/data/particles.py`) as follows: the header holds the number of particles, the current (mA) and the frequency (MHz); then each particle has six double-precision numbers $x$ [cm], $x'$ [rad], $y$ [cm], $y'$ [rad], $\varphi$ [rad], $W$ [MeV]; the file ends with the rest energy $mc^2$ [MeV]. The example file gives 5260 particles, 0.1841 mA, 162.5 MHz and 938.272 MeV.
+`.dst` is the binary TraceWin format. AVAS reads its layout as follows: the header holds the number of particles, the current (mA) and the frequency (MHz); then each particle has six double-precision numbers $x$ [cm], $x'$ [rad], $y$ [cm], $y'$ [rad], $\varphi$ [rad], $W$ [MeV]; the file ends with the rest energy $mc^2$ [MeV]. The example file gives 5260 particles, 0.1841 mA, 162.5 MHz and 938.272 MeV.
 
 ```avas-params
 beam:readparticledistribution beam:use_dst beam:numofcharge
@@ -201,6 +196,20 @@ distribution GS GS
 ```
 
 When generating from parameters, the GUI writes `readparticledistribution unknown` and `use_dst 0`. Current, number of particles, frequency and energy agree with the header of `part_rfq.dst`. To read the particle file directly instead, select `part_rfq.dst` on the Beam page (the GUI writes `use_dst 1` and puts the file name into `readparticledistribution`).
+
+### Supplementary formula: the Kapchinsky–Teplyakov two-term potential
+
+The lowest-order near-axis potential of an RFQ cited in the main text (in cylindrical coordinates $(r, \theta, z)$, minimum aperture $a$, maximum aperture $ma$, wave number $k = 2\pi/(\beta\lambda)$) is
+
+$$
+U(r,\theta,z,t) = \frac{V}{2}\left[X\left(\frac{r}{a}\right)^2\cos2\theta + A\,I_0(kr)\cos kz\right]\sin(\omega t + \varphi)
+$$
+
+where $I_0$ is the modified Bessel function of the first kind of order zero, and the accelerating efficiency $A$ and focusing efficiency $X$ are fixed by the vane geometry:
+
+$$
+A = \frac{m^2 - 1}{m^2 I_0(ka) + I_0(mka)}, \qquad X = 1 - A\,I_0(ka)
+$$
 
 ## Further reading {#journey-rfq-reading}
 

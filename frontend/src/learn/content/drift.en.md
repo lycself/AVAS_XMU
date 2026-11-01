@@ -118,7 +118,7 @@ M_{\text{drift}}(L) =
 \end{pmatrix}.
 $$
 
-Each of the three planes is a shear. This is exactly the matrix used by AVAS's linear envelope preview (`drift_matrix` in `avas/sim/linear_optics.py`). Its determinant is 1 and it satisfies the symplectic condition $M\tp J M = J$.
+Each of the three planes is a shear. This is the exact transfer matrix used by AVAS's linear envelope preview. Its determinant is 1 and it satisfies the symplectic condition $M\tp J M = J$.
 
 ### Evolution of second moments and Twiss parameters
 

@@ -85,25 +85,20 @@ $$
 
 纯的四极场只有横向分量，不能加速也不能成团。RFQ 的办法是让电极表面沿 $z$ 起伏：水平电极对靠近轴时，垂直电极对远离轴，半个周期后反过来。起伏的周期是 $\beta\lambda$，每半个周期（$\beta\lambda/2$）叫一个单元，所以 RFQ 的单元长度随质子速度增长：入口 35 keV 时 8.0 mm，出口 1.527 MeV 时 52.6 mm。
 
-为什么起伏会产生纵向场？在一个单元里水平电极离轴近，轴上的电势偏向水平电极的电势；下一个单元里垂直电极离轴近，轴上电势偏向另一极。相邻单元之间于是出现轴向电势差，也就有了轴向电场。最低阶的电势可以写成两项之和（Kapchinsky–Teplyakov 形式）：
+为什么起伏会产生纵向场？设电极离轴最近处的孔径为 $a$，最远处退到 $ma$（$m > 1$ 叫调制系数）。在一个单元里水平电极离轴近（距离 $a$）而垂直电极离轴远（距离 $ma$），轴上的电势就偏向水平电极；下一个单元里反过来，轴上电势偏向垂直电极。相邻单元之间于是出现正比于极间电压 $V$ 的轴向电势差，也就有了轴向加速电场。
 
-$$
-U = \frac{V}{2}\left[X\left(\frac{r}{a}\right)^2\cos2\theta + A\,I_0(kr)\cos kz\right]\sin(\omega t + \varphi), \qquad k = \frac{2\pi}{\beta\lambda}
-$$
+这样一来，同一份极间电压 $V$ 被分成了相互竞争的两份，由两个无量纲系数刻画（含修正贝塞尔函数 $I_0$ 的完整 Kapchinsky–Teplyakov 电势展开见本章末[在 AVAS 中](#journey-rfq-in-avas)）：
 
-第一项是四极聚焦项，第二项是加速项，$I_0$ 是零阶修正贝塞尔函数。$A$ 和 $X$ 由电极的最小孔径 $a$ 与调制系数 $m$（最大孔径为 $ma$）决定：
+- **加速效率 $A$**（$0 \le A < 1$）：决定轴上纵向电场 $E_z(z) = \frac{kAV}{2}\sin kz\,\sin(\omega t + \varphi)$（$k = 2\pi/(\beta\lambda)$）能分到多大份额。未调制（$m = 1$）时 $A = 0$；调制越深（$m$ 越大），$A$ 越大。
+- **聚焦效率 $X$**（$0 < X \le 1$）：因为电极有一半时间退到了更远的 $ma$，横向四极聚焦比未调制时减弱为原来的 $X$ 倍（这就是上一节聚焦参数 $B$ 里带因子 $X$ 的原因）。纵向加速越强（$A$ 越大），横向聚焦保留得越少（$X$ 越小）。
 
-$$
-A = \frac{m^2 - 1}{m^2 I_0(ka) + I_0(mka)}, \qquad X = 1 - A\,I_0(ka)
-$$
-
-对 $z$ 求导得轴上纵向场 $E_z = \frac{kAV}{2}\sin kz\,\sin(\omega t + \varphi)$。它在一个单元上的平均幅值 $E_0 = 2AV/(\beta\lambda)$，渡越时间因子 $T = \pi/4$，所以每个单元的能量增益是
+把轴上正弦分布的 $E_z$ 对一个单元求平均，平均场幅值为 $E_0 = 2AV/(\beta\lambda)$，渡越时间因子为 $T = \pi/4$，因此每个单元的能量增益是
 
 $$
 \Delta W_{\mathrm{cell}} = qE_0T\cos\varphi_s\cdot\frac{\beta\lambda}{2} = \frac{\pi}{4}\,qAV\cos\varphi_s
 $$
 
-这个结果有两点值得注意。第一，单元的能量增益与单元长度无关，只取决于 $A$ 和 $V$；但平均加速梯度 $E_0T = \pi AV/(2\beta\lambda)$ 随速度增大而按 $1/\beta$ 下降。第二，$A$ 随 $ka = 2\pi a/(\beta\lambda)$ 变化：低速时单元很短、比孔径大不了多少，$ka$ 大，$I_0(ka)$ 大，$A$ 很小，纵向场几乎被"藏"在电极附近，到不了轴上。
+这个结果有两点值得注意。第一，单个单元的能量增益与单元长度无关，只取决于 $A$ 和 $V$；但单位长度上的平均加速梯度 $E_0T = \pi AV/(2\beta\lambda)$ 会随速度增大而按 $1/\beta$ 下降。第二，加速效率 $A$ 取决于孔径与单元长度之比（无量纲比值 $ka = 2\pi a/(\beta\lambda)$）：低速时单元很短、比孔径大不了多少，电极起伏产生的纵向场几乎被“屏蔽”在电极表面附近，传不到轴心上，所以 $A$ 很小。
 
 取 $m = 2$、$a = 6$ mm、$V = 65$ kV、$\varphi_s = -30°$ 来看：35 keV 时 $ka = 2.37$，$A = 0.090$，每单元增益只有 4.0 keV；0.3 MeV 时 $A = 0.47$，20.6 keV；1.527 MeV 时 $ka = 0.36$，$A = 0.57$，25.2 keV，平均梯度 $E_0T = 0.55$ MV/m。这解释了 RFQ 的分工：低能部分 $A$ 天然很小，正适合做温和的整形和成团；高能部分 $A$ 已接近饱和，而平均梯度按 $1/\beta$ 下降，继续用 RFQ 加速越来越不划算，于是在 1.5～3 MeV 左右（典型值）交给下一段。
 
@@ -162,7 +157,7 @@ readparticledistribution part_rfq.dst
 
 文件放在 `InputFile/` 里；界面的束流页可以导入粒子文件（复制到 `InputFile/`），并用 `use_dst` 切换"按参数生成 / 读取粒子文件"。读入粒子文件时，`beam.txt` 中除 `numofcharge` 外的关键字均不生效：粒子数、流强、频率、能量和分布都来自文件。`.edst` 文件可以描述多种粒子组成的混合束。
 
-`.dst` 是 TraceWin 格式的二进制文件。AVAS 读取它的方式（`avas/data/particles.py`）是：文件头依次为粒子数、流强（mA）、频率（MHz），之后每个粒子 6 个双精度数 $x$ [cm]、$x'$ [rad]、$y$ [cm]、$y'$ [rad]、$\varphi$ [rad]、$W$ [MeV]，最后是静止能量 $mc^2$ [MeV]。示例文件给出 5260 个粒子、0.1841 mA、162.5 MHz、938.272 MeV。
+`.dst` 是 TraceWin 格式的二进制文件。AVAS 读取它的格式是：文件头依次为粒子数、流强（mA）、频率（MHz），之后每个粒子 6 个双精度数 $x$ [cm]、$x'$ [rad]、$y$ [cm]、$y'$ [rad]、$\varphi$ [rad]、$W$ [MeV]，最后是静止能量 $mc^2$ [MeV]。示例文件给出 5260 个粒子、0.1841 mA、162.5 MHz、938.272 MeV。
 
 ```avas-params
 beam:readparticledistribution beam:use_dst beam:numofcharge
@@ -201,6 +196,20 @@ distribution GS GS
 ```
 
 按参数生成时，界面写的是 `readparticledistribution unknown` 和 `use_dst 0`。流强、粒子数、频率和能量与 `part_rfq.dst` 的文件头一致。要改为直接读入粒子文件，在束流页选择 `part_rfq.dst` 即可（界面写入 `use_dst 1`，并把文件名写进 `readparticledistribution`）。
+
+### 补充公式：Kapchinsky–Teplyakov 两项电势展开
+
+正文中引用的 RFQ 近轴最低阶电势（柱坐标 $(r, \theta, z)$，最小孔径 $a$，最大孔径 $ma$，波数 $k = 2\pi/(\beta\lambda)$）为
+
+$$
+U(r,\theta,z,t) = \frac{V}{2}\left[X\left(\frac{r}{a}\right)^2\cos2\theta + A\,I_0(kr)\cos kz\right]\sin(\omega t + \varphi)
+$$
+
+其中 $I_0$ 是零阶第一类修正贝塞尔函数，加速效率 $A$ 与聚焦效率 $X$ 由电极几何唯一确定：
+
+$$
+A = \frac{m^2 - 1}{m^2 I_0(ka) + I_0(mka)}, \qquad X = 1 - A\,I_0(ka)
+$$
 
 ## 延伸阅读 {#journey-rfq-reading}
 

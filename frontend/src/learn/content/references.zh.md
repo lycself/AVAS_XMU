@@ -65,13 +65,49 @@
 ## AVAS {#references-avas}
 
 - C. Jin, Z.-J. Wang, X. Qi, Y. He, K. Li, et al., "Advanced virtual accelerator software: A linear accelerator simulation code", *Phys. Rev. Accel. Beams* 28, 044602 (2025)——AVAS 的参考文献（"关于 AVAS"对话框中列出的文献），使用 AVAS 发表结果时请引用。
-- AVAS 使用说明 `docs/使用说明20260427.docx`——关键字、参数、单位与文件格式的物理原始参考；参数含义以此为准，并已整理到应用内"参数与文件参考"和 `avas/data/schema.py`。
+- AVAS 使用说明 `docs/使用说明20260427.docx`——关键字、参数、单位与文件格式的物理原始参考；参数含义以此为准，并已整理到应用内"参数与文件参考"。
 - 应用内使用说明（帮助菜单，"操作指南 / 案例教程 / 参数与文件参考"三栏）——界面操作、经过验证的案例及其运行条件。
-- TraceWin 用户手册（CEA Saclay）——AVAS 的场图格式、叠加场和误差分布类型与 TraceWin 相近，比较时注意单位和参数含义以 AVAS 为准。
-- 本入门的 [第一章](#intro) 介绍 AVAS 的组成与本入门的阅读顺序。
+- TraceWin 用户手册（CEA Saclay）——AVAS 的场图格式、叠加场和误差分布类型与 TraceWin 相近，比较时注意单位和参数含义以 AVAS 为准（差异汇总见下方 [在 AVAS 中](#references-in-avas)）。
+- 本入门的 [从离子源到靶](#journey-overview) 与 [AVAS 怎样描述一束粒子](#intro) 介绍阅读路线、AVAS 的组成与章节结构。
 
 ## 讲义与在线资源 {#references-online}
 
 - CERN Accelerator School（CAS）历届讲义，[https://cas.web.cern.ch](https://cas.web.cern.ch)——入门与中级加速器物理、射频、超导、离子源、束流诊断、强流束等专题的讲义，免费获取。
 - US Particle Accelerator School（USPAS）课程资料，[https://uspas.fnal.gov](https://uspas.fnal.gov)——直线加速器、束流物理等课程的讲义与习题。
 - JACoW 会议论文库，[https://www.jacow.org](https://www.jacow.org)——LINAC、IPAC、HB 等会议论文全文，查具体加速器的设计与误差研究实例。
+
+## 在 AVAS 中 {#references-in-avas}
+
+本节汇总散落在各章的 AVAS 约定、与 TraceWin 等程序的单位差异，以及多粒子内核的建模规则，供熟悉加速器物理的读者速查，每条均可点击跳转到对应章节。
+
+### 坐标系、符号与相位约定速查表
+
+| 主题 | AVAS 约定 | 详解章节 |
+|---|---|---|
+| 六维相空间坐标 | $(x, x', y, y', z, \delta)$，其中 $x' = p_x/p_0$，$y' = p_y/p_0$，$\delta = \Delta p/p_0$；$z > 0$ 表示粒子走在参考粒子**前方**（早到），相位差 $\Delta\varphi = -2\pi z/(\beta\lambda)$ | [AVAS 怎样描述一束粒子](#intro-reference)、[相空间与发射度](#phase-space-longitudinal) |
+| 横截面观察方向 | 所有横截面（束斑、四极铁 / 螺线管 / 校正铁截面）一律**从下游往上游看**，束流垂直屏幕向外（$\odot$），便于直接用 $\boldsymbol F = q\boldsymbol v \times \boldsymbol B$ 核对受力与场箭头 | [四极磁铁](#quadrupole-field)、[螺线管](#solenoid-field)、[校正磁铁](#steerer-field) |
+| 四极铁梯度 $G$ 符号 | 对正电荷，$G > 0$ 在水平（$x$）方向聚焦、垂直（$y$）方向散焦；对负电荷相反 | [四极磁铁](#quadrupole-matrix) |
+| 螺线管磁场 $B$ 符号 | 聚焦强度正比于 $B^2$，与 $B$ 和 $q$ 的正负无关（始终双向聚焦）；拉莫尔旋转角 $\theta = \int [qB/(2p)]\,\dd s$ 的转向随 $qB$ 改变 | [螺线管](#solenoid-busch) |
+| 射频腔时变因子与相位 | 电场乘 $K_e\cos(\omega t + \varphi_0)$，磁场乘 $K_b\sin(\omega t + \varphi_0)$；既加速又纵向聚焦的同步相位在 $\varphi_s \in (-90^\circ, 0^\circ)$（波峰左侧）；半波长腔等场图常取 $K_b = -K_e$ 以对齐驻波电磁场相位 | [射频腔](#rf-cavity-modes)、[纵向动力学](#longitudinal-stability)、[场图元件](#field-maps-in-avas) |
+| 射频腔相位参数 `V3` | `V3 = 0`：第六个参数是相对腔有效中心的同步相位 $\varphi_s$（内核自动求入口相位 $\varphi_0$）；`V3 = 1`：相对几何中心的相位；`V3 = 2`：入口绝对相位 $\varphi_0$ | [射频腔](#rf-cavity-in-avas)、[场图元件](#field-maps-in-avas) |
+| 二极磁铁与路径长度 | 经过 `bend` 后，横向坐标 $x$ 沿偏转平面外法向，界面与 `DataSet.txt` 中的纵向位置表示沿参考轨道的弧长 $s$ | [二极磁铁与边缘角](#dipole-in-avas) |
+
+### 与 TraceWin 等常见程序的单位与定义差异
+
+| 项目 | AVAS 规定 | 与 TraceWin 等常见程序的差异提示 | 详解章节 |
+|---|---|---|---|
+| 元件长度 `L` 与孔径 `R` | **米（m）** | TraceWin 常用 mm；从外部导入 lattice 时务必先把长度和孔径换算为 m | [AVAS 怎样描述一束粒子](#intro-workflow)、[漂移段](#drift-in-avas) |
+| `beam.txt` 中的 `twissx / twissy / twissz` | 三个数依次为 $\alpha$、$\beta$（**mm/mrad**，等于 m/rad）、**归一化 rms** 发射度 $\varepsilon_{n,\mathrm{rms}}$（$\pi\cdot\mathrm{mm\cdot mrad}$） | 第三个数固定是归一化 rms 发射度（非几何发射度、非 4 倍或全束发射度）；纵向 `twissz` 也用 $(z\text{ [mm]}, z' = \Delta p/p\text{ [mrad]})$，而非 $(\text{deg}, \text{MeV})$ | [相空间与发射度](#phase-space-in-avas)、[线性光学](#linear-optics-in-avas) |
+| 频率 `frequency` | `beam.txt` 与 `field` 元件中均为 **Hz**（如 `162.5e6`） | 部分程序在输入文件中写 MHz；在 AVAS 中写 `162.5` 会被当作 162.5 Hz | [射频腔](#rf-cavity-in-avas)、[场图元件](#field-maps-in-avas) |
+| 粒子分布文件 `.dst` | 二进制格式，$x, y$ 单位为 **cm**，$x', y'$ 为 **rad**，纵向相位为 **rad**，能量为 **MeV**，电流列存 **mA** | 与 TraceWin `.dst` 二进制布局兼容；`beam.txt` 中 `current` 的单位则是 **A** | [常见束流分布](#distributions-in-avas) |
+| `DataSet.txt` 中的 rms 尺寸与发射度 | 第 16、18、20 列 rms 尺寸单位为 **m**；第 22–24 列归一化 rms 发射度单位为 $\pi\cdot\mathrm{mm\cdot mrad}$ | 从 `DataSet.txt` 反推 $\beta = \sigma^2/\varepsilon$ 填入 `beam.txt` 时，需先把第 16、18、20 列的 m 乘以 $10^3$ 换算为 mm | [线性光学](#linear-optics-in-avas)、[多粒子模拟要点](#simulation-in-avas) |
+
+### 内核规则与建模避坑清单
+
+1. **多粒子模式的 lattice 首尾不要直接放矩阵元件**：`quad`、`solenoid`、`bend`、`edge`、`steerer` 等矩阵元件放在多粒子 lattice 的第一个或最后一个元件时，内核的场边界与步进处理可能异常；首尾各加一段短 `drift`（例如 0.02–0.05 m）即可避免（见 [多粒子模拟要点](#simulation-in-avas)）。
+2. **`outputplane` 距 lattice 末端需留出 $> 2\ \mathrm{cm}$ 余量**：输出平面过于靠近 lattice 终点时可能无法触发记录（见 [多粒子模拟要点](#simulation-in-avas)）。
+3. **含射频腔时 `input.txt` 的 `multithreading` 固定设 `1`**：当前内核在 `multithreading > 1` 时射频腔纵向跟踪会失真（见 [多粒子模拟要点](#simulation-in-avas)）。
+4. **`steerer` 长度必须写 `0`，作用在紧随其后的元件上**：校正铁在 lattice 中不占长度，与下游紧邻元件叠加生效；若把长度写成非零，几何位置会错位（见 [校正磁铁](#steerer-in-avas)）。
+5. **单粒子模式 `displacepos` 的位置单位按 mm 读取**：在 `input.txt` 切换单粒子轨道模式时注意单位转换（见 [误差与校正](#errors-in-avas)）。
+6. **`DataSet.txt` 质心与纵向坐标的合成列**：无二极铁时，全局纵向位置 $z$ 为第 5 列加第 33 列；横向束团质心 $x, y$ 为第 29 列加第 1 列、第 31 列加第 3 列（见 [多粒子模拟要点](#simulation-in-avas)）。
+7. **示例项目 `examples/hwr010` 的两处历史细节**：① `beam.txt` 中 `twissz` 的 $\beta_z = 0.37292\ \mathrm{mm/mrad}$ 是早期从 `twissy` 复制留下的数值（生成高斯束时对应 $\sigma_z = 1.316\ \mathrm{mm}$、$\Delta W = 10.78\ \mathrm{keV}$），而 `part_rfq.dst` 粒子文件的实际纵向统计值为 $\sigma_z \approx 1.24\ \mathrm{mm}$、$\Delta W \approx 11.4\ \mathrm{keV}$（见 [常见束流分布](#distributions-in-avas)）；② `sol` 场图含有逐点数值噪声，线性预览只取轴上 $B_z$ 由 Maxwell 方程求边缘场以保证传输矩阵辛性（见 [螺线管](#solenoid-in-avas)）。

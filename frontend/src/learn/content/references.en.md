@@ -65,13 +65,49 @@ For a first reading, start with Wangler's textbook: the primer follows its notat
 ## AVAS {#references-avas}
 
 - C. Jin, Z.-J. Wang, X. Qi, Y. He, K. Li, et al., "Advanced virtual accelerator software: A linear accelerator simulation code", *Phys. Rev. Accel. Beams* 28, 044602 (2025) — the reference for AVAS (the paper listed in the "About AVAS" dialog); please cite it when publishing results obtained with AVAS.
-- The AVAS user manual `docs/使用说明20260427.docx` — the primary physics reference for keywords, parameters, units and file formats; parameter meanings follow it and are collected in the in-app "Parameters and files" reference and in `avas/data/schema.py`.
+- The AVAS user manual `docs/使用说明20260427.docx` — the primary physics reference for keywords, parameters, units and file formats; parameter meanings follow it and are collected in the in-app "Parameters and files" reference.
 - The in-app user manual (Help menu, with the three tabs "Operation guide / Case tutorials / Parameters and files") — interface operation, verified cases and the conditions under which they run.
-- The TraceWin user manual (CEA Saclay) — AVAS's field-map format, superposed fields and error distribution types are similar to TraceWin's; when comparing, units and parameter meanings follow AVAS.
-- The [first chapter](#intro) of this primer introduces the components of AVAS and the reading order of the primer.
+- The TraceWin user manual (CEA Saclay) — AVAS's field-map format, superposed fields and error distribution types are similar to TraceWin's; when comparing, units and parameter meanings follow AVAS (see the summary in [In AVAS](#references-in-avas) below).
+- [From ion source to target](#journey-overview) and [How AVAS describes a beam](#intro) introduce the reading routes, the components of AVAS and the chapter structure of this primer.
 
 ## Lecture notes and online resources {#references-online}
 
 - CERN Accelerator School (CAS) proceedings, [https://cas.web.cern.ch](https://cas.web.cern.ch) — free lecture notes on introductory and intermediate accelerator physics, RF, superconductivity, ion sources, beam diagnostics, high-intensity beams and more.
 - US Particle Accelerator School (USPAS) course materials, [https://uspas.fnal.gov](https://uspas.fnal.gov) — lecture notes and exercises of courses on linacs, beam physics and more.
 - JACoW proceedings repository, [https://www.jacow.org](https://www.jacow.org) — full texts of LINAC, IPAC, HB and other conference papers, for design and error-study examples of specific accelerators.
+
+## In AVAS {#references-in-avas}
+
+This section collects the AVAS conventions scattered across the chapters, unit and definition differences from codes such as TraceWin, and modelling rules of the multi-particle engine as a quick reference for readers already familiar with accelerator physics. Every entry links to the chapter where it is explained in detail.
+
+### Coordinate, sign and phase conventions
+
+| Topic | AVAS convention | Chapter link |
+|---|---|---|
+| 6D phase-space coordinates | $(x, x', y, y', z, \delta)$ with $x' = p_x/p_0$, $y' = p_y/p_0$, $\delta = \Delta p/p_0$; $z > 0$ means **ahead of** the reference particle (arriving earlier), with phase offset $\Delta\varphi = -2\pi z/(\beta\lambda)$ | [How AVAS describes a beam](#intro-reference), [Phase space and emittance](#phase-space-longitudinal) |
+| Cross-section viewing direction | All cross-sections (beam spots, quadrupole / solenoid / steerer cross-sections) are viewed **from downstream looking upstream**, with the beam coming out of the screen ($\odot$), so $\boldsymbol F = q\boldsymbol v \times \boldsymbol B$ can be checked directly against the arrows | [Quadrupoles](#quadrupole-field), [Solenoids](#solenoid-field), [Steerers](#steerer-field) |
+| Quadrupole gradient $G$ sign | For positive charges, $G > 0$ focuses horizontally ($x$) and defocuses vertically ($y$); reversed for negative charges | [Quadrupoles](#quadrupole-matrix) |
+| Solenoid field $B$ sign | Focusing strength goes as $B^2$, independent of the signs of $B$ and $q$ (always focuses in both planes); the sense of the Larmor rotation angle $\theta = \int [qB/(2p)]\,\dd s$ follows the sign of $qB$ | [Solenoids](#solenoid-busch) |
+| RF cavity time factor and phase | Electric field multiplied by $K_e\cos(\omega t + \varphi_0)$, magnetic field by $K_b\sin(\omega t + \varphi_0)$; synchronous phase for simultaneous acceleration and longitudinal focusing is $\varphi_s \in (-90^\circ, 0^\circ)$ (left of crest); standing-wave maps such as `hwr010` use $K_b = -K_e$ to align the $\boldsymbol E$ and $\boldsymbol B$ phases | [RF cavities](#rf-cavity-modes), [Longitudinal dynamics](#longitudinal-stability), [Field-map elements](#field-maps-in-avas) |
+| RF cavity phase mode `V3` | `V3 = 0`: the 6th parameter is the synchronous phase $\varphi_s$ relative to the effective cavity centre (the engine solves for the entrance phase $\varphi_0$); `V3 = 1`: phase relative to the geometric centre; `V3 = 2`: absolute entrance phase $\varphi_0$ | [RF cavities](#rf-cavity-in-avas), [Field-map elements](#field-maps-in-avas) |
+| Dipole magnets and path length | After a `bend`, the transverse coordinate $x$ points along the outward normal of the bending plane, and the longitudinal coordinate in the UI and `DataSet.txt` is the arc length $s$ along the reference orbit | [Dipoles and edge angles](#dipole-in-avas) |
+
+### Unit and definition differences from TraceWin and other codes
+
+| Item | AVAS rule | Difference from TraceWin / other codes | Chapter link |
+|---|---|---|---|
+| Element length `L` and aperture `R` | **Metres (m)** | TraceWin commonly uses mm; convert lengths and apertures to m when importing lattices | [How AVAS describes a beam](#intro-workflow), [Drift space](#drift-in-avas) |
+| `twissx / twissy / twissz` in `beam.txt` | Three numbers in order: $\alpha$, $\beta$ (**mm/mrad**, equal to m/rad), **normalized rms** emittance $\varepsilon_{n,\mathrm{rms}}$ ($\pi\cdot\mathrm{mm\cdot mrad}$) | The 3rd number is always the normalized rms emittance (not geometric, not $4\times$ or total emittance); longitudinal `twissz` also uses $(z\text{ [mm]}, z' = \Delta p/p\text{ [mrad]})$ rather than $(\text{deg}, \text{MeV})$ | [Phase space and emittance](#phase-space-in-avas), [Linear optics](#linear-optics-in-avas) |
+| Frequency `frequency` | **Hz** in both `beam.txt` and `field` elements (e.g. `162.5e6`) | Many codes enter frequency in MHz; writing `162.5` in AVAS means 162.5 Hz | [RF cavities](#rf-cavity-in-avas), [Field-map elements](#field-maps-in-avas) |
+| Particle distribution file `.dst` | Binary format with $x, y$ in **cm**, $x', y'$ in **rad**, longitudinal phase in **rad**, energy in **MeV**, and current stored in **mA** | Binary layout compatible with TraceWin `.dst`; note that `current` in `beam.txt` is in **A** | [Common beam distributions](#distributions-in-avas) |
+| RMS sizes and emittances in `DataSet.txt` | Columns 16, 18, 20 rms sizes are in **m**; columns 22–24 normalized rms emittances are in $\pi\cdot\mathrm{mm\cdot mrad}$ | When computing $\beta = \sigma^2/\varepsilon$ from `DataSet.txt` to enter into `beam.txt`, multiply columns 16, 18, 20 by $10^3$ to convert m to mm first | [Linear optics](#linear-optics-in-avas), [Multi-particle simulation essentials](#simulation-in-avas) |
+
+### Engine rules and modelling checklist
+
+1. **Do not place matrix elements directly at the very start or end of a multi-particle lattice**: placing matrix elements (`quad`, `solenoid`, `bend`, `edge`, `steerer`) as the first or last element of a multi-particle lattice can cause boundary/stepping issues in the engine; pad both ends with a short `drift` (e.g. 0.02–0.05 m; see [Multi-particle simulation essentials](#simulation-in-avas)).
+2. **Keep `outputplane` more than $2\ \mathrm{cm}$ before the lattice end**: an output plane too close to the end of the lattice may not trigger output recording (see [Multi-particle simulation essentials](#simulation-in-avas)).
+3. **Keep `multithreading` set to `1` in `input.txt` when RF cavities are present**: the current engine distorts longitudinal tracking in RF cavities when `multithreading > 1` (see [Multi-particle simulation essentials](#simulation-in-avas)).
+4. **A `steerer` must have length `0` and acts over the element immediately following it**: steerers take zero length in the lattice and superpose onto the next downstream element; giving a non-zero length shifts the geometry (see [Steerers](#steerer-in-avas)).
+5. **`displacepos` in single-particle mode reads positions in mm**: mind the unit conversion when switching `input.txt` to single-particle trajectory mode (see [Errors and correction](#errors-in-avas)).
+6. **Composite columns for centroids and longitudinal position in `DataSet.txt`**: without bends, the global longitudinal position $z$ is column 5 + column 33; the transverse beam centroids $x, y$ are column 29 + column 1 and column 31 + column 3 (see [Multi-particle simulation essentials](#simulation-in-avas)).
+7. **Two historical quirks in the example project `examples/hwr010`**: (i) in `beam.txt`, `twissz` has $\beta_z = 0.37292\ \mathrm{mm/mrad}$ copied from `twissy` (which generates a Gaussian bunch with $\sigma_z = 1.316\ \mathrm{mm}$ and $\Delta W = 10.78\ \mathrm{keV}$), whereas the actual longitudinal statistics of `part_rfq.dst` are $\sigma_z \approx 1.24\ \mathrm{mm}$ and $\Delta W \approx 11.4\ \mathrm{keV}$ (see [Common beam distributions](#distributions-in-avas)); (ii) the `sol` field map contains point-by-point numerical noise, so the linear preview derives the radial fringe field from on-axis $B_z$ via Maxwell's equations to keep the transfer matrix symplectic (see [Solenoids](#solenoid-in-avas)).

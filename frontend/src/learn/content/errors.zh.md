@@ -275,7 +275,7 @@ adjust diag_energy diag_size diag_position
 
 ### 静态误差校正：算法
 
-以下是当前 Python 代码（`avas/sim/err_adjust.py`）的做法，手册没有记载这些细节，以后可能变化：
+以下是当前 AVAS 静态误差校正的做法，手册没有记载这些细节，以后可能变化：
 
 1. 只有当某个 `adjust` 与某个 `diag_*` 的第一个参数相同时才执行校正（手册把它写作"无意义，写 0"；全部写 0 即为一组）。不同编号按从小到大依次校正，后一组从前一组校正后的 lattice 开始。
 2. 每组用 SLSQP 优化：每次函数求值把旋钮写入 lattice，运行内核到最后一个束诊之后，计算目标函数——本组各束诊的平均平方偏差：位置 $(x_c - x)^2 + (y_c - y)^2$（mm²），尺寸 $(x_{\mathrm{rms}} - s_x)^2 + (y_{\mathrm{rms}} - s_y)^2$（mm²），能量 $(W - W_{\mathrm{target}})^2$（MeV²）。

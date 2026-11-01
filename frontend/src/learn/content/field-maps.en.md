@@ -76,7 +76,7 @@ The header gives only the number of points in each direction, not the order of t
 
 Both readings give arrays of the same shape, but the values land in completely different places. How to tell which is right? Use physics: a real field is smooth along $z$ (it satisfies Maxwell's equations and has no reason to jump within one grid spacing), while the wrong reading mistakes transverse variation for longitudinal variation and looks rough along $z$. AVAS computes a "roughness" along $z$ for each reading, the ratio of the summed absolute second differences to the summed absolute first differences, and uses z innermost only when its roughness is clearly smaller (below 0.9 times that of z outermost); otherwise z outermost.
 
-**The decision is made for a group of component files as a whole** (`group_order()` in `avas/data/fieldmap.py`), not file by file. A single component can look alike in both readings, for example one transverse component of a quadrupole map; all component files of one map necessarily share the order, so a vote over the group is more reliable. For the example:
+**The decision is made for a group of component files as a whole**, not file by file. A single component can look alike in both readings, for example one transverse component of a quadrupole map; all component files of one map necessarily share the order, so a vote over the group is more reliable. For the example:
 
 | Map | Sum of roughness, z outermost | Sum of roughness, z innermost | Decision |
 |---|---|---|---|

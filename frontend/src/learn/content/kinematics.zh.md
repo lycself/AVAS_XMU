@@ -87,7 +87,7 @@ $$
 \frac{\Delta W}{W} = \frac{\gamma + 1}{\gamma}\,\delta
 $$
 
-非相对论时 $\Delta W / W \approx 2\delta$，相对论极限 $\Delta W / W \to \delta$。示例束流 $1/\gamma^2 = 0.99675$，$\Delta W/W = 1.998\,\delta$；它的 $\delta_{\mathrm{rms}} = 3.53\times10^{-3}$ 对应 rms 能散 10.78 keV。
+非相对论时 $\Delta W / W \approx 2\delta$，相对论极限 $\Delta W / W \to \delta$。示例束流 $1/\gamma^2 = 0.99675$，$\Delta W/W = 1.998\,\delta$；它的 $\delta_{\mathrm{rms}} = 3.53\times10^{-3}$ 对应 rms 能散 10.78 keV（注：从本章起，基础篇与元件篇的纵向示例统一采用 `beam.txt` 的 `twissz` 参数值，其 rms 束长为 1.316 mm、能散 10.78 keV；第一部分直接统计粒子文件 `part_rfq.dst` 得到的是 1.24 mm、11.4 keV，两者的微小差异来自示例 `beam.txt` 中 `twissz` 的 $\beta_z$ 录入值，详见[初始分布：在 AVAS 中](#distributions-in-avas)）。
 
 速度散最直接的后果是**束团在漂移段里拉长**：动量大 $\delta$ 的粒子每走 $L$ 就领先 $L\delta/\gamma^2$。这正是 [线性光学](#linear-optics) 中漂移段 $z$–$\delta$ 矩阵元为 $L/\gamma^2$ 的原因。
 

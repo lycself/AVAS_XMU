@@ -83,7 +83,7 @@ It moves the beam centre and leaves the second central moments (rms sizes, emitt
 
 If it does not change the rms size, why does it matter? Because losses depend on how far the edge of the beam is from the wall: for a beam 1 mm off centre with an rms size of 1.5 mm, the 3-rms edge is at 5.5 mm instead of 4.5 mm. An off-centre passage through a quadrupole adds a further deflection, through a cavity a transverse RF kick, and both make the orbit deviation grow further.
 
-> **AVAS convention**: the linear envelope preview treats steerers as unit matrices (`linear_optics.py`: steerers and diagnostics are identities); it computes only the rms envelope, not the centre orbit. Look at the effect of steerers on the orbit with an engine run: in DataSet.txt the $x$ centre = column 29 (synchronous particle $x$) + column 1 (centroid offset), the $y$ centre = column 31 + column 3, in m.
+> **AVAS convention**: the linear envelope preview treats steerers as unit matrices; it computes only the rms envelope, not the centre orbit. Look at the effect of steerers on the orbit with an engine run: in DataSet.txt the $x$ centre = column 29 (synchronous particle $x$) + column 1 (centroid offset), the $y$ centre = column 31 + column 3, in m.
 
 ## How a deflection propagates downstream {#steerer-orbit}
 

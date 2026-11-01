@@ -275,7 +275,7 @@ adjust diag_energy diag_size diag_position
 
 ### Static error correction: algorithm
 
-This is what the current Python code (`avas/sim/err_adjust.py`) does; the manual does not document these details and they may change:
+This is how AVAS's static error correction currently works; the manual does not document these details and they may change:
 
 1. A correction runs only when an `adjust` and a `diag_*` have the same first parameter (the manual calls it "meaningless, write 0"; writing 0 everywhere makes one group). Different numbers are corrected one after another in increasing order, each starting from the lattice corrected by the previous one.
 2. Each group is optimized with SLSQP: every function evaluation writes the knobs into the lattice, runs the engine to just past the last diagnostic and computes the objective — the mean squared deviation over the group's diagnostics: position $(x_c - x)^2 + (y_c - y)^2$ (mm²), size $(x_{\mathrm{rms}} - s_x)^2 + (y_{\mathrm{rms}} - s_y)^2$ (mm²), energy $(W - W_{\mathrm{target}})^2$ (MeV²).

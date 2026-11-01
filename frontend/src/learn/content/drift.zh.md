@@ -118,7 +118,7 @@ M_{\text{drift}}(L) =
 \end{pmatrix}.
 $$
 
-三个平面各是一个剪切。这与 AVAS 线性包络预览（`avas/sim/linear_optics.py` 的 `drift_matrix`）使用的矩阵完全一致。矩阵行列式为 1，满足辛条件 $M\tp J M = J$。
+三个平面各是一个剪切。这与 AVAS 线性包络预览使用的传输矩阵完全一致。矩阵行列式为 1，满足辛条件 $M\tp J M = J$。
 
 ### 二阶矩与 Twiss 参数的演化
 

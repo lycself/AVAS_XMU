@@ -132,7 +132,7 @@ $$
 M_{\text{quad}} = \operatorname{diag}\!\left(M_x,\; M_y,\; \begin{pmatrix} 1 & L/\gamma^2 \\ 0 & 1 \end{pmatrix}\right).
 $$
 
-This is the `quad_matrix(L, k, gamma)` of AVAS's linear envelope preview ($k = G/B\rho$, focusing in $x$ when positive).
+This is the thick-lens matrix used by AVAS's linear envelope preview ($k = G/B\rho$, focusing a positive charge in $x$ when positive).
 
 ### Thin-lens approximation
 
@@ -225,7 +225,7 @@ In a FODO period the $\beta$ in $x$ is largest at QF and smallest at QD, and the
 
 ### Chromatic effects
 
-The focusing strength is $k \propto 1/p$, so a particle with momentum deviation $\delta$ feels $k(1-\delta)$ (to first order). In straight, dispersion-free sections the chromatic effect on the rms size is usually small, but where the energy spread is large and the focusing strong it causes effective emittance growth. AVAS's linear preview does not include chromatic effects (see the notes in `linear_optics.py`); the engine result is the reference.
+The focusing strength is $k \propto 1/p$, so a particle with momentum deviation $\delta$ feels $k(1-\delta)$ (to first order). In straight, dispersion-free sections the chromatic effect on the rms size is usually small, but where the energy spread is large and the focusing strong it causes effective emittance growth. AVAS's linear preview evaluates matrices at the reference momentum and does not include chromatic effects; the multi-particle engine result is the reference.
 
 ### Misalignment, roll and gradient errors
 
@@ -265,7 +265,7 @@ quad
 - The third parameter is reserved; write 0.
 - `G`: field gradient (T/m).
 
-> **AVAS convention**: $k = G/(B\rho)$, and **$G > 0$ focuses a positive particle in $x$ and defocuses it in $y$** (checked with the linear preview's `quad_matrix`: $G = 10$ T/m and $L = 0.1$ m give $M_{21} = -5.09\ \mathrm{m^{-1}}$, i.e. focusing in $x$; the manual itself does not state the sign convention, so before relying on it for the engine, check it once with a single quadrupole and a beam offset in $x$). For negative particles (e.g. H⁻) the same $G$ swaps the planes. In a FODO design, QF has positive $G$ and QD negative $G$.
+> **AVAS convention**: $k = G/(B\rho)$, and **$G > 0$ focuses a positive particle in $x$ and defocuses it in $y$** (the linear envelope preview uses this convention: $G = 10$ T/m and $L = 0.1$ m give $M_{21} = -5.09\ \mathrm{m^{-1}}$, i.e. focusing in $x$; the manual itself does not state the sign convention, so before relying on it for the engine, check it once with a single quadrupole and a beam offset in $x$). For negative particles (e.g. H⁻) the same $G$ swaps the planes. In a FODO design, QF has positive $G$ and QD negative $G$.
 
 > **AVAS convention**: `quad` is a **z-code matrix-model element**: it acts as a whole through its transfer matrix and no field distribution enters the particle tracking. The manual asks that the first and last elements of a multi-particle simulation not be matrix-model elements; add a very short drift at both ends (see [drift](#drift)). How space charge is treated inside matrix-model elements is not described in the manual; the engine result is the reference.
 

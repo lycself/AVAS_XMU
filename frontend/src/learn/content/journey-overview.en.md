@@ -1,6 +1,11 @@
 # From ion source to target: a linear accelerator as a whole
 
-If all we want is protons at 1 GeV, why not build one long, uniform accelerating tube and accelerate all the way? Real linacs are instead split into an ion source, a low-energy transport line, an RFQ, a medium-energy transport line, several families of differently shaped superconducting cavities and a high-energy transport line, each with its own structure, RF frequency and kind of focusing. This chapter follows "our proton" from 35 keV to 1 GeV and shows that this division is not an engineering habit: it is forced by three physical facts. The proton's velocity changes by a factor of a hundred; space charge is strongest at low energy; and RF can only accelerate a beam that is already bunched. With this chapter in mind, the next five chapters each answer why a section is where it is and why it looks the way it does. The chapter uses ideas from [relativistic kinematics](#kinematics), [longitudinal motion](#longitudinal) and [space charge](#space-charge); look there when a symbol is unfamiliar.
+If all we want is protons at 1 GeV, why not build one long, uniform accelerating tube and accelerate all the way? Real linacs are instead split into an ion source, a low-energy transport line, an RFQ, a medium-energy transport line, several families of differently shaped superconducting cavities and a high-energy transport line, each with its own structure, RF frequency and kind of focusing. This chapter follows "our proton" from 35 keV to 1 GeV and shows that this division is not an engineering habit: it is forced by three physical facts. The proton's velocity changes by a factor of a hundred; space charge is strongest at low energy; and RF can only accelerate a beam that is already bunched. With this chapter in mind, the next five chapters each answer why a section is where it is and why it looks the way it does.
+
+> **How to read this primer (three routes)**
+> - **New to accelerators**: follow Part 1 (the first six chapters, "A proton's journey") for the big picture and drag the interactive sliders in each chapter to see the trends; if a symbol is unfamiliar, do not get stuck—Part 2 (starting from [How AVAS models a beam](#intro), [Relativistic kinematics](#kinematics) and [Phase space and emittance](#phase-space)) builds every definition and derivation from scratch.
+> - **Familiar with accelerator physics**: skim "[Numbers along the way](#journey-overview-thread)" below, then jump straight to the [Components](#drift) chapters or the five-step [guided tutorial](#tutorial).
+> - **Accelerator experts / looking up software conventions**: each chapter's final dashed-box section "**In AVAS**" collects exact keywords, units and kernel behaviour; a one-stop summary of coordinate/sign conventions, differences from TraceWin and known kernel pitfalls is in [References: In AVAS](#references-in-avas).
 
 ## The route {#journey-overview-route}
 
@@ -12,7 +17,7 @@ The running case is a typical continuous-wave (CW) proton linac. The section bou
 
 ## The velocity changes a hundredfold {#journey-overview-velocity}
 
-The first fact is the simplest and the most decisive. Kinetic energy $W$ and velocity $\beta = v/c$ are related by
+The first fact is the simplest and the most decisive. Kinetic energy $W$, relative velocity $\beta = v/c$ (velocity as a fraction of the speed of light) and the Lorentz factor $\gamma$ (how many times the rest energy $mc^2$ the total energy is; see [relativistic kinematics](#kinematics)) are related by
 
 $$
 \gamma = 1 + \frac{W}{mc^2}, \qquad \beta = \sqrt{1 - \frac{1}{\gamma^2}} \approx \sqrt{\frac{2W}{mc^2}} \quad (W \ll mc^2)
@@ -36,19 +41,13 @@ kinematics W=0.035
 
 ### Transit-time factor: one cavity suits one range of velocity
 
-More quantitatively, the field changes while the proton crosses the cavity. Let the field on axis be $E_z(z)\cos(\omega t + \varphi)$ and let the proton pass at a nearly constant velocity $\beta c$, so $t = z/(\beta c)$. The energy gain is
+More quantitatively, the field changes while the proton crosses the cavity. Even if we add up the field amplitude across the gaps into a total voltage $V_0 = \int |E_z|\,\dd z$ (the maximum voltage one would get "if the field stayed at its crest without oscillating"), the proton takes a finite time to cross the cavity, so the actual energy gain is reduced by a factor:
 
 $$
-\Delta W = q\int E_z(z)\cos\!\left(\frac{\omega z}{\beta c} + \varphi\right)\dd z = qV_0\,T(\beta)\cos\varphi_s
+\Delta W = qV_0\,T(\beta)\cos\varphi_s
 $$
 
-where $V_0 = \int |E_z|\,\dd z$ is the voltage one would get "if the field did not oscillate", $\varphi_s$ is the synchronous phase, and
-
-$$
-T(\beta) = \frac{\left|\int E_z(z)\,\ee^{\,\mathrm{i}kz}\,\dd z\right|}{\int |E_z(z)|\,\dd z}, \qquad k = \frac{2\pi}{\beta\lambda}
-$$
-
-is the transit-time factor. Its meaning is direct: $T$ is the Fourier component of the field profile at wave number $k$. If the proton is too slow, the field has reversed more than once by the time it reaches the next gap; if it is too fast, it crosses two gaps at almost the same moment, and since those gaps have opposite fields, they cancel. $T$ is large only when $\beta\lambda/2$ is comparable to the gap spacing.
+where $\varphi_s$ is the synchronous phase (the effective RF phase when the reference particle passes the cavity centre), and the discount factor $T(\beta) \le 1$ is the **transit-time factor** (its exact Fourier integral definition is in [In AVAS](#journey-overview-in-avas) at the end of this chapter, and the full derivation in [longitudinal motion](#longitudinal-gap) and [RF cavity](#rf-cavity)). Its physical meaning is direct: if the proton is too slow, the field reverses before it finishes crossing a gap, taking back part of the energy gained; if it is too fast, it crosses two neighbouring gaps of opposite field before the RF has had time to flip sign, and their pushes cancel. $T(\beta)$ is close to its peak only when the half-period distance $\beta\lambda/2$ matches the gap spacing.
 
 Computed for the HWR field map `hwr010` of the example project (162.5 MHz, 0.21 m long; on-axis $E_z$, constant-velocity approximation): $T$ peaks at $\beta \approx 0.104$ with about 0.82, consistent with the "010" in its name (presumably a design β of 0.10). $T$ stays above 70 % of the maximum for $\beta = 0.066$–0.21, i.e. for protons of about 2–22 MeV. At the example beam's $\beta = 0.057$, $T$ is only 0.40; at $\beta = 0.145$ (10 MeV) it is 0.75, and at $\beta = 0.43$ (100 MeV) it has fallen to 0.31. One cavity family is useful over roughly a factor of 3 in velocity, while the whole linac has to cover a factor of 100, so several families are needed, each optimised for one design velocity (its design $\beta$; how this relates to the geometric β set by the gap spacing is discussed in the [superconducting section](#journey-sc-ttf)).
 
@@ -63,25 +62,19 @@ rf-cavity W=5
 
 ## Space charge is strongest at low energy {#journey-overview-space-charge}
 
-The second fact is space charge. The protons in the beam repel each other, and this force tries to blow the beam apart. Picture two protons flying side by side at the same velocity. In the laboratory there is the electric repulsion between them and also the magnetic attraction between two parallel currents; the latter is exactly $\beta^2$ times the former, so the net transverse force is reduced to $1/\gamma^2$ of the electric one. At low energy $\gamma \approx 1$ and this cancellation is negligible: the repulsion acts almost in full.
+The second fact is space charge. The protons in the beam repel each other, and this force tries to blow the beam apart. Picture two protons flying side by side at the same velocity. In the laboratory there is the electric repulsion between them and also the magnetic attraction between two parallel currents; the latter is $\beta^2$ times the former, so the net transverse force is reduced to $1 - \beta^2 = 1/\gamma^2$ of the electric one. At low energy $\gamma \approx 1$ and this cancellation is negligible: the repulsion acts almost in full.
 
-Put this force into the transverse equation of motion. Inside a uniform round beam of radius $a$ and current $I$ the radial electric and magnetic fields are
-
-$$
-E_r = \frac{I\,r}{2\pi\varepsilon_0 a^2 \beta c}, \qquad B_\theta = \frac{\beta}{c}E_r
-$$
-
-The net force is $F_r = q(E_r - \beta c B_\theta) = qE_r/\gamma^2$. Dividing by $\gamma m v^2$ to turn it into a second derivative with respect to $s$ ($x'' = F_x/(\gamma m v^2)$) gives the defocusing strength $K/a^2$ felt at the beam edge, with
+Expressed as the defocusing curvature of a particle trajectory at the beam edge (the full electromagnetic field and envelope-equation derivation is in [space charge](#space-charge-perveance)), its strength is measured by the dimensionless **generalised perveance**:
 
 $$
 K = \frac{qI}{2\pi\varepsilon_0\, m c^3 \beta^3\gamma^3} = \frac{2I}{I_0\,(\beta\gamma)^3}, \qquad I_0 = \frac{4\pi\varepsilon_0 mc^3}{q} \approx 31.3\ \mathrm{MA}
 $$
 
-the generalised perveance. Each factor in $(\beta\gamma)^{-3}$ has its own origin: at the same current a slower beam has a larger line charge density ($1/\beta$); the same force deflects a slower particle more ($1/\gamma\beta^2$); and the magnetic attraction cancels part of the repulsion ($1/\gamma^2$).
+Each factor in $(\beta\gamma)^{-3}$ (where $\beta\gamma = p/(mc)$ is the dimensionless momentum) has a clear physical origin: at the same current $I$, a slower beam packs more protons per unit length and has a larger line charge density ($1/\beta$); the same transverse force deflects a slower, lower-momentum particle more ($1/(\gamma\beta^2)$); and the magnetic attraction between parallel currents cancels part of the electric repulsion ($1/\gamma^2$). Multiplied together, space-charge defocusing blows up as $(\beta\gamma)^{-3}$ at low velocity.
 
-Some numbers: a 35 keV, 10 mA DC beam has $K = 9.9\times10^{-4}$; at the same current and 1.527 MeV, $K = 3.4\times10^{-6}$, smaller by a factor of 288. The example beam's average current is only 0.18 mA, giving $K = 1.8\times10^{-5}$ (35 keV) and $6.2\times10^{-8}$ (1.527 MeV). Bunching eats part of this advantage, however: at the RFQ exit the bunch has an rms duration of about 73 ps while bunches are 6.15 ns apart, so for a Gaussian bunch the peak current at the bunch centre is $1/(f\sqrt{2\pi}\,\sigma_t) \approx 34$ times the average current.
+Some numbers: a 35 keV, 10 mA DC beam has $K = 9.9\times10^{-4}$; at the same current and 1.527 MeV, $K = 3.4\times10^{-6}$, smaller by a factor of 288. The example beam's average current is only 0.18 mA, giving $K = 1.8\times10^{-5}$ (35 keV) and $6.2\times10^{-8}$ (1.527 MeV). Bunching eats part of this advantage, however: at the RFQ exit the bunch has an rms (root-mean-square, i.e. standard-deviation) duration of about 73 ps while bunches are 6.15 ns apart, so for a Gaussian bunch the peak current at the bunch centre is $1/(f\sqrt{2\pi}\,\sigma_t) \approx 34$ times the average current.
 
-What should space charge be compared with? With the emittance. In the beam envelope equation (see [space charge](#space-charge)) the space-charge term $K/a$ stands next to the emittance term $\varepsilon^2/a^3$. Take 35 keV, 10 mA, an edge radius $a = 5$ mm and a normalised rms emittance of 0.14 π·mm·mrad (edge geometric emittance $4\varepsilon_{n,\mathrm{rms}}/(\beta\gamma) = 64.8$ mm·mrad): $K/a = 0.198$ m⁻¹ and $\varepsilon^2/a^3 = 0.034$ m⁻¹, so space charge is about 6 times the emittance term. Such a beam is called space-charge dominated: its size is set by its own repulsion, not by its temperature (emittance).
+What should space charge be compared with? With the emittance (the measure of how much "position × angle" phase-space area the beam's own random thermal motion occupies; see [phase space and emittance](#phase-space)). In the beam envelope equation (see [space charge](#space-charge)) the outward space-charge term $K/a$ stands next to the outward emittance term $\varepsilon^2/a^3$. Take 35 keV, 10 mA, an edge radius $a = 5$ mm and a normalised rms emittance of 0.14 π·mm·mrad (here $\pi$ is simply a unit label indicating that the ellipse area has been divided by $\pi$, corresponding to an edge geometric emittance $4\varepsilon_{n,\mathrm{rms}}/(\beta\gamma) = 64.8$ mm·mrad): $K/a = 0.198$ m⁻¹ and $\varepsilon^2/a^3 = 0.034$ m⁻¹, so space charge is about 6 times the emittance term. Such a beam is called **space-charge dominated**: its size is governed mainly by its own Coulomb repulsion rather than by its thermal spread (emittance).
 
 This gives the design rules for low energy: focusing must be strong and the focusing period short to hold the repulsion; bunching must be slow, because bunching raises the peak current; and the energy should be raised quickly to leave this regime. Together, these three rules are the design brief of the RFQ.
 
@@ -100,7 +93,7 @@ Once formed, a bunch does not stay short by itself. Within the bunch, protons wi
 
 ## Between sections: matching {#journey-overview-matching}
 
-Each section has its own periodic focusing structure: in the LEBT a few solenoids; in the RFQ an electric quadrupole field that changes sign once per RF period; in the low-β part of the superconducting section a "solenoid + cavity" period; at higher β quadrupole doublets. A periodic structure has its own "matched beam": the Twiss parameters $\alpha$, $\beta$ for which the beam envelope repeats from period to period (see [linear optics](#linear-optics) and [matching](#matching)).
+Each section has its own periodic focusing structure: in the LEBT a few solenoids; in the RFQ an electric quadrupole field that changes sign once per RF period; in the low-β part of the superconducting section a "solenoid + cavity" period; at higher β quadrupole doublets. A periodic structure has its own "matched beam": the Twiss parameters $\alpha$, $\beta$ describing the tilt and aspect ratio of the phase-space ellipse ($\alpha$ tells whether the beam is converging or diverging, $\beta$ sets the ratio of size to divergence; see [phase space and emittance](#phase-space-twiss)) for which the beam envelope repeats from period to period (see [linear optics](#linear-optics) and [matching](#matching)).
 
 The beam leaving one section is generally not the matched beam of the next. For example, the transverse Twiss parameters at the RFQ exit of the example are $\alpha_x = -0.658$, $\beta_x = 0.377$ mm/mrad; they are set by the RFQ structure, whereas the superconducting section needs a different pair. Connected without care, the beam envelope "breathes" periodically in the next section; with space charge this mismatch passes energy to a few particles and forms a halo far from the beam core, and halo particles end up on the wall. The same holds longitudinally: bunch length and energy spread must be matched to the longitudinal focusing of the next section.
 
@@ -145,7 +138,7 @@ The table collects the state of our proton at the exit of each section. The last
 | Elliptical section | ≈ 1 GeV | 0.8750 | 1.8076 | 5.657 | 650 MHz | 404 mm | ≈ 0.8 mm (0.7°, 3 ps) | cavity surface fields, beam loss |
 | HEBT and target | 1 GeV | 0.8750 | 1.8076 | 5.657 | — | — | — | beam loss (about 1 W/m), power density on the target |
 
-Some notes. $\beta$, $\beta\gamma$, $B\rho$ and $\beta\lambda$ are exact kinematics; the boundary energies are typical choices. The RFQ row comes from the example's `part_rfq.dst` (which also has an rms energy spread of 11.4 keV, i.e. 0.75 %). The bunch lengths in the later rows are estimates: the bunch is assumed longitudinally matched with no growth of the longitudinal rms emittance, and the adiabatic-damping formula of the previous section is used with an average accelerating gradient $E_0T$ (cavities and focusing elements averaged together) of 0.54 MV/m (HWR section, the value of the example period "solenoid + drift + cavity"), 1 MV/m (spoke) and 3 MV/m (elliptical), and synchronous phases −30°, −25° and −20°. Applied at the RFQ exit, the same formula gives 4.9°, quite close to the measured 4.3°, which shows that the model captures the main physics. Because the bunch length depends only on the 1/4 power of the gradient, a factor of two in the gradient changes it by only about 19 %: with 6 MV/m in the elliptical section, for example, the bunch at 1 GeV is 0.7 mm (0.6°). In a real machine the longitudinal emittance always grows somewhat, and bunches are a little longer than in the table.
+Some notes. $\beta$, $\beta\gamma$, the magnetic rigidity $B\rho = p/q$ (a measure of how "stiff" the beam is against magnetic bending, numerically the field in tesla needed for a 1 m bending radius; see [relativistic kinematics](#kinematics-rigidity)) and $\beta\lambda$ are exact kinematics; the boundary energies are typical choices. The RFQ row comes from the example's `part_rfq.dst` (which also has an rms energy spread of 11.4 keV, i.e. 0.75 %). The bunch lengths in the later rows are estimates: the bunch is assumed longitudinally matched with no growth of the longitudinal rms emittance, and the adiabatic-damping formula of the previous section is used with an average accelerating gradient $E_0T$ (cavities and focusing elements averaged together) of 0.54 MV/m (HWR section, the value of the example period "solenoid + drift + cavity"), 1 MV/m (spoke) and 3 MV/m (elliptical), and synchronous phases −30°, −25° and −20°. Applied at the RFQ exit, the same formula gives 4.9°, quite close to the measured 4.3°, which shows that the model captures the main physics. Because the bunch length depends only on the 1/4 power of the gradient, a factor of two in the gradient changes it by only about 19 %: with 6 MV/m in the elliptical section, for example, the bunch at 1 GeV is 0.7 mm (0.6°). In a real machine the longitudinal emittance always grows somewhat, and bunches are a little longer than in the table.
 
 As for current: the example beam's average current is 0.18 mA (1.13 pC per bunch, about $7.1\times10^{6}$ protons), which makes a beam power of 184 kW at 1 GeV; high-power CW proton linacs are typically designed for a few to over ten milliamperes, and 10 mA means 10 MW. At 10 MW the widely used guideline of "no more than 1 W lost per metre" means losing no more than a fraction $10^{-7}$ of the beam per metre.
 
@@ -211,9 +204,26 @@ beam:readparticledistribution beam:use_dst beam:kneticenergy beam:current beam:f
 
 > **AVAS convention**: `frequency` in `beam.txt` is the beam frequency; the charge per bunch is $Q = I/f$. The RF frequency of each cavity is written in its own `field` line. How the engine handles a beam frequency different from the cavity frequency (for example one bunch in every second "bucket" of a 325 MHz cavity) is not described in the manual; the engine is the reference.
 
-### The example project
+### The example project and supplementary formulas
 
 The `beam.txt` of `examples/hwr010` gives a 1.527 MeV, 0.184 mA, 162.5 MHz proton beam with 5260 macro-particles; the lattice is a single HWR field map. All numbers of this chapter can be checked on the example: read the parameters from `part_rfq.dst` on the Beam page, or extend it to several periods in the [guided tutorial](#tutorial).
+
+For reference, here are the two integral and field expressions cited in the main text (full derivations in [longitudinal motion](#longitudinal-gap) and [space charge](#space-charge-perveance)):
+
+- **Transit-time factor in the constant-velocity approximation**: for an on-axis field $E_z(z)\cos(\omega t + \varphi)$ and a particle moving at constant velocity $\beta c$ ($t = z/(\beta c)$),
+
+$$
+\Delta W = q\int E_z(z)\cos\!\left(\frac{\omega z}{\beta c} + \varphi\right)\dd z = qV_0\,T(\beta)\cos\varphi_s, \qquad
+T(\beta) = \frac{\left|\int E_z(z)\,\ee^{\,\mathrm{i}kz}\,\dd z\right|}{\int |E_z(z)|\,\dd z}, \quad k = \frac{2\pi}{\beta\lambda}
+$$
+
+- **Space-charge fields inside a uniform round beam**: inside a uniform cylinder of radius $a$ and current $I$, the radial electric and azimuthal magnetic fields are
+
+$$
+E_r = \frac{I\,r}{2\pi\varepsilon_0 a^2 \beta c}, \qquad B_\theta = \frac{\beta}{c}E_r, \qquad F_r = q(E_r - \beta c B_\theta) = \frac{qE_r}{\gamma^2}
+$$
+
+Dividing by $\gamma m v^2$ for $r'' = F_r/(\gamma m v^2)$ yields the edge defocusing term $K/a$.
 
 ## Further reading {#journey-overview-reading}
 

@@ -87,7 +87,7 @@ $$
 \frac{\Delta W}{W} = \frac{\gamma + 1}{\gamma}\,\delta
 $$
 
-Non-relativistically $\Delta W / W \approx 2\delta$; in the relativistic limit $\Delta W / W \to \delta$. For the example beam $1/\gamma^2 = 0.99675$ and $\Delta W/W = 1.998\,\delta$; its $\delta_{\mathrm{rms}} = 3.53\times10^{-3}$ corresponds to an rms energy spread of 10.78 keV.
+Non-relativistically $\Delta W / W \approx 2\delta$; in the relativistic limit $\Delta W / W \to \delta$. For the example beam $1/\gamma^2 = 0.99675$ and $\Delta W/W = 1.998\,\delta$; its $\delta_{\mathrm{rms}} = 3.53\times10^{-3}$ corresponds to an rms energy spread of 10.78 keV (note: from this chapter onwards, the longitudinal examples in Fundamentals and Components use the `twissz` values in `beam.txt`, giving an rms bunch length of 1.316 mm and energy spread of 10.78 keV, whereas Part 1 quoted the direct statistics of `part_rfq.dst`, 1.24 mm and 11.4 keV; the slight difference comes from the $\beta_z$ entry in the example's `beam.txt`, see [Initial distributions: In AVAS](#distributions-in-avas)).
 
 The most direct consequence of the velocity spread is that **bunches lengthen in drifts**: a particle with momentum deviation $\delta$ gains $L\delta/\gamma^2$ over a distance $L$. This is why the $z$–$\delta$ element of the drift matrix in [Linear optics](#linear-optics) is $L/\gamma^2$.
 
