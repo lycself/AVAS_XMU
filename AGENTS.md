@@ -44,6 +44,7 @@ frontend/src/
   i18n/zh_CN.json 中文翻译（英文原文 → 中文）
   styles/tokens.css 全部颜色变量（浅色 + 深色）
 tests/            pytest；test_gui.py 覆盖页面调用的每个接口；前端 vitest（frontend/src/**/*.test.ts）
+tools/            手动运行的开发工具（不属于快速 pytest）：compare_preview_engine.py 用真实内核对比新旧线性预览（步骤见 CONTRIBUTING.md）
 .github/workflows/ci.yml  CI：ruff + 快速 pytest（Windows，含 smoke）、npm test + build
 examples/hwr010/  示例项目（跑一次约 10–30 秒）
 docs/             使用说明（以 使用说明20260427.docx 为准，121 版已过时）、CHANGELOG
@@ -55,7 +56,7 @@ packaging/        PyInstaller + Inno Setup 打包
 
 - Python：只用仓库里的 `.venv`（Python 3.11），命令写 `.venv\Scripts\python.exe`。**不要用 Anaconda base 解释器**；不要新增创建 venv 的安装脚本（用户明确不要，README 写手动步骤）。
 - 测试：`.venv\Scripts\python.exe -m pytest`。`tests/test_gui.py`、`tests/test_segment.py`、`tests/test_scan.py` 会真正运行内核，较慢；改哪部分至少跑对应的测试文件。
-- 静态检查：`.venv\Scripts\python.exe -m ruff check avas tests packaging`（只开缺陷类规则，见 pyproject.toml；旧代码不重排风格）。前端 `cd frontend && npm test`（vitest，纯函数测试）。
+- 静态检查：`.venv\Scripts\python.exe -m ruff check avas tests packaging tools`（只开缺陷类规则，见 pyproject.toml；旧代码不重排风格）。前端 `cd frontend && npm test`（vitest，纯函数测试）。
 - 前端：`cd frontend && npm run build`（先 `tsc --noEmit` 再 `vite build`），输出到 `avas/gui/web/` 并写 `source-hash.json`。**改了前端就要重新构建，并把 `avas/gui/web/` 一起提交。**
 - 浏览器调试界面：`.venv\Scripts\python.exe -m avas serve --port 8765 --token dev --settings <临时 json>`，打开它打印的地址
   （`http://127.0.0.1:8765/index.html?host=browser&token=dev`；`python -m avas.gui.devserver` 是同样效果的旧命令）。改了 Python 代码要重启它。

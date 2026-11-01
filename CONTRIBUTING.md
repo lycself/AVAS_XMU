@@ -75,6 +75,26 @@ pytest
 `tests/test_gui.py`、`tests/test_segment.py` 会真正运行内核，较慢，只改动对应部分时建议单独跑那个文件。
 更多约定（环境、常用命令、修改前的检查清单）见 [AGENTS.md](AGENTS.md)。
 
+### 线性预览与内核对比
+
+`tools/compare_preview_engine.py` 用真实内核检查线性包络预览：在临时文件夹里复制示例项目、引导教程的多周期束线（`sol` + HWR）和低能 V3 = 0 腔，运行内核，并与**旧**预览（`main` 上的 `avas/sim/linear_optics.py`，作为独立模块载入，不用切换分支）和**新**预览（当前检出的代码）比较末端与最大 rms x / y / z 及末端能量。示例项目和用户项目都不会被改动。需要能运行内核的 Windows 机器（Mac 只能用 `--no-engine` 比较两个预览）。
+
+在 Windows 的仓库目录里（PowerShell 或 cmd）：
+
+```bash
+git fetch origin
+```
+
+```bash
+git switch claude/mystifying-neumann-4bb3f2
+```
+
+```bash
+.venv\Scripts\python.exe tools\compare_preview_engine.py --repeat 3
+```
+
+本机没有 `main` 分支时自动改用 `origin/main`；也可以用 `--old-ref <提交>` 指定旧版本。`--repeat N` 每个算例运行内核 N 次并给出差值范围（内核多线程，结果略有差别）；`--cases example,periods` 只跑部分算例，`--periods 8`、`--energies 0.5,0.3,1.0` 改算例参数，`--work 文件夹` 指定输出位置。表格打印在终端，同时写成工作文件夹里的 `comparison.md` 和 `comparison.csv`（每次内核运行的日志在 `OutputFile_<n>.log`）。内核无法载入时会说明原因并只比较两个预览；某个算例失败不影响其他算例，退出码为 1。这个脚本不在 `tests/` 里，快速 pytest 不会运行它。
+
 ---
 
 ## English
@@ -146,6 +166,7 @@ avas/            Python package
 frontend/        GUI front-end source (React + TypeScript)
 examples/        example project (hwr010)
 tests/           pytest test suite
+tools/           developer tools run by hand (compare_preview_engine.py: linear preview vs engine)
 scripts/         personal analysis scripts (not part of the software itself)
 packaging/       packaging: build.py, PyInstaller config, Inno Setup installer script, icon
 docs/            user manual and changelog
@@ -183,3 +204,23 @@ pytest
 
 `tests/test_gui.py` and `tests/test_segment.py` actually run the engine and are slow; run just that file when your change only
 touches it. More conventions (environment, common commands, the pre-change checklist) are in [AGENTS.md](AGENTS.md).
+
+### Linear preview against the engine
+
+`tools/compare_preview_engine.py` checks the linear envelope preview with the real engine: in a temporary folder it copies the example project, the primer tutorial's multi-period line (`sol` + HWR) and a low-energy V3 = 0 cavity, runs the engine and compares the final and maximum rms x / y / z and the final energy with the **old** preview (`avas/sim/linear_optics.py` of `main`, loaded as a separate module, no branch switch needed) and the **new** one (the checked-out code). Neither the example project nor any user project is touched. It needs a Windows machine where the engine runs (elsewhere `--no-engine` compares the two previews only).
+
+In the repository folder on Windows (PowerShell or cmd):
+
+```bash
+git fetch origin
+```
+
+```bash
+git switch claude/mystifying-neumann-4bb3f2
+```
+
+```bash
+.venv\Scripts\python.exe tools\compare_preview_engine.py --repeat 3
+```
+
+Without a local `main` branch it uses `origin/main`; `--old-ref <revision>` picks another old version. `--repeat N` runs the engine N times per case and shows the spread (the engine is multi-threaded and varies a little); `--cases example,periods` runs a subset, `--periods 8` and `--energies 0.5,0.3,1.0` change the cases, `--work DIR` sets the output folder. The table is printed and also written as `comparison.md` and `comparison.csv` in the work folder (each engine run's log is `OutputFile_<n>.log`). If the engine cannot be loaded the script says why and compares the previews only; a failing case does not stop the others and makes the exit code 1. The script is not under `tests/`, so the fast pytest run does not collect it.
