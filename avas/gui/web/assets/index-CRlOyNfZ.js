@@ -1,4 +1,4 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./plotly.min-f1XCw4iF.js","./rolldown-runtime-CbXtAM7H.js","./AssistantPanel-C_FZyU6V.js","./util-BYwVWJdF.js","./ProjectPage-zuaIIAAO.js","./BeamPage-D7ujlpfn.js","./common-CyiI2-SF.js","./widgets-FbAE2w8i.js","./LatticePage-o_OhhnDN.js","./FileHistory-D-a59b7o.js","./LayoutView-CCTCG0bT.js","./LayoutView-DEZc0Pf2.css","./FileHistory-DXcZaCBW.css","./SettingsPage-JB5gODhA.js","./FilesPage-CJ_2kGuK.js","./RunPage--uUTWWMp.js","./ResultsPage-D8F4gNLQ.js","./ScanPage-BgHDed-8.js"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./plotly.min-f1XCw4iF.js","./rolldown-runtime-CbXtAM7H.js","./AssistantPanel--bqz5pbU.js","./util-BYwVWJdF.js","./ProjectPage-CWmr4nMb.js","./BeamPage-BK8LTfmc.js","./common-AUIMneqN.js","./widgets-DzI41vhK.js","./LatticePage-qqlGZDC4.js","./FileHistory-dtadw3lP.js","./LayoutView-C78gUw7F.js","./LayoutView-DEZc0Pf2.css","./FileHistory-DXcZaCBW.css","./SettingsPage-Daq0B_hw.js","./FilesPage-DomsjJ-_.js","./RunPage-kZ8gwXey.js","./ResultsPage-DwFtUIiN.js","./ScanPage-CfxcrWq6.js"])))=>i.map(i=>d[i]);
 import{n as e,t}from"./rolldown-runtime-CbXtAM7H.js";import{$ as n,A as r,At as i,C as a,D as o,E as s,Et as c,F as l,Ft as u,G as d,H as f,It as p,J as m,K as h,M as g,N as _,O as v,P as y,Pt as b,Q as ee,S as x,T as S,Tt as C,U as w,V as te,W as ne,X as re,Y as ie,Z as ae,_ as oe,_t as se,a as ce,at as le,b as ue,bt as de,c as fe,ct as pe,et as T,f as me,ft as he,g as ge,h as _e,ht as ve,i as ye,it as be,jt as xe,k as Se,kt as E,l as D,lt as Ce,mt as we,n as Te,nt as Ee,p as De,pt as O,q as Oe,rt as ke,s as Ae,st as k,t as je,tt as Me,ut as Ne,w as Pe,wt as Fe,x as Ie,y as Le,yt as Re}from"./util-BYwVWJdF.js";(function(){let e=document.createElement(`link`).relList;if(e&&e.supports&&e.supports(`modulepreload`))return;for(let e of document.querySelectorAll(`link[rel="modulepreload"]`))n(e);new MutationObserver(e=>{for(let t of e)if(t.type===`childList`)for(let e of t.addedNodes)e.tagName===`LINK`&&e.rel===`modulepreload`&&n(e)}).observe(document,{childList:!0,subtree:!0});function t(e){let t={};return e.integrity&&(t.integrity=e.integrity),e.referrerPolicy&&(t.referrerPolicy=e.referrerPolicy),t.credentials=e.crossOrigin===`use-credentials`?`include`:e.crossOrigin===`anonymous`?`omit`:`same-origin`,t}function n(e){if(e.ep)return;e.ep=!0;let n=t(e);fetch(e.href,n)}})();var ze=t((e=>{function t(e,t){var n=e.length;e.push(t);a:for(;0<n;){var r=n-1>>>1,a=e[r];if(0<i(a,t))e[r]=t,e[n]=a,n=r;else break a}}function n(e){return e.length===0?null:e[0]}function r(e){if(e.length===0)return null;var t=e[0],n=e.pop();if(n!==t){e[0]=n;a:for(var r=0,a=e.length,o=a>>>1;r<o;){var s=2*(r+1)-1,c=e[s],l=s+1,u=e[l];if(0>i(c,n))l<a&&0>i(u,c)?(e[r]=u,e[l]=n,r=l):(e[r]=c,e[s]=n,r=s);else if(l<a&&0>i(u,n))e[r]=u,e[l]=n,r=l;else break a}}return t}function i(e,t){var n=e.sortIndex-t.sortIndex;return n===0?e.id-t.id:n}if(e.unstable_now=void 0,typeof performance==`object`&&typeof performance.now==`function`){var a=performance;e.unstable_now=function(){return a.now()}}else{var o=Date,s=o.now();e.unstable_now=function(){return o.now()-s}}var c=[],l=[],u=1,d=null,f=3,p=!1,m=!1,h=!1,g=!1,_=typeof setTimeout==`function`?setTimeout:null,v=typeof clearTimeout==`function`?clearTimeout:null,y=typeof setImmediate<`u`?setImmediate:null;function b(e){for(var i=n(l);i!==null;){if(i.callback===null)r(l);else if(i.startTime<=e)r(l),i.sortIndex=i.expirationTime,t(c,i);else break;i=n(l)}}function ee(e){if(h=!1,b(e),!m){if(n(c)!==null)m=!0,x||(x=!0,re());else{var t=n(l);t!==null&&oe(ee,t.startTime-e)}}}var x=!1,S=-1,C=5,w=-1;function te(){return g?!0:!(e.unstable_now()-w<C)}function ne(){if(g=!1,x){var t=e.unstable_now();w=t;var i=!0;try{a:{m=!1,h&&(h=!1,v(S),S=-1),p=!0;var a=f;try{b:{for(b(t),d=n(c);d!==null&&!(d.expirationTime>t&&te());){var o=d.callback;if(typeof o==`function`){d.callback=null,f=d.priorityLevel;var s=o(d.expirationTime<=t);if(t=e.unstable_now(),typeof s==`function`){d.callback=s,b(t),i=!0;break b}d===n(c)&&r(c),b(t)}else r(c);d=n(c)}if(d!==null)i=!0;else{var u=n(l);u!==null&&oe(ee,u.startTime-t),i=!1}}break a}finally{d=null,f=a,p=!1}i=void 0}}finally{i?re():x=!1}}}var re;if(typeof y==`function`)re=function(){y(ne)};else if(typeof MessageChannel<`u`){var ie=new MessageChannel,ae=ie.port2;ie.port1.onmessage=ne,re=function(){ae.postMessage(null)}}else re=function(){_(ne,0)};function oe(t,n){S=_(function(){t(e.unstable_now())},n)}e.unstable_IdlePriority=5,e.unstable_ImmediatePriority=1,e.unstable_LowPriority=4,e.unstable_NormalPriority=3,e.unstable_Profiling=null,e.unstable_UserBlockingPriority=2,e.unstable_cancelCallback=function(e){e.callback=null},e.unstable_forceFrameRate=function(e){0>e||125<e?console.error(`forceFrameRate takes a positive int between 0 and 125, forcing frame rates higher than 125 fps is not supported`):C=0<e?Math.floor(1e3/e):5},e.unstable_getCurrentPriorityLevel=function(){return f},e.unstable_next=function(e){switch(f){case 1:case 2:case 3:var t=3;break;default:t=f}var n=f;f=t;try{return e()}finally{f=n}},e.unstable_requestPaint=function(){g=!0},e.unstable_runWithPriority=function(e,t){switch(e){case 1:case 2:case 3:case 4:case 5:break;default:e=3}var n=f;f=e;try{return t()}finally{f=n}},e.unstable_scheduleCallback=function(r,i,a){var o=e.unstable_now();switch(typeof a==`object`&&a?(a=a.delay,a=typeof a==`number`&&0<a?o+a:o):a=o,r){case 1:var s=-1;break;case 2:s=250;break;case 5:s=1073741823;break;case 4:s=1e4;break;default:s=5e3}return s=a+s,r={id:u++,callback:i,priorityLevel:r,startTime:a,expirationTime:s,sortIndex:-1},a>o?(r.sortIndex=a,t(l,r),n(c)===null&&r===n(l)&&(h?(v(S),S=-1):h=!0,oe(ee,a-o))):(r.sortIndex=s,t(c,r),m||p||(m=!0,x||(x=!0,re()))),r},e.unstable_shouldYield=te,e.unstable_wrapCallback=function(e){var t=f;return function(){var n=f;f=t;try{return e.apply(this,arguments)}finally{f=n}}}})),Be=t(((e,t)=>{t.exports=ze()})),Ve=t((e=>{var t=p();function n(e){var t=`https://react.dev/errors/`+e;if(1<arguments.length){t+=`?args[]=`+encodeURIComponent(arguments[1]);for(var n=2;n<arguments.length;n++)t+=`&args[]=`+encodeURIComponent(arguments[n])}return`Minified React error #`+e+`; visit `+t+` for the full message or use the non-minified dev environment for full errors and additional helpful warnings.`}function r(){}var i={d:{f:r,r:function(){throw Error(n(522))},D:r,C:r,L:r,m:r,X:r,S:r,M:r},p:0,findDOMNode:null},a=Symbol.for(`react.portal`),o=Symbol.for(`react.recoverable`),s=Symbol.for(`react.optimistic_key`);function c(e,t,n){var r=3<arguments.length&&arguments[3]!==void 0?arguments[3]:null;return{$$typeof:a,key:r==null?null:r===s?s:``+r,children:e,containerInfo:t,implementation:n}}var l=t.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;function u(e,t){if(e===`font`)return``;if(typeof t==`string`)return t===`use-credentials`?t:``}e.__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE=i,e.browser=function(e){return{$$typeof:o,_reason:e}},e.createPortal=function(e,t){var r=2<arguments.length&&arguments[2]!==void 0?arguments[2]:null;if(!t||t.nodeType!==1&&t.nodeType!==9&&t.nodeType!==11)throw Error(n(299));return c(e,t,null,r)},e.flushSync=function(e){var t=l.T,n=i.p;try{if(l.T=null,i.p=2,e)return e()}finally{l.T=t,i.p=n,i.d.f()}},e.preconnect=function(e,t){typeof e==`string`&&(t?(t=t.crossOrigin,t=typeof t==`string`?t===`use-credentials`?t:``:void 0):t=null,i.d.C(e,t))},e.prefetchDNS=function(e){typeof e==`string`&&i.d.D(e)},e.preinit=function(e,t){if(typeof e==`string`&&t&&typeof t.as==`string`){var n=t.as,r=u(n,t.crossOrigin),a=typeof t.integrity==`string`?t.integrity:void 0,o=typeof t.fetchPriority==`string`?t.fetchPriority:void 0;n===`style`?i.d.S(e,typeof t.precedence==`string`?t.precedence:void 0,{crossOrigin:r,integrity:a,fetchPriority:o}):n===`script`&&i.d.X(e,{crossOrigin:r,integrity:a,fetchPriority:o,nonce:typeof t.nonce==`string`?t.nonce:void 0})}},e.preinitModule=function(e,t){if(typeof e==`string`){if(typeof t==`object`&&t){if(t.as==null||t.as===`script`){var n=u(t.as,t.crossOrigin);i.d.M(e,{crossOrigin:n,integrity:typeof t.integrity==`string`?t.integrity:void 0,nonce:typeof t.nonce==`string`?t.nonce:void 0,fetchPriority:typeof t.fetchPriority==`string`?t.fetchPriority:void 0})}}else t??i.d.M(e)}},e.preload=function(e,t){if(typeof e==`string`&&typeof t==`object`&&t&&typeof t.as==`string`){var n=t.as,r=u(n,t.crossOrigin);i.d.L(e,n,{crossOrigin:r,integrity:typeof t.integrity==`string`?t.integrity:void 0,nonce:typeof t.nonce==`string`?t.nonce:void 0,type:typeof t.type==`string`?t.type:void 0,fetchPriority:typeof t.fetchPriority==`string`?t.fetchPriority:void 0,referrerPolicy:typeof t.referrerPolicy==`string`?t.referrerPolicy:void 0,imageSrcSet:typeof t.imageSrcSet==`string`?t.imageSrcSet:void 0,imageSizes:typeof t.imageSizes==`string`?t.imageSizes:void 0,media:typeof t.media==`string`?t.media:void 0})}},e.preloadModule=function(e,t){if(typeof e==`string`){if(t){var n=u(t.as,t.crossOrigin);i.d.m(e,{as:typeof t.as==`string`&&t.as!==`script`?t.as:void 0,crossOrigin:n,integrity:typeof t.integrity==`string`?t.integrity:void 0,nonce:typeof t.nonce==`string`?t.nonce:void 0,fetchPriority:typeof t.fetchPriority==`string`?t.fetchPriority:void 0})}else i.d.m(e)}},e.requestFormReset=function(e){i.d.r(e)},e.unstable_batchedUpdates=function(e,t){return e(t)},e.useFormState=function(e,t,n){return l.H.useFormState(e,t,n)},e.useFormStatus=function(){return l.H.useHostTransitionStatus()},e.version=`19.3.0`})),He=t(((e,t)=>{function n(){if(typeof __REACT_DEVTOOLS_GLOBAL_HOOK__<`u`&&typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.checkDCE==`function`)try{__REACT_DEVTOOLS_GLOBAL_HOOK__.checkDCE(n)}catch(e){console.error(e)}}n(),t.exports=Ve()})),Ue=t((e=>{var t=Be(),n=p(),r=He();function i(e){var t=`https://react.dev/errors/`+e;if(1<arguments.length){t+=`?args[]=`+encodeURIComponent(arguments[1]);for(var n=2;n<arguments.length;n++)t+=`&args[]=`+encodeURIComponent(arguments[n])}return`Minified React error #`+e+`; visit `+t+` for the full message or use the non-minified dev environment for full errors and additional helpful warnings.`}function a(e){return!(!e||e.nodeType!==1&&e.nodeType!==9&&e.nodeType!==11)}function o(e){for(var t=e,n=t;n&&!n.alternate;)t=n,t.flags&4098&&(e=t.return),n=t.return;for(;t.return;)t=t.return;return t.tag===3?e:null}function s(e){if(e.tag===13){var t=e.memoizedState;if(t===null&&(e=e.alternate,e!==null&&(t=e.memoizedState)),t!==null)return t.dehydrated}return null}function c(e){if(e.tag===31){var t=e.memoizedState;if(t===null&&(e=e.alternate,e!==null&&(t=e.memoizedState)),t!==null)return t.dehydrated}return null}function l(e){if(o(e)!==e)throw Error(i(188))}function u(e){var t=e.alternate;if(!t){if(t=o(e),t===null)throw Error(i(188));return t===e?e:null}for(var n=e,r=t;;){var a=n.return;if(a===null)break;var s=a.alternate;if(s===null){if(r=a.return,r!==null){n=r;continue}break}if(a.child===s.child){for(s=a.child;s;){if(s===n)return l(a),e;if(s===r)return l(a),t;s=s.sibling}throw Error(i(188))}if(n.return!==r.return)n=a,r=s;else{for(var c=!1,u=a.child;u;){if(u===n){c=!0,n=a,r=s;break}if(u===r){c=!0,r=a,n=s;break}u=u.sibling}if(!c){for(u=s.child;u;){if(u===n){c=!0,n=s,r=a;break}if(u===r){c=!0,r=s,n=a;break}u=u.sibling}if(!c)throw Error(i(189))}}if(n.alternate!==r)throw Error(i(190))}if(n.tag!==3)throw Error(i(188));return n.stateNode.current===n?e:t}function d(e){var t=e.tag;if(t===5||t===26||t===27||t===6)return e;for(e=e.child;e!==null;){if(t=d(e),t!==null)return t;e=e.sibling}return null}function f(e,t,n,r,i,a){for(;e!==null;){if((e.tag===5||e.tag===27||e.tag===6)&&n(e,r,i,a)||(e.tag!==22||e.memoizedState===null)&&(t||e.tag!==5&&e.tag!==27)&&f(e.child,t,n,r,i,a))return!0;e=e.sibling}return!1}function m(e){for(e=e.return;e!==null;){if(e.tag===3||e.tag===5||e.tag===27)return e;e=e.return}return null}function h(e){var t=!1;for(e=e.return;e!==null&&(e.tag===4&&(t=!0),e.tag!==3&&e.tag!==5&&e.tag!==27);)e=e.return;return t}function g(e){var t=[null,null],n=m(e);return n===null||_(t,e,n.child,{foundSelf:!1}),t}function _(e,t,n,r){for(;n!==null;){if(n===t)r.foundSelf=!0;else if(n.tag===5||n.tag===27||n.tag===6){if(r.foundSelf)return e[1]=n,!0;e[0]=n}else if((n.tag!==22||n.memoizedState===null)&&_(e,t,n.child,r))return!0;n=n.sibling}return!1}function v(e){switch(e.tag){case 5:case 27:case 6:return e.stateNode;case 3:return e.stateNode.containerInfo;default:throw Error(i(559))}}var y=null,b=null;function ee(e,t,n){return e===n||e===t&&(y=e,!0)}function x(e,t,n){return e===n?(b=e,!1):e===t&&(b!==null&&(y=e),!0)}function S(e){if(e===null)return null;do e=e===null?null:e.return;while(e&&e.tag!==5&&e.tag!==27&&e.tag!==3);return e||null}function C(e,t,n){for(var r=0,i=e;i;i=n(i))r++;i=0;for(var a=t;a;a=n(a))i++;for(;0<r-i;)e=n(e),r--;for(;0<i-r;)t=n(t),i--;for(;r--;){if(e===t||t!==null&&e===t.alternate)return e;e=n(e),t=n(t)}return null}var w=Object.assign,te=Symbol.for(`react.element`),ne=Symbol.for(`react.transitional.element`),re=Symbol.for(`react.portal`),ie=Symbol.for(`react.fragment`),ae=Symbol.for(`react.strict_mode`),oe=Symbol.for(`react.profiler`),se=Symbol.for(`react.consumer`),ce=Symbol.for(`react.context`),le=Symbol.for(`react.forward_ref`),ue=Symbol.for(`react.suspense`),de=Symbol.for(`react.suspense_list`),fe=Symbol.for(`react.memo`),pe=Symbol.for(`react.lazy`),T=Symbol.for(`react.activity`),me=Symbol.for(`react.legacy_hidden`),he=Symbol.for(`react.memo_cache_sentinel`),ge=Symbol.for(`react.view_transition`),_e=Symbol.for(`react.recoverable`),ve=Symbol.iterator;function ye(e){return typeof e!=`object`||!e?null:(e=ve&&e[ve]||e[`@@iterator`],typeof e==`function`?e:null)}var be=Symbol.for(`react.client.reference`);function xe(e){if(e==null)return null;if(typeof e==`function`)return e.$$typeof===be?null:e.displayName||e.name||null;if(typeof e==`string`)return e;switch(e){case ie:return`Fragment`;case oe:return`Profiler`;case ae:return`StrictMode`;case ue:return`Suspense`;case de:return`SuspenseList`;case T:return`Activity`;case ge:return`ViewTransition`}if(typeof e==`object`)switch(e.$$typeof){case re:return`Portal`;case ce:return e.displayName||`Context`;case se:return(e._context.displayName||`Context`)+`.Consumer`;case le:var t=e.render;return e=e.displayName,e||=(e=t.displayName||t.name||``,e===``?`ForwardRef`:`ForwardRef(`+e+`)`),e;case fe:return t=e.displayName||null,t===null?xe(e.type)||`Memo`:t;case pe:t=e._payload,e=e._init;try{return xe(e(t))}catch{}}return null}var Se=Array.isArray,E=n.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE,D=r.__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE,Ce={pending:!1,data:null,method:null,action:null},we=[],Te=-1;function Ee(e){return{current:e}}function De(e){0>Te||(e.current=we[Te],we[Te]=null,Te--)}function O(e,t){Te++,we[Te]=e.current,e.current=t}var Oe=Ee(null),ke=Ee(null),Ae=Ee(null),k=Ee(null);function je(e,t){switch(O(Ae,t),O(ke,e),O(Oe,null),t.nodeType){case 9:case 11:e=(e=t.documentElement)&&(e=e.namespaceURI)?up(e):0;break;default:if(e=t.tagName,t=t.namespaceURI)t=up(t),e=dp(t,e);else switch(e){case`svg`:e=1;break;case`math`:e=2;break;default:e=0}}De(Oe),O(Oe,e)}function Me(){De(Oe),De(ke),De(Ae)}function Ne(e){var t=e.memoizedState;t!==null&&(sh._currentValue=t.memoizedState,O(k,e)),t=Oe.current;var n=dp(t,e.type);t!==n&&(O(ke,e),O(Oe,n))}function Pe(e){ke.current===e&&(De(Oe),De(ke)),k.current===e&&(De(k),sh._currentValue=Ce)}var Fe,Ie;function Le(e){if(Fe===void 0)try{throw Error()}catch(e){var t=e.stack.trim().match(/\n( *(at )?)/);Fe=t&&t[1]||``,Ie=-1<e.stack.indexOf(`
     at`)?` (<anonymous>)`:-1<e.stack.indexOf(`@`)?`@unknown:0:0`:``}return`
 `+Fe+e+Ie}var Re=!1;function ze(e,t){if(!e||Re)return``;Re=!0;var n=Error.prepareStackTrace;Error.prepareStackTrace=void 0;try{var r={DetermineComponentFrameRoot:function(){try{if(t){var n=function(){throw Error()};if(Object.defineProperty(n.prototype,"props",{set:function(){throw Error()}}),typeof Reflect==`object`&&Reflect.construct){try{Reflect.construct(n,[])}catch(e){var r=e}Reflect.construct(e,[],n)}else{try{n.call()}catch(e){r=e}n=!1;try{var i=Object.getOwnPropertyDescriptor(e.prototype,`props`);Object.defineProperty(e.prototype,"props",{configurable:!0,set:function(){throw Error()}}),n=!0,new e}finally{n&&(i===void 0?delete e.prototype.props:Object.defineProperty(e.prototype,"props",i))}}}else{try{throw Error()}catch(e){r=e}(n=e())&&typeof n.catch==`function`&&n.catch(function(){})}}catch(e){if(e&&r&&typeof e.stack==`string`)return[e.stack,r.stack]}return[null,null]}};r.DetermineComponentFrameRoot.displayName=`DetermineComponentFrameRoot`;var i=Object.getOwnPropertyDescriptor(r.DetermineComponentFrameRoot,`name`);i&&i.configurable&&Object.defineProperty(r.DetermineComponentFrameRoot,"name",{value:`DetermineComponentFrameRoot`});var a=r.DetermineComponentFrameRoot(),o=a[0],s=a[1];if(o&&s){var c=o.split(`
@@ -14,1764 +14,1764 @@ Error generating stack: `+e.message+`
 `+t[r].trim(),r++;else break}n.push({t:`list`,ordered:i,items:a});continue}if(/^\s{0,3}>/.test(e)){let e=[];for(;r<t.length&&/^\s{0,3}>/.test(t[r]);)e.push(t[r++].replace(/^\s{0,3}>\s?/,``));n.push({t:`quote`,text:e.join(`
 `)});continue}let o=[];for(;r<t.length&&t[r].trim()&&!Ye.test(t[r])&&!Xe.test(t[r])&&!Ze.test(t[r])&&!Qe.test(t[r])&&!$e.test(t[r])&&!(t[r].includes(`|`)&&r+1<t.length&&et.test(t[r+1]));)o.push(t[r++]);n.push({t:`para`,text:o.join(`
 `)})}return n}var rt=/(`+)([\s\S]*?)\1|\$\$([^$]+)\$\$|\$([^$\n]+)\$|\*\*([^*]+)\*\*|__([^_]+)__|\*([^*\n]+)\*|(?<![\w])_([^_\n]+)_(?![\w])|\[([^\]]+)\]\((https?:\/\/[^)\s]+|#[\w-]+)\)/g;function it(e,t=`i`){let n=[],r=0,i=0;for(let a of e.matchAll(rt)){let o=a.index??0;o>r&&n.push(...at(e.slice(r,o),`${t}t${i}`));let s=`${t}${i++}`;if(a[1])n.push((0,j.jsx)(`code`,{children:a[2]},s));else if(a[3]||a[4])n.push((0,j.jsx)(`code`,{className:`md-math`,children:a[3]??a[4]},s));else if(a[5]||a[6])n.push((0,j.jsx)(`strong`,{children:it(a[5]??a[6],s)},s));else if(a[7]||a[8])n.push((0,j.jsx)(`em`,{children:it(a[7]??a[8],s)},s));else if(a[9]){let e=a[10];n.push((0,j.jsx)(`a`,{href:e,onClick:t=>{e.startsWith(`#`)||(t.preventDefault(),D(e))},"data-tip":e,children:a[9]},s))}r=o+a[0].length}return r<e.length&&n.push(...at(e.slice(r),`${t}e`)),n}function at(e,t){return e.split(`
-`).flatMap((e,n)=>n?[(0,j.jsx)(`br`,{},`${t}b${n}`),e]:[e])}function ot({text:e}){let t=nt(e);return(0,j.jsx)(`div`,{className:`md selectable`,children:t.map((e,t)=>{switch(e.t){case`code`:return(0,j.jsxs)(`pre`,{className:`md-code`,children:[e.lang&&(0,j.jsx)(`span`,{className:`md-lang`,children:e.lang}),(0,j.jsx)(`code`,{children:e.text})]},t);case`heading`:{let n=`h${Math.min(6,e.level+2)}`;return(0,j.jsx)(n,{children:it(e.text,`h${t}`)},t)}case`list`:return e.ordered?(0,j.jsx)(`ol`,{children:e.items.map((e,n)=>(0,j.jsx)(`li`,{children:it(e,`l${t}-${n}`)},n))},t):(0,j.jsx)(`ul`,{children:e.items.map((e,n)=>(0,j.jsx)(`li`,{children:it(e,`l${t}-${n}`)},n))},t);case`table`:return(0,j.jsx)(`div`,{className:`md-table-wrap`,children:(0,j.jsxs)(`table`,{className:`md-table`,children:[(0,j.jsx)(`thead`,{children:(0,j.jsx)(`tr`,{children:e.head.map((e,n)=>(0,j.jsx)(`th`,{children:it(e,`th${t}-${n}`)},n))})}),(0,j.jsx)(`tbody`,{children:e.rows.map((e,n)=>(0,j.jsx)(`tr`,{children:e.map((e,r)=>(0,j.jsx)(`td`,{children:it(e,`td${t}-${n}-${r}`)},r))},n))})]})},t);case`quote`:return(0,j.jsx)(`blockquote`,{children:(0,j.jsx)(ot,{text:e.text})},t);case`rule`:return(0,j.jsx)(`hr`,{},t);default:return(0,j.jsx)(`p`,{children:it(e.text,`p${t}`)},t)}})})}var st=se(e=>({open:!1,show:()=>e({open:!0}),close:()=>e({open:!1})})),ct=`# AVAS 使用说明\r
-\r
-本手册可在操作软件时保持打开。拖动标题栏移动窗口，拖动边缘调整大小；最大化后可还原，按 Esc 关闭。每次重新打开恢复默认位置和大小。使用上方搜索按正文和标题筛选章节，点击目录跳转。界面语言切换时手册同步切换。\r
-\r
-## 快速开始\r
-\r
-1. 在项目页打开已有项目，或从文件菜单新建项目。初次使用建议复制 examples/hwr010 示例再操作。\r
-2. 在束流页检查粒子数、能量和分布，在结构页检查元件与场图，在设置页检查模拟选项。\r
-3. 确认结构页标记为运行使用的文件正确，保存修改，然后开始运行。\r
-4. 在运行页查看进度、日志和实时包络；结束后到结果页查看曲线和相空间。\r
-5. 需要保留本次结果时，在运行记录中选择保留运行，再进行下一次计算。\r
-\r
-## 项目与输入文件\r
-\r
-项目通过 ini.ini 组织输入和输出。InputFile 保存束流、模拟设置、结构和场图等输入；OutputFile 保存最近一次完整运行。结构文件由 ini.ini 的 lattice/source 指定，文件名不一定是 lattice_mulp.txt。\r
-\r
-文件菜单和标题栏的项目切换入口用于打开其他项目。切换或关闭时有未保存改动会询问处理方式。文件页可以查看输入文件，并进行导入、复制、重命名或移到回收站等操作。\r
-\r
-运行期间输入只读。可以查看文件和结果，等待任务结束后再编辑。\r
-\r
-## 束流设置\r
-\r
-束流页用于设置入射束流。按界面分组调整能量、电流、粒子数和分布等参数，保存后写入 beam.txt；未由页面管理的关键字和注释会保留。撤销和重做可使用 Ctrl+Z、Ctrl+Y。\r
-\r
-参数参考中的 beam 条目列出各关键字说明、单位和可选值。使用外部分布时先确认对应文件已准备好，粒子数和分布选项与研究目标一致。\r
-\r
-## 结构编辑\r
-\r
-文件下拉框用于打开结构文件；打开文件不等于将其设为运行结构。使用单独的“设为运行结构”按钮选择运行输入。\r
-\r
-“文本 + 结构”模式将文本与结构面板并排显示。选择元件可查看参数、位置和检查提示。文本、结构及可视化编辑使用同一份内容，修改可撤销。\r
-\r
-可视化模式默认浏览，只读查看。进入编辑状态后才能修改参数和元件；点击完成时，若有未保存修改，可保存、放弃本次编辑或继续编辑。TraceWin .dat 文件目前只读。\r
-\r
-2D 和 3D 左上角提供放大、缩小、显示全部。2D 双击视图显示全部；3D 双击空白显示全部，双击元件聚焦。手动缩放 3D 会停止漫游和束团跟随。\r
-\r
-## 模拟设置\r
-\r
-设置页管理 input.txt 中的模拟选项，支持撤销和重做。每个字段的含义以参数参考中的 input 条目为准。\r
-\r
-CPU 多线程开启时写 multithreading 1；关闭时删除该行。不要手工填写 multithreading 0，它会导致内核在起点丢失全部粒子。\r
-\r
-运行前先检查结构问题和场图是否齐全。线性包络预览用于快速评估，最终结果以内核计算为准。\r
-\r
-## 运行与保留结果\r
-\r
-同一时间只允许一个运行任务。开始前软件检查并保存有修改的页面；上次结果完成但尚未保留时，会询问保留并运行、直接运行或取消。\r
-\r
-暂停挂起运行进程，恢复后继续；停止结束任务。运行期间输入保持只读，包括暂停状态。完整运行使用输出目录中的 inputs 快照，不改写原始输入。\r
-\r
-完整运行覆盖 OutputFile。保留运行会把结果和输入快照复制到 Runs 下的独立目录。运行记录中可回放完成的记录，也可将不需要的记录移到回收站。\r
-\r
-分段运行的结果位于 Segments 下，不覆盖完整运行结果。分段设置涉及射频相位换算，请使用软件提供的分段功能。\r
-\r
-## 实时包络与回放\r
-\r
-运行页显示本次运行实时包络，结束后可回放；运行记录的回放按钮用于查看历史记录。新运行开始后切回本次运行。\r
-\r
-结构页回放上次运行，曲线与正在编辑的结构对应；结构修改后应注意结果可能已过期。上次运行曲线默认隐藏，开始回放时自动打开。图例左侧的 × 可隐藏曲线。\r
-\r
-束团和粒子云是按 rms 包络绘制的示意，不是真实粒子分布。与前一次运行对比默认关闭，可按需开启。动画受“视图 → 动效”控制。\r
-\r
-## 参数扫描\r
-\r
-在扫描页选择 lattice 元件参数或 beam.txt、input.txt 关键字，填写一组取值后开始。每个取值都在输入副本上运行，不覆盖项目输入和完整运行结果。\r
-\r
-扫描期间可查看表格、曲线和运行状态。结果保存在 Scans 下，每个取值对应 run_NNN 子目录，汇总为 scan.json 和 scan.csv。扫描进行时不能同时开始普通运行。\r
-\r
-## 结果分析\r
-\r
-结果页选择最近输出、已保留运行、分段结果或其他输出目录作为数据源，再选择所需曲线或相空间视图。支持交互缩放及图像导出。\r
-\r
-运行对比可叠加不同运行的同一物理量。比较前确认单位、输入和坐标范围一致；多线程模拟可能存在小幅随机差异，不应要求输出逐字节相同。\r
-\r
-回放入口在运行页，结果页用于数据分析。单粒子计算中 rms 列为 NaN 可能是内核的正常输出，需结合存活粒子数和日志判断。\r
-\r
-## AI 助手\r
-\r
-使用 Ctrl+Shift+A 打开助手，在设置中配置 OpenAI 兼容接口或本地模型。密钥存储在 Windows 凭据管理器。需要数据留在本机时使用本地模型服务。\r
-\r
-助手可以读取项目、解释结果并在副本中试算。项目修改以提案卡片显示，批准后应用；若在当前对话开启自动应用，则按该设置处理。写入前备份，可撤销。\r
-\r
-助手的试算输出位于 .avas_ai/runs，不改写 InputFile 和 OutputFile。项目运行锁定期间，修改提案会被拒绝，待运行结束后再提出。\r
-\r
-## 常见问题\r
-\r
-### 场图缺失或结构检查失败\r
-\r
-检查引用文件是否存在、文件名和路径是否正确，并按结构页的问题提示修正。不要仅通过隐藏提示继续运行。\r
-\r
-### 起点全部粒子丢失\r
-\r
-先检查是否误写 multithreading 0，再结合束流参数、孔径、场图和日志检查。关闭多线程应删除关键字行。\r
-\r
-### 修改代码后桌面程序没有变化\r
-\r
-打包的可执行文件不会随源码自动更新，需要重新打包。普通用户使用发布包即可，无需安装 Node.js 或 Word。\r
-\r
-\r
-## 更多帮助\r
-\r
-[案例教程与验证条件](#cases-setup) · [参数与文件参考](#reference-home) · [接受度测量](#cases-acceptance)\r
-\r
-## 误差研究\r
-\r
-在设置页选择静态、动态或静态 + 动态误差，设置误差种子。结构中同时配置 err_step、误差幅度与开启命令，再保存并运行。结果写入 error_output，具体抽样与统计见参考章节。\r
-\r
-[误差案例](#cases-errors)\r
-`,lt=`# AVAS user manual\r
-\r
-Keep this manual open while working. Drag the title bar to move it or its edges to resize it. Maximize and restore using the title buttons; press Esc to close. Reopening restores the default position and size. Search filters chapter titles and content; select a contents entry to jump to it. The manual follows the interface language.\r
-\r
-## Quick start\r
-\r
-1. Open a project or create one from the File menu. For a first run, work on a copy of examples/hwr010.\r
-2. Check the beam energy, particle count and distribution, then the lattice, field maps and simulation settings.\r
-3. Confirm the file marked for simulation in the Lattice page, save changes and start the run.\r
-4. Follow progress, logs and live envelopes in Run; inspect plots and phase space in Results afterwards.\r
-5. Keep the completed run in the run records before starting another calculation if you need its results.\r
-\r
-## Projects and input files\r
-\r
-ini.ini defines the project inputs and outputs. InputFile holds beam, settings, lattice and field-map files; OutputFile holds the latest full run. The lattice/source setting selects the simulation lattice; its filename is not necessarily lattice_mulp.txt.\r
-\r
-Use the File menu or project switcher to open another project. Unsaved changes are checked before switching or closing. Files supports viewing, importing, duplicating, renaming and recycling input files.\r
-\r
-Inputs are read-only during a run. You can still inspect files and results.\r
-\r
-## Beam settings\r
-\r
-Use Beam to configure energy, current, particle count and distribution. Saving updates beam.txt while retaining unmanaged keywords and comments. Ctrl+Z and Ctrl+Y undo and redo changes.\r
-\r
-The beam reference entries below provide keyword meanings, units and choices. Prepare any external distribution file before using it and check that the distribution and particle count suit the study.\r
-\r
-## Lattice editing\r
-\r
-The file selector opens a lattice for viewing or editing. Use the separate Set as run lattice button to choose the simulation input.\r
-\r
-Text + Structure shows the text and physical parameter panels together. Select an element to inspect its parameters, position and diagnostics. Text, structure and visual edits share one source and undo history.\r
-\r
-Visual mode starts in read-only browsing. Enter editing before changing elements or parameters. Finishing with unsaved changes offers save, discard this editing session or continue editing. TraceWin .dat files are currently read-only.\r
-\r
-The top-left controls in 2D and 3D zoom and fit the view. Double-click the 2D view to fit all; in 3D, double-click empty space to fit all or an element to focus it. Manual 3D zoom stops roaming and bunch following.\r
-\r
-## Simulation settings\r
-\r
-Settings manages simulation options in input.txt with undo and redo. See the input reference entries for individual fields.\r
-\r
-CPU multithreading writes multithreading 1 when enabled and removes the line when disabled. Do not manually write multithreading 0: the engine loses all particles at the start with that value.\r
-\r
-Resolve lattice errors and missing field maps before running. The linear envelope preview is a quick estimate; use engine results for final conclusions.\r
-\r
-## Running and keeping results\r
-\r
-Only one task can run at a time. Starting checks and saves modified pages. If the previous completed result has not been kept, choose Keep and run, Run directly or Cancel.\r
-\r
-Pause suspends the process; resume continues it and stop ends it. Inputs remain read-only while paused. Full runs use the inputs snapshot in the output directory without rewriting original inputs.\r
-\r
-A full run overwrites OutputFile. Keeping a run copies its results and input snapshot into a separate Runs directory. Completed records can be replayed; unwanted records can be recycled.\r
-\r
-Segment runs write under Segments without replacing full-run results. Use the segment workflow for the required RF phase conversion.\r
-\r
-## Live envelopes and replay\r
-\r
-Run shows the current live envelope and can replay it after completion. Replay on a run record selects a historical result. A new run switches back to the current calculation.\r
-\r
-Lattice replays the last run against the edited lattice, so results may be outdated after edits. Last-run curves start hidden and appear when replay begins. The × to the left of a legend item hides its curve.\r
-\r
-The bunch and particle cloud are illustrations based on rms envelopes, not actual particle distributions. Comparison with the preceding run is off by default. Animation follows View > Motion settings.\r
-\r
-## Parameter scans\r
-\r
-Choose a lattice element parameter or a beam.txt / input.txt keyword, supply values and start the scan. Each value runs on an input copy without replacing original inputs or the full-run result.\r
-\r
-Follow the table, curve and run status. Results live under Scans, with a run_NNN directory per value and scan.json / scan.csv summaries. A normal run cannot start during a scan.\r
-\r
-## Results analysis\r
-\r
-Choose the latest output, a kept run, a segment result or another output directory in Results, then select plots or phase-space views. Interactive zoom and figure export are available.\r
-\r
-Compare runs overlays the same quantity from multiple runs. Check units, inputs and coordinate ranges before comparing. Multithreaded simulations can differ slightly; output need not be byte-identical.\r
-\r
-Replay lives in Run; Results is for analysis. NaN rms columns can be normal for a single-particle calculation; check surviving particles and logs as well.\r
-\r
-## AI assistant\r
-\r
-Open the assistant with Ctrl+Shift+A and configure an OpenAI-compatible endpoint or local model. API keys are stored in Windows Credential Manager. Use a local model service when data must remain on your machine.\r
-\r
-The assistant can read the project, explain results and run trials on copies. Project changes appear as proposals applied after approval, unless automatic application is enabled for the conversation. Changes are backed up and can be undone.\r
-\r
-Trials write under .avas_ai/runs without changing InputFile or OutputFile. Modification proposals are refused while project inputs are locked; request them again after the run.\r
-\r
-## Troubleshooting\r
-\r
-### Missing field maps or lattice errors\r
-\r
-Check referenced files, names and paths, then resolve the Lattice diagnostics before running.\r
-\r
-### All particles lost at the start\r
-\r
-First check for multithreading 0, then inspect beam settings, apertures, field maps and logs. Remove the keyword line to disable multithreading.\r
-\r
-### Source changes do not appear in the desktop executable\r
-\r
-Packaged executables need rebuilding after source changes. Users of release packages do not need Node.js or Word.\r
-\r
-\r
-## Further help\r
-\r
-[Cases and verification conditions](#cases-setup) · [Parameters and files](#reference-home) · [Acceptance](#cases-acceptance)\r
-\r
-## Error studies\r
-\r
-Choose static, dynamic or combined errors and a seed in Settings. Configure err_step, amplitudes and enable commands in the lattice, then save and run. Results are stored in error_output.\r
-\r
-[Error tutorial](#cases-errors)\r
-`,ut=`# 案例教程 {#cases-home}\r
-\r
-来源：docs/案例.docx 的全部 6 组片段，以及原使用说明的接受度章节。原文片段完整保留，修订明确标出；旧版案例不标作当前可运行功能。\r
-\r
-## 通用准备与验证条件 {#cases-setup}\r
-\r
-1. 把 examples/hwr010 整个项目复制到新的练习目录。不要直接覆盖原示例。\r
-2. 前三个案例使用示例 beam.txt 参数；本次短验证将 particlenumber 改为 300，input.txt 的 randomseed 设为 12345。误差研究的 Python 种子另设为 7。其余输入沿用示例。\r
-3. 在副本 InputFile 中新建 manual_case.txt，复制对应代码。在结构页打开并设为运行结构，保存修改；选择相应运行模式。\r
-4. 运行结束后检查日志、轨迹长度、存活数与目标值，不能只看“完成”。需要保留结果时使用运行记录的保留功能。\r
-\r
-验证日期：2026-09-20。每个案例一次验证，输入副本未被内核改写；数值用于识别明显异常，不是高精度金标准。原始 Word 不包含完整 beam/input，因此这些是已明确补充条件的复现。\r
-\r
-命令行也可运行（在练习目录中）：\r
-\r
-\`\`\`text\r
-avas run --input InputFile --output OutputFile --lattice manual_case.txt --mode basic\r
-\`\`\`\r
-\r
-误差案例把模式换成 stat_dyn，校正案例用 stat，并加 --seed 7。\r
-\r
-## 叠加场多粒子入门 {#cases-superpose}\r
-\r
-> 验证状态：已运行：300 粒子全部存活，305 行 DataSet，末端能量约 1.87937 MeV。仅验证这组输入能完成，不代表所有束流设置都得到相同结果。\r
-\r
-认识 superpose、静磁场与射频场叠加。复制示例项目，保留 sol 和 hwr010 的全部分量场图。使用下面的结构内容，并选择普通运行（basic）。\r
-\r
-\`\`\`text\r
-start\r
-drift      0.085  0.02   0\r
-superpose  0 0 0 0 0 0\r
-field      0.35   0.02     0   3   0   0   1    0.531  sol\r
-superpose  0.345 0 0 0 0 0 0\r
-field      0.21   0.02     0   1   162.5e6   -33   1.36    -1.36   hwr010\r
-superposeend\r
-end\r
-\`\`\`\r
-\r
-观察运行页包络，并在结果页检查能量、存活粒子数和输出分布。叠加区域最多包含一个 RF 腔，第一条 superpose 全为零。\r
-\r
-[叠加场规则](#ref-superpose)\r
-\r
-## 静态与动态误差研究 {#cases-errors}\r
-\r
-> 验证状态：修订版已运行：基准加 2 组 × 2 次，均得到 353 行 DataSet；误差运行末端能量约 2.36336–2.36582 MeV，存活 283–287 / 300。原版缺参数，不能直接作为正常教程。\r
-\r
-观察误差组幅度和重复抽样的区别。选择静态 + 动态误差（stat_dyn），误差随机种子设为 7；设置页保留基准运行。err_step 2 2 表示两组，每组两次。\r
-\r
-修订版仅在最后一条 drift 后补上 0；原文为 \`drift 0.000001 0.02\`，内核日志报告参数不足，原版只得到 4 行 DataSet。\r
-\r
-### 当前修订版\r
-\r
-\`\`\`text\r
-start\r
-err_step 2 2\r
-err_cav_stat_on 1 0 0 0 0 0 0\r
-err_cav_ncpl_stat 10 1 2 0 0.0 0.0 0.0 0.0 0.0\r
-err_cav_dyn_on 1 0 0 0 0 0 0\r
-err_cav_ncpl_dyn 10 1 2 0 0.0 0.0 0.0 0.0 0.0\r
-drift 0.0835 0.02 0\r
-field 0.1 0.02 0 3 0 0 1 0.677098 sol\r
-field 0.1 0.02 0 3 0 0 1 0.677098 sol\r
-field      0.21   0.02     0   1   162.5e6   -33  1.36    -1.36   hwr010\r
-field      0.21   0.02     0   1   162.5e6   -33  -1.36    -1.36   hwr010\r
-drift 0.0835 0.02 0\r
-drift 0.000001 0.02 0\r
-end\r
-\`\`\`\r
-\r
-### 原文片段（保留用于对照，不直接运行）\r
-\r
-\`\`\`text\r
-start\r
-err_step 2 2\r
-err_cav_stat_on 1 0 0 0 0 0 0\r
-err_cav_ncpl_stat 10 1 2 0 0.0 0.0 0.0 0.0 0.0\r
-err_cav_dyn_on 1 0 0 0 0 0 0\r
-err_cav_ncpl_dyn 10 1 2 0 0.0 0.0 0.0 0.0 0.0\r
-drift 0.0835 0.02 0\r
-field 0.1 0.02 0 3 0 0 1 0.677098 sol\r
-field 0.1 0.02 0 3 0 0 1 0.677098 sol\r
-field      0.21   0.02     0   1   162.5e6   -33  1.36    -1.36   hwr010\r
-field      0.21   0.02     0   1   162.5e6   -33  -1.36    -1.36   hwr010\r
-drift 0.0835 0.02 0\r
-drift 0.000001 0.02\r
-end\r
-\`\`\`\r
-\r
-查看 error_output/output_0_0 基准和 output_1_1 至 output_2_2，结合 errors_par.txt、errors_par_tot.txt 分析。存在一定粒子损失，不应将本例描述为无损传输。\r
-\r
-[误差编号与抽样说明](#ref-errors)\r
-\r
-## 静态误差校正示例 {#cases-correction}\r
-\r
-> 验证状态：已运行但未达目标：原文 DIAG_ENERGY 的目标为 5 MeV；本次记录的基准末能量约 2.31270 MeV，error_adjust/output_0 约 2.28948 MeV。不能据此宣称校正成功；保留作进阶诊断示例。\r
-\r
-理解 ADJUST 选择参数、约束范围和 DIAG_ENERGY 设置目标的关系。使用静态误差模式（stat）；不要直接把这组目标值当作已收敛的设计。\r
-\r
-\`\`\`text\r
-start\r
-err_step 1 1\r
-err_cav_stat_on 1 0 0 0 0 0 0\r
-err_cav_ncpl_stat 1 0 1.0 0 0.0 0.0 0.0 0.0 0.0\r
-drift 0.0835 0.02 0\r
-field 0.1 0.02 0 3 0 0 1 0.677098 sol\r
-ADJUST 1 7 5 0 3 0\r
-field      0.21  0.02     0   1   162.5e6   -33  3    -1.36   hwr010\r
-drift 0.0835 0.02 0\r
-DIAG_ENERGY 1 5 0\r
-drift 0.000001 0.02 0\r
-end\r
-\`\`\`\r
-\r
-检查目标能量与 Ke 范围是否物理可达，再检查校正前后记录。退出码为 0 不表示优化达到目标；进一步改变目标或范围属于新的物理研究，需要重新验证。\r
-\r
-[校正与束诊命令](#ref-correction)\r
-\r
-## 旧版包络模型 {#cases-legacy-envelope}\r
-\r
-> 验证状态：旧版待核实：当前未提供这一段旧语法的已验证运行流程。\r
-\r
-原代码只有元件片段，没有完整的项目输入。其 QUAD 参数数量与当前多粒子格式不同，不可直接贴入多粒子结构作为可运行例子。\r
-\r
-\`\`\`text\r
-DRIFT 0.76486 1 1\r
-QUAD 0.97277 1 0.40328\r
-DRIFT 0.1355 1 1\r
-QUAD 0.15 1 -2.2265\r
-DRIFT 0.381 1 1\r
-QUAD 0.324 1 0.664\r
-DRIFT 0.59197 1 1\r
-\`\`\`\r
-\r
-保留源代码供迁移核对；不以当前线性包络预览冒充原包络算法。\r
-\r
-## 旧版 Twiss 匹配 {#cases-legacy-matching}\r
-\r
-> 验证状态：旧版待核实：MATCHING、SETTWISS 的原流程未在当前界面验证。\r
-\r
-保留原文匹配范围及目标。迁移前需核对所用算法、输入格式、目标定义和单位。\r
-\r
-\`\`\`text\r
-MATCHING 1 1 0.1 1\r
-DRIFT 0.76486 1 1\r
-MATCHING 1 1 0.1 1\r
-MATCHING 1 3 0 10\r
-QUAD 0.97277 1 0.40328\r
-MATCHING 1 1 0.1 1\r
-DRIFT 0.1355 1 1\r
-MATCHING 1 1 0.1 1\r
-MATCHING 1 3 -10 0\r
-QUAD 0.150 1 -2.2265\r
-MATCHING 1 1 0.1 1\r
-DRIFT 0.381 1 1\r
-MATCHING 1 1 0.1 1\r
-MATCHING 1 3 0 10\r
-QUAD 0.324 1 0.664\r
-MATCHING 1 1 0.1 1\r
-DRIFT 0.59197 1 1\r
-SETTWISS 1 2 3 2 3\r
-\`\`\`\r
-\r
-不改名为 AI 优化教程；两者可能采用不同目标和算法。\r
-\r
-## 旧版周期匹配 {#cases-legacy-periodic}\r
-\r
-> 验证状态：旧版待核实：CIRCLE_MATCH、RF_GAP 等命令的可用入口与结果尚未核实。\r
-\r
-原文用四个周期计算入口 Twiss，缺少完整输入和预期结果。\r
-\r
-\`\`\`text\r
-CIRCLE_MATCH 1 2 0\r
-LATTICE 1 4 5\r
-;cell1\r
-DRIFT 1 0 0\r
-SOLENOID 1 0 1\r
-DRIFT 1 0 0\r
-RF_GAP 100000 0 162.5E6\r
-DRIFT 1 0 0\r
-;cell2\r
-DRIFT 1 0 0\r
-SOLENOID 1 0 1\r
-DRIFT 1 0 0\r
-RF_GAP 100000 0 162.5E6\r
-DRIFT 1 0 0\r
-;cell3\r
-DRIFT 1 0 0\r
-SOLENOID 1 0 1\r
-DRIFT 1 0 0\r
-RF_GAP 100000 0 162.5E6\r
-DRIFT 1 0 0\r
-;cell4\r
-DRIFT 1 0 0\r
-SOLENOID 1 0 1\r
-DRIFT 1 0 0\r
-RF_GAP 100000 0 162.5E6\r
-DRIFT 1 0 0\r
-LATTICE_END\r
-\`\`\`\r
-\r
-保留 LATTICE 与周期结构原文，不将其视为当前多粒子分组语法。\r
-\r
-## 接受度测量 {#cases-acceptance}\r
-\r
-> 来源：使用说明20260427.docx“接受度测量使用方法”。步骤已按当前界面与结果服务改写；本次未用有代表性的束损分布验证接受度数值。\r
-\r
-1. 准备输入束流；若从 dst 导入，先在束流页检查文件与束流参数。原版“Import all beam parameters from file”按钮的操作不能照搬。若需要由 Twiss 重新生成束流，应切回生成分布并确认参数，不能只删除文件路径。\r
-2. 选择要研究的平面，设置适合研究的初始发射度。原手册建议扩大该方向发射度以覆盖接受边界；具体幅度需要根据束线确定。\r
-3. 在设置页把“Output every N steps (plt)”设为大于 0（例如 1）。这会保存逐步粒子记录，文件可能较大。\r
-4. 完成模拟，在结果页选择这次输出，打开“接受度”，选择 x-x′、y-y′、z-z′ 或 φ-E 平面。\r
-5. 查看拟合椭圆、发射度、归一化发射度及位置／角度；结合束损情况判断。全部粒子通过、缺少粒子记录或无法构成边界时不能把报错解释为零接受度。\r
-\r
-接受度属于结果分析，不是原 Word 截图里的独立 accept 页面。三张旧截图已由当前文字步骤替代。\r
-\r
-[粒子记录文件](#ref-beamset)\r
-`,dt=`# Case tutorials {#cases-home}\r
-\r
-Source: all six fragments in docs/案例.docx plus the acceptance chapter of the original manual. Original code is retained; revisions are explicit. Legacy cases are not advertised as runnable current features.\r
-\r
-## Preparation and verification conditions {#cases-setup}\r
-\r
-1. Copy examples/hwr010 into a new practice directory.\r
-2. For the first three cases retain the example beam settings, but set particlenumber to 300 for this short verification and randomseed in input.txt to 12345. The separate Python error seed is 7. Other inputs remain those of the example.\r
-3. Create InputFile/manual_case.txt in the copy, paste the case code, open it in Lattice and set it as the run lattice. Save and choose the stated run mode.\r
-4. Check logs, trajectory extent, survivors and targets after completion. Keep results through run records before replacing them.\r
-\r
-Verified on 2026-09-20, once per case. Engine runs left the prepared inputs unchanged. Values identify gross errors, not precision reference tolerances. The original Word file lacks complete beam/input files; these reproduction conditions are explicitly added.\r
-\r
-From the practice directory:\r
-\r
-\`\`\`text\r
-avas run --input InputFile --output OutputFile --lattice manual_case.txt --mode basic\r
-\`\`\`\r
-\r
-Use stat_dyn for the error study or stat for correction, adding --seed 7.\r
-\r
-## Overlapping-field multi-particle example {#cases-superpose}\r
-\r
-> Verification: Executed: all 300 particles survived; 305 DataSet rows; final energy approximately 1.87937 MeV. This verifies completion for these inputs, not equivalence for arbitrary beam settings.\r
-\r
-Study superpose and overlapping static magnetic / RF fields. Copy the example project and retain all sol and hwr010 field components. Use basic mode.\r
-\r
-\`\`\`text\r
-start\r
-drift      0.085  0.02   0\r
-superpose  0 0 0 0 0 0\r
-field      0.35   0.02     0   3   0   0   1    0.531  sol\r
-superpose  0.345 0 0 0 0 0 0\r
-field      0.21   0.02     0   1   162.5e6   -33   1.36    -1.36   hwr010\r
-superposeend\r
-end\r
-\`\`\`\r
-\r
-Inspect the Run envelope and Results energy, survivors and particle distributions. A block contains at most one RF cavity; its first superpose is all zero.\r
-\r
-[Overlapping-field rules](#ref-superpose)\r
-\r
-## Static and dynamic error study {#cases-errors}\r
-\r
-> Verification: Revised example executed: reference plus 2 groups × 2 runs, all with 353 DataSet rows. Error-run final energies were approximately 2.36336–2.36582 MeV; 283–287 of 300 particles survived. The original has a missing parameter.\r
-\r
-Select static + dynamic errors (stat_dyn), error seed 7 and keep the reference run enabled. err_step 2 2 means two groups with two repeats each.\r
-\r
-The revision only adds the third parameter 0 to the last drift. The original \`drift 0.000001 0.02\` produced a missing-parameter error and only four DataSet rows.\r
-\r
-### Current revision\r
-\r
-\`\`\`text\r
-start\r
-err_step 2 2\r
-err_cav_stat_on 1 0 0 0 0 0 0\r
-err_cav_ncpl_stat 10 1 2 0 0.0 0.0 0.0 0.0 0.0\r
-err_cav_dyn_on 1 0 0 0 0 0 0\r
-err_cav_ncpl_dyn 10 1 2 0 0.0 0.0 0.0 0.0 0.0\r
-drift 0.0835 0.02 0\r
-field 0.1 0.02 0 3 0 0 1 0.677098 sol\r
-field 0.1 0.02 0 3 0 0 1 0.677098 sol\r
-field      0.21   0.02     0   1   162.5e6   -33  1.36    -1.36   hwr010\r
-field      0.21   0.02     0   1   162.5e6   -33  -1.36    -1.36   hwr010\r
-drift 0.0835 0.02 0\r
-drift 0.000001 0.02 0\r
-end\r
-\`\`\`\r
-\r
-### Original fragment (comparison only)\r
-\r
-\`\`\`text\r
-start\r
-err_step 2 2\r
-err_cav_stat_on 1 0 0 0 0 0 0\r
-err_cav_ncpl_stat 10 1 2 0 0.0 0.0 0.0 0.0 0.0\r
-err_cav_dyn_on 1 0 0 0 0 0 0\r
-err_cav_ncpl_dyn 10 1 2 0 0.0 0.0 0.0 0.0 0.0\r
-drift 0.0835 0.02 0\r
-field 0.1 0.02 0 3 0 0 1 0.677098 sol\r
-field 0.1 0.02 0 3 0 0 1 0.677098 sol\r
-field      0.21   0.02     0   1   162.5e6   -33  1.36    -1.36   hwr010\r
-field      0.21   0.02     0   1   162.5e6   -33  -1.36    -1.36   hwr010\r
-drift 0.0835 0.02 0\r
-drift 0.000001 0.02\r
-end\r
-\`\`\`\r
-\r
-Compare error_output/output_0_0 with output_1_1 through output_2_2 and inspect errors_par.txt / errors_par_tot.txt. This is not a loss-free beamline.\r
-\r
-[Error kinds and sampling](#ref-errors)\r
-\r
-## Static-error correction example {#cases-correction}\r
-\r
-> Verification: Executed but target not reached: DIAG_ENERGY requests 5 MeV. The observed reference final energy was about 2.31270 MeV and error_adjust/output_0 about 2.28948 MeV. This is an advanced diagnostic example, not a demonstrated successful correction.\r
-\r
-Use static-error mode (stat) to understand ADJUST parameter selection, bounds and DIAG_ENERGY targets. The original target is not a validated converged design.\r
-\r
-\`\`\`text\r
-start\r
-err_step 1 1\r
-err_cav_stat_on 1 0 0 0 0 0 0\r
-err_cav_ncpl_stat 1 0 1.0 0 0.0 0.0 0.0 0.0 0.0\r
-drift 0.0835 0.02 0\r
-field 0.1 0.02 0 3 0 0 1 0.677098 sol\r
-ADJUST 1 7 5 0 3 0\r
-field      0.21  0.02     0   1   162.5e6   -33  3    -1.36   hwr010\r
-drift 0.0835 0.02 0\r
-DIAG_ENERGY 1 5 0\r
-drift 0.000001 0.02 0\r
-end\r
-\`\`\`\r
-\r
-Check physical reachability within the Ke bounds and inspect pre/post-correction outputs. Exit code 0 does not certify convergence. A changed target or bound is a new study requiring verification.\r
-\r
-[Correction and diagnostics](#ref-correction)\r
-\r
-## Legacy envelope model {#cases-legacy-envelope}\r
-\r
-> Verification: Legacy / unverified: no validated current workflow for this old syntax.\r
-\r
-The source is only an element fragment. Its QUAD parameter count differs from the current multi-particle format; do not paste it as a runnable multi-particle lattice.\r
-\r
-\`\`\`text\r
-DRIFT 0.76486 1 1\r
-QUAD 0.97277 1 0.40328\r
-DRIFT 0.1355 1 1\r
-QUAD 0.15 1 -2.2265\r
-DRIFT 0.381 1 1\r
-QUAD 0.324 1 0.664\r
-DRIFT 0.59197 1 1\r
-\`\`\`\r
-\r
-Keep the original for migration. The current linear envelope preview is not a replacement claim for this old algorithm.\r
-\r
-## Legacy Twiss matching {#cases-legacy-matching}\r
-\r
-> Verification: Legacy / unverified: the MATCHING and SETTWISS workflow has not been verified in the current interface.\r
-\r
-Retain the original bounds and targets; check algorithm, format, target definitions and units before migration.\r
-\r
-\`\`\`text\r
-MATCHING 1 1 0.1 1\r
-DRIFT 0.76486 1 1\r
-MATCHING 1 1 0.1 1\r
-MATCHING 1 3 0 10\r
-QUAD 0.97277 1 0.40328\r
-MATCHING 1 1 0.1 1\r
-DRIFT 0.1355 1 1\r
-MATCHING 1 1 0.1 1\r
-MATCHING 1 3 -10 0\r
-QUAD 0.150 1 -2.2265\r
-MATCHING 1 1 0.1 1\r
-DRIFT 0.381 1 1\r
-MATCHING 1 1 0.1 1\r
-MATCHING 1 3 0 10\r
-QUAD 0.324 1 0.664\r
-MATCHING 1 1 0.1 1\r
-DRIFT 0.59197 1 1\r
-SETTWISS 1 2 3 2 3\r
-\`\`\`\r
-\r
-Do not relabel it as AI optimization, which may use different objectives and algorithms.\r
-\r
-## Legacy periodic matching {#cases-legacy-periodic}\r
-\r
-> Verification: Legacy / unverified: the current entry point and behavior of CIRCLE_MATCH and RF_GAP have not been established.\r
-\r
-The original defines four cells but lacks full project inputs and expected results.\r
-\r
-\`\`\`text\r
-CIRCLE_MATCH 1 2 0\r
-LATTICE 1 4 5\r
-;cell1\r
-DRIFT 1 0 0\r
-SOLENOID 1 0 1\r
-DRIFT 1 0 0\r
-RF_GAP 100000 0 162.5E6\r
-DRIFT 1 0 0\r
-;cell2\r
-DRIFT 1 0 0\r
-SOLENOID 1 0 1\r
-DRIFT 1 0 0\r
-RF_GAP 100000 0 162.5E6\r
-DRIFT 1 0 0\r
-;cell3\r
-DRIFT 1 0 0\r
-SOLENOID 1 0 1\r
-DRIFT 1 0 0\r
-RF_GAP 100000 0 162.5E6\r
-DRIFT 1 0 0\r
-;cell4\r
-DRIFT 1 0 0\r
-SOLENOID 1 0 1\r
-DRIFT 1 0 0\r
-RF_GAP 100000 0 162.5E6\r
-DRIFT 1 0 0\r
-LATTICE_END\r
-\`\`\`\r
-\r
-Preserve the original LATTICE structure; do not treat it as current multi-particle grouping syntax.\r
-\r
-## Acceptance measurement {#cases-acceptance}\r
-\r
-> Source: the acceptance chapter of 使用说明20260427.docx. Steps follow the current interface and result service. Acceptance values have not been verified on a representative loss distribution in this migration.\r
-\r
-1. Prepare the beam. When importing a dst, inspect the distribution and parameters in Beam. The old “Import all beam parameters from file” button workflow no longer applies. To generate a new Twiss distribution, switch back to generated distribution and confirm parameters; deleting a path alone is insufficient.\r
-2. Choose the study plane and initial emittance. The original suggests enlarging that emittance to sample the acceptance boundary; choose the magnitude for your beamline.\r
-3. In Settings, set “Output every N steps (plt)” above zero, for example 1. Particle dumps may consume substantial disk space.\r
-4. After simulation, select its output in Results, open Acceptance and choose x-x′, y-y′, z-z′ or φ-E.\r
-5. Inspect the ellipse, emittance, normalized emittance and position/angle together with losses. All particles passing or missing dumps may prevent computation; an error is not zero acceptance.\r
-\r
-Acceptance now lives in Results, not the old standalone accept page. Current written steps replace the three legacy screenshots.\r
-\r
-[Particle-dump format](#ref-beamset)\r
-`,ft=`# 参数与文件参考 {#reference-home}\r
-\r
-来源：docs/使用说明20260427.docx。以下为整理版，保留技术正文和格式信息，移除旧界面步骤与重复参数表。逐章注明核对范围；“来自原手册”不等于所有模式已经在当前版本实测。原始 Word 保留在仓库，不作修改。\r
-\r
-参数表由当前 schema 动态提供。可在上方搜索输入文件名、命令或物理量。\r
-\r
-## 场模型元件与射频相位 {#ref-field}\r
-\r
-> 来源：原手册对应章节。核对状态：与当前 schema 对照；补充已核实的场强和相位约定。\r
-\r
-场模型元件\r
-\r
-用户给出元件的电磁场分布文件，在场模型元件中AVAS采用t-code进行模拟。\r
-\r
-\`\`\`text\r
-Drift   长度（m）  半径（m）   0\r
-Field   长度（m）  半径（m）   V3 类型  频率   同步相位  Ke   Kb   场文件名\r
-\`\`\`\r
-\r
-场类型：1 为高频场，2 为静电场，3 为静磁场；静磁场中不使用的参数写 0。\r
-\r
-V3：0代表同步相位 1代表粒子到入口的RF相位 2 代表t=0时刻的rf相位\r
-\r
-例：\r
-\r
-\`\`\`text\r
-start\r
-drift 0.0835 0.02 0\r
-!静磁场\r
-field 0.1 0.02 0 3 0 0 1 0.677098 sol_1\r
-!高频场\r
-field 0.1 0.02 0 1 162.5e6 -33 3 -1.36 hwr010b\r
-end\r
-\`\`\`\r
-\r
-电场为 MV/m × Ke，磁场为 T × Kb；射频电场使用 cos(ωt+φ₀)，磁场使用 sin。V3=0 的同步相位按积分定义：atan2(∫E sinφ, ∫E cosφ)。场图存储顺序应按同组分量文件判断。\r
-\r
-[查看 field 参数](#lattice-field)\r
-\r
-## 矩阵模型元件与端部限制 {#ref-matrix}\r
-\r
-> 来源：原手册对应章节。核对状态：元件参数以实时参考为准；首末矩阵元件限制来自原手册，本次未做独立内核验证。\r
-\r
-用户给出元件的对应参数，在矩阵模型元件中AVAS采用z-code进行模拟。\r
-\r
-\`\`\`text\r
-Quad     长度（m）半径（m）  0 磁场梯度（T/m）\r
-Solenoid  长度（m）半径（m）  0  磁场（T）\r
-Bend     |αρ|（m） 半径（m）  0 偏转角α(°)  曲率半径ρ(m) 四极场指数 方向(0/1)\r
-\`\`\`\r
-\r
-*二极铁的长度默认等于|αρ|。方向：横向(x)偏转为0，纵向(y)偏转为1\r
-\r
-\`\`\`text\r
-Steerer        0      半径（m）  0   Bx/Ex(T or V/m)   By/Ey   类型   最大值\r
-\`\`\`\r
-\r
-*矫正铁长度必须为0，长度默认为下个元件的长度并位于下个元件的中间。类型：磁场校正铁为0，电场校正铁为1.\r
-\r
-Bend\r
-\r
-Edge\r
-\r
-多粒子模型第一个和最后一个元件避免使用矩阵模型元件，可以加超级短的drift避免这个问题.\r
-\r
-Bend、Edge 的逐项参数统一见 [bend](#lattice-bend)、[edge](#lattice-edge)、[quad](#lattice-quad)、[solenoid](#lattice-solenoid)、[steerer](#lattice-steerer)。\r
-\r
-## 误差分析与分布编号 {#ref-errors}\r
-\r
-> 来源：原手册对应章节。核对状态：已对照当前误差生成代码，修正原文中高斯分布与等步长的编号颠倒。\r
-\r
-当添加误差后，模拟的结果将放在outputFile文件夹下的error_output文件夹下。相关命令如下：\r
-\r
-err_step a b\r
-\r
-a为分组数， b为每组运行多少次\r
-\r
-动态误差\r
-\r
-\`\`\`text\r
-err_beam_dyn  r  dx\xA0\xA0\xA0dy\xA0\xA0\xA0\xA0dφ\xA0\xA0\xA0\xA0dxp\xA0\xA0\xA0\xA0dyp\xA0\xA0\xA0\xA0de\xA0\xA0\xA0\xA0dEx\xA0\xA0\xA0\xA0dEy\xA0\xA0\xA0\xA0dEz\xA0\xA0\xA0\xA0mx\xA0\xA0\xA0\xA0my\xA0\xA0\xA0\xA0mz\xA0\xA0\xA0\xA0dib\r
-(mm)   (°)   (mrad)  (MeV)      (%)          (%)        (mA)\r
-\`\`\`\r
-\r
-*用于设定初始束团的误差，不需要写满参数，后续空置参数默认不设置误差。\r
-\r
-\`\`\`text\r
-err_quad_ncpl_dyn   N   r  dx\xA0\xA0\xA0dy\xA0\xA0\xA0\xA0dφ_x\xA0\xA0\xA0\xA0dφ_y\xA0\xA0\xA0\xA0dφ_z\xA0\xA0\xA0\xA0dG\xA0\xA0\xA0 \xA0dz\xA0\xA0 \xA0\xA0Nb\r
-(mm)        (°)       (%) (mm)\r
-\`\`\`\r
-\r
-*用于设定静磁元件的误差，不需要写满参数，后续空置参数默认不设置误差。\r
-\r
-\`\`\`text\r
-err_cav_ncpl_dyn   N   r  dx\xA0\xA0 \xA0  dy\xA0\xA0  \xA0 \xA0dφ_x\xA0\xA0\xA0   \xA0dφ_y\xA0\xA0\xA0 \xA0\xA0\xA0\xA0kekb  \xA0\xA0\xA0 \xA0φ_s         dz\xA0\xA0 \xA0\xA0  Nb\r
-(mm)         (°)        (%)   (°)   (mm)\r
-\`\`\`\r
-\r
-*用于设定射频腔的误差，不需要写满参数，后续空置参数默认不设置误差。\r
-\r
-静态误差\r
-\r
-\`\`\`text\r
-err_beam_stat  0  dx\xA0\xA0\xA0dy\xA0\xA0\xA0\xA0dφ\xA0\xA0\xA0\xA0dxp\xA0\xA0\xA0\xA0dyp\xA0\xA0\xA0\xA0de\xA0\xA0\xA0\xA0dEx\xA0\xA0\xA0\xA0dEy\xA0\xA0\xA0\xA0dEz\xA0\xA0\xA0\xA0mx\xA0\xA0\xA0\xA0my\xA0\xA0\xA0\xA0mz\xA0\xA0\xA0\xA0dib\r
-(mm)   (°)   (mrad)  (MeV)      (%)          (%)        (mA)\r
-\`\`\`\r
-\r
-*用于设定初始束团的误差，不需要写满参数，后续空置参数默认不设置误差。\r
-\r
-\`\`\`text\r
-err_quad_ncpl_stat   N  r  dx\xA0\xA0\xA0dy\xA0\xA0\xA0\xA0dφ_x\xA0\xA0\xA0\xA0dφ_y\xA0\xA0\xA0\xA0dφ_z\xA0\xA0\xA0\xA0dG\xA0\xA0\xA0 \xA0dz\xA0\xA0 \xA0\xA0Nb\r
-(mm)        (°)       (%) (mm)\r
-\`\`\`\r
-\r
-*用于设定静磁元件的误差，不需要写满参数，后续空置参数默认不设置误差。\r
-\r
-\`\`\`text\r
-err_cav_ncpl_stat   N   r  dx\xA0\xA0 \xA0  dy\xA0\xA0  \xA0 \xA0dφ_x\xA0\xA0\xA0   \xA0dφ_y\xA0\xA0\xA0 \xA0\xA0\xA0\xA0kekb  \xA0\xA0\xA0 \xA0φ_s         dz\xA0\xA0 \xA0\xA0  Nb\r
-(mm)         (°)        (%)   (°)   (mm)\r
-\`\`\`\r
-\r
-*用于设定射频腔的误差，不需要写满参数，后续空置参数默认不设置误差。\r
-\r
-参数解释:\r
-\r
-N: 作用于命令下面元件的数量， 想做用于所有元件，可以填写一个较大值\r
-\r
-R：误差类型\r
-\r
-r=0：固定值误差\r
-\r
-r=1: 均匀分布的误差\r
-\r
-r=2: 高斯分布的误差\r
-\r
-r = -1：等步长误差（等价于tracewin中的0类型）\r
-\r
-例：\r
-\r
-\`\`\`text\r
-err_step 2 2\r
-err_cav_stat_on 1 0 0 0 0 0 0\r
-err_cav_ncpl_stat 10 r 2 0 0.0 0.0 0.0 0.0 0.0\r
-\`\`\`\r
-\r
-以上面的为例：\r
-\r
-当r为1，那么第一组为[-1, +1]之间的误差，第二组为[-2, +2]之间的误差\r
-\r
-当 r=2 时，第一组为标准差 1 的高斯分布误差，第二组为标准差 2 的高斯分布误差。原文在此误写为 r=-1，已按当前代码修正。\r
-\r
-当 r=-1 时，以上射频腔例子的第一组误差为 1，第二组为 2。原文在此误写为 r=2。束流误差命令的等步长实现与元件分支不同，不能直接套用本例；使用前应核查实际抽样文件。\r
-\r
-误差开启\r
-\r
-\`\`\`text\r
-err_beam_dyn_on   dx\xA0\xA0\xA0   dy\xA0\xA0\xA0  \xA0dφ …\r
-err_quad_dyn_on   dx\xA0\xA0\xA0   dy\xA0\xA0\xA0\xA0  dφ_x…\r
-err_cav_dyn_on    dx\xA0\xA0 \xA0  dy\xA0\xA0  \xA0\xA0dφ_x…\r
-err_beam_stat_on   dx\xA0\xA0\xA0   dy\xA0\xA0\xA0  \xA0dφ …\r
-err_quad_stat_on   dx\xA0\xA0\xA0   dy\xA0\xA0\xA0\xA0  dφ_x…\r
-err_cav_stat_on    dx\xA0\xA0 \xA0  dy\xA0\xA0  \xA0\xA0dφ_x…\r
-\`\`\`\r
-\r
-这些命令用于启用相应误差，参数顺序与对应命令一致：0 关闭，1 开启。\r
-\r
-例：\r
-\r
-\`\`\`text\r
-start\r
-err_step 2 2\r
-err_cav_stat_on 1 0 0 0 0 0 0\r
-err_cav_ncpl_stat 10 1 2 0 0.0 0.0 0.0 0.0 0.0\r
-err_cav_dyn_on 1 0 0 0 0 0 0\r
-err_cav_ncpl_dyn 10 1 2 0 0.0 0.0 0.0 0.0 0.0\r
-drift 0.0835 0.02 0\r
-field 0.1 0.02 0 3 0 0 1 0.677098 sol_1\r
-field 0.1 0.02 0 3 0 0 1 0.677098 sol_1\r
-field      0.21   0.02     0   1   162.5e6   -33  3    -1.36   hwr010b\r
-field      0.21   0.02     0   1   162.5e6   -33  3    -1.36   hwr010b\r
-end\r
-\`\`\`\r
-\r
-当前组幅度通常按“给定幅度 ÷ 总组数 × 当前组号”计算；固定值分支不做该缩放。Python 与内核的随机种子不是同一个设置。详见 [误差案例](#cases-errors)。\r
-\r
-## 静态误差校正与束诊 {#ref-correction}\r
-\r
-> 来源：原手册对应章节。核对状态：与当前校正流程对照；示例使用的场图名称需对应项目文件。\r
-\r
-\`\`\`text\r
-Adjust N, v, n, min, max, first_step\r
-\`\`\`\r
-\r
-N：目前无意义，写0即可\r
-\r
-v: 修改下面元件的第v个参数\r
-\r
-n:具有相同n的元件参数，他们矫正时具有相同的值,默认为0\r
-\r
-min:参数的最小值\r
-\r
-max: 参数的最大值\r
-\r
-first_step：是否使用元件的初值作为梯度下降的初始值，0 不使用， 1使用\r
-\r
-束诊命令\r
-\r
-\`\`\`text\r
-DIAG_ENERGY N w dw\r
-\`\`\`\r
-\r
-N: 无意义 填写0即可\r
-\r
-W：目标能量（MeV）\r
-\r
-Dw：无意义 填写0即可\r
-\r
-\`\`\`text\r
-DIAG_SIZE 0 sx sy 0\r
-\`\`\`\r
-\r
-Sx: x方向包络（mm）\r
-\r
-Sy：y方向包络（mm）\r
-\r
-\`\`\`text\r
-DIAG_position 0 x y 0\r
-\`\`\`\r
-\r
-x: x方向中心位置（mm）\r
-\r
-y：y方向中心位置（mm）\r
-\r
-例：\r
-\r
-\`\`\`text\r
-start\r
-err_step 1 1\r
-err_cav_stat_on 1 0 0 0 0 0 0\r
-err_cav_ncpl_stat 5 1 2 0 0 0 0 0 0\r
-drift 0.0835 0.02 0\r
-field 0.1 0.02 0 3 0 0 1 0.677098 sol_1\r
-adjust 1 7 5 0 3 0\r
-!修改第七个值，也就是ke\r
-field      0.21  0.02     0   1   162.5e6   -3  3    -1.36   hwr010b\r
-drift 0.0835 0.02 0\r
-DIAG_ENERGY 1 5 0\r
-drift 0.000001 0.02 0\r
-end\r
-\`\`\`\r
-\r
-[查看静态误差校正案例及验证状态](#cases-correction)\r
-\r
-## 叠加场规则 {#ref-superpose}\r
-\r
-> 来源：原手册对应章节。核对状态：与当前 schema 对照。\r
-\r
-\`\`\`text\r
-Superpose  z_0   x_0    y_0    θ_z0     θ_x0    θ_y0\r
-Superposeend\r
-Superposeout  z_0   x_0    y_0    θ_z0     θ_x0    θ_y0\r
-\`\`\`\r
-\r
-* 1、第一条Superpose命令后面的参数必须全为0，以提供其他Superpose命令的零点。\r
-\r
-2、Superpose（Superposeout）后面的6个参数给出该命令之后一个元件的入口平面（转换平面）相对于第一条Superpose命令后元件的入口平面的位置和角度。\r
-\r
-3、在一段叠加场结束后需要添加Superposeend或者Superposeout命令来结束叠加场，并且只有以Superposeout命令结束时，Superpose命令后z_0以外的参数才会生效，即以Superposeend命令结束时，元件只会在纵向位置上叠加。\r
-\r
-4、一组叠加场中只能存在小于等于一个射频腔。\r
-\r
-5、在一段叠加场中，每个元件前要有且只有一个Superpose命令。\r
-\r
-例：\r
-\r
-\`\`\`text\r
-start\r
-drift      0.085  0.02   0\r
-superpose  0 0 0 0 0 0\r
-field      0.35   0.02     0   3   0   0   1    0.531  sol_yuan\r
-superpose  0.345 0 0 0 0 0 0\r
-field      0.21   0.02     0   1   162.5e6   -33   1.36    -1.36   hwr010\r
-superposeend\r
-end\r
-\`\`\`\r
-\r
-[查看叠加场案例](#cases-superpose)\r
-\r
-## 结构分组与折叠 {#ref-lattice}\r
-\r
-> 来源：原手册对应章节。核对状态：与当前结构解析规则配合使用；原拼写 sction 保留。\r
-\r
-\`\`\`text\r
-lattice n1 n2\r
-\`\`\`\r
-\r
-n1：每个基础lattice的元件数量\r
-\r
-n2: 写为1.\r
-\r
-Lattice终点\r
-\r
-\`\`\`text\r
-lattice_end\r
-\`\`\`\r
-\r
-Lattice结束.\r
-\r
-折叠命令\r
-\r
-\`\`\`text\r
-Sction module{\r
-}\r
-\`\`\`\r
-\r
-使用这个命令，在页面上可以让{}中间的内容进行折叠复制。\r
-\r
-例：\r
-\r
-\`\`\`text\r
-sction mebt\r
-{\r
-drift 0.05089 0.025 0\r
-drift 0.1254 0.025 0\r
-}\r
-\`\`\`\r
-\r
-\r
-\r
-## 输出平面 {#ref-planes}\r
-\r
-> 来源：原手册对应章节。核对状态：补充已核实的末端限制。\r
-\r
-outputplane V1：在该命令所在位置下游（正值）或上游（负值）输出束流分布，V1 单位 m。\r
-\r
-automaticoutput V1 V2 V3：等间距插入输出面；依次为第一个输出面的相对位置、间隔和最大跨度，单位均为 m。\r
-\r
-已核实：输出面超出末端会失败，距末端仅 5 mm 也可能失败，2 cm 的测试可以运行。分段功能自动去掉距末端 5 cm 内的输出面；内核结束会输出末端分布。\r
-\r
-## 输入文件组织与模拟设置 {#ref-inputs}\r
-\r
-> 来源：原手册对应章节。核对状态：当前输入快照和路径机制已更新；关键字表统一读取 schema。\r
-\r
-用户编辑 beam.txt、input.txt 和 ini.ini 指定的结构源文件。完整运行及误差研究在输出目录的 inputs/ 快照中生成内核读取的 lattice.txt，不改写项目 InputFile。\r
-\r
-input.txt 用于设置程序功能及算法信息，beam.txt 用于输入束团信息，lattice.txt 用于输入加速器元件信息。输入文件中!开头的行代表注释，注释内容不生效。关键字不区分大小写。\r
-\r
-input.txt\r
-\r
-input.txt中大部分关键字在程序中存在默认参数，不设置也可以正常模拟。\r
-\r
-meshRms三个方向上的网格边长，按对应方向束团的 RMS 尺寸乘以 2 进行缩放V1 double；Lx = V1 × x 方向 RMS 尺寸 × 2V2 double；Ly = V2 × y 方向 RMS 尺寸 × 2V3 double；Lz = V3 × z 方向 RMS 尺寸 × 2\r
-\r
-  当启用二次粒子输运功能时，应在 beam.txt 中设置加速器同步粒子参数。\r
-\r
-  当启用纵向周期性边界条件时，空间电荷效应求解算法会自动切换为 FFT，并且纵向网格长度会实时设置为束团的周期长度，需要设置更多的纵向网格点数（Numofgrid）。\r
-\r
-  当单独设置边界时，lattice.txt 中的半径设置将不再生效，束流损失将根据 boundary.txt 中设置的边界来判断。\r
-\r
-输入参数表见下方 input 参考。multithreading 只写 1；关闭时删除整行，不能写 0。原文 stepPerCycle 的时间公式存在量纲疑问，未作为确定公式迁入，推进步长应按当前 schema 和实际运行核对。\r
-\r
-[查看多线程参数](#input-multithreading)\r
-\r
-## 束流文件与 Twiss 约定 {#ref-beam}\r
-\r
-> 来源：原手册对应章节。核对状态：补充已核实的归一化 rms 发射度及单位；二次粒子模式有例外。\r
-\r
-说明：\r
-\r
-普通束团文件导入时，原手册说明除 numofcharge 外的生成参数不生效。二次粒子模式仍需同步粒子信息，见 SeParticle.txt；不要将普通导入规则当作所有模式的通则。\r
-\r
-束流关键字表见下方 beam 参考。twiss β 单位 mm/mrad，ε 为归一化 rms 发射度，单位 π·mm·mrad。rms_x = sqrt(β_x·ε_x/(β_rel·γ))；纵向 z′ = Δp/p。\r
-\r
-[查看 twissx](#beam-twissx)\r
-\r
-## 运行结构文件 {#ref-source}\r
-\r
-> 来源：原手册对应章节。核对状态：运行文件不限定为 lattice_mulp.txt。\r
-\r
-第一个start之后到第一个end之前的内容为有效内容，程序会模拟第一个start之后到第一个end之前的元件。\r
-\r
-使用 ini.ini 的 [lattice] source 指定源文件；运行结构与当前打开查看的结构可能不同。\r
-\r
-## scanData.txt 射频扫相文件 {#ref-scan-data}\r
-\r
-> 来源：原手册对应章节。核对状态：来自原手册；与参数扫描产生的 scan.csv 不同。\r
-\r
-用于记录AVAS扫相结果或手动设置射频场相位，文件的每一行分别为一个射频腔的 入口相位（角度）、入口时间（s）。射频场在lattice中的排列顺序即为数据的排列顺序。\r
-\r
-\r
-\r
-## SeParticle.txt 二次粒子 {#ref-secondary}\r
-\r
-> 来源：原手册对应章节。核对状态：来自原手册及 schema 文件列定义；本次未运行二次粒子案例。\r
-\r
-当在input.txt 中将 secondarybeam 设置为 1 时，可以在 ReadParticleDistribution 之后输入此文件。SeParticle.txt 文件用于记录二次粒子束，每一行代表一个粒子。\r
-\r
-由于二次粒子束不包含同步粒子信息，为了正确模拟某些元件的作用，即使已经提供了初始束团分布，仍然需要在 beam.txt 文件中设置同步粒子信息。\r
-\r
-| x | y | z | vx | vy | vz | charge | mass | weight | time | Kind |\r
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\r
-| m | m | m | m/s | m/s | m/s | e | MeV | double | s | string |\r
-\r
-\r
-\r
-## Boundary.txt 独立边界 {#ref-boundary}\r
-\r
-> 来源：原手册对应章节。核对状态：来自原手册；本次未运行独立边界案例。\r
-\r
-当在 input.txt 中将 boundary 设置为 1 时，Boundary.txt 文件生效。束流损失将根据该文件中设定的边界进行判断，束流损失的粒子信息将输出到 CollisionData.txt 文件中。此时，lattice.txt 中设置的元件半径将被屏蔽。\r
-\r
-文件格式如下：\r
-\r
-| type | material | Length | r1 | r2 | RLP | z0 | x0 | y0 | θz0 | θx0 | θy0 |\r
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\r
-| int | string | m | m | m | m | m | m | m | deg | deg | deg |\r
-\r
-\r
-\r
-## edst 混合束团格式 {#ref-edst}\r
-\r
-> 来源：原手册对应章节。核对状态：保留原手册的格式定义并修正 esdt 拼写；本次未逐字节验证混合束团格式。\r
-\r
-.edst 为扩展束团分布文件，用于多种粒子混合束团。ReadParticleDistribution 指向 .edst 时，原手册说明程序切换到混合束团模拟，分布输出也相应使用 .edst。\r
-\r
-.edst文件中记录每个粒子的六维坐标及电荷量、静止质量、权重。具体格式为：\r
-\r
-\`\`\`text\r
-2xCHAR+INT(Np)+DOUBLE(Ib(mA))+DOUBLE(freq(MHz))+CHAR+\r
-(Np+1)×[9×DOUBLE(x(cm),x'(rad),y(cm),y'(rad),phi(rad),Energie(MeV),Charge(e),mc2(Mev),weight)]+DOUBLE(mc2(MeV))\r
-\`\`\`\r
-\r
-其中最后一个粒子为束团同步粒子，weight的含义为当前宏粒子代表多少个真实粒子。\r
-\r
-CHAR的长度为1字节，INT的长度为4字节，DOUBLE的长度为8字节。\r
-\r
-Np是粒子的数量，Ib是流强（这里不生效），freq是束流频率，mc2是粒子的静止质量。\r
-\r
-\r
-\r
-## inData.dst 与 outData_x.dst {#ref-dst}\r
-\r
-> 来源：原手册对应章节。核对状态：来自原手册，结合当前输出快照说明。\r
-\r
-记录了模拟中使用的初始束团分布。\r
-\r
-outData_x.dst\r
-\r
-输出了指定平面上的束团分布，x为输出平面的位置，为二进制文件。\r
-\r
-\r
-\r
-## DataSet.txt 束团参数 {#ref-dataset}\r
-\r
-> 来源：原手册对应章节。核对状态：列索引从 0 开始；已结合当前 41 列约定补充位置、单位及不完整行处理。\r
-\r
-记录了模拟过程中的束团参数（s坐标系下），每一行为一组束团参数，每一行的格式为：\r
-\r
-| 索引（从 0 开始） | 物理量 |\r
-| --- | --- |\r
-| 0 | \`mean(E_k)\` |\r
-| 1 | \`mean(x)\` |\r
-| 2 | \`mean(γβ_x)\` |\r
-| 3 | \`mean(y)\` |\r
-| 4 | \`mean(γβ_y)\` |\r
-| 5 | \`mean(z)\` |\r
-| 6 | \`mean(γβ_z)\` |\r
-| 7 | \`α_x\` |\r
-| 8 | \`α_y\` |\r
-| 9 | \`α_z\` |\r
-| 10 | \`β_x\` |\r
-| 11 | \`β_y\` |\r
-| 12 | \`β_z\` |\r
-| 13 | \`Emit_x\` |\r
-| 14 | \`Emit_y\` |\r
-| 15 | \`Emit_z\` |\r
-| 16 | \`SizeX_RMS\` |\r
-| 17 | \`SizeX'_RMS\` |\r
-| 18 | \`SizeY_RMS\` |\r
-| 19 | \`SizeY'_RMS\` |\r
-| 20 | \`SizeZ_RMS\` |\r
-| 21 | \`SizeZ'_RMS\` |\r
-| 22 | \`MaxX\` |\r
-| 23 | \`MaxX'\` |\r
-| 24 | \`MaxY\` |\r
-| 25 | \`MaxY'\` |\r
-| 26 | \`MaxZ\` |\r
-| 27 | \`MaxZ'\` |\r
-| 28 | \`N_p\` |\r
-| 29 | \`x_s\` |\r
-| 30 | \`γβ_xs\` |\r
-| 31 | \`y_s\` |\r
-| 32 | \`γβ_ys\` |\r
-| 33 | \`z_s\` |\r
-| 34 | \`γβ_zs\` |\r
-| 35 | \`sign\` |\r
-| 36 | \`dir\` |\r
-| 37 | \`∆x/∆y\` |\r
-| 38 | \`∆z\` |\r
-| 39 | \`Index\` |\r
-| 40 | \`t\` |\r
-\r
-*sign==0：这组束团数据处于直线段。sign==1：这组束团数据处于曲线段。sign==2:这组数据无效，处理时跳过这组数据。当存在束流轨迹包含曲线时从DataSet.txt中读取有效数据的代码如下：\r
-\r
-x 中心 = 第 29 列（同步粒子 x）+ 第 1 列（质心相对偏移）；示例最大 x = 第 29 列 + 第 1 列 + 第 22 列。\r
-\r
-最大值x = 同步粒子x + 质心相对于同步粒子的偏移  + 最大值 （ 29 + 1 + 22）\r
-\r
-每行 41 列。直线段纵向位置为第 5 列加第 33 列，含弯铁时按当前 dataset_envelope 规则累加弧长；不能把直线公式用于所有弯曲轨迹。rms x/y/z 是第 16/18/20 列，单位 m；第 28 列为存活宏粒子数，第 0 列为能量 MeV。读取实时写入文件时丢弃不完整末行。\r
-\r
-## Phase.txt 射频腔出入口 {#ref-phase}\r
-\r
-> 来源：原手册对应章节。核对状态：来自原手册；文件名大小写按实际输出确认。\r
-\r
-每两行输出1个射频腔入口及出口处的信息。具体格式如下：\r
-\r
-\`\`\`text\r
-射频腔序号 射频腔入口时间(s)  射频腔入口位置(m)  同步粒子在射频腔入口处能量(MeV)\r
-射频腔序号 射频腔出口时间(s)  射频腔出口位置(m)  同步粒子在射频腔出口处能量(MeV)\r
-\`\`\`\r
-\r
-\r
-\r
-## synParticle.txt 同步粒子轨迹 {#ref-syn-particle}\r
-\r
-> 来源：原手册对应章节。核对状态：来自原手册。\r
-\r
-记录了同步粒子在传输中的相关信息。具体格式如下：\r
-\r
-\`\`\`text\r
-T     z_s    Ek_s      x_s      y_s       γβ_x      γβ_y        γβ_z         dir       α\r
-\`\`\`\r
-\r
-*T：现实时间。dir==0：同步粒子沿z方向飞行；dir==1:同步粒子向x方向偏转；dir==2:同步粒子向y方向偏转。α：偏转角度（rad）。\r
-\r
-\r
-\r
-## DynamicErrorData.txt 误差记录 {#ref-dynamic-errors}\r
-\r
-> 来源：原手册对应章节。核对状态：原手册命名保留；当前 Python 误差抽样还会生成 Error_Datas_<组>_<次>.txt。\r
-\r
-当存在误差时，会生成该文件，这个文件中记录了初始束团和每个元件的具体误差。第一行是初始束团的误差，从第二行开始每一行是一个元件的具体误差。\r
-\r
-\r
-\r
-## BeamSet.plt 逐步粒子记录 {#ref-beamset}\r
-\r
-> 来源：原手册对应章节。核对状态：保留单束与双束两套格式；单位、记录标志不可混用，双束格式本次未做二进制验证。\r
-\r
-.plt是一个二进制文件，该文件存储了束流传输过程中每一步束团的信息，\r
-\r
-\`\`\`text\r
-Char + Char + dumpPeriodicity(int) + Np(int) + Ib[mA](double) + freq[MHz](double) + mc2[MeV](double)\r
-+ Nx * [Char + tpye(int) + Index(int) + time[s](double) + location[m](double) +\r
-Np * [x(double) + px(double) +  y(double) + py(double) + z(double) + pz(double) + lossFlag(int)]]（场元件）\r
-Np * [x(double) + px(double) +  y(double) + py(double) + t(double) + pz(double) + recordFlag(int)]] （矩阵元件）\r
-\`\`\`\r
-\r
-说明\r
-\r
-dumpPeriodicity：每推进多少步记录一次\r
-\r
-Np: 粒子总数\r
-\r
-Ib：流强\r
-\r
-Freq：频率\r
-\r
-mc2：静止能量（MeV），不是束流动能。\r
-\r
-tpye：zcode(1)或 tcode(0)\r
-\r
-index：步序号，0 为初始分布；与 DataSet 的对应需按当前读取器检查，不假定有缺失记录时仍能逐行直接配对。\r
-\r
-times：tcode为同步粒子运行至该位置时间，zcode为所有粒子的平均时间\r
-\r
-location：tcode为同步粒子位置， zcode所有粒子位置\r
-\r
-p：动量（βγ）\r
-\r
-lossflag: 1(损失) 2（通过输出平面）0（未丢失）\r
-\r
-recordFlag：1（未丢失），0（丢失）\r
-\r
-双束的plt文件与单束的结构不一样\r
-\r
-\`\`\`text\r
-File format =\r
-char\r
-+ char\r
-+ dumpPeriod(int)\r
-+ Np(int)\r
-+ Ib[mA](double)\r
-+ Freq[MHz](double)\r
-+ RestMass[MeV/c^2](double)\r
-+ Nx × {\r
-char\r
-+ type(int)\r
-+ index(int)\r
-+ time[s](double)\r
-+ location[m](double)\r
-+ Np × [\r
-x(double)\r
-+ px(double)\r
-+ y(double)\r
-+ py(double)\r
-+ z(double) or t(double)\r
-+ pz(double)\r
-+ lossFlag(int)\r
-+ particleIndex(int)\r
-+ charge[e](int)\r
-+ RestMass[MeV/c^2](double)\r
-+ weight(double)\r
-]\r
-}\r
-\`\`\`\r
-\r
-接受度分析需要粒子逐步记录，dumpPeriodicity 必须大于 0。文件存在但没有粒子记录时仍不可计算。\r
-\r
-[当前接受度操作步骤](#cases-acceptance)\r
-\r
-## density 密度数据 {#ref-density}\r
-\r
-> 来源：原手册对应章节。核对状态：原手册格式；max/min 字段文字存在歧义，下面明确保留待核实标记。\r
-\r
-\`\`\`text\r
-zg(f) + emit_x(f) + emit_y(f) + emit_z(f) + rms_x(f) + rms_y(f) + rms_z(f) + nownumofp(i)\r
-+ lost(i) + maxlost(i) + minlost(i) + moy( 4* f) + maxb(4*f) + minb(4*f) + maxr(4*f) + minr(4*f)\r
-tab_x(i * 300) + tab_y(i * 300) + tab_r(i * 300)+ tab_z(i * 300)\r
-\`\`\`\r
-\r
-x, y, r, z\r
-\r
-（指束团中的单个粒子）\r
-\r
-Zg:纵向距离\r
-\r
-emit_x（f） + emit_y（f） + emit_z（f）： 发射度\r
-\r
-rms_x(f) + rms_y(f) + rms_z(f)： 包络\r
-\r
-nownumofp(i)：粒子数\r
-\r
-loss（i）： 束损\r
-\r
-maxlost(i)：最大束损 ，\r
-\r
-minlost : 最小束损\r
-\r
-moy( 4* f)： x, y, r, z的平均值\r
-\r
-maxb、minb：原手册分别描述为最大、最小偏移粒子的最大值；说明不充分，具体含义待核实。\r
-\r
-maxr、minr：原手册描述为最大、最小偏移粒子的最小值，但 max/min 文字相互交叉；含义待核实，不把这些文字作为已验证计算定义。\r
-\r
-tab_x： (i) * 300, 统计粒子，将x_min – x_max分为300个网格， 统计每个网格内的粒子数\r
-\r
-\r
-\r
-## synData.txt 元件入口参数 {#ref-syn-data}\r
-\r
-> 来源：原手册对应章节。核对状态：补充已核实的 RF 相位换算；原文的字段序号不一致，不直接据此编写读取器。\r
-\r
-该文件记录了同步粒子到达每个元件入口时的时间和能量。\r
-\r
-字段说明：\r
-\r
-\`\`\`text\r
-order name length zstart tin γβ ϕs ϕRF\r
-原文列名数和标出的 0…8 序号不一致；此处不提供未经核实的序号映射。\r
-\`\`\`\r
-\r
-如果设置了 RF 相位或同步相位，将计算对应的同步相位或 RF 相位。\r
-\r
-φRF = phase_t0 + 360·f·t_in。分段把入口时间重置为 T_entry 时，phase_t0,new = φRF − 360·f·(t_in − T_entry)。频率用 Hz、时间用 s、相位用度，不能直接沿用中段绝对相位。\r
-\r
-## pchistogram.dat 粒子直方图 {#ref-histogram}\r
-\r
-> 来源：原手册对应章节。核对状态：原手册二进制格式；本次未逐字节验证。\r
-\r
-当在 input.txt 中将 pchistogram 的 V1 设置为 1 时，会生成 pchistogram.dat 文件。\r
-\r
-该文件记录了将每个方向的最小值到最大值范围划分为 V2 等份，并统计每一份中宏粒子的数量。\r
-\r
-\`\`\`text\r
-该文件为二进制文件，格式为：char + Index(int) + V2(int) + V2 · tabx(int) + V2 · taby(int) + V2 · tabr(int) + V2 · tabz(int) + xmin(double) + xmax(double) + avex(double) + ymin(double) + ymax(double) + avey(double) + rmin(double) + rmax(double) + aver(double) + zmin(double) + zmax(double) + avez(double)\r
-\`\`\`\r
-\r
-\r
-\r
-## SingleParticle.txt 单粒子输出 {#ref-single}\r
-\r
-> 来源：原手册对应章节。核对状态：修正 displacepos 的单位为 mm，保留原文说明并标出差异。\r
-\r
-在 beam.txt 中将关键字 particlenumber 设置为 1 时，将启用单粒子模拟，输出 SingleParticle.txt 文件，并记录该单粒子的轨迹。\r
-\r
-| x | y | z | γβx | γβy | γβz | Ek | time |  |\r
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |\r
-| m | m | m |  |  |  | MeV | s |  |\r
-\r
-此时，beam.txt 中与多粒子相关的关键字（如 twissx、twissy、twissz、current 和 distribution）将不再生效。关键词 displacepos 和 displacedpos 会生效，用于设置初始单粒子的位置和动量偏移。\r
-\r
-displacepos dx dy dz：内核按 mm 读取。原手册写 m，已依据仓库实测约定修正。\r
-\r
-displacedpos dpx dpy dpz：动量偏移单位 %。\r
-\r
-单粒子运行的 rms 列可能为 NaN，属于正常情况，需结合轨迹和存活数解读。\r
-\r
-## errors_par.txt 误差统计 {#ref-error-summary}\r
-\r
-> 来源：原手册对应章节。核对状态：字段顺序保留；与逐次结果表区分。\r
-\r
-\`\`\`text\r
-step_err  误差组数\r
-ave(ratio_loss)\r
-ave(emit_x_increase)\r
-ave(emit_y_increase)\r
-ave(emit_z_increase)\r
-ave(x_center(m))\r
-ave(y_center(m))\r
-ave(x_'(rad))\r
-ave(y_'(rad))\r
-ave(rms_x(m))\r
-ave(rms_y(m))\r
-ave(rms_x'(rad))\r
-ave(rms_y'(rad))\r
-ave(delat_energy)\r
-rms(x_center(m))\r
-rms(y_center(m))\r
-rms(x_'(rad))\r
-rms(y_'(rad))\r
-rms(rms_x(m))\r
-rms(rms_y(m))\r
-rms(rms_x'(rad))\r
-rms(rms_y'(rad))\r
-rms(delat_energy(MeV))\r
-\`\`\`\r
-\r
-\r
-\r
-## errors_par_tot.txt 逐次误差结果 {#ref-error-detail}\r
-\r
-> 来源：原手册对应章节。核对状态：字段顺序保留。\r
-\r
-\`\`\`text\r
-step_err 误差组数与次数\r
-ratio_loss 误差损失率， 损失粒子数/总的粒子数\r
-emit_x_increase   emit_x(output)/ emit_x(input) - 1\r
-emit_y_increase   emit_y(output)/ emit_y(input) - 1\r
-emit_z_increase   emit_z(output)/ emit_z(input) - 1\r
-x_center(m)\r
-y_center(m)\r
-x_'(rad)\r
-y_'(rad)\r
-rms_x(m)\r
-rms_y(m)\r
-rms_x'(rad)\r
-rms_y'(rad)\r
-delat_energy(MeV),\r
-alpha_xx’,\r
-beta_xx’,\r
-alpha_yy’,\r
-beta_yy’,\r
-alpha_zz’,\r
-beta_zz’,\r
-\`\`\`\r
-\r
-\r
-`,pt=`# Parameters and files {#reference-home}\r
-\r
-Source: docs/使用说明20260427.docx, reconciled with current schema and documented engine checks. This reference preserves file formats and technical rules while replacing obsolete interface instructions. Source-only formats are not certified by this migration. Current keyword tables follow these chapters and are loaded from the editor schema. The original Word file is retained unchanged.\r
-\r
-## Field elements and RF phase {#ref-field}\r
-\r
-Field-map elements use time-based tracking (t-code). Drift parameters are length (m), aperture radius (m), and a reserved 0. Field parameters are length, radius, V3, field type, frequency, phase, Ke, Kb and map basename. Types are 1 RF, 2 electrostatic and 3 magnetostatic; unused magnetic-field parameters may be zero.\r
-\r
-V3=0 specifies synchronous phase, V3=1 the entrance RF phase, and V3=2 the absolute RF phase at t=0. Electric fields are MV/m × Ke; magnetic fields are T × Kb. RF electric fields use cos(ωt+φ₀), magnetic fields sin. The synchronous phase is atan2(∫E sinφ, ∫E cosφ). Determine map storage order from a complete component group.\r
-\r
-Example map names must be replaced with files present in the project:\r
-\r
-\`\`\`text\r
-start\r
-drift 0.0835 0.02 0\r
-field 0.1 0.02 0 3 0 0 1 0.677098 sol_1\r
-field 0.1 0.02 0 1 162.5e6 -33 3 -1.36 hwr010b\r
-end\r
-\`\`\`\r
-\r
-[Field parameters](#lattice-field)\r
-\r
-## Matrix elements and endpoint limitations {#ref-matrix}\r
-\r
-Matrix elements use longitudinal tracking (z-code). Quad takes length, radius, reserved 0 and gradient (T/m); Solenoid takes length, radius, reserved 0 and field (T). Bend takes length (0 lets the program calculate the arc), radius, reserved 0, bend angle (deg), curvature radius (m), field index and plane (0 horizontal, 1 vertical). Arc length is |α|ρ with α converted to radians.\r
-\r
-Edge takes 0, aperture radius, 0, pole-face angle β (deg), curvature radius ρ (m), total gap G (m), fringe factors K1/K2 and plane. Steerer takes 0, radius, 0, Bx/Ex, By/Ey, type and maximum; type 0 is magnetic, 1 electric. The original states that the steerer acts at the midpoint of the next element with its effective length.\r
-\r
-The original advises avoiding matrix elements at the first and last position by inserting short drifts. This endpoint limitation was not independently tested during migration. Use the live parameter entries for exact field definitions.\r
-\r
-[Bend](#lattice-bend), [Edge](#lattice-edge), [Steerer](#lattice-steerer)\r
-\r
-## Errors and distribution kinds {#ref-errors}\r
-\r
-err_step a b defines a groups and b repeats per group. Results are stored under error_output. Beam, magnetic-element and cavity errors have separate static and dynamic commands:\r
-\r
-\`\`\`text\r
-err_beam_dyn r dx dy dφ dxp dyp de dEx dEy dEz mx my mz dib\r
-err_beam_stat r dx dy dφ dxp dyp de dEx dEy dEz mx my mz dib\r
-err_quad_ncpl_dyn N r dx dy dφx dφy dφz dG dz Nb\r
-err_quad_ncpl_stat N r dx dy dφx dφy dφz dG dz Nb\r
-err_cav_ncpl_dyn N r dx dy dφx dφy kekb φs dz Nb\r
-err_cav_ncpl_stat N r dx dy dφx dφy kekb φs dz Nb\r
-\`\`\`\r
-\r
-Offsets are mm, angular errors degrees, beam slopes mrad, energy MeV, relative emittance/mismatch/field errors percent and current mA. Consult the keyword entries for each position; trailing unspecified error parameters default to no error. N controls how many following elements are affected.\r
-\r
-Current schema and Python sampling agree on 0 fixed, 1 uniform, 2 Gaussian and -1 equal steps. The original example swaps 2 and -1; this is corrected here. For the cavity example below, group amplitudes are 1 then 2: uniform bounds ±1 then ±2 for r=1, Gaussian standard deviations 1 then 2 for r=2, and fixed steps 1 then 2 for r=-1.\r
-\r
-\`\`\`text\r
-err_step 2 2\r
-err_cav_stat_on 1 0 0 0 0 0 0\r
-err_cav_ncpl_stat 10 r 2 0 0 0 0 0 0\r
-\`\`\`\r
-\r
-The beam equal-step branch differs from the element branch; inspect generated samples before applying this cavity example to beam errors. Fixed-value errors are not group-scaled. Each corresponding err_beam/quad/cav_dyn_on or _stat_on uses 0/1 switches in the same order. Python error sampling and engine random seeds are separate settings.\r
-\r
-[Executed error tutorial](#cases-errors)\r
-\r
-## Static correction and diagnostics {#ref-correction}\r
-\r
-ADJUST N v n min max first_step changes parameter v of the following element. N is unused; use 0. Equal nonzero grouping identifiers n tie corrected values together. min/max bound the parameter. first_step=1 starts from its lattice value; 0 does not. The original example uses v=7 for field Ke.\r
-\r
-\`\`\`text\r
-DIAG_ENERGY 0 W 0\r
-DIAG_SIZE 0 sx sy 0\r
-DIAG_POSITION 0 x y 0\r
-\`\`\`\r
-\r
-W is target energy in MeV; sx/sy are envelope sizes in mm and x/y centroid positions in mm. Reserved diagnostic fields are written as 0. The source correction example has not reached its requested 5 MeV under the documented reproduction conditions.\r
-\r
-[Original correction case and observed result](#cases-correction)\r
-\r
-## Overlapping fields {#ref-superpose}\r
-\r
-Superpose and Superposeout take z0 x0 y0 θz0 θx0 θy0 (m and degrees). The first superpose is all zero, defining the reference entrance plane. Every field in the block has exactly one preceding superpose. End with superposeend or superposeout; only superposeout makes transverse offsets and angles effective. A block has at most one RF cavity.\r
-\r
-[Overlapping-field tutorial](#cases-superpose)\r
-\r
-## Lattice grouping and folding {#ref-lattice}\r
-\r
-The source describes lattice n1 n2, with n1 the number of elements in a basic lattice and n2=1; lattice_end closes it. Use current keyword definitions when writing a simulation input. The old periodic-envelope example uses a different syntax and is not a current multi-particle recipe.\r
-\r
-The spelling sction is retained from the source. It groups editor content for folding:\r
-\r
-\`\`\`text\r
-sction mebt\r
-{\r
-drift 0.05089 0.025 0\r
-drift 0.1254 0.025 0\r
-}\r
-\`\`\`\r
-\r
-## Output planes {#ref-planes}\r
-\r
-outputplane V1 writes a distribution at a relative downstream (positive) or upstream (negative) position in metres. automaticoutput V1 V2 V3 inserts equally spaced planes: first relative position, spacing and maximum span, all metres.\r
-\r
-Verified engine restrictions: planes beyond the lattice end fail; 5 mm from the end can fail, while a 2 cm test worked. Segment generation omits planes within 5 cm of the end. The engine writes a final distribution at the endpoint.\r
-\r
-## Input organization and simulation settings {#ref-inputs}\r
-\r
-beam.txt describes the beam, input.txt simulation settings, and the ini.ini-selected lattice describes elements. Keywords are case-insensitive and ! begins comments. Full/error runs generate engine lattice.txt in the output inputs/ snapshot without rewriting original inputs.\r
-\r
-The live input entries replace the original keyword table. In particular, write multithreading 1 or omit the line to disable; 0 is unsafe for this engine. The original stepPerCycle time formula is dimensionally questionable and is not reproduced as a verified equation.\r
-\r
-meshRms dimensions are Lx=V1×2×rms_x, Ly=V2×2×rms_y and Lz=V3×2×rms_z. The source states that longitudinal periodic boundaries select FFT and set longitudinal mesh length to the bunch period; sufficient longitudinal grid points are needed. Separate boundary mode ignores lattice aperture radii and uses Boundary.txt. Secondary transport requires synchronous-particle settings.\r
-\r
-[Multithreading](#input-multithreading)\r
-\r
-## Beam files and Twiss convention {#ref-beam}\r
-\r
-Current beam entries replace the original table. β is mm/mrad; ε is normalized rms emittance in π·mm·mrad. rms_x = sqrt(β_x·ε_x/(β_rel·γ)); longitudinal z′ is Δp/p. The original β unit wording is superseded by the verified convention.\r
-\r
-For ordinary distribution import, the source states that generation keywords except numofcharge do not apply. Secondary-particle inputs still require synchronous-particle information, so this is not a universal rule for every import mode.\r
-\r
-[Twiss parameters](#beam-twissx)\r
-\r
-## Run lattice source {#ref-source}\r
-\r
-The source describes content after the first start and before the first end as active. The current run filename comes from ini.ini [lattice] source and need not be lattice_mulp.txt. Opening a file for inspection does not select it for simulation.\r
-\r
-## scanData.txt {#ref-scan-data}\r
-\r
-Records RF phase scans or manually supplied phases. Each row gives cavity entrance phase (degrees) and entrance time (s), in lattice RF-cavity order. This is distinct from parameter-scan scan.csv.\r
-\r
-## SeParticle.txt {#ref-secondary}\r
-\r
-Source/schema format; secondary-particle transport was not exercised during this migration. With secondarybeam=1, ReadParticleDistribution can reference this file, one particle per row. Synchronous-particle information must still be configured in beam.txt.\r
-\r
-\`\`\`text\r
-x y z vx vy vz charge mass weight time Kind\r
-m m m m/s m/s m/s e MeV double s string\r
-\`\`\`\r
-\r
-## Boundary.txt {#ref-boundary}\r
-\r
-Source format, not independently exercised here. boundary=1 selects separate loss boundaries instead of element apertures. Lost-particle information is written to CollisionData.txt.\r
-\r
-\`\`\`text\r
-type material Length r1 r2 RLP z0 x0 y0 θz0 θx0 θy0\r
-int string m m m m m m m deg deg deg\r
-\`\`\`\r
-\r
-## edst mixed distributions {#ref-edst}\r
-\r
-Original binary specification, not byte-verified for mixed species in this migration. The source spelling esdt is corrected to edst. ReadParticleDistribution with .edst switches to mixed distributions, and distribution outputs use .edst.\r
-\r
-\`\`\`text\r
-2×CHAR + INT(Np) + DOUBLE(Ib[mA]) + DOUBLE(freq[MHz]) + CHAR\r
-+ (Np+1)×[9×DOUBLE(x[cm], x′[rad], y[cm], y′[rad], phi[rad], Energie[MeV], Charge[e], mc2[MeV], weight)]\r
-+ DOUBLE(mc2[MeV])\r
-\`\`\`\r
-\r
-The last particle is synchronous. weight is the number of real particles represented by a macroparticle. CHAR is 1 byte, INT 4, DOUBLE 8. Np is particle count; the source says Ib is not effective here. Do not infer endian conventions absent from the specification.\r
-\r
-## inData.dst and outData_x.dst {#ref-dst}\r
-\r
-inData.dst records the initial simulated distribution; outData_x.dst records the binary distribution at output position x. Use the inputs snapshot alongside a kept result to understand the run settings.\r
-\r
-## DataSet.txt {#ref-dataset}\r
-\r
-41 columns per row; indices below are zero-based. Straight-line longitudinal position is column 5 + column 33. With bends use current dataset_envelope arc accumulation. rms x/y/z are columns 16/18/20 in metres, surviving macroparticles column 28, energy column 0 in MeV. Discard an incomplete last row while reading live output.\r
-\r
-| Index (zero-based) | Quantity |\r
-| --- | --- |\r
-| 0 | \`mean(E_k)\` |\r
-| 1 | \`mean(x)\` |\r
-| 2 | \`mean(γβ_x)\` |\r
-| 3 | \`mean(y)\` |\r
-| 4 | \`mean(γβ_y)\` |\r
-| 5 | \`mean(z)\` |\r
-| 6 | \`mean(γβ_z)\` |\r
-| 7 | \`α_x\` |\r
-| 8 | \`α_y\` |\r
-| 9 | \`α_z\` |\r
-| 10 | \`β_x\` |\r
-| 11 | \`β_y\` |\r
-| 12 | \`β_z\` |\r
-| 13 | \`Emit_x\` |\r
-| 14 | \`Emit_y\` |\r
-| 15 | \`Emit_z\` |\r
-| 16 | \`SizeX_RMS\` |\r
-| 17 | \`SizeX'_RMS\` |\r
-| 18 | \`SizeY_RMS\` |\r
-| 19 | \`SizeY'_RMS\` |\r
-| 20 | \`SizeZ_RMS\` |\r
-| 21 | \`SizeZ'_RMS\` |\r
-| 22 | \`MaxX\` |\r
-| 23 | \`MaxX'\` |\r
-| 24 | \`MaxY\` |\r
-| 25 | \`MaxY'\` |\r
-| 26 | \`MaxZ\` |\r
-| 27 | \`MaxZ'\` |\r
-| 28 | \`N_p\` |\r
-| 29 | \`x_s\` |\r
-| 30 | \`γβ_xs\` |\r
-| 31 | \`y_s\` |\r
-| 32 | \`γβ_ys\` |\r
-| 33 | \`z_s\` |\r
-| 34 | \`γβ_zs\` |\r
-| 35 | \`sign\` |\r
-| 36 | \`dir\` |\r
-| 37 | \`∆x/∆y\` |\r
-| 38 | \`∆z\` |\r
-| 39 | \`Index\` |\r
-| 40 | \`t\` |\r
-\r
-The source defines sign=0 straight, 1 curved, 2 invalid (skip). x centroid = column 29 + column 1; the source example maximum x adds column 22. mean(...) preserves the source overbar, not a derivative; underscores denote subscripts.\r
-\r
-## Phase.txt {#ref-phase}\r
-\r
-Source format: two rows per RF cavity, entrance then exit, each with cavity index, time (s), position (m) and synchronous energy (MeV). Check actual filename case.\r
-\r
-## synParticle.txt {#ref-syn-particle}\r
-\r
-Source trajectory fields:\r
-\r
-\`\`\`text\r
-T zs Eks xs ys γβx γβy γβz dir α\r
-\`\`\`\r
-\r
-T is time. dir=0 along z, 1 bends toward x, 2 toward y. α is bend angle in radians.\r
-\r
-## DynamicErrorData.txt {#ref-dynamic-errors}\r
-\r
-The original says row 1 records initial-beam errors and subsequent rows element errors. Current Python error studies also produce Error_Datas_<group>_<repeat>.txt; distinguish sampled settings from engine outputs.\r
-\r
-## BeamSet.plt {#ref-beamset}\r
-\r
-Source binary layouts are preserved below. Mixed/double-beam layout has not been byte-verified in this migration. dumpPeriodicity must exceed zero for particle dumps and acceptance analysis.\r
-\r
-\`\`\`text\r
-CHAR + CHAR + dumpPeriodicity(INT) + Np(INT)\r
-+ Ib[mA](DOUBLE) + freq[MHz](DOUBLE) + mc2[MeV](DOUBLE)\r
-+ Nx×[CHAR + type(INT) + Index(INT) + time[s](DOUBLE) + location[m](DOUBLE)\r
-      + Np×[x(DOUBLE)+px(DOUBLE)+y(DOUBLE)+py(DOUBLE)+z(DOUBLE)+pz(DOUBLE)+lossFlag(INT)]]\r
-\`\`\`\r
-\r
-For matrix tracking replace z with t and lossFlag with recordFlag. type=0 t-code or 1 z-code. p is βγ. lossFlag=1 lost, 2 passed output plane, 0 not lost; matrix recordFlag=1 surviving, 0 lost. Time/location refer to the synchronous particle for t-code and particle means for z-code. mc2 is rest energy, not kinetic energy. Index 0 is the initial distribution; check the reader for alignment with DataSet when records are absent.\r
-\r
-The source double-beam particle record extends the six coordinates and lossFlag with particleIndex(INT), charge[e](INT), RestMass[MeV/c²](DOUBLE), weight(DOUBLE); header and step structure remain as listed.\r
-\r
-[Acceptance workflow](#cases-acceptance)\r
-\r
-## density {#ref-density}\r
-\r
-Original layout; f/i denote the source float/integer notation, without an independently verified width/endian contract here.\r
-\r
-\`\`\`text\r
-zg(f) + emit_x(f) + emit_y(f) + emit_z(f) + rms_x(f) + rms_y(f) + rms_z(f) + nownumofp(i)\r
-+ lost(i) + maxlost(i) + minlost(i) + moy(4*f) + maxb(4*f) + minb(4*f) + maxr(4*f) + minr(4*f)\r
-+ tab_x(i*300) + tab_y(i*300) + tab_r(i*300) + tab_z(i*300)\r
-\`\`\`\r
-\r
-zg is longitudinal distance, emit emittance, rms envelope, nownumofp particle count, lost loss count. moy contains x/y/r/z averages. Each histogram has 300 bins spanning its minimum to maximum. Original maxb/minb/maxr/minr descriptions are ambiguous and cross maximum/minimum wording; their exact meanings remain unverified. Do not use those descriptions as verified computational definitions.\r
-\r
-## synData.txt {#ref-syn-data}\r
-\r
-Records synchronous-particle entrance time and energy for each element. The original lists order name length zstart tin γβ ϕs ϕRF, but its numerical labels disagree with the listed field count; no unverified index mapping is supplied here.\r
-\r
-Verified phase relation: φRF = phase_t0 + 360·f·t_in. For a segment with entry time T_entry, phase_t0,new = φRF − 360·f·(t_in − T_entry). Use Hz, seconds and degrees; do not directly reuse an intermediate absolute phase.\r
-\r
-## pchistogram.dat {#ref-histogram}\r
-\r
-Original binary format, not byte-verified here. pchistogram V1=1 enables it. V2 is the number of bins spanning each coordinate's minimum/maximum.\r
-\r
-\`\`\`text\r
-CHAR + Index(INT) + V2(INT)\r
-+ V2×tabx(INT) + V2×taby(INT) + V2×tabr(INT) + V2×tabz(INT)\r
-+ xmin(DOUBLE)+xmax(DOUBLE)+avex(DOUBLE)\r
-+ ymin(DOUBLE)+ymax(DOUBLE)+avey(DOUBLE)\r
-+ rmin(DOUBLE)+rmax(DOUBLE)+aver(DOUBLE)\r
-+ zmin(DOUBLE)+zmax(DOUBLE)+avez(DOUBLE)\r
-\`\`\`\r
-\r
-## SingleParticle.txt {#ref-single}\r
-\r
-particlenumber=1 enables single-particle tracking. Fields: x/y/z (m), γβx/γβy/γβz, Ek (MeV), time (s). Multi-particle generation settings such as Twiss/current/distribution do not apply as in bunch tracking.\r
-\r
-Verified correction: displacepos dx dy dz is read by the engine in mm, despite metres in the original manual. displacedpos dpx dpy dpz uses percent. rms columns may be NaN; interpret trajectory and survivor data instead.\r
-\r
-## errors_par.txt {#ref-error-summary}\r
-\r
-Original group-summary field order (m for positions/envelopes, rad for slopes, MeV for energy differences):\r
-\r
-\`\`\`text\r
-step_err  group\r
-ave(ratio_loss)\r
-ave(emit_x_increase)\r
-ave(emit_y_increase)\r
-ave(emit_z_increase)\r
-ave(x_center(m))\r
-ave(y_center(m))\r
-ave(x_'(rad))\r
-ave(y_'(rad))\r
-ave(rms_x(m))\r
-ave(rms_y(m))\r
-ave(rms_x'(rad))\r
-ave(rms_y'(rad))\r
-ave(delat_energy)\r
-rms(x_center(m))\r
-rms(y_center(m))\r
-rms(x_'(rad))\r
-rms(y_'(rad))\r
-rms(rms_x(m))\r
-rms(rms_y(m))\r
-rms(rms_x'(rad))\r
-rms(rms_y'(rad))\r
-rms(delat_energy(MeV))\r
-\`\`\`\r
-\r
-## errors_par_tot.txt {#ref-error-detail}\r
-\r
-Original per-repeat field order. ratio_loss is lost/initial particles; emittance growth is emit(output)/emit(input)−1. Position/envelope units are m, slopes rad, energy differences MeV.\r
-\r
-\`\`\`text\r
-step_err group and repeat\r
-ratio_loss lost / initial particles\r
-emit_x_increase   emit_x(output)/ emit_x(input) - 1\r
-emit_y_increase   emit_y(output)/ emit_y(input) - 1\r
-emit_z_increase   emit_z(output)/ emit_z(input) - 1\r
-x_center(m)\r
-y_center(m)\r
-x_'(rad)\r
-y_'(rad)\r
-rms_x(m)\r
-rms_y(m)\r
-rms_x'(rad)\r
-rms_y'(rad)\r
-delat_energy(MeV),\r
-alpha_xx’,\r
-beta_xx’,\r
-alpha_yy’,\r
-beta_yy’,\r
-alpha_zz’,\r
-beta_zz’,\r
-\`\`\`\r
+`).flatMap((e,n)=>n?[(0,j.jsx)(`br`,{},`${t}b${n}`),e]:[e])}function ot({text:e}){let t=nt(e);return(0,j.jsx)(`div`,{className:`md selectable`,children:t.map((e,t)=>{switch(e.t){case`code`:return(0,j.jsxs)(`pre`,{className:`md-code`,children:[e.lang&&(0,j.jsx)(`span`,{className:`md-lang`,children:e.lang}),(0,j.jsx)(`code`,{children:e.text})]},t);case`heading`:{let n=`h${Math.min(6,e.level+2)}`;return(0,j.jsx)(n,{children:it(e.text,`h${t}`)},t)}case`list`:return e.ordered?(0,j.jsx)(`ol`,{children:e.items.map((e,n)=>(0,j.jsx)(`li`,{children:it(e,`l${t}-${n}`)},n))},t):(0,j.jsx)(`ul`,{children:e.items.map((e,n)=>(0,j.jsx)(`li`,{children:it(e,`l${t}-${n}`)},n))},t);case`table`:return(0,j.jsx)(`div`,{className:`md-table-wrap`,children:(0,j.jsxs)(`table`,{className:`md-table`,children:[(0,j.jsx)(`thead`,{children:(0,j.jsx)(`tr`,{children:e.head.map((e,n)=>(0,j.jsx)(`th`,{children:it(e,`th${t}-${n}`)},n))})}),(0,j.jsx)(`tbody`,{children:e.rows.map((e,n)=>(0,j.jsx)(`tr`,{children:e.map((e,r)=>(0,j.jsx)(`td`,{children:it(e,`td${t}-${n}-${r}`)},r))},n))})]})},t);case`quote`:return(0,j.jsx)(`blockquote`,{children:(0,j.jsx)(ot,{text:e.text})},t);case`rule`:return(0,j.jsx)(`hr`,{},t);default:return(0,j.jsx)(`p`,{children:it(e.text,`p${t}`)},t)}})})}var st=se(e=>({open:!1,show:()=>e({open:!0}),close:()=>e({open:!1})})),ct=`# AVAS 使用说明
+
+本手册可在操作软件时保持打开。拖动标题栏移动窗口，拖动边缘调整大小；最大化后可还原，按 Esc 关闭。每次重新打开恢复默认位置和大小。使用上方搜索按正文和标题筛选章节，点击目录跳转。界面语言切换时手册同步切换。
+
+## 快速开始
+
+1. 在项目页打开已有项目，或从文件菜单新建项目。初次使用建议复制 examples/hwr010 示例再操作。
+2. 在束流页检查粒子数、能量和分布，在结构页检查元件与场图，在设置页检查模拟选项。
+3. 确认结构页标记为运行使用的文件正确，保存修改，然后开始运行。
+4. 在运行页查看进度、日志和实时包络；结束后到结果页查看曲线和相空间。
+5. 需要保留本次结果时，在运行记录中选择保留运行，再进行下一次计算。
+
+## 项目与输入文件
+
+项目通过 ini.ini 组织输入和输出。InputFile 保存束流、模拟设置、结构和场图等输入；OutputFile 保存最近一次完整运行。结构文件由 ini.ini 的 lattice/source 指定，文件名不一定是 lattice_mulp.txt。
+
+文件菜单和标题栏的项目切换入口用于打开其他项目。切换或关闭时有未保存改动会询问处理方式。文件页可以查看输入文件，并进行导入、复制、重命名或移到回收站等操作。
+
+运行期间输入只读。可以查看文件和结果，等待任务结束后再编辑。
+
+## 束流设置
+
+束流页用于设置入射束流。按界面分组调整能量、电流、粒子数和分布等参数，保存后写入 beam.txt；未由页面管理的关键字和注释会保留。撤销和重做可使用 Ctrl+Z、Ctrl+Y。
+
+参数参考中的 beam 条目列出各关键字说明、单位和可选值。使用外部分布时先确认对应文件已准备好，粒子数和分布选项与研究目标一致。
+
+## 结构编辑
+
+文件下拉框用于打开结构文件；打开文件不等于将其设为运行结构。使用单独的“设为运行结构”按钮选择运行输入。
+
+“文本 + 结构”模式将文本与结构面板并排显示。选择元件可查看参数、位置和检查提示。文本、结构及可视化编辑使用同一份内容，修改可撤销。
+
+可视化模式默认浏览，只读查看。进入编辑状态后才能修改参数和元件；点击完成时，若有未保存修改，可保存、放弃本次编辑或继续编辑。TraceWin .dat 文件目前只读。
+
+2D 和 3D 左上角提供放大、缩小、显示全部。2D 双击视图显示全部；3D 双击空白显示全部，双击元件聚焦。手动缩放 3D 会停止漫游和束团跟随。
+
+## 模拟设置
+
+设置页管理 input.txt 中的模拟选项，支持撤销和重做。每个字段的含义以参数参考中的 input 条目为准。
+
+CPU 多线程开启时写 multithreading 1；关闭时删除该行。不要手工填写 multithreading 0，它会导致内核在起点丢失全部粒子。
+
+运行前先检查结构问题和场图是否齐全。线性包络预览用于快速评估，最终结果以内核计算为准。
+
+## 运行与保留结果
+
+同一时间只允许一个运行任务。开始前软件检查并保存有修改的页面；上次结果完成但尚未保留时，会询问保留并运行、直接运行或取消。
+
+暂停挂起运行进程，恢复后继续；停止结束任务。运行期间输入保持只读，包括暂停状态。完整运行使用输出目录中的 inputs 快照，不改写原始输入。
+
+完整运行覆盖 OutputFile。保留运行会把结果和输入快照复制到 Runs 下的独立目录。运行记录中可回放完成的记录，也可将不需要的记录移到回收站。
+
+分段运行的结果位于 Segments 下，不覆盖完整运行结果。分段设置涉及射频相位换算，请使用软件提供的分段功能。
+
+## 实时包络与回放
+
+运行页显示本次运行实时包络，结束后可回放；运行记录的回放按钮用于查看历史记录。新运行开始后切回本次运行。
+
+结构页回放上次运行，曲线与正在编辑的结构对应；结构修改后应注意结果可能已过期。上次运行曲线默认隐藏，开始回放时自动打开。图例左侧的 × 可隐藏曲线。
+
+束团和粒子云是按 rms 包络绘制的示意，不是真实粒子分布。与前一次运行对比默认关闭，可按需开启。动画受“视图 → 动效”控制。
+
+## 参数扫描
+
+在扫描页选择 lattice 元件参数或 beam.txt、input.txt 关键字，填写一组取值后开始。每个取值都在输入副本上运行，不覆盖项目输入和完整运行结果。
+
+扫描期间可查看表格、曲线和运行状态。结果保存在 Scans 下，每个取值对应 run_NNN 子目录，汇总为 scan.json 和 scan.csv。扫描进行时不能同时开始普通运行。
+
+## 结果分析
+
+结果页选择最近输出、已保留运行、分段结果或其他输出目录作为数据源，再选择所需曲线或相空间视图。支持交互缩放及图像导出。
+
+运行对比可叠加不同运行的同一物理量。比较前确认单位、输入和坐标范围一致；多线程模拟可能存在小幅随机差异，不应要求输出逐字节相同。
+
+回放入口在运行页，结果页用于数据分析。单粒子计算中 rms 列为 NaN 可能是内核的正常输出，需结合存活粒子数和日志判断。
+
+## AI 助手
+
+使用 Ctrl+Shift+A 打开助手，在设置中配置 OpenAI 兼容接口或本地模型。密钥存储在 Windows 凭据管理器。需要数据留在本机时使用本地模型服务。
+
+助手可以读取项目、解释结果并在副本中试算。项目修改以提案卡片显示，批准后应用；若在当前对话开启自动应用，则按该设置处理。写入前备份，可撤销。
+
+助手的试算输出位于 .avas_ai/runs，不改写 InputFile 和 OutputFile。项目运行锁定期间，修改提案会被拒绝，待运行结束后再提出。
+
+## 常见问题
+
+### 场图缺失或结构检查失败
+
+检查引用文件是否存在、文件名和路径是否正确，并按结构页的问题提示修正。不要仅通过隐藏提示继续运行。
+
+### 起点全部粒子丢失
+
+先检查是否误写 multithreading 0，再结合束流参数、孔径、场图和日志检查。关闭多线程应删除关键字行。
+
+### 修改代码后桌面程序没有变化
+
+打包的可执行文件不会随源码自动更新，需要重新打包。普通用户使用发布包即可，无需安装 Node.js 或 Word。
+
+
+## 更多帮助
+
+[案例教程与验证条件](#cases-setup) · [参数与文件参考](#reference-home) · [接受度测量](#cases-acceptance)
+
+## 误差研究
+
+在设置页选择静态、动态或静态 + 动态误差，设置误差种子。结构中同时配置 err_step、误差幅度与开启命令，再保存并运行。结果写入 error_output，具体抽样与统计见参考章节。
+
+[误差案例](#cases-errors)
+`,lt=`# AVAS user manual
+
+Keep this manual open while working. Drag the title bar to move it or its edges to resize it. Maximize and restore using the title buttons; press Esc to close. Reopening restores the default position and size. Search filters chapter titles and content; select a contents entry to jump to it. The manual follows the interface language.
+
+## Quick start
+
+1. Open a project or create one from the File menu. For a first run, work on a copy of examples/hwr010.
+2. Check the beam energy, particle count and distribution, then the lattice, field maps and simulation settings.
+3. Confirm the file marked for simulation in the Lattice page, save changes and start the run.
+4. Follow progress, logs and live envelopes in Run; inspect plots and phase space in Results afterwards.
+5. Keep the completed run in the run records before starting another calculation if you need its results.
+
+## Projects and input files
+
+ini.ini defines the project inputs and outputs. InputFile holds beam, settings, lattice and field-map files; OutputFile holds the latest full run. The lattice/source setting selects the simulation lattice; its filename is not necessarily lattice_mulp.txt.
+
+Use the File menu or project switcher to open another project. Unsaved changes are checked before switching or closing. Files supports viewing, importing, duplicating, renaming and recycling input files.
+
+Inputs are read-only during a run. You can still inspect files and results.
+
+## Beam settings
+
+Use Beam to configure energy, current, particle count and distribution. Saving updates beam.txt while retaining unmanaged keywords and comments. Ctrl+Z and Ctrl+Y undo and redo changes.
+
+The beam reference entries below provide keyword meanings, units and choices. Prepare any external distribution file before using it and check that the distribution and particle count suit the study.
+
+## Lattice editing
+
+The file selector opens a lattice for viewing or editing. Use the separate Set as run lattice button to choose the simulation input.
+
+Text + Structure shows the text and physical parameter panels together. Select an element to inspect its parameters, position and diagnostics. Text, structure and visual edits share one source and undo history.
+
+Visual mode starts in read-only browsing. Enter editing before changing elements or parameters. Finishing with unsaved changes offers save, discard this editing session or continue editing. TraceWin .dat files are currently read-only.
+
+The top-left controls in 2D and 3D zoom and fit the view. Double-click the 2D view to fit all; in 3D, double-click empty space to fit all or an element to focus it. Manual 3D zoom stops roaming and bunch following.
+
+## Simulation settings
+
+Settings manages simulation options in input.txt with undo and redo. See the input reference entries for individual fields.
+
+CPU multithreading writes multithreading 1 when enabled and removes the line when disabled. Do not manually write multithreading 0: the engine loses all particles at the start with that value.
+
+Resolve lattice errors and missing field maps before running. The linear envelope preview is a quick estimate; use engine results for final conclusions.
+
+## Running and keeping results
+
+Only one task can run at a time. Starting checks and saves modified pages. If the previous completed result has not been kept, choose Keep and run, Run directly or Cancel.
+
+Pause suspends the process; resume continues it and stop ends it. Inputs remain read-only while paused. Full runs use the inputs snapshot in the output directory without rewriting original inputs.
+
+A full run overwrites OutputFile. Keeping a run copies its results and input snapshot into a separate Runs directory. Completed records can be replayed; unwanted records can be recycled.
+
+Segment runs write under Segments without replacing full-run results. Use the segment workflow for the required RF phase conversion.
+
+## Live envelopes and replay
+
+Run shows the current live envelope and can replay it after completion. Replay on a run record selects a historical result. A new run switches back to the current calculation.
+
+Lattice replays the last run against the edited lattice, so results may be outdated after edits. Last-run curves start hidden and appear when replay begins. The × to the left of a legend item hides its curve.
+
+The bunch and particle cloud are illustrations based on rms envelopes, not actual particle distributions. Comparison with the preceding run is off by default. Animation follows View > Motion settings.
+
+## Parameter scans
+
+Choose a lattice element parameter or a beam.txt / input.txt keyword, supply values and start the scan. Each value runs on an input copy without replacing original inputs or the full-run result.
+
+Follow the table, curve and run status. Results live under Scans, with a run_NNN directory per value and scan.json / scan.csv summaries. A normal run cannot start during a scan.
+
+## Results analysis
+
+Choose the latest output, a kept run, a segment result or another output directory in Results, then select plots or phase-space views. Interactive zoom and figure export are available.
+
+Compare runs overlays the same quantity from multiple runs. Check units, inputs and coordinate ranges before comparing. Multithreaded simulations can differ slightly; output need not be byte-identical.
+
+Replay lives in Run; Results is for analysis. NaN rms columns can be normal for a single-particle calculation; check surviving particles and logs as well.
+
+## AI assistant
+
+Open the assistant with Ctrl+Shift+A and configure an OpenAI-compatible endpoint or local model. API keys are stored in Windows Credential Manager. Use a local model service when data must remain on your machine.
+
+The assistant can read the project, explain results and run trials on copies. Project changes appear as proposals applied after approval, unless automatic application is enabled for the conversation. Changes are backed up and can be undone.
+
+Trials write under .avas_ai/runs without changing InputFile or OutputFile. Modification proposals are refused while project inputs are locked; request them again after the run.
+
+## Troubleshooting
+
+### Missing field maps or lattice errors
+
+Check referenced files, names and paths, then resolve the Lattice diagnostics before running.
+
+### All particles lost at the start
+
+First check for multithreading 0, then inspect beam settings, apertures, field maps and logs. Remove the keyword line to disable multithreading.
+
+### Source changes do not appear in the desktop executable
+
+Packaged executables need rebuilding after source changes. Users of release packages do not need Node.js or Word.
+
+
+## Further help
+
+[Cases and verification conditions](#cases-setup) · [Parameters and files](#reference-home) · [Acceptance](#cases-acceptance)
+
+## Error studies
+
+Choose static, dynamic or combined errors and a seed in Settings. Configure err_step, amplitudes and enable commands in the lattice, then save and run. Results are stored in error_output.
+
+[Error tutorial](#cases-errors)
+`,ut=`# 案例教程 {#cases-home}
+
+来源：docs/案例.docx 的全部 6 组片段，以及原使用说明的接受度章节。原文片段完整保留，修订明确标出；旧版案例不标作当前可运行功能。
+
+## 通用准备与验证条件 {#cases-setup}
+
+1. 把 examples/hwr010 整个项目复制到新的练习目录。不要直接覆盖原示例。
+2. 前三个案例使用示例 beam.txt 参数；本次短验证将 particlenumber 改为 300，input.txt 的 randomseed 设为 12345。误差研究的 Python 种子另设为 7。其余输入沿用示例。
+3. 在副本 InputFile 中新建 manual_case.txt，复制对应代码。在结构页打开并设为运行结构，保存修改；选择相应运行模式。
+4. 运行结束后检查日志、轨迹长度、存活数与目标值，不能只看“完成”。需要保留结果时使用运行记录的保留功能。
+
+验证日期：2026-09-20。每个案例一次验证，输入副本未被内核改写；数值用于识别明显异常，不是高精度金标准。原始 Word 不包含完整 beam/input，因此这些是已明确补充条件的复现。
+
+命令行也可运行（在练习目录中）：
+
+\`\`\`text
+avas run --input InputFile --output OutputFile --lattice manual_case.txt --mode basic
+\`\`\`
+
+误差案例把模式换成 stat_dyn，校正案例用 stat，并加 --seed 7。
+
+## 叠加场多粒子入门 {#cases-superpose}
+
+> 验证状态：已运行：300 粒子全部存活，305 行 DataSet，末端能量约 1.87937 MeV。仅验证这组输入能完成，不代表所有束流设置都得到相同结果。
+
+认识 superpose、静磁场与射频场叠加。复制示例项目，保留 sol 和 hwr010 的全部分量场图。使用下面的结构内容，并选择普通运行（basic）。
+
+\`\`\`text
+start
+drift      0.085  0.02   0
+superpose  0 0 0 0 0 0
+field      0.35   0.02     0   3   0   0   1    0.531  sol
+superpose  0.345 0 0 0 0 0 0
+field      0.21   0.02     0   1   162.5e6   -33   1.36    -1.36   hwr010
+superposeend
+end
+\`\`\`
+
+观察运行页包络，并在结果页检查能量、存活粒子数和输出分布。叠加区域最多包含一个 RF 腔，第一条 superpose 全为零。
+
+[叠加场规则](#ref-superpose)
+
+## 静态与动态误差研究 {#cases-errors}
+
+> 验证状态：修订版已运行：基准加 2 组 × 2 次，均得到 353 行 DataSet；误差运行末端能量约 2.36336–2.36582 MeV，存活 283–287 / 300。原版缺参数，不能直接作为正常教程。
+
+观察误差组幅度和重复抽样的区别。选择静态 + 动态误差（stat_dyn），误差随机种子设为 7；设置页保留基准运行。err_step 2 2 表示两组，每组两次。
+
+修订版仅在最后一条 drift 后补上 0；原文为 \`drift 0.000001 0.02\`，内核日志报告参数不足，原版只得到 4 行 DataSet。
+
+### 当前修订版
+
+\`\`\`text
+start
+err_step 2 2
+err_cav_stat_on 1 0 0 0 0 0 0
+err_cav_ncpl_stat 10 1 2 0 0.0 0.0 0.0 0.0 0.0
+err_cav_dyn_on 1 0 0 0 0 0 0
+err_cav_ncpl_dyn 10 1 2 0 0.0 0.0 0.0 0.0 0.0
+drift 0.0835 0.02 0
+field 0.1 0.02 0 3 0 0 1 0.677098 sol
+field 0.1 0.02 0 3 0 0 1 0.677098 sol
+field      0.21   0.02     0   1   162.5e6   -33  1.36    -1.36   hwr010
+field      0.21   0.02     0   1   162.5e6   -33  -1.36    -1.36   hwr010
+drift 0.0835 0.02 0
+drift 0.000001 0.02 0
+end
+\`\`\`
+
+### 原文片段（保留用于对照，不直接运行）
+
+\`\`\`text
+start
+err_step 2 2
+err_cav_stat_on 1 0 0 0 0 0 0
+err_cav_ncpl_stat 10 1 2 0 0.0 0.0 0.0 0.0 0.0
+err_cav_dyn_on 1 0 0 0 0 0 0
+err_cav_ncpl_dyn 10 1 2 0 0.0 0.0 0.0 0.0 0.0
+drift 0.0835 0.02 0
+field 0.1 0.02 0 3 0 0 1 0.677098 sol
+field 0.1 0.02 0 3 0 0 1 0.677098 sol
+field      0.21   0.02     0   1   162.5e6   -33  1.36    -1.36   hwr010
+field      0.21   0.02     0   1   162.5e6   -33  -1.36    -1.36   hwr010
+drift 0.0835 0.02 0
+drift 0.000001 0.02
+end
+\`\`\`
+
+查看 error_output/output_0_0 基准和 output_1_1 至 output_2_2，结合 errors_par.txt、errors_par_tot.txt 分析。存在一定粒子损失，不应将本例描述为无损传输。
+
+[误差编号与抽样说明](#ref-errors)
+
+## 静态误差校正示例 {#cases-correction}
+
+> 验证状态：已运行但未达目标：原文 DIAG_ENERGY 的目标为 5 MeV；本次记录的基准末能量约 2.31270 MeV，error_adjust/output_0 约 2.28948 MeV。不能据此宣称校正成功；保留作进阶诊断示例。
+
+理解 ADJUST 选择参数、约束范围和 DIAG_ENERGY 设置目标的关系。使用静态误差模式（stat）；不要直接把这组目标值当作已收敛的设计。
+
+\`\`\`text
+start
+err_step 1 1
+err_cav_stat_on 1 0 0 0 0 0 0
+err_cav_ncpl_stat 1 0 1.0 0 0.0 0.0 0.0 0.0 0.0
+drift 0.0835 0.02 0
+field 0.1 0.02 0 3 0 0 1 0.677098 sol
+ADJUST 1 7 5 0 3 0
+field      0.21  0.02     0   1   162.5e6   -33  3    -1.36   hwr010
+drift 0.0835 0.02 0
+DIAG_ENERGY 1 5 0
+drift 0.000001 0.02 0
+end
+\`\`\`
+
+检查目标能量与 Ke 范围是否物理可达，再检查校正前后记录。退出码为 0 不表示优化达到目标；进一步改变目标或范围属于新的物理研究，需要重新验证。
+
+[校正与束诊命令](#ref-correction)
+
+## 旧版包络模型 {#cases-legacy-envelope}
+
+> 验证状态：旧版待核实：当前未提供这一段旧语法的已验证运行流程。
+
+原代码只有元件片段，没有完整的项目输入。其 QUAD 参数数量与当前多粒子格式不同，不可直接贴入多粒子结构作为可运行例子。
+
+\`\`\`text
+DRIFT 0.76486 1 1
+QUAD 0.97277 1 0.40328
+DRIFT 0.1355 1 1
+QUAD 0.15 1 -2.2265
+DRIFT 0.381 1 1
+QUAD 0.324 1 0.664
+DRIFT 0.59197 1 1
+\`\`\`
+
+保留源代码供迁移核对；不以当前线性包络预览冒充原包络算法。
+
+## 旧版 Twiss 匹配 {#cases-legacy-matching}
+
+> 验证状态：旧版待核实：MATCHING、SETTWISS 的原流程未在当前界面验证。
+
+保留原文匹配范围及目标。迁移前需核对所用算法、输入格式、目标定义和单位。
+
+\`\`\`text
+MATCHING 1 1 0.1 1
+DRIFT 0.76486 1 1
+MATCHING 1 1 0.1 1
+MATCHING 1 3 0 10
+QUAD 0.97277 1 0.40328
+MATCHING 1 1 0.1 1
+DRIFT 0.1355 1 1
+MATCHING 1 1 0.1 1
+MATCHING 1 3 -10 0
+QUAD 0.150 1 -2.2265
+MATCHING 1 1 0.1 1
+DRIFT 0.381 1 1
+MATCHING 1 1 0.1 1
+MATCHING 1 3 0 10
+QUAD 0.324 1 0.664
+MATCHING 1 1 0.1 1
+DRIFT 0.59197 1 1
+SETTWISS 1 2 3 2 3
+\`\`\`
+
+不改名为 AI 优化教程；两者可能采用不同目标和算法。
+
+## 旧版周期匹配 {#cases-legacy-periodic}
+
+> 验证状态：旧版待核实：CIRCLE_MATCH、RF_GAP 等命令的可用入口与结果尚未核实。
+
+原文用四个周期计算入口 Twiss，缺少完整输入和预期结果。
+
+\`\`\`text
+CIRCLE_MATCH 1 2 0
+LATTICE 1 4 5
+;cell1
+DRIFT 1 0 0
+SOLENOID 1 0 1
+DRIFT 1 0 0
+RF_GAP 100000 0 162.5E6
+DRIFT 1 0 0
+;cell2
+DRIFT 1 0 0
+SOLENOID 1 0 1
+DRIFT 1 0 0
+RF_GAP 100000 0 162.5E6
+DRIFT 1 0 0
+;cell3
+DRIFT 1 0 0
+SOLENOID 1 0 1
+DRIFT 1 0 0
+RF_GAP 100000 0 162.5E6
+DRIFT 1 0 0
+;cell4
+DRIFT 1 0 0
+SOLENOID 1 0 1
+DRIFT 1 0 0
+RF_GAP 100000 0 162.5E6
+DRIFT 1 0 0
+LATTICE_END
+\`\`\`
+
+保留 LATTICE 与周期结构原文，不将其视为当前多粒子分组语法。
+
+## 接受度测量 {#cases-acceptance}
+
+> 来源：使用说明20260427.docx“接受度测量使用方法”。步骤已按当前界面与结果服务改写；本次未用有代表性的束损分布验证接受度数值。
+
+1. 准备输入束流；若从 dst 导入，先在束流页检查文件与束流参数。原版“Import all beam parameters from file”按钮的操作不能照搬。若需要由 Twiss 重新生成束流，应切回生成分布并确认参数，不能只删除文件路径。
+2. 选择要研究的平面，设置适合研究的初始发射度。原手册建议扩大该方向发射度以覆盖接受边界；具体幅度需要根据束线确定。
+3. 在设置页把“Output every N steps (plt)”设为大于 0（例如 1）。这会保存逐步粒子记录，文件可能较大。
+4. 完成模拟，在结果页选择这次输出，打开“接受度”，选择 x-x′、y-y′、z-z′ 或 φ-E 平面。
+5. 查看拟合椭圆、发射度、归一化发射度及位置／角度；结合束损情况判断。全部粒子通过、缺少粒子记录或无法构成边界时不能把报错解释为零接受度。
+
+接受度属于结果分析，不是原 Word 截图里的独立 accept 页面。三张旧截图已由当前文字步骤替代。
+
+[粒子记录文件](#ref-beamset)
+`,dt=`# Case tutorials {#cases-home}
+
+Source: all six fragments in docs/案例.docx plus the acceptance chapter of the original manual. Original code is retained; revisions are explicit. Legacy cases are not advertised as runnable current features.
+
+## Preparation and verification conditions {#cases-setup}
+
+1. Copy examples/hwr010 into a new practice directory.
+2. For the first three cases retain the example beam settings, but set particlenumber to 300 for this short verification and randomseed in input.txt to 12345. The separate Python error seed is 7. Other inputs remain those of the example.
+3. Create InputFile/manual_case.txt in the copy, paste the case code, open it in Lattice and set it as the run lattice. Save and choose the stated run mode.
+4. Check logs, trajectory extent, survivors and targets after completion. Keep results through run records before replacing them.
+
+Verified on 2026-09-20, once per case. Engine runs left the prepared inputs unchanged. Values identify gross errors, not precision reference tolerances. The original Word file lacks complete beam/input files; these reproduction conditions are explicitly added.
+
+From the practice directory:
+
+\`\`\`text
+avas run --input InputFile --output OutputFile --lattice manual_case.txt --mode basic
+\`\`\`
+
+Use stat_dyn for the error study or stat for correction, adding --seed 7.
+
+## Overlapping-field multi-particle example {#cases-superpose}
+
+> Verification: Executed: all 300 particles survived; 305 DataSet rows; final energy approximately 1.87937 MeV. This verifies completion for these inputs, not equivalence for arbitrary beam settings.
+
+Study superpose and overlapping static magnetic / RF fields. Copy the example project and retain all sol and hwr010 field components. Use basic mode.
+
+\`\`\`text
+start
+drift      0.085  0.02   0
+superpose  0 0 0 0 0 0
+field      0.35   0.02     0   3   0   0   1    0.531  sol
+superpose  0.345 0 0 0 0 0 0
+field      0.21   0.02     0   1   162.5e6   -33   1.36    -1.36   hwr010
+superposeend
+end
+\`\`\`
+
+Inspect the Run envelope and Results energy, survivors and particle distributions. A block contains at most one RF cavity; its first superpose is all zero.
+
+[Overlapping-field rules](#ref-superpose)
+
+## Static and dynamic error study {#cases-errors}
+
+> Verification: Revised example executed: reference plus 2 groups × 2 runs, all with 353 DataSet rows. Error-run final energies were approximately 2.36336–2.36582 MeV; 283–287 of 300 particles survived. The original has a missing parameter.
+
+Select static + dynamic errors (stat_dyn), error seed 7 and keep the reference run enabled. err_step 2 2 means two groups with two repeats each.
+
+The revision only adds the third parameter 0 to the last drift. The original \`drift 0.000001 0.02\` produced a missing-parameter error and only four DataSet rows.
+
+### Current revision
+
+\`\`\`text
+start
+err_step 2 2
+err_cav_stat_on 1 0 0 0 0 0 0
+err_cav_ncpl_stat 10 1 2 0 0.0 0.0 0.0 0.0 0.0
+err_cav_dyn_on 1 0 0 0 0 0 0
+err_cav_ncpl_dyn 10 1 2 0 0.0 0.0 0.0 0.0 0.0
+drift 0.0835 0.02 0
+field 0.1 0.02 0 3 0 0 1 0.677098 sol
+field 0.1 0.02 0 3 0 0 1 0.677098 sol
+field      0.21   0.02     0   1   162.5e6   -33  1.36    -1.36   hwr010
+field      0.21   0.02     0   1   162.5e6   -33  -1.36    -1.36   hwr010
+drift 0.0835 0.02 0
+drift 0.000001 0.02 0
+end
+\`\`\`
+
+### Original fragment (comparison only)
+
+\`\`\`text
+start
+err_step 2 2
+err_cav_stat_on 1 0 0 0 0 0 0
+err_cav_ncpl_stat 10 1 2 0 0.0 0.0 0.0 0.0 0.0
+err_cav_dyn_on 1 0 0 0 0 0 0
+err_cav_ncpl_dyn 10 1 2 0 0.0 0.0 0.0 0.0 0.0
+drift 0.0835 0.02 0
+field 0.1 0.02 0 3 0 0 1 0.677098 sol
+field 0.1 0.02 0 3 0 0 1 0.677098 sol
+field      0.21   0.02     0   1   162.5e6   -33  1.36    -1.36   hwr010
+field      0.21   0.02     0   1   162.5e6   -33  -1.36    -1.36   hwr010
+drift 0.0835 0.02 0
+drift 0.000001 0.02
+end
+\`\`\`
+
+Compare error_output/output_0_0 with output_1_1 through output_2_2 and inspect errors_par.txt / errors_par_tot.txt. This is not a loss-free beamline.
+
+[Error kinds and sampling](#ref-errors)
+
+## Static-error correction example {#cases-correction}
+
+> Verification: Executed but target not reached: DIAG_ENERGY requests 5 MeV. The observed reference final energy was about 2.31270 MeV and error_adjust/output_0 about 2.28948 MeV. This is an advanced diagnostic example, not a demonstrated successful correction.
+
+Use static-error mode (stat) to understand ADJUST parameter selection, bounds and DIAG_ENERGY targets. The original target is not a validated converged design.
+
+\`\`\`text
+start
+err_step 1 1
+err_cav_stat_on 1 0 0 0 0 0 0
+err_cav_ncpl_stat 1 0 1.0 0 0.0 0.0 0.0 0.0 0.0
+drift 0.0835 0.02 0
+field 0.1 0.02 0 3 0 0 1 0.677098 sol
+ADJUST 1 7 5 0 3 0
+field      0.21  0.02     0   1   162.5e6   -33  3    -1.36   hwr010
+drift 0.0835 0.02 0
+DIAG_ENERGY 1 5 0
+drift 0.000001 0.02 0
+end
+\`\`\`
+
+Check physical reachability within the Ke bounds and inspect pre/post-correction outputs. Exit code 0 does not certify convergence. A changed target or bound is a new study requiring verification.
+
+[Correction and diagnostics](#ref-correction)
+
+## Legacy envelope model {#cases-legacy-envelope}
+
+> Verification: Legacy / unverified: no validated current workflow for this old syntax.
+
+The source is only an element fragment. Its QUAD parameter count differs from the current multi-particle format; do not paste it as a runnable multi-particle lattice.
+
+\`\`\`text
+DRIFT 0.76486 1 1
+QUAD 0.97277 1 0.40328
+DRIFT 0.1355 1 1
+QUAD 0.15 1 -2.2265
+DRIFT 0.381 1 1
+QUAD 0.324 1 0.664
+DRIFT 0.59197 1 1
+\`\`\`
+
+Keep the original for migration. The current linear envelope preview is not a replacement claim for this old algorithm.
+
+## Legacy Twiss matching {#cases-legacy-matching}
+
+> Verification: Legacy / unverified: the MATCHING and SETTWISS workflow has not been verified in the current interface.
+
+Retain the original bounds and targets; check algorithm, format, target definitions and units before migration.
+
+\`\`\`text
+MATCHING 1 1 0.1 1
+DRIFT 0.76486 1 1
+MATCHING 1 1 0.1 1
+MATCHING 1 3 0 10
+QUAD 0.97277 1 0.40328
+MATCHING 1 1 0.1 1
+DRIFT 0.1355 1 1
+MATCHING 1 1 0.1 1
+MATCHING 1 3 -10 0
+QUAD 0.150 1 -2.2265
+MATCHING 1 1 0.1 1
+DRIFT 0.381 1 1
+MATCHING 1 1 0.1 1
+MATCHING 1 3 0 10
+QUAD 0.324 1 0.664
+MATCHING 1 1 0.1 1
+DRIFT 0.59197 1 1
+SETTWISS 1 2 3 2 3
+\`\`\`
+
+Do not relabel it as AI optimization, which may use different objectives and algorithms.
+
+## Legacy periodic matching {#cases-legacy-periodic}
+
+> Verification: Legacy / unverified: the current entry point and behavior of CIRCLE_MATCH and RF_GAP have not been established.
+
+The original defines four cells but lacks full project inputs and expected results.
+
+\`\`\`text
+CIRCLE_MATCH 1 2 0
+LATTICE 1 4 5
+;cell1
+DRIFT 1 0 0
+SOLENOID 1 0 1
+DRIFT 1 0 0
+RF_GAP 100000 0 162.5E6
+DRIFT 1 0 0
+;cell2
+DRIFT 1 0 0
+SOLENOID 1 0 1
+DRIFT 1 0 0
+RF_GAP 100000 0 162.5E6
+DRIFT 1 0 0
+;cell3
+DRIFT 1 0 0
+SOLENOID 1 0 1
+DRIFT 1 0 0
+RF_GAP 100000 0 162.5E6
+DRIFT 1 0 0
+;cell4
+DRIFT 1 0 0
+SOLENOID 1 0 1
+DRIFT 1 0 0
+RF_GAP 100000 0 162.5E6
+DRIFT 1 0 0
+LATTICE_END
+\`\`\`
+
+Preserve the original LATTICE structure; do not treat it as current multi-particle grouping syntax.
+
+## Acceptance measurement {#cases-acceptance}
+
+> Source: the acceptance chapter of 使用说明20260427.docx. Steps follow the current interface and result service. Acceptance values have not been verified on a representative loss distribution in this migration.
+
+1. Prepare the beam. When importing a dst, inspect the distribution and parameters in Beam. The old “Import all beam parameters from file” button workflow no longer applies. To generate a new Twiss distribution, switch back to generated distribution and confirm parameters; deleting a path alone is insufficient.
+2. Choose the study plane and initial emittance. The original suggests enlarging that emittance to sample the acceptance boundary; choose the magnitude for your beamline.
+3. In Settings, set “Output every N steps (plt)” above zero, for example 1. Particle dumps may consume substantial disk space.
+4. After simulation, select its output in Results, open Acceptance and choose x-x′, y-y′, z-z′ or φ-E.
+5. Inspect the ellipse, emittance, normalized emittance and position/angle together with losses. All particles passing or missing dumps may prevent computation; an error is not zero acceptance.
+
+Acceptance now lives in Results, not the old standalone accept page. Current written steps replace the three legacy screenshots.
+
+[Particle-dump format](#ref-beamset)
+`,ft=`# 参数与文件参考 {#reference-home}
+
+来源：docs/使用说明20260427.docx。以下为整理版，保留技术正文和格式信息，移除旧界面步骤与重复参数表。逐章注明核对范围；“来自原手册”不等于所有模式已经在当前版本实测。原始 Word 保留在仓库，不作修改。
+
+参数表由当前 schema 动态提供。可在上方搜索输入文件名、命令或物理量。
+
+## 场模型元件与射频相位 {#ref-field}
+
+> 来源：原手册对应章节。核对状态：与当前 schema 对照；补充已核实的场强和相位约定。
+
+场模型元件
+
+用户给出元件的电磁场分布文件，在场模型元件中AVAS采用t-code进行模拟。
+
+\`\`\`text
+Drift   长度（m）  半径（m）   0
+Field   长度（m）  半径（m）   V3 类型  频率   同步相位  Ke   Kb   场文件名
+\`\`\`
+
+场类型：1 为高频场，2 为静电场，3 为静磁场；静磁场中不使用的参数写 0。
+
+V3：0代表同步相位 1代表粒子到入口的RF相位 2 代表t=0时刻的rf相位
+
+例：
+
+\`\`\`text
+start
+drift 0.0835 0.02 0
+!静磁场
+field 0.1 0.02 0 3 0 0 1 0.677098 sol_1
+!高频场
+field 0.1 0.02 0 1 162.5e6 -33 3 -1.36 hwr010b
+end
+\`\`\`
+
+电场为 MV/m × Ke，磁场为 T × Kb；射频电场使用 cos(ωt+φ₀)，磁场使用 sin。V3=0 的同步相位按积分定义：atan2(∫E sinφ, ∫E cosφ)。场图存储顺序应按同组分量文件判断。
+
+[查看 field 参数](#lattice-field)
+
+## 矩阵模型元件与端部限制 {#ref-matrix}
+
+> 来源：原手册对应章节。核对状态：元件参数以实时参考为准；首末矩阵元件限制来自原手册，本次未做独立内核验证。
+
+用户给出元件的对应参数，在矩阵模型元件中AVAS采用z-code进行模拟。
+
+\`\`\`text
+Quad     长度（m）半径（m）  0 磁场梯度（T/m）
+Solenoid  长度（m）半径（m）  0  磁场（T）
+Bend     |αρ|（m） 半径（m）  0 偏转角α(°)  曲率半径ρ(m) 四极场指数 方向(0/1)
+\`\`\`
+
+*二极铁的长度默认等于|αρ|。方向：横向(x)偏转为0，纵向(y)偏转为1
+
+\`\`\`text
+Steerer        0      半径（m）  0   Bx/Ex(T or V/m)   By/Ey   类型   最大值
+\`\`\`
+
+*矫正铁长度必须为0，长度默认为下个元件的长度并位于下个元件的中间。类型：磁场校正铁为0，电场校正铁为1.
+
+Bend
+
+Edge
+
+多粒子模型第一个和最后一个元件避免使用矩阵模型元件，可以加超级短的drift避免这个问题.
+
+Bend、Edge 的逐项参数统一见 [bend](#lattice-bend)、[edge](#lattice-edge)、[quad](#lattice-quad)、[solenoid](#lattice-solenoid)、[steerer](#lattice-steerer)。
+
+## 误差分析与分布编号 {#ref-errors}
+
+> 来源：原手册对应章节。核对状态：已对照当前误差生成代码，修正原文中高斯分布与等步长的编号颠倒。
+
+当添加误差后，模拟的结果将放在outputFile文件夹下的error_output文件夹下。相关命令如下：
+
+err_step a b
+
+a为分组数， b为每组运行多少次
+
+动态误差
+
+\`\`\`text
+err_beam_dyn  r  dx\xA0\xA0\xA0dy\xA0\xA0\xA0\xA0dφ\xA0\xA0\xA0\xA0dxp\xA0\xA0\xA0\xA0dyp\xA0\xA0\xA0\xA0de\xA0\xA0\xA0\xA0dEx\xA0\xA0\xA0\xA0dEy\xA0\xA0\xA0\xA0dEz\xA0\xA0\xA0\xA0mx\xA0\xA0\xA0\xA0my\xA0\xA0\xA0\xA0mz\xA0\xA0\xA0\xA0dib
+(mm)   (°)   (mrad)  (MeV)      (%)          (%)        (mA)
+\`\`\`
+
+*用于设定初始束团的误差，不需要写满参数，后续空置参数默认不设置误差。
+
+\`\`\`text
+err_quad_ncpl_dyn   N   r  dx\xA0\xA0\xA0dy\xA0\xA0\xA0\xA0dφ_x\xA0\xA0\xA0\xA0dφ_y\xA0\xA0\xA0\xA0dφ_z\xA0\xA0\xA0\xA0dG\xA0\xA0\xA0 \xA0dz\xA0\xA0 \xA0\xA0Nb
+(mm)        (°)       (%) (mm)
+\`\`\`
+
+*用于设定静磁元件的误差，不需要写满参数，后续空置参数默认不设置误差。
+
+\`\`\`text
+err_cav_ncpl_dyn   N   r  dx\xA0\xA0 \xA0  dy\xA0\xA0  \xA0 \xA0dφ_x\xA0\xA0\xA0   \xA0dφ_y\xA0\xA0\xA0 \xA0\xA0\xA0\xA0kekb  \xA0\xA0\xA0 \xA0φ_s         dz\xA0\xA0 \xA0\xA0  Nb
+(mm)         (°)        (%)   (°)   (mm)
+\`\`\`
+
+*用于设定射频腔的误差，不需要写满参数，后续空置参数默认不设置误差。
+
+静态误差
+
+\`\`\`text
+err_beam_stat  0  dx\xA0\xA0\xA0dy\xA0\xA0\xA0\xA0dφ\xA0\xA0\xA0\xA0dxp\xA0\xA0\xA0\xA0dyp\xA0\xA0\xA0\xA0de\xA0\xA0\xA0\xA0dEx\xA0\xA0\xA0\xA0dEy\xA0\xA0\xA0\xA0dEz\xA0\xA0\xA0\xA0mx\xA0\xA0\xA0\xA0my\xA0\xA0\xA0\xA0mz\xA0\xA0\xA0\xA0dib
+(mm)   (°)   (mrad)  (MeV)      (%)          (%)        (mA)
+\`\`\`
+
+*用于设定初始束团的误差，不需要写满参数，后续空置参数默认不设置误差。
+
+\`\`\`text
+err_quad_ncpl_stat   N  r  dx\xA0\xA0\xA0dy\xA0\xA0\xA0\xA0dφ_x\xA0\xA0\xA0\xA0dφ_y\xA0\xA0\xA0\xA0dφ_z\xA0\xA0\xA0\xA0dG\xA0\xA0\xA0 \xA0dz\xA0\xA0 \xA0\xA0Nb
+(mm)        (°)       (%) (mm)
+\`\`\`
+
+*用于设定静磁元件的误差，不需要写满参数，后续空置参数默认不设置误差。
+
+\`\`\`text
+err_cav_ncpl_stat   N   r  dx\xA0\xA0 \xA0  dy\xA0\xA0  \xA0 \xA0dφ_x\xA0\xA0\xA0   \xA0dφ_y\xA0\xA0\xA0 \xA0\xA0\xA0\xA0kekb  \xA0\xA0\xA0 \xA0φ_s         dz\xA0\xA0 \xA0\xA0  Nb
+(mm)         (°)        (%)   (°)   (mm)
+\`\`\`
+
+*用于设定射频腔的误差，不需要写满参数，后续空置参数默认不设置误差。
+
+参数解释:
+
+N: 作用于命令下面元件的数量， 想做用于所有元件，可以填写一个较大值
+
+R：误差类型
+
+r=0：固定值误差
+
+r=1: 均匀分布的误差
+
+r=2: 高斯分布的误差
+
+r = -1：等步长误差（等价于tracewin中的0类型）
+
+例：
+
+\`\`\`text
+err_step 2 2
+err_cav_stat_on 1 0 0 0 0 0 0
+err_cav_ncpl_stat 10 r 2 0 0.0 0.0 0.0 0.0 0.0
+\`\`\`
+
+以上面的为例：
+
+当r为1，那么第一组为[-1, +1]之间的误差，第二组为[-2, +2]之间的误差
+
+当 r=2 时，第一组为标准差 1 的高斯分布误差，第二组为标准差 2 的高斯分布误差。原文在此误写为 r=-1，已按当前代码修正。
+
+当 r=-1 时，以上射频腔例子的第一组误差为 1，第二组为 2。原文在此误写为 r=2。束流误差命令的等步长实现与元件分支不同，不能直接套用本例；使用前应核查实际抽样文件。
+
+误差开启
+
+\`\`\`text
+err_beam_dyn_on   dx\xA0\xA0\xA0   dy\xA0\xA0\xA0  \xA0dφ …
+err_quad_dyn_on   dx\xA0\xA0\xA0   dy\xA0\xA0\xA0\xA0  dφ_x…
+err_cav_dyn_on    dx\xA0\xA0 \xA0  dy\xA0\xA0  \xA0\xA0dφ_x…
+err_beam_stat_on   dx\xA0\xA0\xA0   dy\xA0\xA0\xA0  \xA0dφ …
+err_quad_stat_on   dx\xA0\xA0\xA0   dy\xA0\xA0\xA0\xA0  dφ_x…
+err_cav_stat_on    dx\xA0\xA0 \xA0  dy\xA0\xA0  \xA0\xA0dφ_x…
+\`\`\`
+
+这些命令用于启用相应误差，参数顺序与对应命令一致：0 关闭，1 开启。
+
+例：
+
+\`\`\`text
+start
+err_step 2 2
+err_cav_stat_on 1 0 0 0 0 0 0
+err_cav_ncpl_stat 10 1 2 0 0.0 0.0 0.0 0.0 0.0
+err_cav_dyn_on 1 0 0 0 0 0 0
+err_cav_ncpl_dyn 10 1 2 0 0.0 0.0 0.0 0.0 0.0
+drift 0.0835 0.02 0
+field 0.1 0.02 0 3 0 0 1 0.677098 sol_1
+field 0.1 0.02 0 3 0 0 1 0.677098 sol_1
+field      0.21   0.02     0   1   162.5e6   -33  3    -1.36   hwr010b
+field      0.21   0.02     0   1   162.5e6   -33  3    -1.36   hwr010b
+end
+\`\`\`
+
+当前组幅度通常按“给定幅度 ÷ 总组数 × 当前组号”计算；固定值分支不做该缩放。Python 与内核的随机种子不是同一个设置。详见 [误差案例](#cases-errors)。
+
+## 静态误差校正与束诊 {#ref-correction}
+
+> 来源：原手册对应章节。核对状态：与当前校正流程对照；示例使用的场图名称需对应项目文件。
+
+\`\`\`text
+Adjust N, v, n, min, max, first_step
+\`\`\`
+
+N：目前无意义，写0即可
+
+v: 修改下面元件的第v个参数
+
+n:具有相同n的元件参数，他们矫正时具有相同的值,默认为0
+
+min:参数的最小值
+
+max: 参数的最大值
+
+first_step：是否使用元件的初值作为梯度下降的初始值，0 不使用， 1使用
+
+束诊命令
+
+\`\`\`text
+DIAG_ENERGY N w dw
+\`\`\`
+
+N: 无意义 填写0即可
+
+W：目标能量（MeV）
+
+Dw：无意义 填写0即可
+
+\`\`\`text
+DIAG_SIZE 0 sx sy 0
+\`\`\`
+
+Sx: x方向包络（mm）
+
+Sy：y方向包络（mm）
+
+\`\`\`text
+DIAG_position 0 x y 0
+\`\`\`
+
+x: x方向中心位置（mm）
+
+y：y方向中心位置（mm）
+
+例：
+
+\`\`\`text
+start
+err_step 1 1
+err_cav_stat_on 1 0 0 0 0 0 0
+err_cav_ncpl_stat 5 1 2 0 0 0 0 0 0
+drift 0.0835 0.02 0
+field 0.1 0.02 0 3 0 0 1 0.677098 sol_1
+adjust 1 7 5 0 3 0
+!修改第七个值，也就是ke
+field      0.21  0.02     0   1   162.5e6   -3  3    -1.36   hwr010b
+drift 0.0835 0.02 0
+DIAG_ENERGY 1 5 0
+drift 0.000001 0.02 0
+end
+\`\`\`
+
+[查看静态误差校正案例及验证状态](#cases-correction)
+
+## 叠加场规则 {#ref-superpose}
+
+> 来源：原手册对应章节。核对状态：与当前 schema 对照。
+
+\`\`\`text
+Superpose  z_0   x_0    y_0    θ_z0     θ_x0    θ_y0
+Superposeend
+Superposeout  z_0   x_0    y_0    θ_z0     θ_x0    θ_y0
+\`\`\`
+
+* 1、第一条Superpose命令后面的参数必须全为0，以提供其他Superpose命令的零点。
+
+2、Superpose（Superposeout）后面的6个参数给出该命令之后一个元件的入口平面（转换平面）相对于第一条Superpose命令后元件的入口平面的位置和角度。
+
+3、在一段叠加场结束后需要添加Superposeend或者Superposeout命令来结束叠加场，并且只有以Superposeout命令结束时，Superpose命令后z_0以外的参数才会生效，即以Superposeend命令结束时，元件只会在纵向位置上叠加。
+
+4、一组叠加场中只能存在小于等于一个射频腔。
+
+5、在一段叠加场中，每个元件前要有且只有一个Superpose命令。
+
+例：
+
+\`\`\`text
+start
+drift      0.085  0.02   0
+superpose  0 0 0 0 0 0
+field      0.35   0.02     0   3   0   0   1    0.531  sol_yuan
+superpose  0.345 0 0 0 0 0 0
+field      0.21   0.02     0   1   162.5e6   -33   1.36    -1.36   hwr010
+superposeend
+end
+\`\`\`
+
+[查看叠加场案例](#cases-superpose)
+
+## 结构分组与折叠 {#ref-lattice}
+
+> 来源：原手册对应章节。核对状态：与当前结构解析规则配合使用；原拼写 sction 保留。
+
+\`\`\`text
+lattice n1 n2
+\`\`\`
+
+n1：每个基础lattice的元件数量
+
+n2: 写为1.
+
+Lattice终点
+
+\`\`\`text
+lattice_end
+\`\`\`
+
+Lattice结束.
+
+折叠命令
+
+\`\`\`text
+Sction module{
+}
+\`\`\`
+
+使用这个命令，在页面上可以让{}中间的内容进行折叠复制。
+
+例：
+
+\`\`\`text
+sction mebt
+{
+drift 0.05089 0.025 0
+drift 0.1254 0.025 0
+}
+\`\`\`
+
+
+
+## 输出平面 {#ref-planes}
+
+> 来源：原手册对应章节。核对状态：补充已核实的末端限制。
+
+outputplane V1：在该命令所在位置下游（正值）或上游（负值）输出束流分布，V1 单位 m。
+
+automaticoutput V1 V2 V3：等间距插入输出面；依次为第一个输出面的相对位置、间隔和最大跨度，单位均为 m。
+
+已核实：输出面超出末端会失败，距末端仅 5 mm 也可能失败，2 cm 的测试可以运行。分段功能自动去掉距末端 5 cm 内的输出面；内核结束会输出末端分布。
+
+## 输入文件组织与模拟设置 {#ref-inputs}
+
+> 来源：原手册对应章节。核对状态：当前输入快照和路径机制已更新；关键字表统一读取 schema。
+
+用户编辑 beam.txt、input.txt 和 ini.ini 指定的结构源文件。完整运行及误差研究在输出目录的 inputs/ 快照中生成内核读取的 lattice.txt，不改写项目 InputFile。
+
+input.txt 用于设置程序功能及算法信息，beam.txt 用于输入束团信息，lattice.txt 用于输入加速器元件信息。输入文件中!开头的行代表注释，注释内容不生效。关键字不区分大小写。
+
+input.txt
+
+input.txt中大部分关键字在程序中存在默认参数，不设置也可以正常模拟。
+
+meshRms三个方向上的网格边长，按对应方向束团的 RMS 尺寸乘以 2 进行缩放V1 double；Lx = V1 × x 方向 RMS 尺寸 × 2V2 double；Ly = V2 × y 方向 RMS 尺寸 × 2V3 double；Lz = V3 × z 方向 RMS 尺寸 × 2
+
+  当启用二次粒子输运功能时，应在 beam.txt 中设置加速器同步粒子参数。
+
+  当启用纵向周期性边界条件时，空间电荷效应求解算法会自动切换为 FFT，并且纵向网格长度会实时设置为束团的周期长度，需要设置更多的纵向网格点数（Numofgrid）。
+
+  当单独设置边界时，lattice.txt 中的半径设置将不再生效，束流损失将根据 boundary.txt 中设置的边界来判断。
+
+输入参数表见下方 input 参考。multithreading 只写 1；关闭时删除整行，不能写 0。原文 stepPerCycle 的时间公式存在量纲疑问，未作为确定公式迁入，推进步长应按当前 schema 和实际运行核对。
+
+[查看多线程参数](#input-multithreading)
+
+## 束流文件与 Twiss 约定 {#ref-beam}
+
+> 来源：原手册对应章节。核对状态：补充已核实的归一化 rms 发射度及单位；二次粒子模式有例外。
+
+说明：
+
+普通束团文件导入时，原手册说明除 numofcharge 外的生成参数不生效。二次粒子模式仍需同步粒子信息，见 SeParticle.txt；不要将普通导入规则当作所有模式的通则。
+
+束流关键字表见下方 beam 参考。twiss β 单位 mm/mrad，ε 为归一化 rms 发射度，单位 π·mm·mrad。rms_x = sqrt(β_x·ε_x/(β_rel·γ))；纵向 z′ = Δp/p。
+
+[查看 twissx](#beam-twissx)
+
+## 运行结构文件 {#ref-source}
+
+> 来源：原手册对应章节。核对状态：运行文件不限定为 lattice_mulp.txt。
+
+第一个start之后到第一个end之前的内容为有效内容，程序会模拟第一个start之后到第一个end之前的元件。
+
+使用 ini.ini 的 [lattice] source 指定源文件；运行结构与当前打开查看的结构可能不同。
+
+## scanData.txt 射频扫相文件 {#ref-scan-data}
+
+> 来源：原手册对应章节。核对状态：来自原手册；与参数扫描产生的 scan.csv 不同。
+
+用于记录AVAS扫相结果或手动设置射频场相位，文件的每一行分别为一个射频腔的 入口相位（角度）、入口时间（s）。射频场在lattice中的排列顺序即为数据的排列顺序。
+
+
+
+## SeParticle.txt 二次粒子 {#ref-secondary}
+
+> 来源：原手册对应章节。核对状态：来自原手册及 schema 文件列定义；本次未运行二次粒子案例。
+
+当在input.txt 中将 secondarybeam 设置为 1 时，可以在 ReadParticleDistribution 之后输入此文件。SeParticle.txt 文件用于记录二次粒子束，每一行代表一个粒子。
+
+由于二次粒子束不包含同步粒子信息，为了正确模拟某些元件的作用，即使已经提供了初始束团分布，仍然需要在 beam.txt 文件中设置同步粒子信息。
+
+| x | y | z | vx | vy | vz | charge | mass | weight | time | Kind |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| m | m | m | m/s | m/s | m/s | e | MeV | double | s | string |
+
+
+
+## Boundary.txt 独立边界 {#ref-boundary}
+
+> 来源：原手册对应章节。核对状态：来自原手册；本次未运行独立边界案例。
+
+当在 input.txt 中将 boundary 设置为 1 时，Boundary.txt 文件生效。束流损失将根据该文件中设定的边界进行判断，束流损失的粒子信息将输出到 CollisionData.txt 文件中。此时，lattice.txt 中设置的元件半径将被屏蔽。
+
+文件格式如下：
+
+| type | material | Length | r1 | r2 | RLP | z0 | x0 | y0 | θz0 | θx0 | θy0 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| int | string | m | m | m | m | m | m | m | deg | deg | deg |
+
+
+
+## edst 混合束团格式 {#ref-edst}
+
+> 来源：原手册对应章节。核对状态：保留原手册的格式定义并修正 esdt 拼写；本次未逐字节验证混合束团格式。
+
+.edst 为扩展束团分布文件，用于多种粒子混合束团。ReadParticleDistribution 指向 .edst 时，原手册说明程序切换到混合束团模拟，分布输出也相应使用 .edst。
+
+.edst文件中记录每个粒子的六维坐标及电荷量、静止质量、权重。具体格式为：
+
+\`\`\`text
+2xCHAR+INT(Np)+DOUBLE(Ib(mA))+DOUBLE(freq(MHz))+CHAR+
+(Np+1)×[9×DOUBLE(x(cm),x'(rad),y(cm),y'(rad),phi(rad),Energie(MeV),Charge(e),mc2(Mev),weight)]+DOUBLE(mc2(MeV))
+\`\`\`
+
+其中最后一个粒子为束团同步粒子，weight的含义为当前宏粒子代表多少个真实粒子。
+
+CHAR的长度为1字节，INT的长度为4字节，DOUBLE的长度为8字节。
+
+Np是粒子的数量，Ib是流强（这里不生效），freq是束流频率，mc2是粒子的静止质量。
+
+
+
+## inData.dst 与 outData_x.dst {#ref-dst}
+
+> 来源：原手册对应章节。核对状态：来自原手册，结合当前输出快照说明。
+
+记录了模拟中使用的初始束团分布。
+
+outData_x.dst
+
+输出了指定平面上的束团分布，x为输出平面的位置，为二进制文件。
+
+
+
+## DataSet.txt 束团参数 {#ref-dataset}
+
+> 来源：原手册对应章节。核对状态：列索引从 0 开始；已结合当前 41 列约定补充位置、单位及不完整行处理。
+
+记录了模拟过程中的束团参数（s坐标系下），每一行为一组束团参数，每一行的格式为：
+
+| 索引（从 0 开始） | 物理量 |
+| --- | --- |
+| 0 | \`mean(E_k)\` |
+| 1 | \`mean(x)\` |
+| 2 | \`mean(γβ_x)\` |
+| 3 | \`mean(y)\` |
+| 4 | \`mean(γβ_y)\` |
+| 5 | \`mean(z)\` |
+| 6 | \`mean(γβ_z)\` |
+| 7 | \`α_x\` |
+| 8 | \`α_y\` |
+| 9 | \`α_z\` |
+| 10 | \`β_x\` |
+| 11 | \`β_y\` |
+| 12 | \`β_z\` |
+| 13 | \`Emit_x\` |
+| 14 | \`Emit_y\` |
+| 15 | \`Emit_z\` |
+| 16 | \`SizeX_RMS\` |
+| 17 | \`SizeX'_RMS\` |
+| 18 | \`SizeY_RMS\` |
+| 19 | \`SizeY'_RMS\` |
+| 20 | \`SizeZ_RMS\` |
+| 21 | \`SizeZ'_RMS\` |
+| 22 | \`MaxX\` |
+| 23 | \`MaxX'\` |
+| 24 | \`MaxY\` |
+| 25 | \`MaxY'\` |
+| 26 | \`MaxZ\` |
+| 27 | \`MaxZ'\` |
+| 28 | \`N_p\` |
+| 29 | \`x_s\` |
+| 30 | \`γβ_xs\` |
+| 31 | \`y_s\` |
+| 32 | \`γβ_ys\` |
+| 33 | \`z_s\` |
+| 34 | \`γβ_zs\` |
+| 35 | \`sign\` |
+| 36 | \`dir\` |
+| 37 | \`∆x/∆y\` |
+| 38 | \`∆z\` |
+| 39 | \`Index\` |
+| 40 | \`t\` |
+
+*sign==0：这组束团数据处于直线段。sign==1：这组束团数据处于曲线段。sign==2:这组数据无效，处理时跳过这组数据。当存在束流轨迹包含曲线时从DataSet.txt中读取有效数据的代码如下：
+
+x 中心 = 第 29 列（同步粒子 x）+ 第 1 列（质心相对偏移）；示例最大 x = 第 29 列 + 第 1 列 + 第 22 列。
+
+最大值x = 同步粒子x + 质心相对于同步粒子的偏移  + 最大值 （ 29 + 1 + 22）
+
+每行 41 列。直线段纵向位置为第 5 列加第 33 列，含弯铁时按当前 dataset_envelope 规则累加弧长；不能把直线公式用于所有弯曲轨迹。rms x/y/z 是第 16/18/20 列，单位 m；第 28 列为存活宏粒子数，第 0 列为能量 MeV。读取实时写入文件时丢弃不完整末行。
+
+## Phase.txt 射频腔出入口 {#ref-phase}
+
+> 来源：原手册对应章节。核对状态：来自原手册；文件名大小写按实际输出确认。
+
+每两行输出1个射频腔入口及出口处的信息。具体格式如下：
+
+\`\`\`text
+射频腔序号 射频腔入口时间(s)  射频腔入口位置(m)  同步粒子在射频腔入口处能量(MeV)
+射频腔序号 射频腔出口时间(s)  射频腔出口位置(m)  同步粒子在射频腔出口处能量(MeV)
+\`\`\`
+
+
+
+## synParticle.txt 同步粒子轨迹 {#ref-syn-particle}
+
+> 来源：原手册对应章节。核对状态：来自原手册。
+
+记录了同步粒子在传输中的相关信息。具体格式如下：
+
+\`\`\`text
+T     z_s    Ek_s      x_s      y_s       γβ_x      γβ_y        γβ_z         dir       α
+\`\`\`
+
+*T：现实时间。dir==0：同步粒子沿z方向飞行；dir==1:同步粒子向x方向偏转；dir==2:同步粒子向y方向偏转。α：偏转角度（rad）。
+
+
+
+## DynamicErrorData.txt 误差记录 {#ref-dynamic-errors}
+
+> 来源：原手册对应章节。核对状态：原手册命名保留；当前 Python 误差抽样还会生成 Error_Datas_<组>_<次>.txt。
+
+当存在误差时，会生成该文件，这个文件中记录了初始束团和每个元件的具体误差。第一行是初始束团的误差，从第二行开始每一行是一个元件的具体误差。
+
+
+
+## BeamSet.plt 逐步粒子记录 {#ref-beamset}
+
+> 来源：原手册对应章节。核对状态：保留单束与双束两套格式；单位、记录标志不可混用，双束格式本次未做二进制验证。
+
+.plt是一个二进制文件，该文件存储了束流传输过程中每一步束团的信息，
+
+\`\`\`text
+Char + Char + dumpPeriodicity(int) + Np(int) + Ib[mA](double) + freq[MHz](double) + mc2[MeV](double)
++ Nx * [Char + tpye(int) + Index(int) + time[s](double) + location[m](double) +
+Np * [x(double) + px(double) +  y(double) + py(double) + z(double) + pz(double) + lossFlag(int)]]（场元件）
+Np * [x(double) + px(double) +  y(double) + py(double) + t(double) + pz(double) + recordFlag(int)]] （矩阵元件）
+\`\`\`
+
+说明
+
+dumpPeriodicity：每推进多少步记录一次
+
+Np: 粒子总数
+
+Ib：流强
+
+Freq：频率
+
+mc2：静止能量（MeV），不是束流动能。
+
+tpye：zcode(1)或 tcode(0)
+
+index：步序号，0 为初始分布；与 DataSet 的对应需按当前读取器检查，不假定有缺失记录时仍能逐行直接配对。
+
+times：tcode为同步粒子运行至该位置时间，zcode为所有粒子的平均时间
+
+location：tcode为同步粒子位置， zcode所有粒子位置
+
+p：动量（βγ）
+
+lossflag: 1(损失) 2（通过输出平面）0（未丢失）
+
+recordFlag：1（未丢失），0（丢失）
+
+双束的plt文件与单束的结构不一样
+
+\`\`\`text
+File format =
+char
++ char
++ dumpPeriod(int)
++ Np(int)
++ Ib[mA](double)
++ Freq[MHz](double)
++ RestMass[MeV/c^2](double)
++ Nx × {
+char
++ type(int)
++ index(int)
++ time[s](double)
++ location[m](double)
++ Np × [
+x(double)
++ px(double)
++ y(double)
++ py(double)
++ z(double) or t(double)
++ pz(double)
++ lossFlag(int)
++ particleIndex(int)
++ charge[e](int)
++ RestMass[MeV/c^2](double)
++ weight(double)
+]
+}
+\`\`\`
+
+接受度分析需要粒子逐步记录，dumpPeriodicity 必须大于 0。文件存在但没有粒子记录时仍不可计算。
+
+[当前接受度操作步骤](#cases-acceptance)
+
+## density 密度数据 {#ref-density}
+
+> 来源：原手册对应章节。核对状态：原手册格式；max/min 字段文字存在歧义，下面明确保留待核实标记。
+
+\`\`\`text
+zg(f) + emit_x(f) + emit_y(f) + emit_z(f) + rms_x(f) + rms_y(f) + rms_z(f) + nownumofp(i)
++ lost(i) + maxlost(i) + minlost(i) + moy( 4* f) + maxb(4*f) + minb(4*f) + maxr(4*f) + minr(4*f)
+tab_x(i * 300) + tab_y(i * 300) + tab_r(i * 300)+ tab_z(i * 300)
+\`\`\`
+
+x, y, r, z
+
+（指束团中的单个粒子）
+
+Zg:纵向距离
+
+emit_x（f） + emit_y（f） + emit_z（f）： 发射度
+
+rms_x(f) + rms_y(f) + rms_z(f)： 包络
+
+nownumofp(i)：粒子数
+
+loss（i）： 束损
+
+maxlost(i)：最大束损 ，
+
+minlost : 最小束损
+
+moy( 4* f)： x, y, r, z的平均值
+
+maxb、minb：原手册分别描述为最大、最小偏移粒子的最大值；说明不充分，具体含义待核实。
+
+maxr、minr：原手册描述为最大、最小偏移粒子的最小值，但 max/min 文字相互交叉；含义待核实，不把这些文字作为已验证计算定义。
+
+tab_x： (i) * 300, 统计粒子，将x_min – x_max分为300个网格， 统计每个网格内的粒子数
+
+
+
+## synData.txt 元件入口参数 {#ref-syn-data}
+
+> 来源：原手册对应章节。核对状态：补充已核实的 RF 相位换算；原文的字段序号不一致，不直接据此编写读取器。
+
+该文件记录了同步粒子到达每个元件入口时的时间和能量。
+
+字段说明：
+
+\`\`\`text
+order name length zstart tin γβ ϕs ϕRF
+原文列名数和标出的 0…8 序号不一致；此处不提供未经核实的序号映射。
+\`\`\`
+
+如果设置了 RF 相位或同步相位，将计算对应的同步相位或 RF 相位。
+
+φRF = phase_t0 + 360·f·t_in。分段把入口时间重置为 T_entry 时，phase_t0,new = φRF − 360·f·(t_in − T_entry)。频率用 Hz、时间用 s、相位用度，不能直接沿用中段绝对相位。
+
+## pchistogram.dat 粒子直方图 {#ref-histogram}
+
+> 来源：原手册对应章节。核对状态：原手册二进制格式；本次未逐字节验证。
+
+当在 input.txt 中将 pchistogram 的 V1 设置为 1 时，会生成 pchistogram.dat 文件。
+
+该文件记录了将每个方向的最小值到最大值范围划分为 V2 等份，并统计每一份中宏粒子的数量。
+
+\`\`\`text
+该文件为二进制文件，格式为：char + Index(int) + V2(int) + V2 · tabx(int) + V2 · taby(int) + V2 · tabr(int) + V2 · tabz(int) + xmin(double) + xmax(double) + avex(double) + ymin(double) + ymax(double) + avey(double) + rmin(double) + rmax(double) + aver(double) + zmin(double) + zmax(double) + avez(double)
+\`\`\`
+
+
+
+## SingleParticle.txt 单粒子输出 {#ref-single}
+
+> 来源：原手册对应章节。核对状态：修正 displacepos 的单位为 mm，保留原文说明并标出差异。
+
+在 beam.txt 中将关键字 particlenumber 设置为 1 时，将启用单粒子模拟，输出 SingleParticle.txt 文件，并记录该单粒子的轨迹。
+
+| x | y | z | γβx | γβy | γβz | Ek | time |  |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| m | m | m |  |  |  | MeV | s |  |
+
+此时，beam.txt 中与多粒子相关的关键字（如 twissx、twissy、twissz、current 和 distribution）将不再生效。关键词 displacepos 和 displacedpos 会生效，用于设置初始单粒子的位置和动量偏移。
+
+displacepos dx dy dz：内核按 mm 读取。原手册写 m，已依据仓库实测约定修正。
+
+displacedpos dpx dpy dpz：动量偏移单位 %。
+
+单粒子运行的 rms 列可能为 NaN，属于正常情况，需结合轨迹和存活数解读。
+
+## errors_par.txt 误差统计 {#ref-error-summary}
+
+> 来源：原手册对应章节。核对状态：字段顺序保留；与逐次结果表区分。
+
+\`\`\`text
+step_err  误差组数
+ave(ratio_loss)
+ave(emit_x_increase)
+ave(emit_y_increase)
+ave(emit_z_increase)
+ave(x_center(m))
+ave(y_center(m))
+ave(x_'(rad))
+ave(y_'(rad))
+ave(rms_x(m))
+ave(rms_y(m))
+ave(rms_x'(rad))
+ave(rms_y'(rad))
+ave(delat_energy)
+rms(x_center(m))
+rms(y_center(m))
+rms(x_'(rad))
+rms(y_'(rad))
+rms(rms_x(m))
+rms(rms_y(m))
+rms(rms_x'(rad))
+rms(rms_y'(rad))
+rms(delat_energy(MeV))
+\`\`\`
+
+
+
+## errors_par_tot.txt 逐次误差结果 {#ref-error-detail}
+
+> 来源：原手册对应章节。核对状态：字段顺序保留。
+
+\`\`\`text
+step_err 误差组数与次数
+ratio_loss 误差损失率， 损失粒子数/总的粒子数
+emit_x_increase   emit_x(output)/ emit_x(input) - 1
+emit_y_increase   emit_y(output)/ emit_y(input) - 1
+emit_z_increase   emit_z(output)/ emit_z(input) - 1
+x_center(m)
+y_center(m)
+x_'(rad)
+y_'(rad)
+rms_x(m)
+rms_y(m)
+rms_x'(rad)
+rms_y'(rad)
+delat_energy(MeV),
+alpha_xx’,
+beta_xx’,
+alpha_yy’,
+beta_yy’,
+alpha_zz’,
+beta_zz’,
+\`\`\`
+
+
+`,pt=`# Parameters and files {#reference-home}
+
+Source: docs/使用说明20260427.docx, reconciled with current schema and documented engine checks. This reference preserves file formats and technical rules while replacing obsolete interface instructions. Source-only formats are not certified by this migration. Current keyword tables follow these chapters and are loaded from the editor schema. The original Word file is retained unchanged.
+
+## Field elements and RF phase {#ref-field}
+
+Field-map elements use time-based tracking (t-code). Drift parameters are length (m), aperture radius (m), and a reserved 0. Field parameters are length, radius, V3, field type, frequency, phase, Ke, Kb and map basename. Types are 1 RF, 2 electrostatic and 3 magnetostatic; unused magnetic-field parameters may be zero.
+
+V3=0 specifies synchronous phase, V3=1 the entrance RF phase, and V3=2 the absolute RF phase at t=0. Electric fields are MV/m × Ke; magnetic fields are T × Kb. RF electric fields use cos(ωt+φ₀), magnetic fields sin. The synchronous phase is atan2(∫E sinφ, ∫E cosφ). Determine map storage order from a complete component group.
+
+Example map names must be replaced with files present in the project:
+
+\`\`\`text
+start
+drift 0.0835 0.02 0
+field 0.1 0.02 0 3 0 0 1 0.677098 sol_1
+field 0.1 0.02 0 1 162.5e6 -33 3 -1.36 hwr010b
+end
+\`\`\`
+
+[Field parameters](#lattice-field)
+
+## Matrix elements and endpoint limitations {#ref-matrix}
+
+Matrix elements use longitudinal tracking (z-code). Quad takes length, radius, reserved 0 and gradient (T/m); Solenoid takes length, radius, reserved 0 and field (T). Bend takes length (0 lets the program calculate the arc), radius, reserved 0, bend angle (deg), curvature radius (m), field index and plane (0 horizontal, 1 vertical). Arc length is |α|ρ with α converted to radians.
+
+Edge takes 0, aperture radius, 0, pole-face angle β (deg), curvature radius ρ (m), total gap G (m), fringe factors K1/K2 and plane. Steerer takes 0, radius, 0, Bx/Ex, By/Ey, type and maximum; type 0 is magnetic, 1 electric. The original states that the steerer acts at the midpoint of the next element with its effective length.
+
+The original advises avoiding matrix elements at the first and last position by inserting short drifts. This endpoint limitation was not independently tested during migration. Use the live parameter entries for exact field definitions.
+
+[Bend](#lattice-bend), [Edge](#lattice-edge), [Steerer](#lattice-steerer)
+
+## Errors and distribution kinds {#ref-errors}
+
+err_step a b defines a groups and b repeats per group. Results are stored under error_output. Beam, magnetic-element and cavity errors have separate static and dynamic commands:
+
+\`\`\`text
+err_beam_dyn r dx dy dφ dxp dyp de dEx dEy dEz mx my mz dib
+err_beam_stat r dx dy dφ dxp dyp de dEx dEy dEz mx my mz dib
+err_quad_ncpl_dyn N r dx dy dφx dφy dφz dG dz Nb
+err_quad_ncpl_stat N r dx dy dφx dφy dφz dG dz Nb
+err_cav_ncpl_dyn N r dx dy dφx dφy kekb φs dz Nb
+err_cav_ncpl_stat N r dx dy dφx dφy kekb φs dz Nb
+\`\`\`
+
+Offsets are mm, angular errors degrees, beam slopes mrad, energy MeV, relative emittance/mismatch/field errors percent and current mA. Consult the keyword entries for each position; trailing unspecified error parameters default to no error. N controls how many following elements are affected.
+
+Current schema and Python sampling agree on 0 fixed, 1 uniform, 2 Gaussian and -1 equal steps. The original example swaps 2 and -1; this is corrected here. For the cavity example below, group amplitudes are 1 then 2: uniform bounds ±1 then ±2 for r=1, Gaussian standard deviations 1 then 2 for r=2, and fixed steps 1 then 2 for r=-1.
+
+\`\`\`text
+err_step 2 2
+err_cav_stat_on 1 0 0 0 0 0 0
+err_cav_ncpl_stat 10 r 2 0 0 0 0 0 0
+\`\`\`
+
+The beam equal-step branch differs from the element branch; inspect generated samples before applying this cavity example to beam errors. Fixed-value errors are not group-scaled. Each corresponding err_beam/quad/cav_dyn_on or _stat_on uses 0/1 switches in the same order. Python error sampling and engine random seeds are separate settings.
+
+[Executed error tutorial](#cases-errors)
+
+## Static correction and diagnostics {#ref-correction}
+
+ADJUST N v n min max first_step changes parameter v of the following element. N is unused; use 0. Equal nonzero grouping identifiers n tie corrected values together. min/max bound the parameter. first_step=1 starts from its lattice value; 0 does not. The original example uses v=7 for field Ke.
+
+\`\`\`text
+DIAG_ENERGY 0 W 0
+DIAG_SIZE 0 sx sy 0
+DIAG_POSITION 0 x y 0
+\`\`\`
+
+W is target energy in MeV; sx/sy are envelope sizes in mm and x/y centroid positions in mm. Reserved diagnostic fields are written as 0. The source correction example has not reached its requested 5 MeV under the documented reproduction conditions.
+
+[Original correction case and observed result](#cases-correction)
+
+## Overlapping fields {#ref-superpose}
+
+Superpose and Superposeout take z0 x0 y0 θz0 θx0 θy0 (m and degrees). The first superpose is all zero, defining the reference entrance plane. Every field in the block has exactly one preceding superpose. End with superposeend or superposeout; only superposeout makes transverse offsets and angles effective. A block has at most one RF cavity.
+
+[Overlapping-field tutorial](#cases-superpose)
+
+## Lattice grouping and folding {#ref-lattice}
+
+The source describes lattice n1 n2, with n1 the number of elements in a basic lattice and n2=1; lattice_end closes it. Use current keyword definitions when writing a simulation input. The old periodic-envelope example uses a different syntax and is not a current multi-particle recipe.
+
+The spelling sction is retained from the source. It groups editor content for folding:
+
+\`\`\`text
+sction mebt
+{
+drift 0.05089 0.025 0
+drift 0.1254 0.025 0
+}
+\`\`\`
+
+## Output planes {#ref-planes}
+
+outputplane V1 writes a distribution at a relative downstream (positive) or upstream (negative) position in metres. automaticoutput V1 V2 V3 inserts equally spaced planes: first relative position, spacing and maximum span, all metres.
+
+Verified engine restrictions: planes beyond the lattice end fail; 5 mm from the end can fail, while a 2 cm test worked. Segment generation omits planes within 5 cm of the end. The engine writes a final distribution at the endpoint.
+
+## Input organization and simulation settings {#ref-inputs}
+
+beam.txt describes the beam, input.txt simulation settings, and the ini.ini-selected lattice describes elements. Keywords are case-insensitive and ! begins comments. Full/error runs generate engine lattice.txt in the output inputs/ snapshot without rewriting original inputs.
+
+The live input entries replace the original keyword table. In particular, write multithreading 1 or omit the line to disable; 0 is unsafe for this engine. The original stepPerCycle time formula is dimensionally questionable and is not reproduced as a verified equation.
+
+meshRms dimensions are Lx=V1×2×rms_x, Ly=V2×2×rms_y and Lz=V3×2×rms_z. The source states that longitudinal periodic boundaries select FFT and set longitudinal mesh length to the bunch period; sufficient longitudinal grid points are needed. Separate boundary mode ignores lattice aperture radii and uses Boundary.txt. Secondary transport requires synchronous-particle settings.
+
+[Multithreading](#input-multithreading)
+
+## Beam files and Twiss convention {#ref-beam}
+
+Current beam entries replace the original table. β is mm/mrad; ε is normalized rms emittance in π·mm·mrad. rms_x = sqrt(β_x·ε_x/(β_rel·γ)); longitudinal z′ is Δp/p. The original β unit wording is superseded by the verified convention.
+
+For ordinary distribution import, the source states that generation keywords except numofcharge do not apply. Secondary-particle inputs still require synchronous-particle information, so this is not a universal rule for every import mode.
+
+[Twiss parameters](#beam-twissx)
+
+## Run lattice source {#ref-source}
+
+The source describes content after the first start and before the first end as active. The current run filename comes from ini.ini [lattice] source and need not be lattice_mulp.txt. Opening a file for inspection does not select it for simulation.
+
+## scanData.txt {#ref-scan-data}
+
+Records RF phase scans or manually supplied phases. Each row gives cavity entrance phase (degrees) and entrance time (s), in lattice RF-cavity order. This is distinct from parameter-scan scan.csv.
+
+## SeParticle.txt {#ref-secondary}
+
+Source/schema format; secondary-particle transport was not exercised during this migration. With secondarybeam=1, ReadParticleDistribution can reference this file, one particle per row. Synchronous-particle information must still be configured in beam.txt.
+
+\`\`\`text
+x y z vx vy vz charge mass weight time Kind
+m m m m/s m/s m/s e MeV double s string
+\`\`\`
+
+## Boundary.txt {#ref-boundary}
+
+Source format, not independently exercised here. boundary=1 selects separate loss boundaries instead of element apertures. Lost-particle information is written to CollisionData.txt.
+
+\`\`\`text
+type material Length r1 r2 RLP z0 x0 y0 θz0 θx0 θy0
+int string m m m m m m m deg deg deg
+\`\`\`
+
+## edst mixed distributions {#ref-edst}
+
+Original binary specification, not byte-verified for mixed species in this migration. The source spelling esdt is corrected to edst. ReadParticleDistribution with .edst switches to mixed distributions, and distribution outputs use .edst.
+
+\`\`\`text
+2×CHAR + INT(Np) + DOUBLE(Ib[mA]) + DOUBLE(freq[MHz]) + CHAR
++ (Np+1)×[9×DOUBLE(x[cm], x′[rad], y[cm], y′[rad], phi[rad], Energie[MeV], Charge[e], mc2[MeV], weight)]
++ DOUBLE(mc2[MeV])
+\`\`\`
+
+The last particle is synchronous. weight is the number of real particles represented by a macroparticle. CHAR is 1 byte, INT 4, DOUBLE 8. Np is particle count; the source says Ib is not effective here. Do not infer endian conventions absent from the specification.
+
+## inData.dst and outData_x.dst {#ref-dst}
+
+inData.dst records the initial simulated distribution; outData_x.dst records the binary distribution at output position x. Use the inputs snapshot alongside a kept result to understand the run settings.
+
+## DataSet.txt {#ref-dataset}
+
+41 columns per row; indices below are zero-based. Straight-line longitudinal position is column 5 + column 33. With bends use current dataset_envelope arc accumulation. rms x/y/z are columns 16/18/20 in metres, surviving macroparticles column 28, energy column 0 in MeV. Discard an incomplete last row while reading live output.
+
+| Index (zero-based) | Quantity |
+| --- | --- |
+| 0 | \`mean(E_k)\` |
+| 1 | \`mean(x)\` |
+| 2 | \`mean(γβ_x)\` |
+| 3 | \`mean(y)\` |
+| 4 | \`mean(γβ_y)\` |
+| 5 | \`mean(z)\` |
+| 6 | \`mean(γβ_z)\` |
+| 7 | \`α_x\` |
+| 8 | \`α_y\` |
+| 9 | \`α_z\` |
+| 10 | \`β_x\` |
+| 11 | \`β_y\` |
+| 12 | \`β_z\` |
+| 13 | \`Emit_x\` |
+| 14 | \`Emit_y\` |
+| 15 | \`Emit_z\` |
+| 16 | \`SizeX_RMS\` |
+| 17 | \`SizeX'_RMS\` |
+| 18 | \`SizeY_RMS\` |
+| 19 | \`SizeY'_RMS\` |
+| 20 | \`SizeZ_RMS\` |
+| 21 | \`SizeZ'_RMS\` |
+| 22 | \`MaxX\` |
+| 23 | \`MaxX'\` |
+| 24 | \`MaxY\` |
+| 25 | \`MaxY'\` |
+| 26 | \`MaxZ\` |
+| 27 | \`MaxZ'\` |
+| 28 | \`N_p\` |
+| 29 | \`x_s\` |
+| 30 | \`γβ_xs\` |
+| 31 | \`y_s\` |
+| 32 | \`γβ_ys\` |
+| 33 | \`z_s\` |
+| 34 | \`γβ_zs\` |
+| 35 | \`sign\` |
+| 36 | \`dir\` |
+| 37 | \`∆x/∆y\` |
+| 38 | \`∆z\` |
+| 39 | \`Index\` |
+| 40 | \`t\` |
+
+The source defines sign=0 straight, 1 curved, 2 invalid (skip). x centroid = column 29 + column 1; the source example maximum x adds column 22. mean(...) preserves the source overbar, not a derivative; underscores denote subscripts.
+
+## Phase.txt {#ref-phase}
+
+Source format: two rows per RF cavity, entrance then exit, each with cavity index, time (s), position (m) and synchronous energy (MeV). Check actual filename case.
+
+## synParticle.txt {#ref-syn-particle}
+
+Source trajectory fields:
+
+\`\`\`text
+T zs Eks xs ys γβx γβy γβz dir α
+\`\`\`
+
+T is time. dir=0 along z, 1 bends toward x, 2 toward y. α is bend angle in radians.
+
+## DynamicErrorData.txt {#ref-dynamic-errors}
+
+The original says row 1 records initial-beam errors and subsequent rows element errors. Current Python error studies also produce Error_Datas_<group>_<repeat>.txt; distinguish sampled settings from engine outputs.
+
+## BeamSet.plt {#ref-beamset}
+
+Source binary layouts are preserved below. Mixed/double-beam layout has not been byte-verified in this migration. dumpPeriodicity must exceed zero for particle dumps and acceptance analysis.
+
+\`\`\`text
+CHAR + CHAR + dumpPeriodicity(INT) + Np(INT)
++ Ib[mA](DOUBLE) + freq[MHz](DOUBLE) + mc2[MeV](DOUBLE)
++ Nx×[CHAR + type(INT) + Index(INT) + time[s](DOUBLE) + location[m](DOUBLE)
+      + Np×[x(DOUBLE)+px(DOUBLE)+y(DOUBLE)+py(DOUBLE)+z(DOUBLE)+pz(DOUBLE)+lossFlag(INT)]]
+\`\`\`
+
+For matrix tracking replace z with t and lossFlag with recordFlag. type=0 t-code or 1 z-code. p is βγ. lossFlag=1 lost, 2 passed output plane, 0 not lost; matrix recordFlag=1 surviving, 0 lost. Time/location refer to the synchronous particle for t-code and particle means for z-code. mc2 is rest energy, not kinetic energy. Index 0 is the initial distribution; check the reader for alignment with DataSet when records are absent.
+
+The source double-beam particle record extends the six coordinates and lossFlag with particleIndex(INT), charge[e](INT), RestMass[MeV/c²](DOUBLE), weight(DOUBLE); header and step structure remain as listed.
+
+[Acceptance workflow](#cases-acceptance)
+
+## density {#ref-density}
+
+Original layout; f/i denote the source float/integer notation, without an independently verified width/endian contract here.
+
+\`\`\`text
+zg(f) + emit_x(f) + emit_y(f) + emit_z(f) + rms_x(f) + rms_y(f) + rms_z(f) + nownumofp(i)
++ lost(i) + maxlost(i) + minlost(i) + moy(4*f) + maxb(4*f) + minb(4*f) + maxr(4*f) + minr(4*f)
++ tab_x(i*300) + tab_y(i*300) + tab_r(i*300) + tab_z(i*300)
+\`\`\`
+
+zg is longitudinal distance, emit emittance, rms envelope, nownumofp particle count, lost loss count. moy contains x/y/r/z averages. Each histogram has 300 bins spanning its minimum to maximum. Original maxb/minb/maxr/minr descriptions are ambiguous and cross maximum/minimum wording; their exact meanings remain unverified. Do not use those descriptions as verified computational definitions.
+
+## synData.txt {#ref-syn-data}
+
+Records synchronous-particle entrance time and energy for each element. The original lists order name length zstart tin γβ ϕs ϕRF, but its numerical labels disagree with the listed field count; no unverified index mapping is supplied here.
+
+Verified phase relation: φRF = phase_t0 + 360·f·t_in. For a segment with entry time T_entry, phase_t0,new = φRF − 360·f·(t_in − T_entry). Use Hz, seconds and degrees; do not directly reuse an intermediate absolute phase.
+
+## pchistogram.dat {#ref-histogram}
+
+Original binary format, not byte-verified here. pchistogram V1=1 enables it. V2 is the number of bins spanning each coordinate's minimum/maximum.
+
+\`\`\`text
+CHAR + Index(INT) + V2(INT)
++ V2×tabx(INT) + V2×taby(INT) + V2×tabr(INT) + V2×tabz(INT)
++ xmin(DOUBLE)+xmax(DOUBLE)+avex(DOUBLE)
++ ymin(DOUBLE)+ymax(DOUBLE)+avey(DOUBLE)
++ rmin(DOUBLE)+rmax(DOUBLE)+aver(DOUBLE)
++ zmin(DOUBLE)+zmax(DOUBLE)+avez(DOUBLE)
+\`\`\`
+
+## SingleParticle.txt {#ref-single}
+
+particlenumber=1 enables single-particle tracking. Fields: x/y/z (m), γβx/γβy/γβz, Ek (MeV), time (s). Multi-particle generation settings such as Twiss/current/distribution do not apply as in bunch tracking.
+
+Verified correction: displacepos dx dy dz is read by the engine in mm, despite metres in the original manual. displacedpos dpx dpy dpz uses percent. rms columns may be NaN; interpret trajectory and survivor data instead.
+
+## errors_par.txt {#ref-error-summary}
+
+Original group-summary field order (m for positions/envelopes, rad for slopes, MeV for energy differences):
+
+\`\`\`text
+step_err  group
+ave(ratio_loss)
+ave(emit_x_increase)
+ave(emit_y_increase)
+ave(emit_z_increase)
+ave(x_center(m))
+ave(y_center(m))
+ave(x_'(rad))
+ave(y_'(rad))
+ave(rms_x(m))
+ave(rms_y(m))
+ave(rms_x'(rad))
+ave(rms_y'(rad))
+ave(delat_energy)
+rms(x_center(m))
+rms(y_center(m))
+rms(x_'(rad))
+rms(y_'(rad))
+rms(rms_x(m))
+rms(rms_y(m))
+rms(rms_x'(rad))
+rms(rms_y'(rad))
+rms(delat_energy(MeV))
+\`\`\`
+
+## errors_par_tot.txt {#ref-error-detail}
+
+Original per-repeat field order. ratio_loss is lost/initial particles; emittance growth is emit(output)/emit(input)−1. Position/envelope units are m, slopes rad, energy differences MeV.
+
+\`\`\`text
+step_err group and repeat
+ratio_loss lost / initial particles
+emit_x_increase   emit_x(output)/ emit_x(input) - 1
+emit_y_increase   emit_y(output)/ emit_y(input) - 1
+emit_z_increase   emit_z(output)/ emit_z(input) - 1
+x_center(m)
+y_center(m)
+x_'(rad)
+y_'(rad)
+rms_x(m)
+rms_y(m)
+rms_x'(rad)
+rms_y'(rad)
+delat_energy(MeV),
+alpha_xx’,
+beta_xx’,
+alpha_yy’,
+beta_yy’,
+alpha_zz’,
+beta_zz’,
+\`\`\`
 `;function mt(e,t){let n=[],r=``,i;for(let a of e.replace(/^\uFEFF/,``).split(/\r?\n/)){let e=a.match(/^\s*(`{3,}|~{3,})/);e&&(r?e[1][0]===r[0]&&e[1].length>=r.length&&(r=``):r=e[1]);let o=!r&&a.match(/^#{1,2} (.+?)(?: \{#([\w-]+)\})?\s*$/);o?(i={id:o[2]||`${t}-${n.length}`,title:o[1],text:``,category:t},n.push(i)):i&&(i.text+=a+`
 `)}return n}function ht(e,t,n){let r=n.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);return e.filter(e=>r.length?r.every(t=>`${e.title}\n${e.text}`.toLocaleLowerCase().includes(t)):e.category===t)}var gt={width:340,height:260};function _t(){let e=Ge(),t=Math.min(700,e.width*.55);return Ke({x:e.width-t-24,y:60,width:t,height:e.height-110},gt)}function vt(){return st(e=>e.open)?(0,j.jsx)(yt,{}):null}function yt(){let e=ve(),t=we(e=>e.lang),n=st(e=>e.close),[r,i]=(0,A.useState)(``),[a,o]=(0,A.useState)(`guide`),[s,c]=(0,A.useState)(null),l={guide:e(`Operation guide`),cases:e(`Case tutorials`),reference:e(`Parameters and files`)},[u,d]=(0,A.useState)(()=>_t().width>480),[f,p]=(0,A.useState)(null),[m,h]=(0,A.useState)(``),g=(0,A.useRef)(null);(0,A.useEffect)(()=>{let e=!0;return k(`schema.all`).then(t=>{e&&p(t)}).catch(t=>{e&&h(String(t.message??t))}),()=>{e=!1}},[]);let _=(0,A.useMemo)(()=>{let e=t===`zh_CN`,n=[...mt(e?ct:lt,`guide`),...mt(e?ut:dt,`cases`),...mt(e?ft:pt,`reference`)];if(f)for(let e of[`beam`,`input`,`lattice`])for(let t of f[e])n.push({category:`reference`,id:`${e}-${t.key}`,title:`${e} · ${t.key} — ${he(t.title)}`,text:[he(t.doc),...t.params.map((e,t)=>`### ${t+1}. ${he(e.label)}${e.unit?` (${e.unit})`:``}\n\n${he(e.doc)}\n\n${e.choices.map(([e,t])=>`- ${e}: ${he(t)}`).join(`
 `)}`)].join(`
 
 `)});return n},[t,f]),v=ht(_,a,r);function y(e){let t=_.find(t=>t.id===e);t&&(o(t.category),i(``),c(e))}(0,A.useEffect)(()=>{if(s){let e=document.getElementById(`manual-${s}`);e&&g.current&&(g.current.scrollTop=e.offsetTop,c(null))}},[s,a,r,f]);function b(e){o(e),i(``),c(null),g.current?.scrollTo(0,0)}return(0,j.jsxs)(Je,{label:e(`User manual`),title:e(`User manual`),initialRect:_t,minSize:gt,onClose:n,onKeyDown:(e,t)=>{(e.ctrlKey||e.metaKey)&&e.key.toLowerCase()===`f`&&(e.preventDefault(),t?.querySelector(`input`)?.focus())},children:[(0,j.jsx)(`div`,{className:`manual-tabs`,role:`tablist`,"aria-label":e(`Manual categories`),children:[`guide`,`cases`,`reference`].map(e=>(0,j.jsx)(`button`,{role:`tab`,"aria-selected":a===e,className:`btn btn-small`,onClick:()=>b(e),children:l[e]},e))}),(0,j.jsxs)(`div`,{className:`manual-tools`,children:[(0,j.jsx)(`button`,{className:`btn btn-small`,"aria-expanded":u,onClick:()=>d(!u),children:e(`Contents`)}),(0,j.jsx)(`input`,{className:`input`,"aria-label":e(`Search manual`),placeholder:e(`Search manual`),value:r,onChange:e=>{i(e.target.value),g.current?.scrollTo(0,0)}})]}),(0,j.jsxs)(`div`,{className:`manual-body`,children:[u&&(0,j.jsx)(`nav`,{"aria-label":e(`Contents`),children:v.map(e=>(0,j.jsxs)(`button`,{onClick:()=>y(e.id),children:[r.trim()&&(0,j.jsxs)(`small`,{children:[l[e.category],` · `]}),e.title]},e.id))}),(0,j.jsxs)(`article`,{ref:g,className:`selectable`,onClick:e=>{let t=e.target.closest(`a`)?.getAttribute(`href`);t?.startsWith(`#`)&&(e.preventDefault(),y(t.slice(1)))},children:[!v.length&&(0,j.jsx)(`p`,{children:e(`Nothing matches.`)}),v.map(e=>(0,j.jsxs)(`section`,{id:`manual-${e.id}`,children:[(0,j.jsx)(`h2`,{children:e.title}),r.trim()&&(0,j.jsx)(`p`,{className:`muted`,children:l[e.category]}),(0,j.jsx)(ot,{text:e.text})]},e.id)),!f&&(a===`reference`||r.trim())&&(0,j.jsx)(`p`,{role:`status`,children:m?`${e(`Unable to load parameter reference`)}: ${m}`:e(`Loading parameter reference...`)})]})]})]})}function bt(e){let t=e[`ui/pointerDevice`]??e[`ui/b3dPointer`];return t===`mouse`||t===`touchpad`?t:`auto`}function xt(){let e=null;return(t,n,r=performance.now())=>{if(t.ctrlKey)return`zoom`;if(n!==`auto`)return n===`touchpad`?`pan`:`zoom`;if(!e||r-e.time>=300){let n=t.wheelDeltaY;e={kind:t.deltaMode!==0||t.deltaX===0&&n!=null&&n!==0&&Math.abs(n)%120==0?`mouse`:`touchpad`,time:r}}return e.time=r,e.kind===`mouse`?`zoom`:`pan`}}function St(e,t){let n=e.deltaMode===1?16:e.deltaMode===2?t:1;return{x:e.deltaX*n,y:e.deltaY*n}}function Ct(e,t,n=1,r=.5){let i=e[1]-e[0],a=e[0]+i*(t+r*(1-n));return[a,a+i*n]}function wt(e){return Math.exp(Math.max(-1,Math.min(1,e*.006)))}function Tt(e,t,n){let r=xt(),i=0,a={},o=o=>{let s=e._fullLayout;if(!s||o.target?.closest?.(`.modebar, .legend`))return;let c=e.getBoundingClientRect(),l=e.clientWidth?e.clientWidth/c.width:1,u=e.clientHeight?e.clientHeight/c.height:1,d=(o.clientX-c.left)*l,f=(o.clientY-c.top)*u,p=new Map;for(let e of Object.values(s._plots??{})){let t=e.xaxis,n=e.yaxis;!t||!n||d<t._offset||d>t._offset+t._length||f<n._offset||f>n._offset+n._length||(p.set(t._name,t),p.set(n._name,n))}if(!p.size)return;let m=r(o,t)===`pan`,h=St(o,c.height),g={};for(let[e,t]of p){if(t.fixedrange||!t._length)continue;let n=`${e}.range`,r=(a[n]??t.range).map(e=>t.type===`date`?new Date(e).getTime():Number(e));if(!r.every(Number.isFinite))continue;let i=e.startsWith(`x`),o=i?(d-t._offset)/t._length:1-(f-t._offset)/t._length,s=Ct(r,m?(i?h.x:-h.y)/t._length:0,m?1:wt(h.y),o);g[n]=t.type===`date`?s.map(e=>new Date(e).toISOString()):s,g[`${e}.autorange`]=!1}Object.keys(g).length&&(o.preventDefault(),o.stopPropagation(),Object.assign(a,g),i||=requestAnimationFrame(()=>{i=0;let e=a;a={},n(e)}))};return e.addEventListener(`wheel`,o,{capture:!0,passive:!1}),()=>{e.removeEventListener(`wheel`,o,!0),cancelAnimationFrame(i)}}var Et=`modulepreload`,Dt=function(e,t){return new URL(e,t).href},Ot={},M=function(e,t,n){let r=Promise.resolve();if(t&&t.length>0){let e=document.getElementsByTagName(`link`),i=document.querySelector(`meta[property=csp-nonce]`),a=i?.nonce||i?.getAttribute(`nonce`);function o(e){return Promise.all(e.map(e=>Promise.resolve(e).then(e=>({status:`fulfilled`,value:e}),e=>({status:`rejected`,reason:e}))))}function s(e){return import.meta.resolve?import.meta.resolve(e):new URL(e,import.meta.url).href}r=o(t.map(t=>{if(t=Dt(t,n),t=s(t),t in Ot)return;Ot[t]=!0;let r=t.endsWith(`.css`);for(let n=e.length-1;n>=0;n--){let i=e[n];if(i.href===t&&(!r||i.rel===`stylesheet`))return}let i=document.createElement(`link`);if(i.rel=r?`stylesheet`:Et,r||(i.as=`script`),i.crossOrigin=``,i.href=t,a&&i.setAttribute(`nonce`,a),document.head.appendChild(i),r)return new Promise((e,n)=>{i.addEventListener(`load`,e),i.addEventListener(`error`,()=>n(Error(`Unable to preload CSS for ${t}`)))})}).filter(e=>e!==void 0))}function i(e){let t=new Event(`vite:preloadError`,{cancelable:!0});if(t.payload=e,window.dispatchEvent(t),!t.defaultPrevented)throw e}return r.then(t=>{for(let e of t||[])e.status===`rejected`&&i(e.reason);return e().catch(i)})},kt=null;function At(){return kt||=M(()=>import(`./plotly.min-f1XCw4iF.js`).then(t=>e(t.default,1)).then(e=>e.default??e),__vite__mapDeps([0,1]),import.meta.url),kt}var jt={r:[`#d62728`,`#ff6b6b`],red:[`#d62728`,`#ff6b6b`],b:[`#1f5fd6`,`#6aa9ff`],blue:[`#1f5fd6`,`#6aa9ff`],g:[`#2a9d3f`,`#5ad17a`],green:[`#2a9d3f`,`#5ad17a`],m:[`#b0359f`,`#e58ad8`],magenta:[`#b0359f`,`#e58ad8`],blueviolet:[`#7b3fe4`,`#b28cff`],c:[`#0e9aa7`,`#4fd1db`],y:[`#b58900`,`#e3c14d`],k:[`#222222`,`#d4d4d4`],orange:[`#e07b20`,`#f0a050`],lime:[`#43a047`,`#8bd98f`],accent:[`#005fb8`,`#3794ff`],fg:[`#3b3b3b`,`#cccccc`]};function Mt(e,t){if(!e)return t?`#cccccc`:`#3b3b3b`;let n=jt[e.toLowerCase()];return n?n[+!!t]:e}function Nt(e,t){return t?e?[[0,`#3b8fdd`],[.25,`#2c5f8a`],[.5,`#2b2b2b`],[.75,`#a04733`],[1,`#f5805c`]]:[[0,`#2166ac`],[.25,`#92bedd`],[.5,`#f4f2ed`],[.75,`#e08a72`],[1,`#b2182b`]]:e?[[0,`#2b2050`],[.25,`#414a8c`],[.5,`#2b8f8b`],[.75,`#73c54c`],[1,`#f2e650`]]:[[0,`#440154`],[.25,`#3b528b`],[.5,`#21918c`],[.75,`#5ec962`],[1,`#fde725`]]}function Pt(e){let t=Te(`--fg`,e?`#cccccc`:`#3b3b3b`),n=e?`#333333`:`#e6e6e6`,r=e?`#5a5a5a`:`#9a9a9a`,i=Te(`--editor-bg`,e?`#1f1f1f`:`#ffffff`),a={gridcolor:n,linecolor:r,zerolinecolor:r,tickcolor:r,showline:!0,mirror:!0,ticks:`outside`,automargin:!0};return{paper_bgcolor:i,plot_bgcolor:i,font:{family:`"Segoe UI", "Microsoft YaHei UI", sans-serif`,size:12,color:t},xaxis:a,yaxis:a,legend:{bgcolor:`rgba(0,0,0,0)`,bordercolor:n},colorway:[`r`,`b`,`g`,`m`,`blueviolet`,`c`,`orange`].map(t=>Mt(t,e)),hoverlabel:{bgcolor:Te(`--tooltip-bg`),bordercolor:Te(`--tooltip-border`),font:{color:t}},margin:{l:64,r:24,t:24,b:52}}}function Ft(e,t){if(Array.isArray(t)||typeof t!=`object`||!t)return t;let n={...e??{}};for(let[e,r]of Object.entries(t))n[e]=typeof r==`object`&&r&&!Array.isArray(r)&&!ArrayBuffer.isView(r)?Ft(n[e],r):r;return n}function It(e,t){let n=Pt(t),r=Ft(n,e);for(let t of Object.keys(e))/^[xy]axis\d+$/.test(t)&&(r[t]=Ft(n[t.startsWith(`x`)?`xaxis`:`yaxis`],e[t]));return r}var Lt=.22;function Rt(e,t){return t==null||t>=e.length?e:e.map((e,n)=>n===t?{...e,opacity:1,line:{...e.line??{},width:(e.line?.width??2)+1.5}}:{...e,opacity:(e.opacity??1)*Lt})}function zt({data:e,layout:t,config:n,className:r,style:i,onRelayout:a,onClick:o,onReady:s,highlight:c}){let u=(0,A.useRef)(null),d=l(e=>bt(e.settings)),f=l(e=>e.resolvedTheme===`dark`),[p,m]=(0,A.useState)(null),[h,g]=(0,A.useState)(null),_=c??(e.length>=2&&e.every(e=>!e.type||e.type===`scatter`||e.type===`scattergl`)&&e.some(e=>String(e.mode??`lines`).includes(`lines`))),v=(0,A.useRef)(_);v.current=_;let y=(0,A.useRef)({onRelayout:a,onClick:o,onReady:s});y.current={onRelayout:a,onClick:o,onReady:s};let b=e.map(e=>e.name??``).join(`|`)+`#${e.length}`;return(0,A.useEffect)(()=>g(null),[b]),(0,A.useEffect)(()=>{let e=!0;return At().then(t=>e&&m(t)),()=>{e=!1}},[]),(0,A.useEffect)(()=>{let r=u.current;if(!p||!r)return;let i=It({autosize:!0,...t??{}},f);p.react(r,_?Rt(e,h):e,i,{responsive:!0,displaylogo:!1,scrollZoom:!0,modeBarButtonsToRemove:[`select2d`,`lasso2d`,`toImage`],...n??{}}),r.__avasBound||(r.__avasBound=!0,r.on(`plotly_relayout`,e=>y.current.onRelayout?.(e,r)),r.on(`plotly_click`,e=>{let t=e?.points?.[0]?.curveNumber;v.current&&typeof t==`number`&&g(e=>e===t?null:t),y.current.onClick?.(e)}),r.on(`plotly_legendclick`,e=>!v.current||(g(t=>t===e.curveNumber?null:e.curveNumber),!1))),y.current.onReady?.(r)},[p,e,t,n,f,h,_]),(0,A.useEffect)(()=>{let e=u.current;if(e&&p&&!n?.staticPlot&&n?.scrollZoom!==!1)return Tt(e,d,t=>{p.relayout(e,t)})},[p,d,n?.staticPlot,n?.scrollZoom]),(0,A.useEffect)(()=>{let e=u.current;if(!e||!p)return;let t=0,n=new ResizeObserver(()=>{window.clearTimeout(t),t=window.setTimeout(()=>{e._fullLayout&&p.Plots.resize(e)},120)});return n.observe(e),()=>{window.clearTimeout(t),n.disconnect()}},[p]),(0,A.useEffect)(()=>()=>{u.current&&p&&p.purge(u.current)},[p]),(0,j.jsxs)(`div`,{className:r,style:{position:`relative`,minHeight:120,outline:`none`,...i},tabIndex:-1,onKeyDown:e=>{e.key===`Escape`&&h!=null&&(g(null),e.stopPropagation())},children:[(0,j.jsx)(`div`,{ref:u,style:{position:`absolute`,inset:0}}),!p&&(0,j.jsx)(`div`,{style:{position:`absolute`,inset:0,display:`flex`,alignItems:`center`,justifyContent:`center`},children:(0,j.jsx)(xe,{size:22})})]})}var Bt=.3,Vt=.42;function Ht(e,t={}){let{u:n,v:r,fu:i,fv:a}=e,o=Math.max(2,Math.floor(t.nu??26)),s=Math.max(2,Math.floor(t.nv??13)),c=t.fill??.9,l=Number(n[n.length-1])-Number(n[0]),u=Number(r[r.length-1])-Number(r[0]),d={x:[],y:[],max:0,count:0};if(!n.length||!r.length||!l||!u)return d;let f=Ut(n.length,o),p=Ut(r.length,s),m=[],h=0,g=0;for(let e of p)for(let t of f){let o=e*n.length+t,s=Number(i[o]),c=Number(a[o]);if(!Number.isFinite(s)||!Number.isFinite(c))continue;let d=s/l,f=c/u,p=Math.hypot(d,f);p>h&&(h=p),g=Math.max(g,Math.hypot(s,c)),m.push({su:(Number(n[t])-Number(n[0]))/l,sv:(Number(r[e])-Number(r[0]))/u,nx:d,ny:f})}if(!h)return d;let _=c*Math.min(1/f.length,1/p.length)/h,v=[],y=[],b=0,ee=(e,t)=>{v.push(Number.isNaN(e)?NaN:Number(n[0])+e*l),y.push(Number.isNaN(t)?NaN:Number(r[0])+t*u)};for(let e of m){let t=e.nx*_,n=e.ny*_,r=Math.hypot(t,n);if(r<1e-4*c*Math.min(1/f.length,1/p.length))continue;let i=e.su+t,a=e.sv+n,o=Math.atan2(n,t),s=Bt*r;ee(e.su,e.sv),ee(i,a),ee(i-s*Math.cos(o-Vt),a-s*Math.sin(o-Vt)),ee(i,a),ee(i-s*Math.cos(o+Vt),a-s*Math.sin(o+Vt)),ee(NaN,NaN),b++}return{x:v,y,max:g,count:b}}function Ut(e,t){if(e<=0)return[];let n=Math.min(e,t),r=new Set;for(let t=0;t<n;t++)r.add(Math.min(e-1,Math.round((t+.5)*e/n-.5)));return[...r]}function Wt(e,t,n){switch(e.kind){case`quadrupole`:return{bx:e.g*n,by:e.g*t,bz:0};case`dipole`:{let r=e.vertical?n:t,i=e.rho?e.b*(1-e.index*r/e.rho):e.b;return e.vertical?{bx:i,by:0,bz:0}:{bx:0,by:i,bz:0}}case`steerer`:return{bx:e.bx,by:e.by,bz:0};case`solenoid`:return{bx:0,by:0,bz:e.b}}}function Gt(e,t,n=9){let r=[],i=0,a=Math.max(2,Math.floor(n));for(let n=0;n<a;n++)for(let o=0;o<a;o++){let s=t*(-1+2*o/(a-1)),c=t*(-1+2*n/(a-1));if(s*s+c*c>t*t*1.0001)continue;let{bx:l,by:u,bz:d}=Wt(e,s,c);r.push({x:s,y:c,bx:l,by:u,bz:d}),i=Math.max(i,Math.hypot(l,u))}return{samples:r,max:i}}var Kt={zx:[`z`,`x`],zy:[`z`,`y`],xy:[`x`,`y`]};function qt(e){return e[0]===`e`?`MV/m`:`T`}function Jt(e){return{...e,schematic:!1,unit:qt(e.family)}}function Yt(e,t){let{length:n,r,name:i,unit:a}=t,o=n>0?[`zx`,`zy`,`xy`]:[`xy`],s=o.includes(t.plane)?t.plane:o[0],c=s!==`xy`,l=Math.max(4,Math.floor(t.nu??(c?121:41))),u=Math.max(4,Math.floor(t.nv??41)),d=-.14*n,f=n*1.1400000000000001,p=(e,t,n)=>Float64Array.from({length:e},(r,i)=>t+(n-t)*i/(e-1)),m=c?p(l,d,f):p(l,-r,r),h=p(u,-r,r),g=s===`xy`?[0,n]:[-r,r],_=t.at==null?s===`xy`?n/2:0:t.at,v=Math.min(g[1],Math.max(g[0],_)),y=[`Bx`,`By`,`Bz`],b=y.map(()=>new Float64Array(l*u));for(let t=0;t<u;t++)for(let r=0;r<l;r++){let i=s===`xy`?v:m[r],a=s===`zy`?v:s===`xy`?m[r]:h[t],o=s===`zx`?v:h[t],c=i>=0&&i<=n?Wt(e,a,o):{bx:0,by:0,bz:0},u=t*l+r;b[0][u]=c.bx,b[1][u]=c.by,b[2][u]=c.bz}let ee={},x=[];y.forEach((e,t)=>{let n=b[t],r=1/0,i=-1/0;for(let e of n)e<r&&(r=e),e>i&&(i=e);ee[e]={values:n,min:r,max:i},(r!==0||i!==0)&&x.push(e)}),x.length||(x=[y[1]]);let S=new Float64Array(l*u),C=0;for(let e=0;e<S.length;e++)S[e]=Math.hypot(b[0][e],b[1][e],b[2][e]),S[e]>C&&(C=S[e]);let w=s===`zx`?[`Bz`,`Bx`]:s===`zy`?[`Bz`,`By`]:[`Bx`,`By`];return{base:i,ext:w.find(e=>x.includes(e))??x[0],family:a===`T`?`b`:`e`,plane:s,fixed:s===`zx`?`y`:s===`zy`?`x`:`z`,at:v,atRange:g,planes:o,length:n,u:m,v:h,components:ee,magnitude:x.length>1?{values:S,max:C,of:x}:null,arrows:w.some(e=>x.includes(e))?w:null,meanings:{Bx:[`Bx`,`Bx`],By:[`By`,`By`],Bz:[`Bz`,`Bz`]},schematic:!0,unit:a}}var Xt=e=>JSON.stringify(e);function Zt({source:e}){let t=ve(),n=l(e=>e.resolvedTheme===`dark`),[r,a]=(0,A.useState)(`zx`),[o,s]=(0,A.useState)(null),[c,u]=(0,A.useState)(``),[d,f]=(0,A.useState)(!0),[p,m]=(0,A.useState)(!1),[h,g]=(0,A.useState)(null),[_,v]=(0,A.useState)(null),y=Xt(e),b=e.kind===`analytic`,ee=(0,A.useMemo)(()=>e.kind===`analytic`?Yt(e.field,{...e,plane:r,at:o}):null,[y,r,o]);(0,A.useEffect)(()=>{if(b)return;let t=!0,n=window.setTimeout(()=>{let[n,i]=e.kind===`file`?[`files.fieldSlice`,{path:e.path,plane:r,at:o}]:[`lattice.fieldSlice`,{name:e.name,fieldDirs:e.fieldDirs,plane:r,at:o}];k(n,i).then(e=>{t&&(g(Jt(e)),v(null))}).catch(e=>t&&v(e.message))},120);return()=>{t=!1,window.clearTimeout(n)}},[y,r,o,b]);let x=ee??h,S=e=>{a(e),s(null),b||g(null),e===`xy`&&m(!0)},C=c&&(c===`|F|`?x?.magnitude:x?.components[c]?.values)?c:x?.ext,w=(0,A.useMemo)(()=>{if(!x||!C)return null;if(C===`|F|`)return x.magnitude&&{values:x.magnitude.values,max:x.magnitude.max,diverging:!1};let e=x.components[C];return e?.values?{values:e.values,max:Math.max(Math.abs(e.min??0),Math.abs(e.max??0)),diverging:!0}:null},[x,C]),te=(0,A.useMemo)(()=>{if(!x||!w)return[];let e=x.u.length,t=w.values;return Array.from({length:x.v.length},(n,r)=>ArrayBuffer.isView(t)?t.subarray(r*e,(r+1)*e):t.slice(r*e,(r+1)*e))},[x,w]),ne=(0,A.useMemo)(()=>{if(!x||!d||!x.arrows)return null;let e=x.components[x.arrows[0]]?.values,t=x.components[x.arrows[1]]?.values;if(!e||!t)return null;let n=(e,t)=>Math.min(t,Math.max(6,Math.round(e/2))),r=Ht({u:x.u,v:x.v,fu:e,fv:t},{nu:n(x.u.length,24),nv:n(x.v.length,13)});return r.count?r:null},[x,d]);if(_)return(0,j.jsx)(`div`,{className:`danger-text`,children:_});if(!x||!w||!C)return(0,j.jsx)(xe,{});let re=x.plane,[ie,ae]=Kt[re],oe=x.unit,se=[...Object.keys(x.components).filter(e=>x.components[e].values).map(e=>({value:e,label:b?e:`${he(x.meanings[e]??[``,``])} (.${e})`})),...x.magnitude?[{value:`|F|`,label:t(`magnitude of {list}`,{list:x.magnitude.of.map(e=>b?e:`.${e}`).join(` `)})}]:[]],[ce,le]=x.atRange,ue=[{type:`heatmap`,x:x.u,y:x.v,z:te,colorscale:Nt(n,w.diverging),...w.diverging?{zmid:0,zmin:-w.max,zmax:w.max}:{zmin:0},colorbar:{title:{text:oe,side:`right`},thickness:12,outlinewidth:0},hovertemplate:`${ie} = %{x:.4g} m<br>${ae} = %{y:.4g} m<br>%{z:.4g} ${oe}<extra></extra>`}];if(ne){let e=(e,t)=>({type:`scatter`,mode:`lines`,x:ne.x,y:ne.y,line:{color:e,width:t,shape:`linear`},hoverinfo:`skip`,showlegend:!1});ue.push(e(Te(`--editor-bg`),3),e(Te(`--fg`),1.1))}let fe=!ne&&d&&re!==`xy`;return(0,j.jsxs)(`div`,{className:`col`,style:{gap:8,flex:1,minHeight:0},children:[(0,j.jsxs)(`div`,{className:`row wrap`,style:{gap:12,alignItems:`center`},children:[x.planes.length>1&&(0,j.jsx)(E,{value:re,onChange:S,options:x.planes.map(e=>({value:e,label:Kt[e].join(`–`),tip:t(e===`xy`?`Cross-section at a fixed z`:e===`zx`?`Longitudinal cut at a fixed y`:`Longitudinal cut at a fixed x`)}))}),(0,j.jsx)(i,{value:C,options:se,onChange:u,style:{minWidth:b?120:180}}),le>ce&&(0,j.jsxs)(`label`,{className:`row`,style:{gap:6,alignItems:`center`},children:[(0,j.jsx)(`span`,{className:`muted`,children:`${x.fixed} =`}),(0,j.jsx)(`input`,{type:`range`,min:ce,max:le,step:(le-ce)/400,value:o??x.at,onChange:e=>s(Number(e.target.value)),style:{width:130}}),(0,j.jsx)(`span`,{className:`mono`,children:`${ke(x.at,4)} m`})]}),(0,j.jsx)(de,{checked:d,onChange:f,label:t(`Arrows`),disabled:!x.arrows,tip:x.arrows?t(`In-plane direction of the field, sampled on a coarse grid`):t(`Needs both in-plane components of the map`)}),(0,j.jsx)(de,{checked:p,onChange:m,label:t(`Equal scales`),tip:t(`True shape and true field direction; a long element becomes a thin strip`)})]}),(0,j.jsx)(zt,{data:ue,layout:{xaxis:{title:{text:`${ie} (m)`}},yaxis:{title:{text:`${ae} (m)`},...p?{scaleanchor:`x`,constrain:`domain`}:{}},margin:{l:64,r:16,t:16,b:52}},style:{flex:1,minHeight:200}}),x.schematic&&(0,j.jsx)(`div`,{className:`hint`,children:x.length>0&&re!==`xy`?t(`Schematic from the element's parameters: the matrix model has hard edges, so the field stops dead at both ends instead of falling off.`):t(`Schematic from the element's parameters, not field-map data or an engine result.`)}),fe&&(0,j.jsx)(`div`,{className:`hint`,children:t(`No arrows: this field has no component inside the plane. Switch to the x–y cross-section to see its direction.`)}),!p&&ne&&(0,j.jsx)(`div`,{className:`hint`,children:t(`Arrows follow the picture: with the axes scaled differently they are stretched like the map. Tick “Equal scales” for the true direction.`)})]})}var N=se(e=>({source:null,title:``,show:(t,n)=>e({source:t,title:n}),close:()=>e({source:null,title:``})})),Qt={width:380,height:300};function $t(){let e=Ge(),t=Math.min(820,e.width*.62),n=Math.min(620,e.height*.72);return Ke({x:Math.max(0,(e.width-t)/2),y:Math.max(40,(e.height-n)/2),width:t,height:n},Qt)}function en(){let e=N(e=>e.source);return e?(0,j.jsx)(tn,{source:e}):null}function tn({source:e}){let t=ve(),n=N(e=>e.title),r=N(e=>e.close);return(0,j.jsx)(Je,{label:t(`Field of {name}`,{name:n}),title:t(`Field of {name}`,{name:n}),initialRect:$t,minSize:Qt,onClose:r,children:(0,j.jsx)(`div`,{className:`field-window-body`,children:(0,j.jsx)(Zt,{source:e},n)})})}function nn(){let e=ve(),t=l(e=>e.version),n=l(e=>e.build),r=n.commit?.slice(0,7)||e(`Unknown commit`),i=`${n.commit||e(`Unknown commit`)}${n.dirty?` (${e(`with local changes`)})`:``}`;return(0,j.jsxs)(`span`,{className:`version-stamp`,"data-tip":i,children:[(0,j.jsxs)(`span`,{children:[`v`,t]}),(0,j.jsxs)(`span`,{className:`soft`,children:[`· `,r,n.dirty?`*`:``]})]})}var rn=He(),an=new Map,on=se(e=>({dirty:{},set:(t,n)=>e(e=>e.dirty[t]===n?e:{dirty:{...e.dirty,[t]:n}})}));function sn(e){return an.set(e.id,e),()=>{an.get(e.id)===e&&an.delete(e.id),on.getState().set(e.id,!1)}}function cn(e,t){on.getState().set(e,t)}function ln(){return[...an.values()].filter(e=>e.isDirty())}function un(){return[...an.values()]}function dn(e){return an.get(e)}var fn=new Set;function pn(e){return fn.add(e),()=>fn.delete(e)}function mn(e,t){for(let n of fn)n(e,t)}function hn(e){if(!/(?:Z|[+-]\d{2}:\d{2})$/i.test(e))return null;let t=new Date(e);if(!Number.isFinite(t.getTime()))return null;let n=e=>String(e).padStart(2,`0`),r=-t.getTimezoneOffset(),i=Math.floor(Math.abs(r)/60),a=Math.abs(r)%60,o=`UTC${r>=0?`+`:`-`}${i}${a?`:${n(a)}`:``}`;return`${t.getFullYear()}-${n(t.getMonth()+1)}-${n(t.getDate())} ${n(t.getHours())}:${n(t.getMinutes())} (${o})`}async function gn(e){let t=ln();if(!t.length)return!0;let n=t.map(e=>e.label()).join(`, `),r=await m(O(`Save changes to {names} before {action}?`,{names:n,action:e}),[{key:`save`,label:O(`Save`),variant:`primary`},{key:`discard`,label:O(`Don't save`)},{key:`cancel`,label:O(`Cancel`)}],{title:O(`Unsaved changes`)});return r===null||r===`cancel`?!1:r!==`save`||wn()}async function _n(e){if(l.getState().run.running){await h(O(`Stop the running simulation first.`),{title:O(`Run`)});return}try{let t=e;if(!t){let e=l.getState().project.lastDir??``;if(t=await me({directory:e,title:O(`Open project`)})??void 0,!t)return}if(!await gn(O(`opening another project`)))return;let n=await k(`project.open`,{path:t});s(n),g(O(`Project opened`))}catch(e){T(e,O(`Open project`))}}async function vn(){if(l.getState().run.running){await h(O(`Stop the running simulation first.`),{title:O(`Run`)});return}try{let e=l.getState().project.lastDir??``,t=await De({directory:e,filename:`avas_project`,title:O(`New project`)});if(!t||!await gn(O(`creating a project`)))return;let n=await k(`project.create`,{path:t});s(n),S(`beam`),Ee(O(`Project created`),`success`)}catch(e){T(e,O(`New project`))}}async function yn(){if(await gn(O(`closing the project`)))try{s(await k(`project.close`)),S(`project`)}catch(e){T(e,O(`Close project`))}}function bn(){let e=l.getState().project.path;e&&fe(e).catch(e=>T(e))}function xn(){let{project:e}=l.getState(),t=e.path?.toLowerCase(),n=e.recent.filter(e=>e.toLowerCase()!==t).slice(0,8),r=[];if(e.open&&(r.push({type:`header`,label:e.name??``}),r.push({label:O(`Project overview`),icon:`home`,onClick:()=>S(`project`)}),r.push({label:O(`Show in Explorer`),icon:`folder`,onClick:bn}),r.push({type:`separator`})),n.length){r.push({type:`header`,label:O(`Switch to`)});for(let e of n)r.push({label:je(e),shortcut:Sn(e),icon:`folder`,onClick:()=>_n(e)});r.push({type:`separator`})}return r.push({label:O(`Open project...`),shortcut:`Ctrl+O`,icon:`folder-opened`,onClick:()=>_n()}),r.push({label:O(`New project...`),shortcut:`Ctrl+N`,icon:`new-folder`,onClick:vn}),e.open&&r.push({label:O(`Close project`),icon:`close`,onClick:yn}),r}function Sn(e){let t=e.split(/[\\/]/).slice(0,-1).join(`\\`);return t.length>42?`…`+t.slice(-40):t}var Cn=!1;async function wn(e=!1){if(!l.getState().project.open||Cn)return!1;Cn=!0;try{let t=ln();for(let e of t)await e.save();return e||g(t.length?O(`Project saved`):O(`Nothing to save`)),await ue(),!0}catch(e){return T(e,O(`Save`)),!1}finally{Cn=!1}}async function Tn(){let e=un().flatMap(e=>e.validate?.()??[]);if(e.length)return await h(e.join(`
 `),{title:O(`Cannot run`),kind:`warning`}),{ok:!1,error:e.join(`; `)};if(!await wn(!0))return{ok:!1,error:`The pages could not be saved.`};try{await k(`run.check`)}catch(e){return await T(e,O(`Project check`)),{ok:!1,error:e?.message??String(e)}}return{ok:!0}}async function En(){let e=await n(O(`Name of the record (optional). The results in OutputFile/ are copied to Runs/.`),``,{title:O(`Keep this run`),ok:O(`Keep`)});if(e===null)return null;try{let t=await k(`runs.archive`,{label:e});return Ee(t.existing?O(`This run is already kept as {label}`,{label:t.label}):O(`Run kept as {label}`,{label:t.label}),`success`),t.folder}catch(e){return T(e,O(`Keep this run`)),null}}async function Dn(){let e=null;try{e=await k(`runs.unsaved`)}catch{return!0}if(!e?.unsaved)return!0;let t=await m(O(`The results of the last run ({started}) are still in OutputFile/ and have not been kept. A new run overwrites them.`,{started:e.started??``}),[{key:`keep`,label:O(`Keep and run`),variant:`primary`},{key:`run`,label:O(`Run without keeping`)},{key:`cancel`,label:O(`Cancel`)}],{title:O(`Previous results`)});return t===null||t===`cancel`?!1:t!==`keep`||await En()!==null}async function On(){let e=l.getState();if(e.project.open&&!e.run.running&&(await Tn()).ok&&await Dn())try{let e=await k(`run.start`);l.setState({run:e}),S(`run`)}catch(e){T(e,O(`Run`))}}async function kn(){try{await k(`run.stop`)}catch(e){T(e,O(`Stop`))}}async function An(){if(l.getState().run.running)try{l.setState({run:await k(`run.pause`)})}catch(e){T(e,O(`Pause`))}}async function jn(){if(l.getState().run.running)try{l.setState({run:await k(`run.resume`)})}catch(e){T(e,O(`Resume`))}}async function Mn(e){if(l.getState().run.running)return await h(O(`Stop the running simulation first.`),{title:O(`Run`)}),!1;let t=e.kind===`project`?O(`Move the results of the full-lattice run (OutputFile/) to the recycle bin? The run record goes with them.`):e.kind===`archived`?O(`Move the kept run {label} and all its files to the recycle bin?`,{label:e.label}):O(`Move segment run {label} and all its files to the recycle bin?`,{label:e.label});if(!await re(t,{title:O(`Delete`),ok:O(`Move to recycle bin`),danger:!0}))return!1;try{return await k(`runs.delete`,{outputDir:e.outputDir}),Ee(O(`Moved to the recycle bin`),`success`),!0}catch(e){return T(e),!1}}function Nn(){let{run:e}=l.getState();e.running?e.paused?jn():An():On()}function Pn(){st.getState().show()}async function Fn(){let{version:e,build:t}=l.getState(),n=t,r=``;try{let e=await k(`app.info`);n=e.build??t,l.setState({build:n}),r=`Python ${e.python} · ${e.platform} · ${e.host===`browser`?O(`Browser`):`WebView2 ${e.webview2??`–`}`}`}catch{}let i=e=>e?hn(e)??`${e} (${O(`timezone unknown`)})`:O(`Unknown`),a=[n.frozen?O(`Stand-alone build`):O(`Running from source`),`${O(`Commit`)}: ${n.commit||O(`Unknown commit`)}${n.dirty?` (${O(`with local changes`)})`:``}`,`${O(`Commit time`)}: ${i(n.committed)}`,n.frozen?`${O(`Built`)}: ${i(n.built)}`:``,`${O(`Front end built`)}: ${i(n.frontend)}`,`${O(`Location`)}: ${n.location??``}`,r].filter(Boolean),o=`${`AVAS ${e} · ${n.commit?.slice(0,7)||O(`Unknown commit`)}`}\nAdvanced Virtual Accelerator Software\n\n${a.join(`
-`)}`;h(`${o}\n\n${O(`References`)}\nC. Jin, Z.-J. Wang, X. Qi, Y. He, K. Li, et al., Phys. Rev. Accel. Beams 28, 044602 (2025)\n\n${O(`Feedback`)}\n${O(`Maintainer`)}: Yuchen Lin\n${O(`Feedback email`)}: yuchenlin@stu.xmu.edu.cn`,{title:O(`About AVAS`),action:{label:O(`Copy version information`),onClick:()=>{ce(o).then(()=>Ee(O(`Version information copied`))).catch(T)}}})}var In=!1;async function Ln(){if(!In){In=!0;try{if(l.getState().run.running&&!await re(O(`A simulation is running. Stop it and quit?`),{title:O(`Quit`),ok:O(`Stop and quit`),danger:!0})||!await gn(O(`quitting`)))return;l.getState().run.running&&await k(`run.stop`),await k(`app.quit`)}finally{In=!1}}}function Rn(){ye()&&Ln()}Ce(`app.closeRequested`,()=>Ln());var zn=null;function Bn(){let e=Object.values(on.getState().dirty).some(Boolean);e!==zn&&(zn=e,pe()&&k(`app.closeGuard`,{unsaved:e}).catch(()=>void 0))}on.subscribe(Bn),pe()||window.addEventListener(`beforeunload`,e=>{zn&&e.preventDefault()});function Vn(e){let t=e.target;return t?t.isContentEditable||[`INPUT`,`TEXTAREA`,`SELECT`].includes(t.tagName)||!!t.closest(`.monaco-editor`):!1}function Hn(){return Oe()}function Un({data:e}){let t=ve(),n=e.stage===`download`,r=n&&e.total!=null&&e.total>0,i=r?Math.min(1,Math.max(0,(e.downloaded??0)/e.total)):void 0;return(0,j.jsxs)(`div`,{className:`update-progress`,children:[(0,j.jsxs)(`div`,{className:`update-progress-label`,children:[(0,j.jsx)(`span`,{children:t(e.message)}),n&&(0,j.jsxs)(`span`,{className:`update-transfer`,children:[r&&(0,j.jsxs)(`strong`,{children:[Math.floor(i*100),`%`]}),(0,j.jsxs)(`span`,{children:[le(e.downloaded??0),` / `,r?le(e.total):t(`Unknown size`)]}),(0,j.jsxs)(`span`,{children:[t(`Average download speed`),`: `,le(e.speed??0),`/s`]})]})]}),(0,j.jsx)(`div`,{role:`progressbar`,"aria-label":t(e.message),"aria-valuemin":0,"aria-valuemax":100,"aria-valuenow":r?Math.floor(i*100):void 0,children:(0,j.jsx)(c,{value:i,indeterminate:!r})})]})}function Wn(e,t){return e===`installing`?3:e===`ready`?2:e===`preparing`?t===`download`||t===`retry`||t===`fetch`?0:t===`verify`?1:t===`extract`||t===`preflight`||t===`ready`?2:-1:-1}function Gn({info:e,status:t,progress:n,message:r,busy:i,reviewing:a,outcome:o,cancelling:s,onClose:c,onChoose:l,onCancel:u,onReview:d,onInstall:f}){let p=ve(),m=!a&&(i||t.phase!==`idle`),h=Wn(t.phase===`idle`&&m?`preparing`:t.phase,n?.stage),g=m&&n?.stage===`download`&&n.total!=null&&n.total>0?Math.floor(Math.min(100,Math.max(0,(n.downloaded??0)/n.total*100))):null,_=[p(`Download`),p(`Verify`),p(`Prepare`),p(`Install`),p(`Restart`)],v=s?p(`Cancelling update...`):o===`cancelled`?p(`Update cancelled`):o===`failed`?p(`The update needs attention`):t.phase===`installing`?p(`Restarting to install the update...`):t.phase===`ready`?p(`The confirmed update is ready to install.`):m?p(`Preparing your update`):e?.available?p(`A new version is available`):p(`AVAS update`);return(0,j.jsxs)(Je,{label:p(`AVAS update`),title:(0,j.jsxs)(j.Fragment,{children:[(0,j.jsx)(`span`,{className:`update-brand`,children:`AVAS`}),` / `,p(`Software update`)]}),className:`update-window${t.phase===`installing`?` update-handoff`:``}`,onClose:c,minSize:{width:340,height:380},initialRect:()=>{let e=Ge();return Ke({x:(e.width-680)/2,y:(e.height-610)/2,width:680,height:610},{width:340,height:380})},children:[(0,j.jsxs)(`div`,{className:`update-body`,children:[(0,j.jsx)(`div`,{className:`update-identity`,children:(0,j.jsx)(`span`,{children:p(`Advanced Virtual Accelerator Software`)})}),(0,j.jsxs)(`div`,{className:`update-hero`,children:[(0,j.jsxs)(`div`,{children:[(0,j.jsx)(`h2`,{"aria-live":`polite`,children:v}),(0,j.jsx)(`p`,{children:p(o===`cancelled`?`Update cancelled. Downloaded data is kept for the next attempt.`:o===`failed`?`Your download cache is kept. Review the error before trying again.`:`The complete package is verified before installation.`)})]}),g!=null&&(0,j.jsxs)(`div`,{className:`update-percent`,"aria-label":p(`Download progress`),children:[g,(0,j.jsx)(`span`,{children:`%`})]})]}),e&&(0,j.jsxs)(`div`,{className:`update-versions`,children:[(0,j.jsxs)(`div`,{children:[(0,j.jsx)(`small`,{children:p(`Current version`)}),(0,j.jsxs)(`span`,{children:[e.current.version,` · `,e.current.commit.slice(0,8)||`—`]})]}),(0,j.jsx)(Fe,{name:`arrow-right`}),(0,j.jsxs)(`div`,{children:[(0,j.jsx)(`small`,{children:p(`Available version`)}),(0,j.jsxs)(`span`,{children:[e.release.version,` · `,e.release.commit.slice(0,8)]})]})]}),e?.canInstall!==!1&&(0,j.jsx)(`ol`,{className:`update-steps`,"aria-label":p(`Update stages`),children:_.map((e,t)=>(0,j.jsxs)(`li`,{className:m&&t===h?`active`:m&&t<h?`done`:``,"aria-current":m&&t===h?`step`:void 0,children:[(0,j.jsx)(`span`,{className:`update-node`,children:m&&t<h?(0,j.jsx)(Fe,{name:`check`}):t+1}),(0,j.jsx)(`span`,{children:e})]},e))}),m&&n&&(0,j.jsx)(Un,{data:n}),m&&!n&&(0,j.jsx)(Un,{data:{stage:`prepare`,message:r||`Preparing the confirmed update...`}}),e&&(0,j.jsxs)(`section`,{className:`update-notes`,children:[(0,j.jsxs)(`div`,{className:`update-notes-heading`,children:[(0,j.jsx)(`h3`,{children:p(`What's new`)}),(0,j.jsx)(`span`,{children:e.release.published?hn(e.release.published)??`${e.release.published} (${p(`timezone unknown`)})`:p(`Unknown`)})]}),(0,j.jsx)(`div`,{className:`update-release-notes`,children:e.release.notes})]}),(0,j.jsxs)(`div`,{className:`update-assurance`,children:[(0,j.jsx)(Fe,{name:`shield`}),(0,j.jsx)(`span`,{children:e?.canInstall===!1?p(`Update the server installation locally, then restart avas serve.`):p(`AVAS will close while the update is installed, then restart automatically. Please do not open it manually. The update window will stay visible.`)})]}),a&&(0,j.jsx)(`p`,{className:`update-ignore-note`,children:p(`Even if you ignore this version, you can still get it from Help → Check for updates.`)})]}),(0,j.jsxs)(`footer`,{className:`update-footer`,children:[(0,j.jsx)(`span`,{children:t.phase===`installing`?p(`Installation has started and cannot be cancelled.`):p(m?`Closing this panel keeps the update running.`:`Review the release before updating.`)}),(0,j.jsx)(`div`,{children:a?(0,j.jsxs)(j.Fragment,{children:[(0,j.jsx)(Re,{variant:`ghost`,onClick:()=>l(`ignore`),children:p(`Ignore this version`)}),(0,j.jsx)(Re,{onClick:()=>l(`later`),children:p(`Later`)}),(0,j.jsx)(Re,{variant:`primary`,onClick:()=>l(e?.canInstall?`install`:`download`),children:e?.canInstall?p(`Update and restart`):p(`Open downloads`)})]}):t.phase===`preparing`?(0,j.jsx)(Re,{disabled:s,onClick:u,children:p(s?`Cancelling update...`:`Cancel update`)}):!i&&t.phase===`ready`?(0,j.jsxs)(j.Fragment,{children:[(0,j.jsx)(Re,{onClick:u,children:p(`Cancel update`)}),(0,j.jsx)(Re,{variant:`primary`,onClick:f,children:p(`Update and restart`)})]}):!i&&t.phase===`idle`?(0,j.jsxs)(j.Fragment,{children:[(0,j.jsx)(Re,{onClick:c,children:p(`Return to workspace`)}),(0,j.jsx)(Re,{variant:`primary`,onClick:d,children:p(o?`Try update again`:`Review update`)})]}):null})]})]})}var P=se(()=>({info:null,open:!1,reviewing:!1,outcome:``,busy:!1,cancelRequested:!1,message:``,progress:null,hidden:``,status:{phase:`idle`,commit:``}})),Kn=null,qn=!1;async function Jn(){let e=P.getState().status;qn=!0,(0,rn.flushSync)(()=>P.setState({open:!0,progress:null,message:`Restarting to install the update...`,status:{...e,phase:`installing`,progress:null}}));try{await Ae()}catch(t){throw P.setState({status:e}),t}finally{qn=!1}}function Yn(e){let t=Kn;Kn=null,P.setState({reviewing:!1}),t?.(e)}function Xn(){qn||(P.getState().reviewing&&Yn(`later`),P.setState({open:!1}))}Ce(`updates.progress`,e=>{qn||P.setState({message:e.message,progress:e})});async function Zn(){if(P.setState({open:!0}),P.getState().busy)return;let e=await k(`updates.status`).catch(()=>null);if(e&&e.phase!==`idle`){P.setState({status:e});return}await er()}async function Qn(){P.setState({busy:!0,open:!0,outcome:``});try{if(!await gn(O(`updating AVAS`)))return;await Jn()}catch(e){T(e,O(`AVAS update`))}finally{P.setState({busy:!1})}}async function $n(){P.setState({cancelRequested:!0});try{await k(`updates.cancel`);let e=await k(`updates.status`);P.setState({status:e,...e.phase===`idle`?{outcome:`cancelled`,progress:null}:{}})}catch(e){P.setState({cancelRequested:!1}),T(e,O(`AVAS update`))}}async function er(){if(P.getState().busy)return;P.setState({busy:!0,open:!0,outcome:``,cancelRequested:!1,message:`Checking for updates...`,progress:null});let e=!1;try{let t=await k(`updates.check`,{force:!0});for(P.setState({info:t});t.available;){P.setState({message:``});let n=t.release,r=await new Promise(e=>{Kn=e,P.setState({reviewing:!0,open:!0})});if(r===`ignore`){await k(`updates.ignore`,{commit:n.commit}),P.setState({info:{...t,ignored:!0},open:!1});return}if(r===`download`){D(`https://github.com/lycself/AVAS/releases/tag/avas-${n.commit}`);return}if(r!==`install`){P.setState({hidden:n.commit,open:!1});return}P.setState({message:`Preparing the confirmed update...`,progress:null});let i=await k(`updates.prepare`,{commit:n.commit});if(i.cancelled||P.getState().cancelRequested){P.setState({outcome:`cancelled`}),Ee(O(`Update cancelled. Downloaded data is kept for the next attempt.`));return}if(i.changed&&i.info){t=i.info,P.setState({info:t}),await h(O(`A newer version is available. Review it before confirming.`),{title:O(`AVAS update`)});continue}if(e=!0,!await gn(O(`updating AVAS`))||P.getState().cancelRequested)return;P.setState({message:`Restarting to install the update...`,progress:null}),await Jn(),e=!1;return}await h(O(`This installation is already up to date.`),{title:O(`AVAS update`)})}catch(e){P.setState({outcome:`failed`}),T(e,O(`AVAS update`))}finally{e&&await k(`updates.cancel`).catch(()=>void 0);let t=await k(`updates.status`).catch(()=>({phase:`idle`,commit:``}));P.setState({busy:!1,message:``,progress:null,status:t})}}function tr(){let e=ve(),{info:t,open:n,reviewing:r,outcome:i,busy:a,cancelRequested:o,message:s,progress:c,hidden:l,status:u}=P();(0,A.useEffect)(()=>{let t=!1,n=async()=>{if(!P.getState().busy)try{let e=await k(`updates.check`);t||P.setState({info:e})}catch{}},r=window.setTimeout(n,3e3),i=window.setInterval(n,216e5),a=async()=>{try{let e=await k(`updates.status`);!t&&!qn&&P.setState({status:e,...P.getState().status.cancelling&&e.phase===`idle`?{outcome:`cancelled`}:{},...e.phase===`preparing`&&e.progress?{progress:e.progress,message:e.progress.message}:{}})}catch{}};a();let o=window.setInterval(a,3e3);return k(`updates.result`).then(t=>{t&&(t.ok?Ee(e(`AVAS was updated successfully.`),`success`):h(`${e(`The update failed. See the error details below.`)}\n${e(t.error??``)}\n`+(t.logAvailable?t.log:e(`The update log is unavailable. You can copy the error details from this dialog.`)),{title:e(`AVAS update`),kind:`error`,detail:t.details}))}).catch(()=>void 0),()=>{t=!0,clearTimeout(r),clearInterval(i),clearInterval(o)}},[]);let d=n&&(0,j.jsx)(Gn,{info:a||u.phase===`idle`||t?.release.commit===u.commit?t:null,status:u,progress:c??u.progress??null,message:s,busy:a,reviewing:r,outcome:i,cancelling:!!u.cancelling||o&&u.phase===`preparing`,onClose:Xn,onChoose:Yn,onCancel:$n,onReview:er,onInstall:Qn});return n?d:!a&&u.phase!==`idle`?(0,j.jsxs)(`div`,{className:`update-notice`,role:`status`,children:[u.phase===`preparing`?(0,j.jsx)(Un,{data:u.progress??{message:`Preparing the confirmed update...`,stage:`prepare`}}):(0,j.jsxs)(`span`,{children:[u.phase===`ready`?e(`The confirmed update is ready to install.`):e(`Restarting to install the update...`),` `,u.commit.slice(0,8)]}),u.phase===`ready`&&(0,j.jsxs)(j.Fragment,{children:[(0,j.jsx)(Re,{onClick:Qn,children:e(`Update and restart`)}),(0,j.jsx)(Re,{onClick:$n,children:e(`Cancel`)})]}),u.phase===`preparing`&&(0,j.jsx)(Re,{disabled:u.cancelling||o,onClick:$n,children:u.cancelling||o?e(`Cancelling update...`):e(`Cancel update`)}),(0,j.jsx)(Re,{onClick:()=>P.setState({open:!0}),children:e(`Review update`)})]}):a&&!s||!a&&(!t?.available||t.ignored||l===t.release.commit)?null:(0,j.jsxs)(`div`,{className:`update-notice`,role:`status`,children:[a?c?(0,j.jsx)(Un,{data:c}):(0,j.jsxs)(j.Fragment,{children:[(0,j.jsx)(xe,{size:14}),(0,j.jsx)(`span`,{children:e(s)})]}):(0,j.jsxs)(j.Fragment,{children:[(0,j.jsxs)(`span`,{children:[e(`An AVAS update is available.`),` `,t.release.commit.slice(0,8)]}),(0,j.jsx)(Re,{onClick:er,children:e(`Review update`)}),(0,j.jsx)(Re,{onClick:()=>P.setState({hidden:t.release.commit}),children:e(`Later`)})]}),a&&u.phase===`preparing`&&(0,j.jsx)(Re,{disabled:u.cancelling||o,onClick:$n,children:u.cancelling||o?e(`Cancelling update...`):e(`Cancel update`)}),a&&(0,j.jsx)(Re,{onClick:()=>P.setState({open:!0}),children:e(`Review update`)})]})}function nr({error:e,onRetry:t}){let n=ve();return(0,j.jsxs)(`div`,{className:`empty-state`,role:`alert`,children:[(0,j.jsx)(`div`,{className:`danger-text`,style:{fontSize:15},children:n(`This view hit an internal error.`)}),(0,j.jsx)(`pre`,{className:`selectable`,style:{maxWidth:800,whiteSpace:`pre-wrap`,color:`var(--fg-muted)`},children:String(e?.message??e)}),(0,j.jsx)(Re,{onClick:t,children:n(`Try again`)})]})}var rr=class extends A.Component{state={error:null};static getDerivedStateFromError(e){return{error:e}}componentDidCatch(e){console.error(this.props.name,e)}render(){let{error:e}=this.state;return e?(0,j.jsx)(nr,{error:e,onRetry:()=>this.setState({error:null})}):this.props.children}},ir=[{id:`newProject`,keys:`Ctrl+N`,label:`New project...`},{id:`openProject`,keys:`Ctrl+O`,label:`Open project...`},{id:`save`,keys:`Ctrl+S`,label:`Save all pages`},{id:`quit`,keys:`Ctrl+Q`,label:`Exit`,scope:`desktop window`},{id:`runPauseResume`,keys:`F5`,label:`Run / pause / resume the simulation`},{id:`stop`,keys:`Shift+F5`,label:`Stop the simulation`},{id:`pages`,keys:`Ctrl+1 … Ctrl+8`,label:`Switch to a page (in sidebar order)`},{id:`sidebar`,keys:`Ctrl+B`,label:`Collapse or expand the sidebar`},{id:`log`,keys:`Ctrl+J`,label:`Show or hide the log panel`},{id:`assistant`,keys:`Ctrl+Shift+A`,label:`Show or hide the AI assistant`},{id:`zoomIn`,keys:`Ctrl+=`,label:`Zoom in`},{id:`zoomOut`,keys:`Ctrl+-`,label:`Zoom out`},{id:`zoomReset`,keys:`Ctrl+0`,label:`Reset zoom`},{id:`undo`,keys:`Ctrl+Z`,label:`Undo`,scope:`Beam and Settings pages, outside a text box`},{id:`redo`,keys:`Ctrl+Y`,label:`Redo`,scope:`Beam and Settings pages, outside a text box`}],ar=Object.fromEntries(ir.map(e=>[e.id,e]));function or(e,t){let n=t.split(`+`),r=n.pop()??``,i=n.includes(`Ctrl`),a=n.includes(`Shift`),o=n.includes(`Alt`);return(e.ctrlKey||e.metaKey)!==i||e.altKey!==o?!1:r===`=`?e.key===`=`||e.key===`+`:e.shiftKey===a?r.length===1?e.key.toLowerCase()===r.toLowerCase():e.key===r:!1}var sr=5e3,cr=se(()=>({entries:[],errors:0,warnings:0,seq:0,filter:`all`,query:``}));function lr(e,t){Pe(!0);let n={};e&&(n.filter=e),t!==void 0&&(n.query=t),cr.setState(n)}function ur(e){cr.setState(t=>{let n=t.errors,r=t.warnings;for(let t of e)t.level===`ERROR`||t.level===`CRITICAL`?n++:t.level===`WARNING`&&r++;let i=t.entries.concat(e);return{entries:i.length>sr?i.slice(i.length-sr):i,errors:n,warnings:r,seq:t.seq+e.length}});let t=e[e.length-1];if(t&&t.name!==`avas.engine`){let e=t.msg.split(`
+`)}`;h(`${o}\n\n${O(`References`)}\nC. Jin, Z.-J. Wang, X. Qi, Y. He, K. Li, et al., Phys. Rev. Accel. Beams 28, 044602 (2025)\n\n${O(`Feedback`)}\n${O(`Maintainer`)}: Yuchen Lin\n${O(`Feedback email`)}: yuchenlin@stu.xmu.edu.cn`,{title:O(`About AVAS`),action:{label:O(`Copy version information`),onClick:()=>{ce(o).then(()=>Ee(O(`Version information copied`))).catch(T)}}})}var In=!1;async function Ln(){if(!In){In=!0;try{if(l.getState().run.running&&!await re(O(`A simulation is running. Stop it and quit?`),{title:O(`Quit`),ok:O(`Stop and quit`),danger:!0})||!await gn(O(`quitting`)))return;l.getState().run.running&&await k(`run.stop`),await k(`app.quit`)}finally{In=!1}}}function Rn(){ye()&&Ln()}Ce(`app.closeRequested`,()=>Ln());var zn=null;function Bn(){let e=Object.values(on.getState().dirty).some(Boolean);e!==zn&&(zn=e,pe()&&k(`app.closeGuard`,{unsaved:e}).catch(()=>void 0))}on.subscribe(Bn),pe()||window.addEventListener(`beforeunload`,e=>{zn&&e.preventDefault()});function Vn(e){let t=e.target;return t?t.isContentEditable||[`INPUT`,`TEXTAREA`,`SELECT`].includes(t.tagName)||!!t.closest(`.monaco-editor`):!1}function Hn(){return Oe()}function Un({data:e}){let t=ve(),n=e.stage===`download`,r=n&&e.total!=null&&e.total>0,i=r?Math.min(1,Math.max(0,(e.downloaded??0)/e.total)):void 0;return(0,j.jsxs)(`div`,{className:`update-progress`,children:[(0,j.jsxs)(`div`,{className:`update-progress-label`,children:[(0,j.jsx)(`span`,{children:t(e.message)}),n&&(0,j.jsxs)(`span`,{className:`update-transfer`,children:[r&&(0,j.jsxs)(`strong`,{children:[Math.floor(i*100),`%`]}),(0,j.jsxs)(`span`,{children:[le(e.downloaded??0),` / `,r?le(e.total):t(`Unknown size`)]}),(0,j.jsxs)(`span`,{children:[t(`Average download speed`),`: `,le(e.speed??0),`/s`]})]})]}),(0,j.jsx)(`div`,{role:`progressbar`,"aria-label":t(e.message),"aria-valuemin":0,"aria-valuemax":100,"aria-valuenow":r?Math.floor(i*100):void 0,children:(0,j.jsx)(c,{value:i,indeterminate:!r})})]})}function Wn(e,t){return e===`installing`?3:e===`ready`?2:e===`preparing`?t===`download`||t===`retry`||t===`fetch`?0:t===`verify`?1:t===`extract`||t===`preflight`||t===`ready`?2:-1:-1}function Gn({info:e,status:t,progress:n,message:r,busy:i,reviewing:a,outcome:o,cancelling:s,onClose:c,onChoose:l,onCancel:u,onReview:d,onInstall:f}){let p=ve(),m=!a&&(i||t.phase!==`idle`),h=Wn(t.phase===`idle`&&m?`preparing`:t.phase,n?.stage),g=m&&n?.stage===`download`&&n.total!=null&&n.total>0?Math.floor(Math.min(100,Math.max(0,(n.downloaded??0)/n.total*100))):null,_=[p(`Download`),p(`Verify`),p(`Prepare`),p(`Install`),p(`Restart`)],v=s?p(`Cancelling update...`):o===`cancelled`?p(`Update cancelled`):o===`failed`?p(`The update needs attention`):t.phase===`installing`?p(`Restarting to install the update...`):t.phase===`ready`?p(`The confirmed update is ready to install.`):m?p(`Preparing your update`):e?.available?p(`A new version is available`):p(`AVAS update`);return(0,j.jsxs)(Je,{label:p(`AVAS update`),title:(0,j.jsxs)(j.Fragment,{children:[(0,j.jsx)(`span`,{className:`update-brand`,children:`AVAS`}),` / `,p(`Software update`)]}),className:`update-window${t.phase===`installing`?` update-handoff`:``}`,onClose:c,minSize:{width:340,height:380},initialRect:()=>{let e=Ge();return Ke({x:(e.width-680)/2,y:(e.height-610)/2,width:680,height:610},{width:340,height:380})},children:[(0,j.jsxs)(`div`,{className:`update-body`,children:[(0,j.jsx)(`div`,{className:`update-identity`,children:(0,j.jsx)(`span`,{children:p(`Advanced Virtual Accelerator Software`)})}),(0,j.jsxs)(`div`,{className:`update-hero`,children:[(0,j.jsxs)(`div`,{children:[(0,j.jsx)(`h2`,{"aria-live":`polite`,children:v}),(0,j.jsx)(`p`,{children:p(o===`cancelled`?`Update cancelled. Downloaded data is kept for the next attempt.`:o===`failed`?`Your download cache is kept. Review the error before trying again.`:`The complete package is verified before installation.`)})]}),g!=null&&(0,j.jsxs)(`div`,{className:`update-percent`,"aria-label":p(`Download progress`),children:[g,(0,j.jsx)(`span`,{children:`%`})]})]}),e&&(0,j.jsxs)(`div`,{className:`update-versions`,children:[(0,j.jsxs)(`div`,{children:[(0,j.jsx)(`small`,{children:p(`Current version`)}),(0,j.jsxs)(`span`,{children:[e.current.version,` · `,e.current.commit.slice(0,8)||`—`]})]}),(0,j.jsx)(Fe,{name:`arrow-right`}),(0,j.jsxs)(`div`,{children:[(0,j.jsx)(`small`,{children:p(`Available version`)}),(0,j.jsxs)(`span`,{children:[e.release.version,` · `,e.release.commit.slice(0,8)]})]})]}),e?.canInstall!==!1&&(0,j.jsx)(`ol`,{className:`update-steps`,"aria-label":p(`Update stages`),children:_.map((e,t)=>(0,j.jsxs)(`li`,{className:m&&t===h?`active`:m&&t<h?`done`:``,"aria-current":m&&t===h?`step`:void 0,children:[(0,j.jsx)(`span`,{className:`update-node`,children:m&&t<h?(0,j.jsx)(Fe,{name:`check`}):t+1}),(0,j.jsx)(`span`,{children:e})]},e))}),m&&n&&(0,j.jsx)(Un,{data:n}),m&&!n&&(0,j.jsx)(Un,{data:{stage:`prepare`,message:r||`Preparing the confirmed update...`}}),e&&(0,j.jsxs)(`section`,{className:`update-notes`,children:[(0,j.jsxs)(`div`,{className:`update-notes-heading`,children:[(0,j.jsx)(`h3`,{children:p(`What's new`)}),(0,j.jsx)(`span`,{children:e.release.published?hn(e.release.published)??`${e.release.published} (${p(`timezone unknown`)})`:p(`Unknown`)})]}),(0,j.jsx)(`div`,{className:`update-release-notes`,children:e.release.notes})]}),(0,j.jsxs)(`div`,{className:`update-assurance`,children:[(0,j.jsx)(Fe,{name:`shield`}),(0,j.jsx)(`span`,{children:e?.canInstall===!1?p(`Update the server installation locally, then restart avas serve.`):p(`AVAS will close while the update is installed, then restart automatically. Please do not open it manually. The update window will stay visible.`)})]}),a&&(0,j.jsx)(`p`,{className:`update-ignore-note`,children:p(`Even if you ignore this version, you can still get it from Help → Check for updates.`)})]}),(0,j.jsxs)(`footer`,{className:`update-footer`,children:[(0,j.jsx)(`span`,{children:t.phase===`installing`?p(`Installation has started and cannot be cancelled.`):p(m?`Closing this panel keeps the update running.`:`Review the release before updating.`)}),(0,j.jsx)(`div`,{children:a?(0,j.jsxs)(j.Fragment,{children:[(0,j.jsx)(Re,{variant:`ghost`,onClick:()=>l(`ignore`),children:p(`Ignore this version`)}),(0,j.jsx)(Re,{onClick:()=>l(`later`),children:p(`Later`)}),(0,j.jsx)(Re,{variant:`primary`,onClick:()=>l(e?.canInstall?`install`:`download`),children:e?.canInstall?p(`Update and restart`):p(`Open downloads`)})]}):t.phase===`preparing`?(0,j.jsx)(Re,{disabled:s,onClick:u,children:p(s?`Cancelling update...`:`Cancel update`)}):!i&&t.phase===`ready`?(0,j.jsxs)(j.Fragment,{children:[(0,j.jsx)(Re,{onClick:u,children:p(`Cancel update`)}),(0,j.jsx)(Re,{variant:`primary`,onClick:f,children:p(`Update and restart`)})]}):!i&&t.phase===`idle`?(0,j.jsxs)(j.Fragment,{children:[(0,j.jsx)(Re,{onClick:c,children:p(`Return to workspace`)}),(0,j.jsx)(Re,{variant:`primary`,onClick:d,children:p(o?`Try update again`:`Review update`)})]}):null})]})]})}var P=se(()=>({info:null,open:!1,reviewing:!1,outcome:``,busy:!1,cancelRequested:!1,message:``,progress:null,hidden:``,status:{phase:`idle`,commit:``}})),Kn=null,qn=!1;async function Jn(){let e=P.getState().status;qn=!0,(0,rn.flushSync)(()=>P.setState({open:!0,progress:null,message:`Restarting to install the update...`,status:{...e,phase:`installing`,progress:null}}));try{await Ae()}catch(t){throw P.setState({status:e}),t}finally{qn=!1}}function Yn(e){let t=Kn;Kn=null,P.setState({reviewing:!1}),t?.(e)}function Xn(){qn||(P.getState().reviewing&&Yn(`later`),P.setState({open:!1}))}Ce(`updates.progress`,e=>{qn||P.setState({message:e.message,progress:e})});async function Zn(){if(P.setState({open:!0}),P.getState().busy)return;let e=await k(`updates.status`).catch(()=>null);if(e&&e.phase!==`idle`){P.setState({status:e});return}await er()}async function Qn(){P.setState({busy:!0,open:!0,outcome:``});try{if(!await gn(O(`updating AVAS`)))return;await Jn()}catch(e){T(e,O(`AVAS update`))}finally{P.setState({busy:!1})}}async function $n(){P.setState({cancelRequested:!0});try{await k(`updates.cancel`);let e=await k(`updates.status`);P.setState({status:e,...e.phase===`idle`?{outcome:`cancelled`,progress:null}:{}})}catch(e){P.setState({cancelRequested:!1}),T(e,O(`AVAS update`))}}async function er(){if(P.getState().busy)return;P.setState({busy:!0,open:!0,outcome:``,cancelRequested:!1,message:`Checking for updates...`,progress:null});let e=!1;try{let t=await k(`updates.check`,{force:!0});for(P.setState({info:t});t.available;){P.setState({message:``});let n=t.release,r=await new Promise(e=>{Kn=e,P.setState({reviewing:!0,open:!0})});if(r===`ignore`){await k(`updates.ignore`,{commit:n.commit}),P.setState({info:{...t,ignored:!0},open:!1});return}if(r===`download`){D(`https://github.com/lycself/AVAS_XMU/releases/tag/avas-${n.commit}`);return}if(r!==`install`){P.setState({hidden:n.commit,open:!1});return}P.setState({message:`Preparing the confirmed update...`,progress:null});let i=await k(`updates.prepare`,{commit:n.commit});if(i.cancelled||P.getState().cancelRequested){P.setState({outcome:`cancelled`}),Ee(O(`Update cancelled. Downloaded data is kept for the next attempt.`));return}if(i.changed&&i.info){t=i.info,P.setState({info:t}),await h(O(`A newer version is available. Review it before confirming.`),{title:O(`AVAS update`)});continue}if(e=!0,!await gn(O(`updating AVAS`))||P.getState().cancelRequested)return;P.setState({message:`Restarting to install the update...`,progress:null}),await Jn(),e=!1;return}await h(O(`This installation is already up to date.`),{title:O(`AVAS update`)})}catch(e){P.setState({outcome:`failed`}),T(e,O(`AVAS update`))}finally{e&&await k(`updates.cancel`).catch(()=>void 0);let t=await k(`updates.status`).catch(()=>({phase:`idle`,commit:``}));P.setState({busy:!1,message:``,progress:null,status:t})}}function tr(){let e=ve(),{info:t,open:n,reviewing:r,outcome:i,busy:a,cancelRequested:o,message:s,progress:c,hidden:l,status:u}=P();(0,A.useEffect)(()=>{let t=!1,n=async()=>{if(!P.getState().busy)try{let e=await k(`updates.check`);t||P.setState({info:e})}catch{}},r=window.setTimeout(n,3e3),i=window.setInterval(n,216e5),a=async()=>{try{let e=await k(`updates.status`);!t&&!qn&&P.setState({status:e,...P.getState().status.cancelling&&e.phase===`idle`?{outcome:`cancelled`}:{},...e.phase===`preparing`&&e.progress?{progress:e.progress,message:e.progress.message}:{}})}catch{}};a();let o=window.setInterval(a,3e3);return k(`updates.result`).then(t=>{t&&(t.ok?Ee(e(`AVAS was updated successfully.`),`success`):h(`${e(`The update failed. See the error details below.`)}\n${e(t.error??``)}\n`+(t.logAvailable?t.log:e(`The update log is unavailable. You can copy the error details from this dialog.`)),{title:e(`AVAS update`),kind:`error`,detail:t.details}))}).catch(()=>void 0),()=>{t=!0,clearTimeout(r),clearInterval(i),clearInterval(o)}},[]);let d=n&&(0,j.jsx)(Gn,{info:a||u.phase===`idle`||t?.release.commit===u.commit?t:null,status:u,progress:c??u.progress??null,message:s,busy:a,reviewing:r,outcome:i,cancelling:!!u.cancelling||o&&u.phase===`preparing`,onClose:Xn,onChoose:Yn,onCancel:$n,onReview:er,onInstall:Qn});return n?d:!a&&u.phase!==`idle`?(0,j.jsxs)(`div`,{className:`update-notice`,role:`status`,children:[u.phase===`preparing`?(0,j.jsx)(Un,{data:u.progress??{message:`Preparing the confirmed update...`,stage:`prepare`}}):(0,j.jsxs)(`span`,{children:[u.phase===`ready`?e(`The confirmed update is ready to install.`):e(`Restarting to install the update...`),` `,u.commit.slice(0,8)]}),u.phase===`ready`&&(0,j.jsxs)(j.Fragment,{children:[(0,j.jsx)(Re,{onClick:Qn,children:e(`Update and restart`)}),(0,j.jsx)(Re,{onClick:$n,children:e(`Cancel`)})]}),u.phase===`preparing`&&(0,j.jsx)(Re,{disabled:u.cancelling||o,onClick:$n,children:u.cancelling||o?e(`Cancelling update...`):e(`Cancel update`)}),(0,j.jsx)(Re,{onClick:()=>P.setState({open:!0}),children:e(`Review update`)})]}):a&&!s||!a&&(!t?.available||t.ignored||l===t.release.commit)?null:(0,j.jsxs)(`div`,{className:`update-notice`,role:`status`,children:[a?c?(0,j.jsx)(Un,{data:c}):(0,j.jsxs)(j.Fragment,{children:[(0,j.jsx)(xe,{size:14}),(0,j.jsx)(`span`,{children:e(s)})]}):(0,j.jsxs)(j.Fragment,{children:[(0,j.jsxs)(`span`,{children:[e(`An AVAS update is available.`),` `,t.release.commit.slice(0,8)]}),(0,j.jsx)(Re,{onClick:er,children:e(`Review update`)}),(0,j.jsx)(Re,{onClick:()=>P.setState({hidden:t.release.commit}),children:e(`Later`)})]}),a&&u.phase===`preparing`&&(0,j.jsx)(Re,{disabled:u.cancelling||o,onClick:$n,children:u.cancelling||o?e(`Cancelling update...`):e(`Cancel update`)}),a&&(0,j.jsx)(Re,{onClick:()=>P.setState({open:!0}),children:e(`Review update`)})]})}function nr({error:e,onRetry:t}){let n=ve();return(0,j.jsxs)(`div`,{className:`empty-state`,role:`alert`,children:[(0,j.jsx)(`div`,{className:`danger-text`,style:{fontSize:15},children:n(`This view hit an internal error.`)}),(0,j.jsx)(`pre`,{className:`selectable`,style:{maxWidth:800,whiteSpace:`pre-wrap`,color:`var(--fg-muted)`},children:String(e?.message??e)}),(0,j.jsx)(Re,{onClick:t,children:n(`Try again`)})]})}var rr=class extends A.Component{state={error:null};static getDerivedStateFromError(e){return{error:e}}componentDidCatch(e){console.error(this.props.name,e)}render(){let{error:e}=this.state;return e?(0,j.jsx)(nr,{error:e,onRetry:()=>this.setState({error:null})}):this.props.children}},ir=[{id:`newProject`,keys:`Ctrl+N`,label:`New project...`},{id:`openProject`,keys:`Ctrl+O`,label:`Open project...`},{id:`save`,keys:`Ctrl+S`,label:`Save all pages`},{id:`quit`,keys:`Ctrl+Q`,label:`Exit`,scope:`desktop window`},{id:`runPauseResume`,keys:`F5`,label:`Run / pause / resume the simulation`},{id:`stop`,keys:`Shift+F5`,label:`Stop the simulation`},{id:`pages`,keys:`Ctrl+1 … Ctrl+8`,label:`Switch to a page (in sidebar order)`},{id:`sidebar`,keys:`Ctrl+B`,label:`Collapse or expand the sidebar`},{id:`log`,keys:`Ctrl+J`,label:`Show or hide the log panel`},{id:`assistant`,keys:`Ctrl+Shift+A`,label:`Show or hide the AI assistant`},{id:`zoomIn`,keys:`Ctrl+=`,label:`Zoom in`},{id:`zoomOut`,keys:`Ctrl+-`,label:`Zoom out`},{id:`zoomReset`,keys:`Ctrl+0`,label:`Reset zoom`},{id:`undo`,keys:`Ctrl+Z`,label:`Undo`,scope:`Beam and Settings pages, outside a text box`},{id:`redo`,keys:`Ctrl+Y`,label:`Redo`,scope:`Beam and Settings pages, outside a text box`}],ar=Object.fromEntries(ir.map(e=>[e.id,e]));function or(e,t){let n=t.split(`+`),r=n.pop()??``,i=n.includes(`Ctrl`),a=n.includes(`Shift`),o=n.includes(`Alt`);return(e.ctrlKey||e.metaKey)!==i||e.altKey!==o?!1:r===`=`?e.key===`=`||e.key===`+`:e.shiftKey===a?r.length===1?e.key.toLowerCase()===r.toLowerCase():e.key===r:!1}var sr=5e3,cr=se(()=>({entries:[],errors:0,warnings:0,seq:0,filter:`all`,query:``}));function lr(e,t){Pe(!0);let n={};e&&(n.filter=e),t!==void 0&&(n.query=t),cr.setState(n)}function ur(e){cr.setState(t=>{let n=t.errors,r=t.warnings;for(let t of e)t.level===`ERROR`||t.level===`CRITICAL`?n++:t.level===`WARNING`&&r++;let i=t.entries.concat(e);return{entries:i.length>sr?i.slice(i.length-sr):i,errors:n,warnings:r,seq:t.seq+e.length}});let t=e[e.length-1];if(t&&t.name!==`avas.engine`){let e=t.msg.split(`
 `).find(e=>e.trim())??``,n=t.level===`ERROR`||t.level===`CRITICAL`?`error`:t.level===`WARNING`?`warning`:`info`;l.getState().run.running||g(e,n)}}var dr=[],fr=!1;function pr(){k(`app.logHistory`).then(e=>e.length&&ur(e)).catch(()=>void 0),Ce(`log`,e=>{dr.push(e),fr||(fr=!0,requestAnimationFrame(()=>{fr=!1;let e=dr;dr=[],ur(e)}))})}function mr(){cr.setState({entries:[],errors:0,warnings:0,seq:0}),g(``),k(`app.clearLog`).catch(()=>void 0)}function hr(e){return new Date(e*1e3).toTimeString().slice(0,8)}function gr(){let e=ve(),t=cr(e=>e.entries),n=l(e=>e.logMaximized),r=cr(e=>e.filter),i=cr(e=>e.query),o=e=>cr.setState({filter:e}),s=e=>cr.setState({query:e}),c=(0,A.useRef)(null),u=(0,A.useRef)(!0),d=(0,A.useMemo)(()=>{let e=i.trim().toLowerCase();return t.filter(t=>!(r===`problems`&&t.level!==`WARNING`&&t.level!==`ERROR`&&t.level!==`CRITICAL`||r===`gui`&&t.name===`avas.engine`||e&&!t.msg.toLowerCase().includes(e)))},[t,r,i]),[f,p]=(0,A.useState)(600),m=d.length>f?d.slice(d.length-f):d;(0,A.useLayoutEffect)(()=>{let e=c.current;e&&u.current&&(e.scrollTop=e.scrollHeight)},[m]),(0,A.useEffect)(()=>{let e=c.current;if(!e)return;let t=()=>{u.current=e.scrollHeight-e.scrollTop-e.clientHeight<24,e.scrollTop<40&&f<d.length&&p(e=>e+600)};return e.addEventListener(`scroll`,t),()=>e.removeEventListener(`scroll`,t)},[f,d.length]);let h=()=>{let e=d.map(e=>`${hr(e.t)} ${e.level.padEnd(7)} ${e.msg}`).join(`
-`);navigator.clipboard?.writeText(e).catch(()=>void 0)};return(0,j.jsxs)(`div`,{className:`log-panel`,children:[(0,j.jsxs)(`div`,{className:`panel-header`,children:[(0,j.jsx)(`div`,{className:`panel-tab active`,children:e(`Log`).toUpperCase()}),(0,j.jsxs)(`div`,{className:`panel-filters`,children:[[`all`,`problems`,`gui`].map(t=>(0,j.jsx)(`button`,{className:b(`chip`,r===t&&`active`),onClick:()=>o(t),children:e(t===`all`?`All`:t===`problems`?`Warnings and errors`:`Application logs only`)},t)),(0,j.jsxs)(`div`,{className:`panel-search`,children:[(0,j.jsx)(Fe,{name:`filter`}),(0,j.jsx)(`input`,{value:i,onChange:e=>s(e.target.value),placeholder:e(`Filter`),spellCheck:!1})]})]}),(0,j.jsx)(`div`,{className:`grow`}),(0,j.jsx)(C,{icon:`copy`,tip:e(`Copy log`),onClick:h}),(0,j.jsx)(C,{icon:`clear-all`,tip:e(`Clear log`),onClick:mr}),(0,j.jsx)(C,{icon:n?`chevron-down`:`chevron-up`,tip:e(n?`Restore panel size`:`Maximize panel`),onClick:()=>a(!n)}),(0,j.jsx)(C,{icon:`close`,tip:e(`Hide panel (Ctrl+J)`),onClick:()=>Pe(!1)})]}),(0,j.jsxs)(`div`,{className:`log-body selectable mono`,ref:c,onContextMenu:t=>{t.preventDefault();let n=window.getSelection()?.toString()??``;ae([{label:e(`Copy`),icon:`copy`,disabled:!n,onClick:()=>navigator.clipboard?.writeText(n)},{label:e(`Copy log`),onClick:h},{type:`separator`},{label:e(`Clear log`),icon:`clear-all`,onClick:mr}],t.clientX,t.clientY)},children:[m.map((e,t)=>(0,j.jsxs)(`div`,{className:b(`log-line`,`log-${e.level.toLowerCase()}`,e.name===`avas.engine`&&`log-engine`),children:[(0,j.jsx)(`span`,{className:`log-time`,children:hr(e.t)}),(0,j.jsx)(`span`,{className:`log-msg`,children:e.msg})]},d.length-m.length+t)),!d.length&&(0,j.jsx)(`div`,{className:`log-empty`,children:t.length?e(`No matching lines`):e(`No messages yet`)})]})]})}var _r=se(()=>({mode:(()=>{try{return localStorage.getItem(`avas.latticeMode`)===`visual`?`visual`:`text`}catch{return`text`}})(),pendingSelect:null,visualEditing:!1}));function vr(e){_r.getState().visualEditing!==e&&_r.setState({visualEditing:e})}function yr(e){_r.setState({mode:e});try{localStorage.setItem(`avas.latticeMode`,e)}catch{}}var br=0;function xr(e){_r.setState({pendingSelect:{line:e,seq:++br}})}var Sr=null;function Cr(e){return Sr=e,()=>{Sr===e&&(Sr=null)}}function wr(){let e=Sr?.selection();return e?`line ${e.line+1}: ${e.keyword}${e.name?` (${e.name})`:``}`:null}var Tr={"lattice.getText":()=>!Sr||Sr.getText()==null?null:{name:Sr.name(),text:Sr.getText(),dirty:Sr.isDirty()},"lattice.apply":async({name:e,text:t})=>!Sr||Sr.name()!==e||Sr.getText()==null?{applied:!1}:(Sr.replaceText(t),await Sr.save(),{applied:!0,saved:!0}),"pages.reload":async({paths:e,pages:t})=>{for(let t of e??[])mn(t,`assistant`);for(let e of t??[]){if(!e)continue;let t=dn(e);t?.reload&&!t.isDirty()&&await t.reload()}return!0},"pages.dirty":()=>Object.entries(on.getState().dirty).filter(([,e])=>e).map(([e])=>e),"ui.state":()=>({page:l.getState().page,selection:wr(),dirty:Object.entries(on.getState().dirty).filter(([,e])=>e).map(([e])=>e)}),"ui.select":({line:e})=>(S(`lattice`),xr(e),!0),"run.start":async()=>(await On(),l.getState().run.running?{started:!0}:{started:!1,error:`The simulation was not started (see the message in the window).`}),"run.prepare":async()=>l.getState().run.running?{ok:!1,error:`A simulation is already running.`}:Tn(),"ui.page":({page:e})=>(S(e),!0)};function Er(){Ce(`assistant.front`,async e=>{let t=Tr[e.method];try{if(!t)throw Error(`Unknown page request ${e.method}`);let n=await t(e.params??{});await k(`assistant.frontReply`,{id:e.id,ok:!0,result:n??null})}catch(t){await k(`assistant.frontReply`,{id:e.id,ok:!1,error:t?.message??String(t)}).catch(()=>void 0)}})}var Dr=se(()=>({open:!1,width:420,config:null,conversations:[],current:null,loading:!1})),Or=Dr.setState,kr=Dr.getState;function Ar(){let e=l.getState().settings;Or({open:!!e[`ui/assistantOpen`],width:Math.max(320,Math.min(900,Number(e[`ui/assistantWidth`])||420))}),kr().open&&Pr().catch(()=>void 0),Ce(`assistant.event`,e=>Kr(e));let t=l.getState().project.path??null;l.subscribe(e=>{let n=e.project.open?e.project.path??null:null;if(n===t)return;t=n;let r=kr().current;r&&!r.busy&&Or({current:null}),Nr=!1,kr().open&&Pr().catch(()=>void 0)})}function jr(e){Or({open:e}),Le({"ui/assistantOpen":e}),e&&Pr().catch(e=>T(e))}function Mr(e){Or({width:e}),Le({"ui/assistantWidth":e})}var Nr=!1;async function Pr(){if((!kr().config||!Nr)&&await Fr(),!Nr){Nr=!0,await Ir();let e=kr().conversations;!kr().current&&e.length&&await Lr(e[0].id)}}async function Fr(){let e=await k(`assistant.config`);return Or({config:e}),e}async function Ir(){let e=await k(`assistant.conversations`);return Or({conversations:e}),e}async function Lr(e){Or({loading:!0});try{let t=await k(`assistant.load`,{id:e});Or({current:{id:t.id,title:t.title,items:t.items??[],busy:!!t.busy,autoApply:!!t.autoApply}})}finally{Or({loading:!1})}}async function Rr(){let e=await k(`assistant.new`);return Or({current:{id:e.id,title:``,items:[],busy:!1,autoApply:!!e.autoApply}}),e.id}async function zr(e){Or({conversations:await k(`assistant.delete`,{id:e})}),kr().current?.id===e&&Or({current:null})}function Br(){let e=l.getState(),t=Object.entries(on.getState().dirty).filter(([,e])=>e).map(([e])=>e);return{page:e.page,selection:wr(),dirty:t}}async function Vr(e){let t=kr().current;if(t||=(await Rr(),kr().current),t)try{Or({current:{...t,busy:!0}}),await k(`assistant.send`,{conversation:t.id,text:e,ui:Br()}),Ir().catch(()=>void 0)}catch(e){Or({current:{...kr().current,busy:!1}}),T(e)}}async function Hr(){let e=kr().current;e&&await k(`assistant.stop`,{conversation:e.id}).catch(T)}async function Ur(e,t,n){let r=kr().current;r&&await k(`assistant.decide`,{conversation:r.id,id:e,decision:t,choice:n}).catch(T)}async function Wr(e){let t=kr().current;t&&await k(`assistant.undo`,{conversation:t.id,id:e}).catch(T)}async function Gr(e){kr().current||await Rr();let t=kr().current,n=await k(`assistant.setAutoApply`,{id:t.id,value:e});Or({current:{...kr().current,autoApply:n.autoApply}})}function Kr(e){let t=kr().current;if(!t||e.conversation!==t.id){e.type===`busy`&&Ir().catch(()=>void 0);return}if(e.type===`item`){let n=t.items.slice(),r=n.findIndex(t=>t.id===e.item.id);r>=0?n[r]=e.item:n.push(e.item),Or({current:{...t,items:n}})}else if(e.type===`delta`){let n=t.items.slice(),r=n.findIndex(t=>t.id===e.itemId);if(r<0)return;let i={...n[r]};i[e.field]=(i[e.field]??``)+e.delta,n[r]=i,Or({current:{...t,items:n}})}else e.type===`busy`&&(Or({current:{...t,busy:!!e.busy}}),e.busy||Ir().catch(()=>void 0))}var qr=(0,A.lazy)(()=>M(()=>import(`./AssistantPanel-C_FZyU6V.js`).then(e=>({default:e.AssistantPanel})),__vite__mapDeps([2,1,3]),import.meta.url)),Jr=(0,A.lazy)(()=>M(()=>import(`./ProjectPage-zuaIIAAO.js`),__vite__mapDeps([4,1,3]),import.meta.url)),Yr=(0,A.lazy)(()=>M(()=>import(`./BeamPage-D7ujlpfn.js`),__vite__mapDeps([5,1,3,6,7]),import.meta.url)),Xr=(0,A.lazy)(()=>M(()=>import(`./LatticePage-o_OhhnDN.js`),__vite__mapDeps([8,1,3,6,9,10,11,12]),import.meta.url)),Zr=(0,A.lazy)(()=>M(()=>import(`./SettingsPage-JB5gODhA.js`),__vite__mapDeps([13,3,1,6,7]),import.meta.url)),Qr=(0,A.lazy)(()=>M(()=>import(`./FilesPage-CJ_2kGuK.js`),__vite__mapDeps([14,1,3,10,11,6,9,12]),import.meta.url)),$r=(0,A.lazy)(()=>M(()=>import(`./RunPage--uUTWWMp.js`),__vite__mapDeps([15,1,3,10,11,6]),import.meta.url)),ei=(0,A.lazy)(()=>M(()=>import(`./ResultsPage-D8F4gNLQ.js`),__vite__mapDeps([16,1,3,6]),import.meta.url)),ti=(0,A.lazy)(()=>M(()=>import(`./ScanPage-BgHDed-8.js`),__vite__mapDeps([17,1,3,6]),import.meta.url)),ni={project:{label:`Project`,icon:`home`,render:()=>(0,j.jsx)(Jr,{})},beam:{label:`Beam`,icon:`pulse`,render:()=>(0,j.jsx)(Yr,{})},lattice:{label:`Lattice`,icon:`list-ordered`,render:()=>(0,j.jsx)(Xr,{})},settings:{label:`Settings`,icon:`settings-gear`,render:()=>(0,j.jsx)(Zr,{})},files:{label:`Files`,icon:`files`,render:()=>(0,j.jsx)(Qr,{})},run:{label:`Run`,icon:`play-circle`,render:()=>(0,j.jsx)($r,{})},scan:{label:`Scan`,icon:`graph-scatter`,render:()=>(0,j.jsx)(ti,{})},results:{label:`Results`,icon:`graph-line`,render:()=>(0,j.jsx)(ei,{})}},ri=48,ii=160,ai=480,oi=110;function si(){v(!l.getState().sidebarCollapsed)}function ci(){return Me(e=>(0,j.jsx)(te,{title:O(`Keyboard shortcuts`),icon:`keyboard`,onClose:()=>e(),footer:(0,j.jsx)(Re,{variant:`primary`,autoFocus:!0,onClick:()=>e(),children:O(`Close`)}),children:(0,j.jsxs)(`table`,{className:`shortcut-table`,children:[(0,j.jsx)(`thead`,{children:(0,j.jsxs)(`tr`,{children:[(0,j.jsx)(`th`,{children:O(`Action`)}),(0,j.jsx)(`th`,{children:O(`Shortcut`)})]})}),(0,j.jsx)(`tbody`,{children:ir.map(e=>(0,j.jsxs)(`tr`,{children:[(0,j.jsxs)(`td`,{children:[O(e.label),e.scope&&(0,j.jsxs)(`span`,{className:`soft`,children:[` · `,O(e.scope)]})]}),(0,j.jsx)(`td`,{children:(0,j.jsx)(`span`,{className:`kbd`,children:e.keys})})]},e.id))})]})}),{width:520})}function li(){let e=ve(),t=we(e=>e.lang),[n,i]=(0,A.useState)(null),a=(0,A.useRef)([]),s=l(e=>e.project.open),c=l(e=>e.project.name),u=l(e=>e.project.path),d=l(e=>e.project.recent),f=l(e=>e.run.running),p=l(e=>e.run.running&&!!e.run.paused),m=l(e=>e.page),h=l(e=>e.sidebarCollapsed),g=l(e=>e.logVisible),v=l(e=>e.theme),y=l(e=>e.scale),x=l(e=>bt(e.settings)),w=l(e=>e.settings[`ui/motion`]??`full`),te=on(e=>Object.values(e.dirty).some(Boolean));(0,A.useEffect)(()=>{document.title=s&&c?`AVAS – ${c}`:`AVAS`},[s,c]);let ne=[{label:e(`File`),items:()=>[{label:e(`New project...`),shortcut:ar.newProject.keys,icon:`new-folder`,onClick:vn},{label:e(`Open project...`),shortcut:ar.openProject.keys,icon:`folder-opened`,onClick:()=>_n()},{label:e(`Open recent`),disabled:!d.length,submenu:d.map(e=>({label:e,onClick:()=>_n(e)}))},{label:e(`Close project`),disabled:!s,onClick:yn},{type:`separator`},{label:e(`Project overview`),icon:`home`,disabled:!s,onClick:()=>S(`project`)},{label:e(`Show in Explorer`),icon:`folder`,disabled:!s,onClick:bn},{type:`separator`},{label:e(`Save`),shortcut:ar.save.keys,icon:`save`,disabled:!s,onClick:()=>wn()},...ye()?[{type:`separator`},{label:e(`Exit`),shortcut:ar.quit.keys,onClick:Rn}]:[]]},{label:e(`Run`),items:()=>[f?p?{label:e(`Resume`),shortcut:ar.runPauseResume.keys,icon:`debug-continue`,onClick:jn}:{label:e(`Pause`),shortcut:ar.runPauseResume.keys,icon:`debug-pause`,onClick:An}:{label:e(`Run simulation`),shortcut:ar.runPauseResume.keys,icon:`play`,disabled:!s,onClick:On},{label:e(`Stop`),shortcut:ar.stop.keys,icon:`debug-stop`,disabled:!f,onClick:kn}]},{label:e(`View`),items:()=>[..._e.map((t,n)=>({label:e(ni[t].label),shortcut:`Ctrl+${n+1}`,checked:m===t,onClick:()=>S(t)})),{type:`separator`},{label:e(`Collapse sidebar`),shortcut:ar.sidebar.keys,checked:h,onClick:si},{label:e(`Show log panel`),shortcut:ar.log.keys,checked:g,onClick:()=>Pe(!g)},{label:e(`AI assistant`),shortcut:ar.assistant.keys,checked:Dr.getState().open,onClick:()=>jr(!Dr.getState().open)},{type:`separator`},{label:e(`Theme`),submenu:[`system`,`light`,`dark`].map(t=>({label:e(t===`system`?`Follow system`:t===`light`?`Light`:`Dark`),checked:v===t,onClick:()=>r(t)}))},{label:e(`UI scale`),submenu:[...ge.map(e=>({label:`${e} %`,checked:y===e,onClick:()=>o(e)})),{type:`separator`},{label:e(`Zoom in`),shortcut:ar.zoomIn.keys,onClick:()=>_(1)},{label:e(`Zoom out`),shortcut:ar.zoomOut.keys,onClick:()=>_(-1)},{label:e(`Reset zoom`),shortcut:ar.zoomReset.keys,onClick:()=>o(100)}]},{label:e(`Motion`),submenu:[[`full`,e(`Full: moving bunch and particle cloud`)],[`lite`,e(`Reduced: moving marker only`)],[`off`,e(`Off: update once per second`)],[`auto`,e(`Automatic (follow Windows animation effects)`)]].map(([e,t])=>({label:t,checked:w===e,onClick:()=>Le({"ui/motion":e})}))}]},{label:e(`Settings`),items:()=>[{label:e(`Language`),submenu:Object.keys(Ne).map(e=>({label:Ne[e],checked:t===e,onClick:()=>Ie(e)}))},{label:e(`Pointer device (all plots)`),submenu:[{label:e(`Detect automatically`),checked:x===`auto`,onClick:()=>Le({"ui/pointerDevice":`auto`})},{label:e(`Mouse: the wheel zooms`),checked:x===`mouse`,onClick:()=>Le({"ui/pointerDevice":`mouse`})},{label:e(`Touchpad: two-finger swipe pans`),checked:x===`touchpad`,onClick:()=>Le({"ui/pointerDevice":`touchpad`})}]}]},{label:e(`Help`),items:()=>[{label:e(`User manual`),icon:`book`,onClick:Pn},{label:e(`Keyboard shortcuts`),icon:`keyboard`,onClick:()=>void ci()},{type:`separator`},{label:e(`About AVAS`),icon:`info`,onClick:Fn},{label:e(`Check for updates`),icon:`refresh`,onClick:Zn}]}],re=e=>{let t=a.current[e];t&&(i(e),ee(t,ne[e].items(),{onClose:()=>i(t=>t===e?null:t)}))};return(0,j.jsxs)(`div`,{className:`menubar`,children:[(0,j.jsx)(`div`,{className:`menubar-logo`,children:(0,j.jsx)(Fe,{name:`circuit-board`})}),ne.map((e,t)=>(0,j.jsx)(`button`,{ref:e=>{a.current[t]=e},className:b(`menubar-item`,n===t&&`open`),onMouseDown:e=>{e.preventDefault(),n===t?(ie(),i(null)):re(t)},onMouseEnter:()=>{n!==null&&n!==t&&(ie(),re(t))},children:e.label},t)),(0,j.jsx)(`div`,{className:`grow`}),(0,j.jsx)(`div`,{className:b(`menubar-title ellipsis`,`clickable`),"data-tip":s?u:e(`Open or create a project`),onMouseDown:e=>{e.preventDefault(),ee(e.currentTarget,xn())},children:s?`${c} — AVAS`:`AVAS`}),(0,j.jsx)(`div`,{className:`grow`}),(0,j.jsxs)(`div`,{className:`toolbar-actions`,children:[(0,j.jsx)(C,{icon:`folder-opened`,tip:`${e(`Open project...`)}  (Ctrl+O)`,onClick:()=>_n()}),(0,j.jsx)(C,{icon:`save`,tip:te?`${e(`Save`)}  (Ctrl+S)`:e(`Nothing to save`),disabled:!s||!te,onClick:()=>wn()}),(0,j.jsx)(`div`,{className:`divider-v`}),(0,j.jsx)(C,{icon:f?p?`debug-continue`:`debug-pause`:`play`,className:b(`run-btn`,f&&!p&&`pause`),tip:`${e(f?p?`Resume`:`Pause`:`Run simulation`)}  (F5)`,disabled:!s&&!f,onClick:Nn}),(0,j.jsx)(C,{icon:`debug-stop`,className:`stop-btn`,tip:`${e(`Stop`)}  (Shift+F5)`,disabled:!f,onClick:kn}),(0,j.jsx)(`div`,{className:`divider-v`}),(0,j.jsx)(C,{icon:h?`layout-sidebar-left-off`:`layout-sidebar-left`,tip:e(`Toggle sidebar (Ctrl+B)`),onClick:si}),(0,j.jsx)(C,{icon:g?`layout-panel`:`layout-panel-off`,tip:e(`Toggle log panel (Ctrl+J)`),onClick:()=>Pe(!g)}),(0,j.jsx)(`div`,{className:`divider-v`}),(0,j.jsx)(ui,{})]})]})}function ui(){let e=ve(),t=Dr(e=>e.open),n=Dr(e=>!!e.current?.busy);return(0,j.jsxs)(`button`,{className:b(`assistant-toggle`,t&&`active`),"data-tip":e(`AI assistant (Ctrl+Shift+A)`),onClick:()=>jr(!t),children:[n?(0,j.jsx)(xe,{size:14}):(0,j.jsx)(Fe,{name:`sparkle`}),(0,j.jsx)(`span`,{children:e(`Assistant`)})]})}function di(){let e=ve(),t=l(e=>e.page),n=l(e=>e.sidebarCollapsed),r=l(e=>e.run.running),i=l(e=>!!e.run.paused),a=l(e=>e.project.open),o=on(e=>e.dirty),s={beam:o.beam,lattice:o.lattice,settings:o.settings,files:o.files};return(0,j.jsxs)(`nav`,{className:b(`sidebar`,n&&`collapsed`),children:[(0,j.jsx)(`div`,{className:`sidebar-header`,children:!n&&(0,j.jsxs)(j.Fragment,{children:[`AVAS `,(0,j.jsx)(nn,{})]})}),_e.map(o=>{let c=ni[o],l=o===`run`&&r,u=o!==`project`;return(0,j.jsxs)(`button`,{"aria-label":e(c.label),className:b(`nav-item`,t===o&&`active`,u&&!a&&`dim`),"data-tip":n?e(c.label):void 0,onClick:()=>{t===o&&n?v(!1):S(o)},children:[l&&i?(0,j.jsx)(Fe,{name:`debug-pause`,className:`nav-paused`}):l?(0,j.jsx)(xe,{size:20}):(0,j.jsx)(Fe,{name:c.icon}),!n&&(0,j.jsx)(`span`,{className:`nav-label`,children:e(c.label)}),s[o]&&(0,j.jsx)(`span`,{className:`nav-dot`,"data-tip":e(`Unsaved changes`)})]},o)})]})}function fi(e,t){return n=>{if(n.button!==0)return;n.preventDefault();let r=n.clientX,i=n.clientY;document.body.classList.add(`dragging`);let a=t=>e(t.clientX-r,t.clientY-i),o=()=>{document.body.classList.remove(`dragging`),window.removeEventListener(`mousemove`,a),window.removeEventListener(`mouseup`,o),t?.()};window.addEventListener(`mousemove`,a),window.addEventListener(`mouseup`,o)}}function pi(){let e=ve(),t=l(e=>e.project),n=l(e=>e.run),r=l(e=>e.statusMessage),i=l(e=>e.resolvedTheme),a=cr(e=>e.errors),o=cr(e=>e.warnings),s=r?.text??``;if(n.running){let t=[`${(n.percent??0).toFixed(0)} %`];n.stages&&n.stages>1&&t.push(`${e(`stage`)} ${n.stage}/${n.stages}`),n.step!=null&&n.all_step&&t.push(`${n.step}/${n.all_step}`),n.eta_s!=null&&!n.paused&&t.push(e(`{time} left`,{time:be(n.eta_s)})),s=[n.source===`assistant`?e(n.paused?`Assistant {task} paused`:`Assistant {task} running`,{task:e(n.label??``)}):n.source===`scan`?e(n.paused?`Parameter scan {task} paused`:`Parameter scan {task} running`,{task:n.label??``}):n.source===`segment`?e(n.paused?`Segment {label} paused`:`Segment {label} running`,{label:n.label??``}):e(n.paused?`Simulation paused`:`Simulation running`),...t].join(`  ·  `)}return(0,j.jsxs)(`div`,{className:b(`statusbar`,n.running&&`running`),children:[(0,j.jsxs)(`button`,{className:`status-item status-project`,"data-tip":t.open?`${t.path}
+`);navigator.clipboard?.writeText(e).catch(()=>void 0)};return(0,j.jsxs)(`div`,{className:`log-panel`,children:[(0,j.jsxs)(`div`,{className:`panel-header`,children:[(0,j.jsx)(`div`,{className:`panel-tab active`,children:e(`Log`).toUpperCase()}),(0,j.jsxs)(`div`,{className:`panel-filters`,children:[[`all`,`problems`,`gui`].map(t=>(0,j.jsx)(`button`,{className:b(`chip`,r===t&&`active`),onClick:()=>o(t),children:e(t===`all`?`All`:t===`problems`?`Warnings and errors`:`Application logs only`)},t)),(0,j.jsxs)(`div`,{className:`panel-search`,children:[(0,j.jsx)(Fe,{name:`filter`}),(0,j.jsx)(`input`,{value:i,onChange:e=>s(e.target.value),placeholder:e(`Filter`),spellCheck:!1})]})]}),(0,j.jsx)(`div`,{className:`grow`}),(0,j.jsx)(C,{icon:`copy`,tip:e(`Copy log`),onClick:h}),(0,j.jsx)(C,{icon:`clear-all`,tip:e(`Clear log`),onClick:mr}),(0,j.jsx)(C,{icon:n?`chevron-down`:`chevron-up`,tip:e(n?`Restore panel size`:`Maximize panel`),onClick:()=>a(!n)}),(0,j.jsx)(C,{icon:`close`,tip:e(`Hide panel (Ctrl+J)`),onClick:()=>Pe(!1)})]}),(0,j.jsxs)(`div`,{className:`log-body selectable mono`,ref:c,onContextMenu:t=>{t.preventDefault();let n=window.getSelection()?.toString()??``;ae([{label:e(`Copy`),icon:`copy`,disabled:!n,onClick:()=>navigator.clipboard?.writeText(n)},{label:e(`Copy log`),onClick:h},{type:`separator`},{label:e(`Clear log`),icon:`clear-all`,onClick:mr}],t.clientX,t.clientY)},children:[m.map((e,t)=>(0,j.jsxs)(`div`,{className:b(`log-line`,`log-${e.level.toLowerCase()}`,e.name===`avas.engine`&&`log-engine`),children:[(0,j.jsx)(`span`,{className:`log-time`,children:hr(e.t)}),(0,j.jsx)(`span`,{className:`log-msg`,children:e.msg})]},d.length-m.length+t)),!d.length&&(0,j.jsx)(`div`,{className:`log-empty`,children:t.length?e(`No matching lines`):e(`No messages yet`)})]})]})}var _r=se(()=>({mode:(()=>{try{return localStorage.getItem(`avas.latticeMode`)===`visual`?`visual`:`text`}catch{return`text`}})(),pendingSelect:null,visualEditing:!1}));function vr(e){_r.getState().visualEditing!==e&&_r.setState({visualEditing:e})}function yr(e){_r.setState({mode:e});try{localStorage.setItem(`avas.latticeMode`,e)}catch{}}var br=0;function xr(e){_r.setState({pendingSelect:{line:e,seq:++br}})}var Sr=null;function Cr(e){return Sr=e,()=>{Sr===e&&(Sr=null)}}function wr(){let e=Sr?.selection();return e?`line ${e.line+1}: ${e.keyword}${e.name?` (${e.name})`:``}`:null}var Tr={"lattice.getText":()=>!Sr||Sr.getText()==null?null:{name:Sr.name(),text:Sr.getText(),dirty:Sr.isDirty()},"lattice.apply":async({name:e,text:t})=>!Sr||Sr.name()!==e||Sr.getText()==null?{applied:!1}:(Sr.replaceText(t),await Sr.save(),{applied:!0,saved:!0}),"pages.reload":async({paths:e,pages:t})=>{for(let t of e??[])mn(t,`assistant`);for(let e of t??[]){if(!e)continue;let t=dn(e);t?.reload&&!t.isDirty()&&await t.reload()}return!0},"pages.dirty":()=>Object.entries(on.getState().dirty).filter(([,e])=>e).map(([e])=>e),"ui.state":()=>({page:l.getState().page,selection:wr(),dirty:Object.entries(on.getState().dirty).filter(([,e])=>e).map(([e])=>e)}),"ui.select":({line:e})=>(S(`lattice`),xr(e),!0),"run.start":async()=>(await On(),l.getState().run.running?{started:!0}:{started:!1,error:`The simulation was not started (see the message in the window).`}),"run.prepare":async()=>l.getState().run.running?{ok:!1,error:`A simulation is already running.`}:Tn(),"ui.page":({page:e})=>(S(e),!0)};function Er(){Ce(`assistant.front`,async e=>{let t=Tr[e.method];try{if(!t)throw Error(`Unknown page request ${e.method}`);let n=await t(e.params??{});await k(`assistant.frontReply`,{id:e.id,ok:!0,result:n??null})}catch(t){await k(`assistant.frontReply`,{id:e.id,ok:!1,error:t?.message??String(t)}).catch(()=>void 0)}})}var Dr=se(()=>({open:!1,width:420,config:null,conversations:[],current:null,loading:!1})),Or=Dr.setState,kr=Dr.getState;function Ar(){let e=l.getState().settings;Or({open:!!e[`ui/assistantOpen`],width:Math.max(320,Math.min(900,Number(e[`ui/assistantWidth`])||420))}),kr().open&&Pr().catch(()=>void 0),Ce(`assistant.event`,e=>Kr(e));let t=l.getState().project.path??null;l.subscribe(e=>{let n=e.project.open?e.project.path??null:null;if(n===t)return;t=n;let r=kr().current;r&&!r.busy&&Or({current:null}),Nr=!1,kr().open&&Pr().catch(()=>void 0)})}function jr(e){Or({open:e}),Le({"ui/assistantOpen":e}),e&&Pr().catch(e=>T(e))}function Mr(e){Or({width:e}),Le({"ui/assistantWidth":e})}var Nr=!1;async function Pr(){if((!kr().config||!Nr)&&await Fr(),!Nr){Nr=!0,await Ir();let e=kr().conversations;!kr().current&&e.length&&await Lr(e[0].id)}}async function Fr(){let e=await k(`assistant.config`);return Or({config:e}),e}async function Ir(){let e=await k(`assistant.conversations`);return Or({conversations:e}),e}async function Lr(e){Or({loading:!0});try{let t=await k(`assistant.load`,{id:e});Or({current:{id:t.id,title:t.title,items:t.items??[],busy:!!t.busy,autoApply:!!t.autoApply}})}finally{Or({loading:!1})}}async function Rr(){let e=await k(`assistant.new`);return Or({current:{id:e.id,title:``,items:[],busy:!1,autoApply:!!e.autoApply}}),e.id}async function zr(e){Or({conversations:await k(`assistant.delete`,{id:e})}),kr().current?.id===e&&Or({current:null})}function Br(){let e=l.getState(),t=Object.entries(on.getState().dirty).filter(([,e])=>e).map(([e])=>e);return{page:e.page,selection:wr(),dirty:t}}async function Vr(e){let t=kr().current;if(t||=(await Rr(),kr().current),t)try{Or({current:{...t,busy:!0}}),await k(`assistant.send`,{conversation:t.id,text:e,ui:Br()}),Ir().catch(()=>void 0)}catch(e){Or({current:{...kr().current,busy:!1}}),T(e)}}async function Hr(){let e=kr().current;e&&await k(`assistant.stop`,{conversation:e.id}).catch(T)}async function Ur(e,t,n){let r=kr().current;r&&await k(`assistant.decide`,{conversation:r.id,id:e,decision:t,choice:n}).catch(T)}async function Wr(e){let t=kr().current;t&&await k(`assistant.undo`,{conversation:t.id,id:e}).catch(T)}async function Gr(e){kr().current||await Rr();let t=kr().current,n=await k(`assistant.setAutoApply`,{id:t.id,value:e});Or({current:{...kr().current,autoApply:n.autoApply}})}function Kr(e){let t=kr().current;if(!t||e.conversation!==t.id){e.type===`busy`&&Ir().catch(()=>void 0);return}if(e.type===`item`){let n=t.items.slice(),r=n.findIndex(t=>t.id===e.item.id);r>=0?n[r]=e.item:n.push(e.item),Or({current:{...t,items:n}})}else if(e.type===`delta`){let n=t.items.slice(),r=n.findIndex(t=>t.id===e.itemId);if(r<0)return;let i={...n[r]};i[e.field]=(i[e.field]??``)+e.delta,n[r]=i,Or({current:{...t,items:n}})}else e.type===`busy`&&(Or({current:{...t,busy:!!e.busy}}),e.busy||Ir().catch(()=>void 0))}var qr=(0,A.lazy)(()=>M(()=>import(`./AssistantPanel--bqz5pbU.js`).then(e=>({default:e.AssistantPanel})),__vite__mapDeps([2,1,3]),import.meta.url)),Jr=(0,A.lazy)(()=>M(()=>import(`./ProjectPage-CWmr4nMb.js`),__vite__mapDeps([4,1,3]),import.meta.url)),Yr=(0,A.lazy)(()=>M(()=>import(`./BeamPage-BK8LTfmc.js`),__vite__mapDeps([5,1,3,6,7]),import.meta.url)),Xr=(0,A.lazy)(()=>M(()=>import(`./LatticePage-qqlGZDC4.js`),__vite__mapDeps([8,1,3,6,9,10,11,12]),import.meta.url)),Zr=(0,A.lazy)(()=>M(()=>import(`./SettingsPage-Daq0B_hw.js`),__vite__mapDeps([13,3,1,6,7]),import.meta.url)),Qr=(0,A.lazy)(()=>M(()=>import(`./FilesPage-DomsjJ-_.js`),__vite__mapDeps([14,1,3,10,11,6,9,12]),import.meta.url)),$r=(0,A.lazy)(()=>M(()=>import(`./RunPage-kZ8gwXey.js`),__vite__mapDeps([15,1,3,10,11,6]),import.meta.url)),ei=(0,A.lazy)(()=>M(()=>import(`./ResultsPage-DwFtUIiN.js`),__vite__mapDeps([16,1,3,6]),import.meta.url)),ti=(0,A.lazy)(()=>M(()=>import(`./ScanPage-CfxcrWq6.js`),__vite__mapDeps([17,1,3,6]),import.meta.url)),ni={project:{label:`Project`,icon:`home`,render:()=>(0,j.jsx)(Jr,{})},beam:{label:`Beam`,icon:`pulse`,render:()=>(0,j.jsx)(Yr,{})},lattice:{label:`Lattice`,icon:`list-ordered`,render:()=>(0,j.jsx)(Xr,{})},settings:{label:`Settings`,icon:`settings-gear`,render:()=>(0,j.jsx)(Zr,{})},files:{label:`Files`,icon:`files`,render:()=>(0,j.jsx)(Qr,{})},run:{label:`Run`,icon:`play-circle`,render:()=>(0,j.jsx)($r,{})},scan:{label:`Scan`,icon:`graph-scatter`,render:()=>(0,j.jsx)(ti,{})},results:{label:`Results`,icon:`graph-line`,render:()=>(0,j.jsx)(ei,{})}},ri=48,ii=160,ai=480,oi=110;function si(){v(!l.getState().sidebarCollapsed)}function ci(){return Me(e=>(0,j.jsx)(te,{title:O(`Keyboard shortcuts`),icon:`keyboard`,onClose:()=>e(),footer:(0,j.jsx)(Re,{variant:`primary`,autoFocus:!0,onClick:()=>e(),children:O(`Close`)}),children:(0,j.jsxs)(`table`,{className:`shortcut-table`,children:[(0,j.jsx)(`thead`,{children:(0,j.jsxs)(`tr`,{children:[(0,j.jsx)(`th`,{children:O(`Action`)}),(0,j.jsx)(`th`,{children:O(`Shortcut`)})]})}),(0,j.jsx)(`tbody`,{children:ir.map(e=>(0,j.jsxs)(`tr`,{children:[(0,j.jsxs)(`td`,{children:[O(e.label),e.scope&&(0,j.jsxs)(`span`,{className:`soft`,children:[` · `,O(e.scope)]})]}),(0,j.jsx)(`td`,{children:(0,j.jsx)(`span`,{className:`kbd`,children:e.keys})})]},e.id))})]})}),{width:520})}function li(){let e=ve(),t=we(e=>e.lang),[n,i]=(0,A.useState)(null),a=(0,A.useRef)([]),s=l(e=>e.project.open),c=l(e=>e.project.name),u=l(e=>e.project.path),d=l(e=>e.project.recent),f=l(e=>e.run.running),p=l(e=>e.run.running&&!!e.run.paused),m=l(e=>e.page),h=l(e=>e.sidebarCollapsed),g=l(e=>e.logVisible),v=l(e=>e.theme),y=l(e=>e.scale),x=l(e=>bt(e.settings)),w=l(e=>e.settings[`ui/motion`]??`full`),te=on(e=>Object.values(e.dirty).some(Boolean));(0,A.useEffect)(()=>{document.title=s&&c?`AVAS – ${c}`:`AVAS`},[s,c]);let ne=[{label:e(`File`),items:()=>[{label:e(`New project...`),shortcut:ar.newProject.keys,icon:`new-folder`,onClick:vn},{label:e(`Open project...`),shortcut:ar.openProject.keys,icon:`folder-opened`,onClick:()=>_n()},{label:e(`Open recent`),disabled:!d.length,submenu:d.map(e=>({label:e,onClick:()=>_n(e)}))},{label:e(`Close project`),disabled:!s,onClick:yn},{type:`separator`},{label:e(`Project overview`),icon:`home`,disabled:!s,onClick:()=>S(`project`)},{label:e(`Show in Explorer`),icon:`folder`,disabled:!s,onClick:bn},{type:`separator`},{label:e(`Save`),shortcut:ar.save.keys,icon:`save`,disabled:!s,onClick:()=>wn()},...ye()?[{type:`separator`},{label:e(`Exit`),shortcut:ar.quit.keys,onClick:Rn}]:[]]},{label:e(`Run`),items:()=>[f?p?{label:e(`Resume`),shortcut:ar.runPauseResume.keys,icon:`debug-continue`,onClick:jn}:{label:e(`Pause`),shortcut:ar.runPauseResume.keys,icon:`debug-pause`,onClick:An}:{label:e(`Run simulation`),shortcut:ar.runPauseResume.keys,icon:`play`,disabled:!s,onClick:On},{label:e(`Stop`),shortcut:ar.stop.keys,icon:`debug-stop`,disabled:!f,onClick:kn}]},{label:e(`View`),items:()=>[..._e.map((t,n)=>({label:e(ni[t].label),shortcut:`Ctrl+${n+1}`,checked:m===t,onClick:()=>S(t)})),{type:`separator`},{label:e(`Collapse sidebar`),shortcut:ar.sidebar.keys,checked:h,onClick:si},{label:e(`Show log panel`),shortcut:ar.log.keys,checked:g,onClick:()=>Pe(!g)},{label:e(`AI assistant`),shortcut:ar.assistant.keys,checked:Dr.getState().open,onClick:()=>jr(!Dr.getState().open)},{type:`separator`},{label:e(`Theme`),submenu:[`system`,`light`,`dark`].map(t=>({label:e(t===`system`?`Follow system`:t===`light`?`Light`:`Dark`),checked:v===t,onClick:()=>r(t)}))},{label:e(`UI scale`),submenu:[...ge.map(e=>({label:`${e} %`,checked:y===e,onClick:()=>o(e)})),{type:`separator`},{label:e(`Zoom in`),shortcut:ar.zoomIn.keys,onClick:()=>_(1)},{label:e(`Zoom out`),shortcut:ar.zoomOut.keys,onClick:()=>_(-1)},{label:e(`Reset zoom`),shortcut:ar.zoomReset.keys,onClick:()=>o(100)}]},{label:e(`Motion`),submenu:[[`full`,e(`Full: moving bunch and particle cloud`)],[`lite`,e(`Reduced: moving marker only`)],[`off`,e(`Off: update once per second`)],[`auto`,e(`Automatic (follow Windows animation effects)`)]].map(([e,t])=>({label:t,checked:w===e,onClick:()=>Le({"ui/motion":e})}))}]},{label:e(`Settings`),items:()=>[{label:e(`Language`),submenu:Object.keys(Ne).map(e=>({label:Ne[e],checked:t===e,onClick:()=>Ie(e)}))},{label:e(`Pointer device (all plots)`),submenu:[{label:e(`Detect automatically`),checked:x===`auto`,onClick:()=>Le({"ui/pointerDevice":`auto`})},{label:e(`Mouse: the wheel zooms`),checked:x===`mouse`,onClick:()=>Le({"ui/pointerDevice":`mouse`})},{label:e(`Touchpad: two-finger swipe pans`),checked:x===`touchpad`,onClick:()=>Le({"ui/pointerDevice":`touchpad`})}]}]},{label:e(`Help`),items:()=>[{label:e(`User manual`),icon:`book`,onClick:Pn},{label:e(`Keyboard shortcuts`),icon:`keyboard`,onClick:()=>void ci()},{type:`separator`},{label:e(`About AVAS`),icon:`info`,onClick:Fn},{label:e(`Check for updates`),icon:`refresh`,onClick:Zn}]}],re=e=>{let t=a.current[e];t&&(i(e),ee(t,ne[e].items(),{onClose:()=>i(t=>t===e?null:t)}))};return(0,j.jsxs)(`div`,{className:`menubar`,children:[(0,j.jsx)(`div`,{className:`menubar-logo`,children:(0,j.jsx)(Fe,{name:`circuit-board`})}),ne.map((e,t)=>(0,j.jsx)(`button`,{ref:e=>{a.current[t]=e},className:b(`menubar-item`,n===t&&`open`),onMouseDown:e=>{e.preventDefault(),n===t?(ie(),i(null)):re(t)},onMouseEnter:()=>{n!==null&&n!==t&&(ie(),re(t))},children:e.label},t)),(0,j.jsx)(`div`,{className:`grow`}),(0,j.jsx)(`div`,{className:b(`menubar-title ellipsis`,`clickable`),"data-tip":s?u:e(`Open or create a project`),onMouseDown:e=>{e.preventDefault(),ee(e.currentTarget,xn())},children:s?`${c} — AVAS`:`AVAS`}),(0,j.jsx)(`div`,{className:`grow`}),(0,j.jsxs)(`div`,{className:`toolbar-actions`,children:[(0,j.jsx)(C,{icon:`folder-opened`,tip:`${e(`Open project...`)}  (Ctrl+O)`,onClick:()=>_n()}),(0,j.jsx)(C,{icon:`save`,tip:te?`${e(`Save`)}  (Ctrl+S)`:e(`Nothing to save`),disabled:!s||!te,onClick:()=>wn()}),(0,j.jsx)(`div`,{className:`divider-v`}),(0,j.jsx)(C,{icon:f?p?`debug-continue`:`debug-pause`:`play`,className:b(`run-btn`,f&&!p&&`pause`),tip:`${e(f?p?`Resume`:`Pause`:`Run simulation`)}  (F5)`,disabled:!s&&!f,onClick:Nn}),(0,j.jsx)(C,{icon:`debug-stop`,className:`stop-btn`,tip:`${e(`Stop`)}  (Shift+F5)`,disabled:!f,onClick:kn}),(0,j.jsx)(`div`,{className:`divider-v`}),(0,j.jsx)(C,{icon:h?`layout-sidebar-left-off`:`layout-sidebar-left`,tip:e(`Toggle sidebar (Ctrl+B)`),onClick:si}),(0,j.jsx)(C,{icon:g?`layout-panel`:`layout-panel-off`,tip:e(`Toggle log panel (Ctrl+J)`),onClick:()=>Pe(!g)}),(0,j.jsx)(`div`,{className:`divider-v`}),(0,j.jsx)(ui,{})]})]})}function ui(){let e=ve(),t=Dr(e=>e.open),n=Dr(e=>!!e.current?.busy);return(0,j.jsxs)(`button`,{className:b(`assistant-toggle`,t&&`active`),"data-tip":e(`AI assistant (Ctrl+Shift+A)`),onClick:()=>jr(!t),children:[n?(0,j.jsx)(xe,{size:14}):(0,j.jsx)(Fe,{name:`sparkle`}),(0,j.jsx)(`span`,{children:e(`Assistant`)})]})}function di(){let e=ve(),t=l(e=>e.page),n=l(e=>e.sidebarCollapsed),r=l(e=>e.run.running),i=l(e=>!!e.run.paused),a=l(e=>e.project.open),o=on(e=>e.dirty),s={beam:o.beam,lattice:o.lattice,settings:o.settings,files:o.files};return(0,j.jsxs)(`nav`,{className:b(`sidebar`,n&&`collapsed`),children:[(0,j.jsx)(`div`,{className:`sidebar-header`,children:!n&&(0,j.jsxs)(j.Fragment,{children:[`AVAS `,(0,j.jsx)(nn,{})]})}),_e.map(o=>{let c=ni[o],l=o===`run`&&r,u=o!==`project`;return(0,j.jsxs)(`button`,{"aria-label":e(c.label),className:b(`nav-item`,t===o&&`active`,u&&!a&&`dim`),"data-tip":n?e(c.label):void 0,onClick:()=>{t===o&&n?v(!1):S(o)},children:[l&&i?(0,j.jsx)(Fe,{name:`debug-pause`,className:`nav-paused`}):l?(0,j.jsx)(xe,{size:20}):(0,j.jsx)(Fe,{name:c.icon}),!n&&(0,j.jsx)(`span`,{className:`nav-label`,children:e(c.label)}),s[o]&&(0,j.jsx)(`span`,{className:`nav-dot`,"data-tip":e(`Unsaved changes`)})]},o)})]})}function fi(e,t){return n=>{if(n.button!==0)return;n.preventDefault();let r=n.clientX,i=n.clientY;document.body.classList.add(`dragging`);let a=t=>e(t.clientX-r,t.clientY-i),o=()=>{document.body.classList.remove(`dragging`),window.removeEventListener(`mousemove`,a),window.removeEventListener(`mouseup`,o),t?.()};window.addEventListener(`mousemove`,a),window.addEventListener(`mouseup`,o)}}function pi(){let e=ve(),t=l(e=>e.project),n=l(e=>e.run),r=l(e=>e.statusMessage),i=l(e=>e.resolvedTheme),a=cr(e=>e.errors),o=cr(e=>e.warnings),s=r?.text??``;if(n.running){let t=[`${(n.percent??0).toFixed(0)} %`];n.stages&&n.stages>1&&t.push(`${e(`stage`)} ${n.stage}/${n.stages}`),n.step!=null&&n.all_step&&t.push(`${n.step}/${n.all_step}`),n.eta_s!=null&&!n.paused&&t.push(e(`{time} left`,{time:be(n.eta_s)})),s=[n.source===`assistant`?e(n.paused?`Assistant {task} paused`:`Assistant {task} running`,{task:e(n.label??``)}):n.source===`scan`?e(n.paused?`Parameter scan {task} paused`:`Parameter scan {task} running`,{task:n.label??``}):n.source===`segment`?e(n.paused?`Segment {label} paused`:`Segment {label} running`,{label:n.label??``}):e(n.paused?`Simulation paused`:`Simulation running`),...t].join(`  ·  `)}return(0,j.jsxs)(`div`,{className:b(`statusbar`,n.running&&`running`),children:[(0,j.jsxs)(`button`,{className:`status-item status-project`,"data-tip":t.open?`${t.path}
 ${e(`Click to switch project`)}`:e(`Open or create a project`),onClick:e=>{let t=e.currentTarget.getBoundingClientRect();ae(xn(),t.left,t.top-4,{anchorBottom:!0})},children:[(0,j.jsx)(Fe,{name:`root-folder`}),(0,j.jsx)(`span`,{className:`ellipsis`,children:t.open?t.name:e(`No project`)}),(0,j.jsx)(Fe,{name:`chevron-up`,style:{fontSize:12}})]}),(0,j.jsxs)(`button`,{className:`status-item`,"data-tip":e(`Errors and warnings in the log (click to show the log)`),onClick:()=>Pe(!0),children:[(0,j.jsx)(Fe,{name:`error`}),(0,j.jsx)(`span`,{children:a}),(0,j.jsx)(Fe,{name:`warning`}),(0,j.jsx)(`span`,{children:o})]}),(0,j.jsx)(`div`,{className:b(`status-message ellipsis`,!n.running&&r?.level===`error`&&`error`),"data-tip":s||void 0,children:s}),n.running&&(0,j.jsx)(`button`,{className:`status-item`,"data-tip":e(`Show the Run page`),onClick:()=>S(`run`),children:n.paused?(0,j.jsx)(Fe,{name:`debug-pause`}):(0,j.jsx)(xe,{size:14})}),(0,j.jsx)(`button`,{className:`status-item`,"data-tip":e(i===`dark`?`Switch to light theme`:`Switch to dark theme`),onClick:y,children:(0,j.jsx)(Fe,{name:`color-mode`})})]})}function mi(){(0,A.useEffect)(()=>{let e=e=>{if(Hn()||e.target instanceof Element&&e.target.closest(`.manual-window`))return;let t=e.ctrlKey||e.metaKey,n=l.getState(),r=e.key.toLowerCase(),i=t=>or(e,ar[t].keys),a=!0;i(`stop`)?kn():i(`runPauseResume`)?Nn():i(`save`)?wn():i(`openProject`)?_n():i(`newProject`)?vn():i(`quit`)?Rn():i(`sidebar`)?si():i(`log`)?Pe(!n.logVisible):i(`assistant`)?jr(!Dr.getState().open):i(`zoomIn`)?_(1):i(`zoomOut`)?_(-1):i(`zoomReset`)?o(100):t&&!e.shiftKey&&!e.altKey&&/^[1-8]$/.test(e.key)&&!Vn(e)?S(_e[Number(e.key)-1]):a=e.key===`F12`||t&&e.shiftKey&&r===`i`?!1:t&&r===`r`&&!Vn(e)?!0:!!(e.key===`F5`||t&&r===`p`||t&&r===`f`&&!Vn(e)),a&&(e.preventDefault(),e.stopPropagation())};return window.addEventListener(`keydown`,e,!0),()=>window.removeEventListener(`keydown`,e,!0)},[])}function hi(){mi();let e=l(e=>e.page),t=l(e=>e.sidebarCollapsed),n=l(e=>e.sidebarWidth),r=l(e=>e.logVisible),i=l(e=>e.logHeight),o=l(e=>e.logMaximized),[s,c]=(0,A.useState)(()=>new Set([e])),[u,d]=(0,A.useState)(null),[f,p]=(0,A.useState)(null),m=Dr(e=>e.open),h=Dr(e=>e.width),[g,_]=(0,A.useState)(null),y=(0,A.useRef)(null);(0,A.useEffect)(()=>{c(t=>t.has(e)?t:new Set(t).add(e))},[e]);let b=u??(t?ri:n),ee=(()=>{let e=0,r=0;return i=>{e=t?ri:n,r=e,fi(t=>{r=e+t,d(Math.max(ri,Math.min(ai,r)))},()=>{d(null),r<oi?v(!0):(Se(Math.max(ii,Math.min(ai,r))),t&&v(!1))})(i)}})(),S=(()=>{let e=0,t=0;return n=>{let r=y.current?.clientHeight??800;e=o?r-120:i,t=e,fi((n,i)=>{t=Math.max(60,Math.min(r-120,e-i)),p(t)},()=>{p(null),t<60?Pe(!1):x(Math.round(t))})(n)}})(),C=o?{flex:`1 1 auto`}:{height:f??i},w=e=>{let t=h,n=t;fi(e=>{n=Math.max(320,Math.min(Math.round(window.innerWidth*.6),t-e)),_(n)},()=>{_(null),Mr(n)})(e)};return(0,j.jsxs)(`div`,{className:`shell`,children:[(0,j.jsx)(li,{}),(0,j.jsxs)(`div`,{className:`shell-body`,children:[(0,j.jsx)(`div`,{className:`sidebar-wrap`,style:{width:b},children:(0,j.jsx)(di,{})}),(0,j.jsx)(`div`,{className:`sash sash-v`,onMouseDown:ee,onDoubleClick:()=>v(!t)}),(0,j.jsxs)(`div`,{className:`main`,ref:y,children:[(0,j.jsx)(`div`,{className:`pages`,style:o&&r?{flex:`0 0 120px`}:void 0,children:[...s].map(t=>(0,j.jsx)(`div`,{className:`page-host`,style:{display:t===e?void 0:`none`},children:(0,j.jsx)(rr,{name:t,children:(0,j.jsx)(A.Suspense,{fallback:(0,j.jsx)(`div`,{className:`page-loading`,children:(0,j.jsx)(xe,{size:24})}),children:ni[t].render()})})},t))}),r&&(0,j.jsxs)(j.Fragment,{children:[(0,j.jsx)(`div`,{className:`sash sash-h`,onMouseDown:S,onDoubleClick:()=>a(!o)}),(0,j.jsx)(`div`,{className:`panel`,style:C,children:(0,j.jsx)(gr,{})})]})]}),m&&(0,j.jsxs)(j.Fragment,{children:[(0,j.jsx)(`div`,{className:`sash sash-v`,onMouseDown:w}),(0,j.jsx)(`div`,{className:`assistant-wrap`,style:{width:g??h},children:(0,j.jsx)(rr,{name:`assistant`,children:(0,j.jsx)(A.Suspense,{fallback:(0,j.jsx)(`div`,{className:`page-loading`,children:(0,j.jsx)(xe,{size:20})}),children:(0,j.jsx)(qr,{})})})})]})]}),(0,j.jsx)(tr,{}),(0,j.jsx)(pi,{})]})}window.__avasDebug={useApp:l,useDirty:on,setPage:S,setTheme:r,setLanguage:Ie,runSimulation:On,saveAll:wn};function gi(){let e=l(e=>e.ready),[t,n]=(0,A.useState)(null);return(0,A.useEffect)(()=>{pr(),Er(),oe().then(()=>Ar()).catch(e=>n(String(e?.message??e)))},[]),(0,A.useEffect)(()=>{let e=e=>{e.target.closest(`input, textarea, .selectable, .monaco-editor`)||e.preventDefault()};return window.addEventListener(`contextmenu`,e),()=>window.removeEventListener(`contextmenu`,e)},[]),t?(0,j.jsx)(`div`,{className:`boot-error`,children:t}):(0,j.jsxs)(j.Fragment,{children:[e?(0,j.jsx)(hi,{}):(0,j.jsx)(`div`,{className:`boot`,children:(0,j.jsx)(xe,{size:28})}),(0,j.jsx)(vt,{}),(0,j.jsx)(en,{}),(0,j.jsx)(f,{}),(0,j.jsx)(w,{}),(0,j.jsx)(ne,{}),(0,j.jsx)(d,{})]})}(0,We.createRoot)(document.getElementById(`root`)).render((0,j.jsx)(gi,{}));export{jn as A,N as B,yn as C,_n as D,vn as E,dn as F,M as G,Gt as H,cn as I,bt as J,xt as K,pn as L,On as M,kn as N,An as O,mn as P,He as Q,sn as R,Hn as S,Vn as T,zt as U,Zt as V,Mt as W,wt as X,St as Y,ot as Z,_r as _,Lr as a,or as b,jr as c,Wr as d,Dr as f,vr as g,yr as h,Rr as i,bn as j,xn as k,Gr as l,xr as m,zr as n,Ir as o,Cr as p,Ct as q,Fr as r,Vr as s,Ur as t,Hr as u,lr as v,Mn as w,En as x,ar as y,nn as z};

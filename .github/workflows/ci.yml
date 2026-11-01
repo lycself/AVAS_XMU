@@ -57,7 +57,7 @@ jobs:
         run: npm run build
 
   publish-update:
-    if: github.event_name == 'push' && github.repository == 'lycself/AVAS' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.repository == 'lycself/AVAS_XMU' && github.ref == 'refs/heads/main'
     needs: [python, frontend]
     runs-on: windows-latest
     permissions:

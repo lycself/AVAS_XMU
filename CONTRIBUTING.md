@@ -169,7 +169,7 @@ AI / 开发者在每次提交前新增 `docs/changes/*.md`，内容要求和汇�
 
 Before committing, add a reviewed change fragment under `docs/changes/`. Keep committed fragments immutable. CI checks for new nonempty entries; publishing collects all entries since the last successful release without an AI service or a generated Git commit.
 
-The `publish-update` job in `.github/workflows/ci.yml` runs only for pushes to `lycself/AVAS:main`, after both CI jobs pass. It builds `AVASUpdate.exe` as an independent one-file executable, builds the Windows bundle and requires Inno Setup to produce the installer, runs startup/helper checks, then runs `packaging/update_release.py --publish`. GitHub Actions must be enabled and the job's `contents: write` permission permitted. No personal access token is needed; the job uses `github.token`.
+The `publish-update` job in `.github/workflows/ci.yml` runs only for pushes to `lycself/AVAS_XMU:main`, after both CI jobs pass. It builds `AVASUpdate.exe` as an independent one-file executable, builds the Windows bundle and requires Inno Setup to produce the installer, runs startup/helper checks, then runs `packaging/update_release.py --publish`. GitHub Actions must be enabled and the job's `contents: write` permission permitted. No personal access token is needed; the job uses `github.token`.
 
 Each `avas-<full SHA>` release holds `AVAS-<version>-setup.exe`, `avas-source.zip`, `avas-windows.zip` and `update.json`. Only after these are ready is the `avas-latest` metadata asset replaced. Fixed-version assets are not overwritten. The publisher checks ancestry to keep a slower old workflow from replacing a newer update pointer. During replacement a transient metadata download failure is treated as a failed check, never as “up to date”.
 

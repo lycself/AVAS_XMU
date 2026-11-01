@@ -107,7 +107,7 @@ begin
       SetupDownloadPage.Clear;
       MetaPath := ExpandConstant('{tmp}\setup-latest.ini');
       DeleteFile(MetaPath);
-      SetupDownloadPage.Add('https://github.com/lycself/AVAS/releases/download/avas-latest/setup-latest.ini',
+      SetupDownloadPage.Add('https://github.com/lycself/AVAS_XMU/releases/download/avas-latest/setup-latest.ini',
         'setup-latest.ini', '');
       SetupDownloadPage.Show;
       try
@@ -139,7 +139,7 @@ begin
         exit;
       end;
       SetupMetadata := False;
-      Url := 'https://github.com/lycself/AVAS/releases/download/avas-' + Commit + '/' + Name;
+      Url := 'https://github.com/lycself/AVAS_XMU/releases/download/avas-' + Commit + '/' + Name;
       SetupDownloadPage.Clear;
       SetupDownloadPage.Add(Url, 'AVAS-latest-setup.exe', Hash);
       SetupDownloadPage.Show;

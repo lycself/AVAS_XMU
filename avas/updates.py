@@ -20,7 +20,7 @@ from avas import __version__
 from avas.paths import PACKAGE_DIR, USER_DATA_DIR
 from avas import update_worker as worker
 
-REPOSITORY = "lycself/AVAS"
+REPOSITORY = "lycself/AVAS_XMU"
 BASE = f"https://github.com/{REPOSITORY}/releases/download"
 LATEST = BASE + "/avas-latest/update.json"
 SHA = re.compile(r"[0-9a-f]{40}\Z")

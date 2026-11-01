@@ -10,7 +10,7 @@ AVAS 是面向直线加速器的束流动力学模拟软件，提供 C++ 计算�
 
 ### 下载与快速开始
 
-在[官方发布页](https://github.com/lycself/AVAS/releases)选择适合的文件：
+在[官方发布页](https://github.com/lycself/AVAS_XMU/releases)选择适合的文件：
 
 | 使用方式 | 下载文件 | 启动方法 |
 | --- | --- | --- |
@@ -170,7 +170,7 @@ AVAS is a beam dynamics simulation code for linear accelerators, with a C++ engi
 
 ### Download and quick start
 
-Choose a package from the [official releases](https://github.com/lycself/AVAS/releases):
+Choose a package from the [official releases](https://github.com/lycself/AVAS_XMU/releases):
 
 | Installation | Download | Start |
 | --- | --- | --- |

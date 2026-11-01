@@ -93,7 +93,7 @@ async function showUpdate() {
         return;
       }
       if (choice === "download") {
-        openUrl(`https://github.com/lycself/AVAS/releases/tag/avas-${release.commit}`);
+        openUrl(`https://github.com/lycself/AVAS_XMU/releases/tag/avas-${release.commit}`);
         return;
       }
       if (choice !== "install") { useUpdates.setState({ hidden: release.commit, open: false }); return; }

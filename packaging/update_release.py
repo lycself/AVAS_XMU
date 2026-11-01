@@ -193,7 +193,7 @@ def publish(output):
     public_tag = publish_short_release(data, tag)
     if pointer is None:
         gh("release", "create", "avas-latest", "--target", commit, "--title", "AVAS automatic updates",
-           "--notes", "供 AVAS 自动更新使用，普通用户无需下载。请到正式版本下载 Windows 安装包。 / Update metadata for AVAS. Download applications from a versioned release: https://github.com/lycself/AVAS/releases", "--prerelease", "--latest=false")
+           "--notes", "供 AVAS 自动更新使用，普通用户无需下载。请到正式版本下载 Windows 安装包。 / Update metadata for AVAS. Download applications from a versioned release: https://github.com/lycself/AVAS_XMU/releases", "--prerelease", "--latest=false")
     gh("release", "edit", "avas-latest", "--notes",
        f"供程序自动更新使用，无需手动下载。 / For automatic updates only.\n\n下载程序 / Download: https://github.com/{REPOSITORY}/releases/tag/{public_tag}")
     # Derive from the immutable release metadata, including publisher retries.

@@ -1264,7 +1264,7 @@ def test_metadata_read_failure_reopens_and_logs_phase(monkeypatch, caplog):
     monkeypatch.setattr(updates, "open_url", lambda *a, **kw: next(responses))
     monkeypatch.setattr(updates.time, "sleep", lambda _: None)
     with caplog.at_level(logging.INFO, logger="avas.gui"):
-        assert updates.fetch_json("https://api.github.com/repos/lycself/AVAS/compare/a...b") == {"ok": True}
+        assert updates.fetch_json("https://api.github.com/repos/lycself/AVAS_XMU/compare/a...b") == {"ok": True}
     assert broken.closed
     assert "phase=read" in caplog.text and "version comparison" in caplog.text
 
