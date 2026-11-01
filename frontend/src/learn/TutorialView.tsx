@@ -14,7 +14,10 @@ import { openProject } from "../actions";
 import { pick, useLang, useT } from "../i18n";
 import type { Bi } from "../lattice/types";
 import { setPage, useApp } from "../store/app";
-import { ParamControl, useLatest, type LabParam } from "./LabView";
+import { ParamControl, type LabParam } from "./LabView";
+import { useLatest } from "./useLatest";
+import { BeamlineView, type BeamlinePreview } from "./BeamlineView";
+import { exampleMaps } from "./FieldView";
 import { askTutor } from "./tutor";
 
 type Step = { id: string; title: Bi; params: LabParam[] };
@@ -39,35 +42,6 @@ function defaults(step: Step, carry: Record<string, number> = {}) {
 }
 
 /** The beam line as boxes along z: solenoids, cavities and drifts. */
-function BeamLine({ elements }: { elements: Element[] }) {
-  const t = useT();
-  const shown = elements.filter((e) => e.z0 != null && e.z1 != null);
-  const end = Math.max(0.1, ...shown.map((e) => e.z1 ?? 0));
-  const W = 1000;
-  const x = (z: number) => (z / end) * W;
-  return (
-    <svg className="learn-beamline" viewBox={`0 0 ${W} 44`} preserveAspectRatio="none" role="img" aria-label={t("Beam line")}>
-      <line x1={0} x2={W} y1={22} y2={22} className="learn-bl-axis" />
-      {shown.map((e, i) => {
-        if (e.key !== "field") return null;
-        const cavity = e.phase_rf != null;
-        const w = Math.max(2, x(e.z1!) - x(e.z0!));
-        return cavity ? (
-          <g key={i}>
-            <title>{t("HWR cavity, φs = {phase}°", { phase: fmtG(e.phase_s ?? 0, 3) })}</title>
-            <ellipse cx={x(e.z0!) + w / 2} cy={22} rx={w / 2} ry={15} className="learn-bl-cavity" />
-          </g>
-        ) : (
-          <g key={i}>
-            <title>{t("Solenoid")}</title>
-            <rect x={x(e.z0!)} y={9} width={w} height={26} rx={3} className="learn-bl-solenoid" />
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
-
 export function TutorialView() {
   const t = useT();
   const lang = useLang((s) => s.lang);
@@ -78,6 +52,7 @@ export function TutorialView() {
   const [active, setActive] = useState(0);
   const [values, setValues] = useState<Record<string, Record<string, number>>>({});
   const [run, setRun] = useState<RunState>({ status: "idle" });
+  const [dirs, setDirs] = useState<string[]>([]);
 
   useEffect(() => {
     let live = true;
@@ -94,6 +69,9 @@ export function TutorialView() {
         .then((s) => live && setRun(s))
         .catch(() => undefined);
     refresh();
+    exampleMaps()
+      .then((e) => live && setDirs(e.fieldDirs))
+      .catch(() => undefined);
     const offs = [
       on("learn.tutorial", (ev: RunState) => {
         if (!live) return;
@@ -241,7 +219,12 @@ export function TutorialView() {
           {previewError && <div className="learn-lab-error">{previewError}</div>}
           {preview && (
             <>
-              <BeamLine elements={preview.elements} />
+              <BeamlineView
+                text={preview.lattice}
+                fieldDirs={dirs}
+                preview={preview as unknown as BeamlinePreview}
+                engine={engine && sameParams ? { z: engine.z, rmsX: engine.rmsX, rmsY: engine.rmsY, energy: engine.energy, label: t("engine") } : null}
+              />
               <dl className="learn-values">
                 <div>
                   <dt>{t("Exit energy (preview)")}</dt>

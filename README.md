@@ -65,13 +65,13 @@ Windows 安装版和便携版无需 Python、Git 或 GitHub 账户。请保留�
 
 #### 加速器入门
 
-侧栏最后一页（或“帮助 → 加速器入门”）系统介绍直线加速器：相对论运动学、相空间与线性光学、纵向动力学、空间电荷，每种 AVAS 元件的原理、场与方程、传输矩阵、可调参数和常见问题，以及如何组合成一台加速器。公式以 MathML 显示，参数表直接取自关键字定义；元件详情中的“了解此元件”跳到对应章节。
+侧栏最后一页（或“帮助 → 加速器入门”）系统介绍直线加速器：相对论运动学、相空间与线性光学、纵向动力学、空间电荷，每种 AVAS 元件的原理、场与方程、传输矩阵、可调参数和常见问题，以及如何组合成一台加速器。公式以 MathML 显示，参数表直接取自关键字定义；元件详情中的“了解此元件”跳到对应章节。入门从“跟着一个质子走”的故事线开始，依次讲离子源、RFQ、中能传输段、超导加速段和高能传输段为什么需要、由什么组成；各章先讲物理图像和推导，再在“在 AVAS 中”参考小节给出关键字和约定；“初始分布”一章配有 KV／水袋／抛物线／高斯分布的粒子云实验。每个元件章节、带束线的实验和引导教程都配有与结构页相同的 2D／3D 束线示意（叠加线性预览包络），点击元件可查看其详情。左侧章节目录和右侧“本页内容”都可以收起；主界面导航栏除 `Ctrl+B` 收成图标外，还可用 `Ctrl+Shift+B`（视图 → 隐藏侧边栏）完全隐藏。
 
 章节中的交互实验（运动学、相空间椭圆、FODO、螺线管、二极铁、射频腔相位、空间电荷）拖动参数即时计算，使用与线性包络预览相同的代码，属于近似模型。引导教程用示例项目的 HWR 腔和螺线管场图逐步搭出一段超导加速段，可随时用多粒子内核运行对比；运行在 AVAS 数据目录的沙盒中，不修改任何项目，满意后可另存为新项目。内容由 AI 撰写，每章标注“AI 撰写，待审核”，审核前请核对公式和数值；“问讲解员”把当前章节或实验结果交给 AI 助手讲解。
 
 #### AI 助手
 
-工具栏右侧或 `Ctrl+Shift+A` 打开助手。它支持 OpenAI 兼容接口和本地模型，可读取项目、解释结果、提出参数修改，并在副本中执行扫描与优化。在助手设置中配置服务地址、模型并测试连接。未打开项目时也可以询问加速器物理与入门内容。
+工具栏右侧或 `Ctrl+Shift+A` 打开助手。它支持 OpenAI 兼容接口和本地模型，可读取项目、解释结果、提出参数修改，并在副本中执行扫描与优化。在助手设置中配置服务地址、模型并测试连接。未打开项目时也可以询问加速器物理与入门内容。回答前的思考和工具调用收在可展开的“思考过程”里，修改提案和带结果的运行仍单独显示。
 
 每项文件修改以提案展示，经批准后应用；也可在单个对话中开启自动应用。写入前备份到 `.avas_ai/backups/`，试算保存在 `.avas_ai/runs/`，不改项目的 `InputFile/` 与 `OutputFile/`。运行锁期间拒绝输入修改。API 密钥保存在 Windows 凭据管理器中。
 
@@ -232,13 +232,13 @@ Full runs and error studies use an `inputs/` snapshot in the output directory. S
 
 #### Accelerator primer
 
-The last sidebar page (or Help → Accelerator primer) introduces linear accelerators systematically: relativistic kinematics, phase space and linear optics, longitudinal dynamics, space charge; for every AVAS component its principle, fields and equations, transfer matrix, adjustable parameters and pitfalls; and how components combine into an accelerator. Formulas are shown as MathML and parameter tables come straight from the keyword definitions; Learn about this element in the element details opens the matching chapter.
+The last sidebar page (or Help → Accelerator primer) introduces linear accelerators systematically: relativistic kinematics, phase space and linear optics, longitudinal dynamics, space charge; for every AVAS component its principle, fields and equations, transfer matrix, adjustable parameters and pitfalls; and how components combine into an accelerator. Formulas are shown as MathML and parameter tables come straight from the keyword definitions; Learn about this element in the element details opens the matching chapter. The primer starts with the story line "A proton's journey": why an ion source, RFQ, medium-energy transport, superconducting sections and high-energy transport are needed and what each is made of. Every chapter first builds the physical picture and the derivations, then gives keywords and conventions in its "In AVAS" reference section; the initial-distributions chapter has a lab with KV / waterbag / parabolic / Gaussian particle clouds. Every element chapter, the labs with a beam line and the guided tutorial show the same 2D / 3D beam-line view as the Lattice page (with the linear preview envelope); click an element for its details. The chapter list on the left and On this page on the right can be hidden; besides collapsing to icons with `Ctrl+B`, the main navigation can be hidden completely with `Ctrl+Shift+B` (View → Hide sidebar).
 
 The interactive labs (kinematics, phase-space ellipse, FODO, solenoid, dipole, RF cavity phase, space charge) recompute while you drag the parameters, with the same code as the linear envelope preview, so they are approximate models. The guided tutorial builds a superconducting accelerating section step by step from the example project's HWR cavity and solenoid maps and can compare with the multi-particle engine at any time; engine runs use a sandbox in the AVAS data folder, change no project, and can be saved as a new project. The content is written by AI and every chapter is marked "AI-written, awaiting review": check formulas and numbers before relying on them. Ask the tutor hands the current chapter or lab result to the AI assistant for an explanation.
 
 #### AI assistant
 
-Open the assistant from the toolbar or with `Ctrl+Shift+A`. It supports OpenAI-compatible services and local models, reads projects, explains results, proposes parameter changes, and runs scans or optimization in copies. Configure the endpoint and model and test the connection in assistant settings. Without an open project you can still ask about accelerator physics and the primer.
+Open the assistant from the toolbar or with `Ctrl+Shift+A`. It supports OpenAI-compatible services and local models, reads projects, explains results, proposes parameter changes, and runs scans or optimization in copies. Configure the endpoint and model and test the connection in assistant settings. Without an open project you can still ask about accelerator physics and the primer. The thinking and tool calls before an answer are folded into one expandable Thinking block; change proposals and runs with results stay visible.
 
 Each file change is a proposal requiring approval; automatic application can be enabled for an individual conversation. Changes are backed up under `.avas_ai/backups/`. Trial runs use `.avas_ai/runs/` without changing project `InputFile/` or `OutputFile/`. Input changes are refused while the run lock is active. API keys are stored in Windows Credential Manager.
 

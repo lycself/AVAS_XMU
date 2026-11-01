@@ -193,6 +193,91 @@ def test_chapter_parameter_tables_name_real_keywords():
     assert not problems, "\n".join(problems)
 
 
+def test_distribution_lab_same_rms_different_shapes():
+    out = labs.run("distribution", {"N": 20000})
+    v = {x["key"]: x["value"] for x in out["values"]}
+    # textbook edge / rms ratios of the 4D distributions (sampling noise of a 20000-particle cloud)
+    assert v["kv_edge"] == pytest.approx(2.0, rel=0.03)
+    assert v["wb_edge"] == pytest.approx(math.sqrt(6), rel=0.04)
+    assert v["pb_edge"] == pytest.approx(math.sqrt(8), rel=0.06)
+    assert v["gs_edge"] > 3.5 and v["gs_tail"] == pytest.approx(4.55, abs=0.6)
+    assert v["kv_tail"] < 0.5 < v["wb_tail"] < v["pb_tail"] < v["gs_tail"]
+    # the cloud follows the Twiss parameters: rms x = sqrt(β ε / (βγ))
+    _g, bg, *_ = labs._kin(1.527, labs.PROTON, 1)
+    assert v["rms_x"] == pytest.approx(math.sqrt(0.377 * 0.138 / bg), rel=0.03)
+    assert v["emit_g"] == pytest.approx(0.138 / bg, rel=0.03)
+    clouds = [p for p in out["plots"] if p["id"] in ("kv", "wb", "pb", "gs")]
+    assert len(clouds) == 4 and all(len(p["series"][0]["x"]) <= 2500 for p in clouds)
+    assert labs.run("distribution", {"N": 300})["values"]       # small clouds work too
+
+
+def test_story_line_is_the_first_part():
+    with open(os.path.join(ROOT, "frontend", "src", "learn", "chapters.ts"), encoding="utf-8") as fh:
+        ids = re.findall(r'\{ id: "([\w-]+)", part: "(\w+)"', fh.read())
+    assert ids[0] == ("journey-overview", "journey")
+    story = [i for i, part in ids if part == "journey"]
+    assert story == ["journey-overview", "journey-source", "journey-rfq", "journey-mebt", "journey-sc", "journey-hebt"]
+    for cid, _part in ids:
+        for lang in ("zh", "en"):
+            assert os.path.isfile(os.path.join(CONTENT, f"{cid}.{lang}.md")), (cid, lang)
+
+
+BEAMLINE_CHAPTERS = ["drift", "quadrupole", "solenoid", "dipole", "steerer", "rf-cavity", "static-fields", "field-maps", "superpose"]
+
+
+def _beamline_blocks(name):
+    with open(os.path.join(CONTENT, name), encoding="utf-8") as fh:
+        return re.findall(r"^```avas-beamline[ \t]*\n(.*?)\n```", fh.read(), re.M | re.S)
+
+
+@pytest.mark.parametrize("lab_id", ["fodo", "solenoid", "dipole", "rf-cavity", "space-charge"])
+def test_beam_line_labs_return_their_preview_for_the_2d_3d_view(lab_id):
+    if lab_id == "rf-cavity" and paths.example_input_dir() is None:
+        pytest.skip("example project not present")
+    out = labs.run(lab_id)
+    bl = out["beamline"]
+    assert out["lattice"] and bl is not None
+    assert len(bl["z"]) == len(bl["rms_x"]) == len(bl["rms_y"]) == len(bl["energy"]) > 10
+    assert bl["elements"] and isinstance(bl["fieldDirs"], list)
+    assert labs.run("kinematics")["beamline"] is None
+
+
+def test_beamline_snippets_get_start_and_end():
+    assert labs._with_ends("drift 0.1 0.02 0") == "start\ndrift 0.1 0.02 0\nend\n"
+    full = "start\ndrift 0.1 0.02 0\nend\n"
+    assert labs._with_ends(full) == full
+
+
+@pytest.mark.skipif(paths.example_input_dir() is None, reason="example project not present")
+def test_chapter_beam_lines_are_valid_lattices():
+    """Every element chapter shows a beam line; the snippet parses cleanly and the preview evaluates it."""
+    problems = []
+    for cid in BEAMLINE_CHAPTERS:
+        zh, en = _beamline_blocks(f"{cid}.zh.md"), _beamline_blocks(f"{cid}.en.md")
+        if not zh or zh != en:
+            problems.append(f"{cid}: needs the same avas-beamline blocks in both languages")
+    for name in _chapter_files():
+        for body in _beamline_blocks(name):
+            assert body.isascii(), name
+            doc = LatticeDocument(labs._with_ends(body), [paths.example_input_dir()])
+            if not doc.elements() or doc.issue_count():
+                problems.append(f"{name}: {[i for st in doc.elements() for i in st.issues]}")
+            res = labs.beamline(body)
+            if res["beamline"] is None or res["warnings"]:
+                problems.append(f"{name}: preview {res['warnings']}")
+    assert not problems, "\n".join(problems)
+
+
+@pytest.mark.skipif(paths.example_input_dir() is None, reason="example project not present")
+def test_beamline_rpc_sends_the_preview_as_blobs():
+    from avas.gui import bridge
+    res = ok("learn.beamline", text="drift 0.05 0.02 0\nfield 0.35 0.02 0 3 0 0 0 0.35 sol\ndrift 0.2 0.02 0")
+    assert res["lattice"].startswith("start\n") and res["fieldDirs"]
+    assert len(bridge.take_blob(res["beamline"]["rms_x"]["__blob__"])) > 10
+    bad = ok("learn.beamline", text="field 0.2 0.02 0 3 0 0 0 1 nosuchmap")
+    assert bad["lattice"] and (bad["beamline"] is None or bad["warnings"])
+
+
 # =========================================================================== tutorial
 needs_example = pytest.mark.skipif(paths.example_input_dir() is None, reason="example project not present")
 

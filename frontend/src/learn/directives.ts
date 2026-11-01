@@ -6,14 +6,17 @@
 //   ```avas-field          quadrupole G=4 L=0.1   field picture of a matrix-model element (schematic)
 //   ```avas-field          map hwr010             a slice of one of the example field maps (data)
 //   ```avas-tutorial       build-linac            the guided tutorial
+//   ```avas-beamline       (lattice lines)        a 2D / 3D beam line with the example beam's linear preview;
+//                                                 the body is AVAS lattice text, start / end may be left out
 //
 // Lab parameters are checked against the back end's lab definitions by
 // tests/test_learn.py; this module only knows the names.
 
-export type DirectiveKind = "lab" | "params" | "field" | "tutorial";
-export type Directive = { kind: DirectiveKind; id: string; args: Record<string, string>; items: string[] };
+export type DirectiveKind = "lab" | "params" | "field" | "tutorial" | "beamline";
+/** *text* is the body of an ``avas-beamline`` block (lattice lines); the other kinds take one line of words. */
+export type Directive = { kind: DirectiveKind; id: string; args: Record<string, string>; items: string[]; text?: string };
 
-export const LAB_IDS = ["kinematics", "phase-space", "fodo", "solenoid", "dipole", "rf-cavity", "space-charge"] as const;
+export const LAB_IDS = ["kinematics", "phase-space", "distribution", "fodo", "solenoid", "dipole", "rf-cavity", "space-charge"] as const;
 export type LabId = (typeof LAB_IDS)[number];
 
 /** Matrix-model fields drawn from parameters (lattice/analyticField.ts) and the parameters each takes. */
@@ -33,6 +36,7 @@ const KINDS: Record<string, DirectiveKind> = {
   "avas-params": "params",
   "avas-field": "field",
   "avas-tutorial": "tutorial",
+  "avas-beamline": "beamline",
 };
 
 export function isDirectiveLang(lang: string): boolean {
@@ -43,6 +47,7 @@ export function isDirectiveLang(lang: string): boolean {
 export function parseDirective(lang: string, body: string): Directive | null {
   const kind = KINDS[lang];
   if (!kind) return null;
+  if (kind === "beamline") return { kind, id: "beamline", args: {}, items: [], text: body.replace(/\s+$/, "") + "\n" };
   const words = body.trim().split(/\s+/).filter(Boolean);
   const args: Record<string, string> = {};
   const items: string[] = [];
@@ -90,6 +95,10 @@ export function directiveProblems(d: Directive): string[] {
       break;
     case "tutorial":
       if (!TUTORIALS.includes(d.id)) out.push(`unknown tutorial '${d.id}'`);
+      break;
+    case "beamline":
+      // the lattice itself is checked by tests/test_learn.py (parser and linear preview)
+      if (!(d.text ?? "").split("\n").some((l) => l.trim() && !l.trim().startsWith("!"))) out.push("beamline: the block has no lattice lines");
       break;
   }
   return out;

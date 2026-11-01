@@ -93,6 +93,8 @@ type AppState = {
   scale: number;
   page: PageId;
   sidebarCollapsed: boolean;
+  /** the sidebar is not shown at all (View ▸ Hide sidebar); *sidebarCollapsed* still applies once it is back */
+  sidebarHidden: boolean;
   sidebarWidth: number;
   logVisible: boolean;
   logHeight: number;
@@ -117,6 +119,7 @@ export const useApp = create<AppState>(() => ({
   scale: 100,
   page: "project",
   sidebarCollapsed: false,
+  sidebarHidden: false,
   sidebarWidth: 220,
   logVisible: true,
   logHeight: 200,
@@ -218,6 +221,11 @@ export function setSidebarCollapsed(collapsed: boolean) {
   persist({ "ui/sidebarCollapsed": collapsed });
 }
 
+export function setSidebarHidden(hidden: boolean) {
+  set({ sidebarHidden: hidden });
+  persist({ "ui/sidebarHidden": hidden });
+}
+
 export function setSidebarWidth(width: number) {
   set({ sidebarWidth: width });
   persist({ "ui/sidebarWidth": width });
@@ -268,6 +276,7 @@ export async function initApp() {
     theme: (["system", "light", "dark"].includes(s["ui/theme"]) ? s["ui/theme"] : "system") as ThemeMode,
     scale: SCALES.includes(s["ui/uiScale"]) ? s["ui/uiScale"] : 100,
     sidebarCollapsed: !!s["ui/sidebarCollapsed"],
+    sidebarHidden: !!s["ui/sidebarHidden"],
     sidebarWidth: Math.max(160, Math.min(480, Number(s["ui/sidebarWidth"]) || 220)),
     logVisible: !s["ui/logCollapsed"],
     logHeight: Math.max(80, Number(s["ui/logHeight"]) || 200),

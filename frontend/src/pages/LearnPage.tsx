@@ -3,14 +3,15 @@
 // pictures and the guided tutorial (see src/learn).  Works without a project.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Markdown, type FenceRenderer } from "../components/Markdown";
-import { Button, Icon, TextInput, cx } from "../components/ui";
+import { Button, Icon, IconButton, TextInput, cx } from "../components/ui";
 import { useLang, useT } from "../i18n";
 import { PARTS, loadChapters, locate, searchChapters, type Chapter } from "../learn/content";
+import { BeamlineBlock } from "../learn/BeamlineView";
 import { parseDirective } from "../learn/directives";
 import { FieldView } from "../learn/FieldView";
 import { LabView } from "../learn/LabView";
 import { ParamsTable } from "../learn/ParamsTable";
-import { learnLang, showLearn, useLearn } from "../learn/store";
+import { learnLang, setLearnPanel, showLearn, useLearn } from "../learn/store";
 import { TutorialView } from "../learn/TutorialView";
 import { askTutor } from "../learn/tutor";
 import { useApp } from "../store/app";
@@ -27,6 +28,8 @@ const renderFence: FenceRenderer = (lang, body, key) => {
       return <FieldView key={key} directive={d} />;
     case "tutorial":
       return <TutorialView key={key} />;
+    case "beamline":
+      return <BeamlineBlock key={key} text={d.text ?? ""} />;
   }
 };
 
@@ -47,7 +50,7 @@ export default function LearnPage() {
   const t = useT();
   const lang = useLang((s) => s.lang);
   const page = useApp((s) => s.page);
-  const { chapter: chapterId, anchor, nonce } = useLearn();
+  const { chapter: chapterId, anchor, nonce, panels } = useLearn();
   const chapters = useMemo(() => loadChapters(learnLang()), [lang]);
   const [query, setQuery] = useState("");
   const main = useRef<HTMLDivElement>(null);
@@ -91,22 +94,31 @@ export default function LearnPage() {
   const part = PARTS.find((p) => p.id === chapter.part);
   return (
     <div className="learn-page">
-      <nav className="learn-nav" aria-label={t("Primer contents")}>
-        <TextInput className="learn-search" placeholder={t("Search the primer")} aria-label={t("Search the primer")} value={query} onChange={(e) => setQuery(e.target.value)} />
-        {PARTS.map((p) => (
-          <div key={p.id} className="learn-part">
-            <div className="learn-part-title">{t(p.title)}</div>
-            {chapters
-              .filter((c) => c.part === p.id)
-              .map((c) => (
-                <button key={c.id} className={cx("learn-nav-item", c.id === chapter.id && !query && "active")} onClick={() => go(c.id)}>
-                  <span className="ellipsis">{c.title}</span>
-                  {c.status === "ai-draft" && <span className="learn-dot" data-tip={t("AI-written, awaiting review")} />}
-                </button>
-              ))}
+      {panels.nav ? (
+        <nav className="learn-nav" aria-label={t("Primer contents")}>
+          <div className="learn-nav-top">
+            <TextInput className="learn-search" placeholder={t("Search the primer")} aria-label={t("Search the primer")} value={query} onChange={(e) => setQuery(e.target.value)} />
+            <IconButton icon="layout-sidebar-left" active tip={t("Hide the chapter list")} onClick={() => setLearnPanel("nav", false)} />
           </div>
-        ))}
-      </nav>
+          {PARTS.map((p) => (
+            <div key={p.id} className="learn-part">
+              <div className="learn-part-title">{t(p.title)}</div>
+              {chapters
+                .filter((c) => c.part === p.id)
+                .map((c) => (
+                  <button key={c.id} className={cx("learn-nav-item", c.id === chapter.id && !query && "active")} onClick={() => go(c.id)}>
+                    <span className="ellipsis">{c.title}</span>
+                    {c.status === "ai-draft" && <span className="learn-dot" data-tip={t("AI-written, awaiting review")} />}
+                  </button>
+                ))}
+            </div>
+          ))}
+        </nav>
+      ) : (
+        <div className="learn-rail">
+          <IconButton icon="layout-sidebar-left-off" tip={t("Show the chapter list")} onClick={() => setLearnPanel("nav", true)} />
+        </div>
+      )}
       <div className="learn-main" ref={main} onClick={onClick}>
         {query.trim() ? (
           <div className="learn-article">
@@ -137,7 +149,12 @@ export default function LearnPage() {
             </header>
             {chapter.intro.trim() && <Markdown text={chapter.intro} fence={renderFence} />}
             {chapter.sections.map((s) => (
-              <section key={s.id} id={`learn-${s.id}`} className="learn-section">
+              <section key={s.id} id={`learn-${s.id}`} className={cx("learn-section", s.id === `${chapter.id}-in-avas` && "learn-reference")}>
+                {s.id === `${chapter.id}-in-avas` && (
+                  <div className="learn-reference-label">
+                    <Icon name="book" /> {t("Reference: how AVAS writes it")}
+                  </div>
+                )}
                 <h2>{s.title}</h2>
                 <Markdown text={s.text} fence={renderFence} />
               </section>
@@ -159,16 +176,25 @@ export default function LearnPage() {
           </article>
         )}
       </div>
-      {!query.trim() && chapter.sections.length > 1 && (
-        <nav className="learn-toc" aria-label={t("On this page")}>
-          <div className="learn-part-title">{t("On this page")}</div>
-          {chapter.sections.map((s) => (
-            <button key={s.id} className={cx("learn-toc-item", anchor === s.id && "active")} onClick={() => go(s.id)}>
-              {s.title}
-            </button>
-          ))}
-        </nav>
-      )}
+      {!query.trim() &&
+        chapter.sections.length > 1 &&
+        (panels.toc ? (
+          <nav className="learn-toc" aria-label={t("On this page")}>
+            <div className="learn-toc-top">
+              <div className="learn-part-title">{t("On this page")}</div>
+              <IconButton icon="layout-sidebar-right" active tip={t("Hide \"On this page\"")} onClick={() => setLearnPanel("toc", false)} />
+            </div>
+            {chapter.sections.map((s) => (
+              <button key={s.id} className={cx("learn-toc-item", anchor === s.id && "active")} onClick={() => go(s.id)}>
+                {s.title}
+              </button>
+            ))}
+          </nav>
+        ) : (
+          <div className="learn-rail right">
+            <IconButton icon="layout-sidebar-right-off" tip={t("Show \"On this page\"")} onClick={() => setLearnPanel("toc", true)} />
+          </div>
+        ))}
     </div>
   );
 }

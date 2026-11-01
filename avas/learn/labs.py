@@ -18,6 +18,8 @@ Result layout (see :func:`run`)::
                    "series": [{"name": (en, zh), "x": array, "y": array, "dash"?, "marker"?}]}],
      "matrices": [{"title", "labels": [...], "rows": [[...]]}],
      "lattice":  AVAS lattice text the lab evaluated (or None),
+     "beamline": {"z", "rms_x", "rms_y", "energy", "elements", "fieldDirs"}: the linear preview of
+                 that lattice, for the page's 2D / 3D view of it (or None),
      "warnings": [(en, zh)], "model": (en, zh)}
 """
 import math
@@ -183,6 +185,14 @@ def _fodo_optics(Lq, G, Ld, gamma, brho):
     return k, segs, m, _periodic(m[0:2, 0:2]), _periodic(m[2:4, 2:4])
 
 
+def _beamline(res, field_dirs=()):
+    """The preview of the lab's lattice for the page's 2D / 3D beam-line view."""
+    out = {k: res[k] for k in ("z", "rms_x", "rms_y", "energy")}
+    out["elements"] = res["elements"]
+    out["fieldDirs"] = list(field_dirs)
+    return out
+
+
 def _envelope_plot(res, title=("rms envelope", "rms 包络"), extra=()):
     return _plot("envelope", title, _axis("z", "z", "m"), _axis("rms size", "rms 尺寸", "mm"), [
         _series("rms x", "rms x", res["z"], res["rms_x"]),
@@ -323,7 +333,7 @@ def fodo(Lq, G, Ld, cells, W, mass, q, emit, I, mismatch):
         _value("alphax", "Matched αx at the cell entrance", "周期入口匹配 αx", "", px[0] if px else None),
         _value("maxrms", "Largest rms size", "最大 rms 尺寸", "mm", float(max(np.max(res["rms_x"]), np.max(res["rms_y"])))),
     ]
-    return {"values": values, "plots": plots, "lattice": text, "warnings": warnings,
+    return {"values": values, "plots": plots, "lattice": text, "beamline": _beamline(res), "warnings": warnings,
             "matrices": [{"title": ("Cell matrix, x plane", "周期传输矩阵（x 平面）"), "labels": ["x", "x′"],
                           "rows": m[0:2, 0:2].tolist()}],
             "model": LINEAR}
@@ -368,7 +378,7 @@ def solenoid(L, B, W, mass, q, emit, d1, d2):
         ],
         "matrices": [{"title": ("Hard-edge solenoid matrix (x, x′, y, y′)", "硬边螺线管传输矩阵 (x, x′, y, y′)"),
                       "labels": ["x", "x′", "y", "y′"], "rows": m4.tolist()}],
-        "lattice": text, "warnings": list(res["warnings"]),
+        "lattice": text, "beamline": _beamline(res), "warnings": list(res["warnings"]),
         "model": ("Hard-edge matrix model; the initial beam is a round waist with β = 0.4 mm/mrad.",
                   "硬边矩阵模型；初始束流为圆形束腰，β = 0.4 mm/mrad。"),
     }
@@ -427,7 +437,7 @@ def dipole(angle, rho, N, edge, W, mass, q, delta):
         ],
         "matrices": [{"title": ("Transfer matrix from the entrance edge to the exit edge", "从入口边缘到出口边缘的传输矩阵"),
                       "labels": labels, "rows": r.tolist()}],
-        "lattice": text, "warnings": list(res["warnings"]),
+        "lattice": text, "beamline": _beamline(res), "warnings": list(res["warnings"]),
         "model": ("Sector-dipole and pole-face matrices of the linear preview; the envelope has no momentum spread.",
                   "线性预览的扇形二极铁与极面旋转矩阵；包络中不含动量分散。"),
     }
@@ -479,7 +489,7 @@ def rf_cavity(phase, Ke, W):
         _value("ratio", "ΔW / ΔWmax", "ΔW / ΔWmax", "", gain / gains[top] if gains[top] > 0 else None),
         _value("cos", "cos φs", "cos φs", "", math.cos(math.radians(cav["phase_s"])) if cav and cav["phase_s"] is not None else None),
     ]
-    return {"values": values, "plots": plots, "lattice": _cavity_text(phase, Ke), "warnings": list(res["warnings"]),
+    return {"values": values, "plots": plots, "lattice": _cavity_text(phase, Ke), "beamline": _beamline(res, dirs), "warnings": list(res["warnings"]),
             "model": ("Linear preview of the example HWR map (162.5 MHz, protons, Kb = −Ke as in the example); rms values are approximate.",
                       "示例 HWR 场图的线性预览（162.5 MHz，质子，与示例一样取 Kb = −Ke）；rms 数值为近似。")}
 
@@ -528,10 +538,93 @@ def space_charge(I, W, mass, q, emit, Lq, G, Ld, cells):
                   [_series("σ/σ0", "σ/σ0", currents, [depressed(c) for c in currents]),
                    _series("I", "I", [I], [ratio], marker=True)]),
         ],
-        "lattice": text, "warnings": list(with_sc["warnings"]),
+        "lattice": text, "beamline": _beamline(with_sc), "warnings": list(with_sc["warnings"]),
         "model": ("Continuous (DC) beam; envelope from the linear preview's uniform-beam kick, σ from the smooth approximation with KV edge emittance 4ε.",
                   "连续（DC）束；包络来自线性预览的均匀束空间电荷冲量，σ 用平滑近似，KV 边界发射度取 4ε。"),
     }
+
+
+# the four distributions AVAS generates from Twiss parameters (``distribution`` in beam.txt), defined here
+# in the usual way on the 4D transverse phase space; the engine's own generator is not documented, so the lab
+# draws the textbook definitions (compare OutputFile/inData.dst for what a run actually used)
+DISTRIBUTIONS = [
+    ("kv", ("KV", "KV"), ("uniform on the surface of a 4D hyper-ellipsoid", "四维超椭球面上均匀")),
+    ("wb", ("Waterbag (WB)", "水袋（WB）"), ("uniform inside the 4D hyper-ellipsoid", "四维超椭球内均匀")),
+    ("pb", ("Parabolic (PB)", "抛物线（PB）"), ("density ∝ 1 − r² inside it", "超椭球内密度 ∝ 1 − r²")),
+    ("gs", ("Gaussian (GS)", "高斯（GS）"), ("Gaussian, not truncated here", "高斯，此处未截断")),
+]
+_EDGE_OVER_RMS = {"kv": 2.0, "wb": math.sqrt(6.0), "pb": math.sqrt(8.0)}
+# a 4D density ∝ (1 − r²)^k projects onto one axis as (1 − t²)^(k + 3/2); KV is the limit k = −1
+_PROJECTION_POWER = {"kv": 0.5, "wb": 1.5, "pb": 2.5}
+
+
+def _projection(kind, u):
+    """Density of the x projection in units of rms x (exact, from the 4D definition)."""
+    if kind == "gs":
+        return np.exp(-0.5 * u * u) / math.sqrt(2 * math.pi)
+    a, p = _EDGE_OVER_RMS[kind], _PROJECTION_POWER[kind]
+    norm = a * math.sqrt(math.pi) * math.gamma(p + 1) / math.gamma(p + 1.5)
+    return np.clip(1 - (u / a) ** 2, 0.0, None) ** p / norm
+
+
+def _sample4d(kind, n, rng):
+    """*n* points in normalized 4D phase space with an rms of 1 in every coordinate."""
+    if kind == "gs":
+        return rng.standard_normal((n, 4))
+    u = rng.standard_normal((n, 4))
+    u /= np.linalg.norm(u, axis=1)[:, None]
+    if kind == "kv":
+        r = np.ones(n)
+    elif kind == "wb":
+        r = rng.random(n) ** 0.25                       # radial density ∝ r³ in 4D
+    else:                                                # PB: ∝ r³ (1 − r²), by rejection
+        r = np.empty(0)
+        while r.size < n:
+            c = rng.random(2 * n) ** 0.25
+            r = np.concatenate([r, c[rng.random(c.size) < 1 - c * c]])
+        r = r[:n]
+    return u * r[:, None] * _EDGE_OVER_RMS[kind]
+
+
+def distribution(alpha, beta, emit, W, mass, N):
+    if not beta > 0:
+        raise LabError("β must be positive.")
+    _gamma, bg, _b, _p, _brho = _kin(W, mass, 1)
+    eg = emit / bg                                       # geometric rms emittance, mm·mrad
+    rng = np.random.default_rng(1)                       # the same cloud while a slider moves
+    shown = min(N, 2500)
+    sigma = eg * np.array([[beta, -alpha], [-alpha, (1 + alpha * alpha) / beta]])
+    ex, exp_ = _ellipse(sigma)
+    grid = np.linspace(-4.0, 4.0, 401)
+    plots, values, density = [], [], []
+    for key, title, doc in DISTRIBUTIONS:
+        u = _sample4d(key, N, rng)
+        x = math.sqrt(beta * eg) * u[:, 0]
+        xp = math.sqrt(eg / beta) * (u[:, 1] - alpha * u[:, 0])
+        rms = float(np.std(x))
+        cov = np.cov(np.vstack([x, xp]))
+        plots.append(_plot(key, (f"{title[0]}: {doc[0]}", f"{title[1]}：{doc[1]}"), _axis("x", "x", "mm"), _axis("x′", "x′", "mrad"), [
+            _series("particles", "粒子", x[:shown], xp[:shown], cloud=True),
+            _series("rms ellipse", "rms 椭圆", ex, exp_, dash=True),
+            _series("4 × rms ellipse", "4 倍 rms 椭圆", 2 * ex, 2 * exp_, dash=True),
+        ]))
+        density.append(_series(title[0], title[1], grid, _projection(key, grid)))
+        values += [
+            _value(f"{key}_edge", f"{title[0]}: largest |x| / rms x", f"{title[1]}：最大 |x| / rms x", "", float(np.max(np.abs(x))) / rms),
+            _value(f"{key}_tail", f"{title[0]}: share beyond 2 rms", f"{title[1]}：超出 2 倍 rms 的比例", "%", 100 * float(np.mean(np.abs(x) > 2 * rms))),
+        ]
+        if key == "kv":
+            values.insert(0, _value("emit_g", "Geometric rms emittance ε/(βγ), every distribution", "几何 rms 发射度 ε/(βγ)，各分布相同", "mm·mrad",
+                                    math.sqrt(max(float(np.linalg.det(cov)), 0.0))))
+            values.insert(0, _value("rms_x", "rms x (the same for every distribution)", "rms x（各分布相同）", "mm", rms))
+    plots.insert(0, _plot("projection", ("Projection on x: same rms, different shapes (exact, from the definitions)",
+                                         "在 x 上的投影：rms 相同，形状不同（由定义严格算出）"),
+                          _axis("x / rms x", "x / rms x"), _axis("density", "密度"), density))
+    return {"values": values, "plots": plots,
+            "model": ("Textbook definitions on 4D transverse phase space, sampled here; how the AVAS engine generates them "
+                      "(dimensions, Gaussian cut) is not documented, so check OutputFile/inData.dst of a run.",
+                      "按教科书在四维横向相空间中的定义在此抽样；AVAS 内核生成分布的方式（维数、高斯截断）手册未说明，"
+                      "以运行输出目录中的 inData.dst 为准。")}
 
 
 LABS = {lab.id: lab for lab in [
@@ -545,6 +638,14 @@ LABS = {lab.id: lab for lab in [
          Param("f", ("Thin-lens focal length f (0 = no lens)", "薄透镜焦距 f（0 表示无透镜）"), "m", 0.5, -5.0, 5.0, 0.01),
          Param("L", ("Drift after the lens", "透镜之后的漂移段"), "m", 0.5, 0.0, 5.0, 0.01)],
         phase_space, ("An rms ellipse through a thin lens and a drift.", "rms 椭圆经过薄透镜和漂移段。")),
+    Lab("distribution", ("Particle distributions", "粒子分布"),
+        [Param("alpha", ("Twiss α", "Twiss α"), "", -0.658, -5.0, 5.0, 0.01),
+         Param("beta", ("Twiss β", "Twiss β"), "mm/mrad", 0.377, 0.01, 10.0, 0.01, log=True),
+         _emit(0.138), _energy(), _mass(),
+         Param("N", ("Particles", "粒子数"), "", 4000, 200, 20000, 100, integer=True,
+               doc=("at most 2500 are drawn; the statistics use all", "最多画 2500 个，统计用全部粒子"))],
+        distribution, ("The same Twiss parameters as KV, waterbag, parabolic and Gaussian beams.",
+                       "同一组 Twiss 参数下的 KV、水袋、抛物线与高斯分布。")),
     Lab("fodo", ("FODO channel", "FODO 聚焦通道"),
         [*_fodo_params(), _energy(), _mass(), _charge(), _emit(),
          Param("I", ("Beam current (DC)", "束流流强（DC）"), "mA", 0.0, 0.0, 100.0, 0.1),
@@ -581,6 +682,38 @@ def definitions():
     return [lab.public() for lab in LABS.values()]
 
 
+def _with_ends(text):
+    """*text* as a complete lattice: ``start`` / ``end`` are added when the snippet has none."""
+    words = [ln.split()[0].lower() for ln in text.splitlines() if ln.split() and not ln.lstrip().startswith("!")]
+    body = text.strip("\n") + "\n"
+    if "start" not in words:
+        body = "start\n" + body
+    if "end" not in words:
+        body += "end\n"
+    return body
+
+
+def beamline(text):
+    """A chapter's beam-line snippet (``avas-beamline`` block) with the linear preview of the example beam.
+
+    The example project's beam (protons, 1.527 MeV) goes through it and its field
+    maps (``hwr010``, ``sol``) are on the search path; a snippet the preview cannot
+    evaluate still gets its lattice back, with the reason as a warning."""
+    lattice = _with_ends(text or "")
+    folder = paths.example_input_dir()
+    dirs = [folder] if folder else []
+    if folder:
+        beam = lo.read_beam(folder)
+    else:
+        beam = _beam(1.527, PROTON, 1, {"x": (0.0, 0.4, 0.14), "y": (0.0, 0.4, 0.14)})
+    try:
+        with np.errstate(all="ignore"):
+            res = _preview(lattice, beam, dirs)
+    except LabError as exc:
+        return {"lattice": lattice, "fieldDirs": dirs, "beamline": None, "warnings": [(str(exc), str(exc))]}
+    return {"lattice": lattice, "fieldDirs": dirs, "beamline": _beamline(res, dirs), "warnings": list(res["warnings"])}
+
+
 def run(lab_id, params=None):
     """Evaluate lab *lab_id* with *params* (missing ones take their defaults, values are clipped to the ranges)."""
     lab = LABS.get(lab_id)
@@ -603,5 +736,6 @@ def run(lab_id, params=None):
     out.setdefault("matrices", [])
     out.setdefault("warnings", [])
     out.setdefault("lattice", None)
+    out.setdefault("beamline", None)
     out["params"] = args
     return out

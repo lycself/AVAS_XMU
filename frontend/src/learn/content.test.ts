@@ -100,5 +100,9 @@ describe("primer directives", () => {
     expect(directiveProblems(parseDirective("avas-lab", "fodo G=abc")!)).toHaveLength(1);
     expect(directiveProblems(parseDirective("avas-field", "map other")!)).toHaveLength(1);
     expect(directiveProblems(parseDirective("avas-field", "quadrupole G=4 L=0.1")!)).toEqual([]);
+    const bl = parseDirective("avas-beamline", "drift 0.1 0.02 0\nquad 0.1 0.02 0 6\n\n")!;
+    expect(bl).toEqual({ kind: "beamline", id: "beamline", args: {}, items: [], text: "drift 0.1 0.02 0\nquad 0.1 0.02 0 6\n" });
+    expect(directiveProblems(bl)).toEqual([]);
+    expect(directiveProblems(parseDirective("avas-beamline", "! only a comment")!)).toHaveLength(1);
   });
 });

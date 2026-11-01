@@ -39,6 +39,7 @@ import {
   setPage,
   setScale,
   setSidebarCollapsed,
+  setSidebarHidden,
   setSidebarWidth,
   setTheme,
   stepScale,
@@ -82,7 +83,14 @@ const MAX_WIDTH = 480;
 const SNAP_WIDTH = 110;
 
 function toggleSidebar() {
-  setSidebarCollapsed(!useApp.getState().sidebarCollapsed);
+  const app = useApp.getState();
+  // a hidden sidebar comes back first; collapsing works on a visible one
+  if (app.sidebarHidden) setSidebarHidden(false);
+  else setSidebarCollapsed(!app.sidebarCollapsed);
+}
+
+function toggleSidebarHidden() {
+  setSidebarHidden(!useApp.getState().sidebarHidden);
 }
 
 
@@ -142,6 +150,7 @@ function MenuBar() {
   const paused = useApp((s) => s.run.running && !!s.run.paused);
   const page = useApp((s) => s.page);
   const sidebarCollapsed = useApp((s) => s.sidebarCollapsed);
+  const sidebarHidden = useApp((s) => s.sidebarHidden);
   const logVisible = useApp((s) => s.logVisible);
   const theme = useApp((s) => s.theme);
   const scale = useApp((s) => s.scale);
@@ -189,7 +198,8 @@ function MenuBar() {
       items: () => [
         ...PAGES.map((p, i) => ({ label: t(PAGE_META[p].label), shortcut: `Ctrl+${i + 1}`, checked: page === p, onClick: () => setPage(p) })),
         { type: "separator" as const },
-        { label: t("Collapse sidebar"), shortcut: SHORTCUT.sidebar.keys, checked: sidebarCollapsed, onClick: toggleSidebar },
+        { label: t("Collapse sidebar"), shortcut: SHORTCUT.sidebar.keys, checked: sidebarCollapsed && !sidebarHidden, onClick: toggleSidebar },
+        { label: t("Hide sidebar"), shortcut: SHORTCUT.sidebarHide.keys, checked: sidebarHidden, onClick: toggleSidebarHidden },
         { label: t("Show log panel"), shortcut: SHORTCUT.log.keys, checked: logVisible, onClick: () => setLogVisible(!logVisible) },
         { label: t("AI assistant"), shortcut: SHORTCUT.assistant.keys, checked: useAssistant.getState().open, onClick: () => setAssistantOpen(!useAssistant.getState().open) },
         { type: "separator" as const },
@@ -316,8 +326,8 @@ function MenuBar() {
         <IconButton icon="debug-stop" className="stop-btn" tip={`${t("Stop")}  (Shift+F5)`} disabled={!running} onClick={stopSimulation} />
         <div className="divider-v" />
         <IconButton
-          icon={sidebarCollapsed ? "layout-sidebar-left-off" : "layout-sidebar-left"}
-          tip={t("Toggle sidebar (Ctrl+B)")}
+          icon={sidebarCollapsed || sidebarHidden ? "layout-sidebar-left-off" : "layout-sidebar-left"}
+          tip={sidebarHidden ? t("Show sidebar (Ctrl+Shift+B)") : t("Toggle sidebar (Ctrl+B)")}
           onClick={toggleSidebar}
         />
         <IconButton icon={logVisible ? "layout-panel" : "layout-panel-off"} tip={t("Toggle log panel (Ctrl+J)")} onClick={() => setLogVisible(!logVisible)} />
@@ -476,6 +486,7 @@ function useShortcuts() {
       else if (is("openProject")) openProject();
       else if (is("newProject")) newProject();
       else if (is("quit")) quit();
+      else if (is("sidebarHide")) toggleSidebarHidden();
       else if (is("sidebar")) toggleSidebar();
       else if (is("log")) setLogVisible(!app.logVisible);
       else if (is("assistant")) setAssistantOpen(!useAssistant.getState().open);
@@ -503,6 +514,7 @@ export function Shell() {
   useShortcuts();
   const page = useApp((s) => s.page);
   const collapsed = useApp((s) => s.sidebarCollapsed);
+  const hidden = useApp((s) => s.sidebarHidden);
   const width = useApp((s) => s.sidebarWidth);
   const logVisible = useApp((s) => s.logVisible);
   const logHeight = useApp((s) => s.logHeight);
@@ -586,14 +598,18 @@ export function Shell() {
     <div className="shell">
       <MenuBar />
       <div className="shell-body">
-        <div className="sidebar-wrap" style={{ width: sideW }}>
-          <Sidebar />
-        </div>
-        <div
-          className="sash sash-v"
-          onMouseDown={startSidebarDrag}
-          onDoubleClick={() => setSidebarCollapsed(!collapsed)}
-        />
+        {!hidden && (
+          <>
+            <div className="sidebar-wrap" style={{ width: sideW }}>
+              <Sidebar />
+            </div>
+            <div
+              className="sash sash-v"
+              onMouseDown={startSidebarDrag}
+              onDoubleClick={() => setSidebarCollapsed(!collapsed)}
+            />
+          </>
+        )}
         <div className="main" ref={mainRef}>
           <div className="pages" style={logMax && logVisible ? { flex: "0 0 120px" } : undefined}>
             {[...visited].map((p) => (

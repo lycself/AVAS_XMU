@@ -1,18 +1,23 @@
 // One interactive lab of the primer.  The page only draws: the parameters, their
 // ranges and every number come from the back end (avas/learn/labs.py, the linear
 // preview's own code), recomputed while a slider moves.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { call } from "../bridge";
 import { Plot } from "../components/Plot";
 import { Button, Icon, NumberInput, Spinner } from "../components/ui";
 import { fmtG } from "../format";
 import { pick, useLang, useT } from "../i18n";
 import type { Bi } from "../lattice/types";
+import { BeamlineView, type BeamlinePreview } from "./BeamlineView";
 import { askTutor } from "./tutor";
+import { useLatest } from "./useLatest";
+
+export { useLatest };
 
 export type LabParam = { key: string; label: Bi; unit: string; default: number; min: number; max: number; step: number; log: boolean; integer: boolean; doc: Bi };
 export type LabDef = { id: string; title: Bi; summary: Bi; params: LabParam[] };
-export type LabSeries = { name: Bi; x: ArrayLike<number>; y: ArrayLike<number>; dash?: boolean; marker?: boolean };
+/** marker: one highlighted point; cloud: many small points (a particle distribution) */
+export type LabSeries = { name: Bi; x: ArrayLike<number>; y: ArrayLike<number>; dash?: boolean; marker?: boolean; cloud?: boolean };
 export type LabAxis = { label: Bi; unit: string; log?: boolean };
 export type LabPlot = { id: string; title: Bi; x: LabAxis; y: LabAxis; equal?: boolean; series: LabSeries[] };
 export type LabValue = { key: string; label: Bi; unit: string; value: number | null };
@@ -21,6 +26,8 @@ export type LabResult = {
   plots: LabPlot[];
   matrices: { title: Bi; labels: string[]; rows: number[][] }[];
   lattice: string | null;
+  /** linear preview of *lattice* for the 2D / 3D view */
+  beamline: (BeamlinePreview & { fieldDirs: string[] }) | null;
   warnings: Bi[];
   model: Bi;
   params: Record<string, number>;
@@ -34,44 +41,6 @@ export function labDefinitions(): Promise<Map<string, LabDef>> {
 }
 
 /** Calls *method* for the latest *params*, one request at a time (sliders send many). */
-export function useLatest<T>(method: string, params: Record<string, unknown> | null, delay = 120) {
-  const [result, setResult] = useState<T | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const pending = useRef<Record<string, unknown> | null>(null);
-  const inflight = useRef(false);
-  const alive = useRef(true);
-  useEffect(() => () => void (alive.current = false), []);
-  const key = JSON.stringify(params);
-  useEffect(() => {
-    if (!params) return;
-    pending.current = params;
-    const timer = setTimeout(pump, delay);
-    return () => clearTimeout(timer);
-  }, [key]);
-  async function pump() {
-    if (inflight.current || !pending.current) return;
-    const p = pending.current;
-    pending.current = null;
-    inflight.current = true;
-    setBusy(true);
-    try {
-      const r = await call<T>(method, p);
-      if (alive.current) {
-        setResult(r);
-        setError(null);
-      }
-    } catch (e) {
-      if (alive.current) setError(String((e as Error)?.message ?? e));
-    } finally {
-      inflight.current = false;
-      if (alive.current) setBusy(false);
-      if (pending.current) pump();
-    }
-  }
-  return { result, error, busy };
-}
-
 const SLIDER = 1000;
 function toSlider(p: LabParam, v: number) {
   if (p.log && p.min > 0) return (Math.log(v / p.min) / Math.log(p.max / p.min)) * SLIDER;
@@ -120,11 +89,15 @@ export function LabPlotView({ plot }: { plot: LabPlot }) {
     () =>
       plot.series.map((s) => ({
         type: "scatter" as const,
-        mode: s.marker ? ("markers" as const) : ("lines" as const),
+        mode: s.marker || s.cloud ? ("markers" as const) : ("lines" as const),
         name: pick(s.name),
         x: Array.from(s.x),
         y: Array.from(s.y),
-        ...(s.marker ? { marker: { size: 10, symbol: "diamond" as const } } : { line: s.dash ? { dash: "dash" as const, width: 2 } : { width: 2 } }),
+        ...(s.cloud
+          ? { marker: { size: 3, opacity: 0.45 } }
+          : s.marker
+            ? { marker: { size: 10, symbol: "diamond" as const } }
+            : { line: s.dash ? { dash: "dash" as const, width: 2 } : { width: 2 } }),
       })),
     [plot, lang],
   );
@@ -263,6 +236,9 @@ export function LabView({ id, presets }: { id: string; presets: Record<string, s
                   <Icon name="warning" /> {pick(w)}
                 </div>
               ))}
+              {result.lattice && result.beamline && (
+                <BeamlineView text={result.lattice} fieldDirs={result.beamline.fieldDirs} preview={result.beamline} />
+              )}
               <div className="learn-plots">
                 {result.plots.map((p) => (
                   <LabPlotView key={p.id} plot={p} />

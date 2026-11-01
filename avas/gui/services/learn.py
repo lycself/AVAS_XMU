@@ -67,6 +67,12 @@ def lab(id, params=None):  # noqa: A002 - the page's name for it
         raise _user_error(exc) from exc
 
 
+@rpc("learn.beamline")
+def beamline(text):
+    """A chapter's beam-line snippet with the linear preview of the example beam (2D / 3D view)."""
+    return _wire(lab_core.beamline(text))
+
+
 @rpc("learn.examples")
 def examples():
     """Where the example field maps are (the chapters' field pictures read them by name)."""

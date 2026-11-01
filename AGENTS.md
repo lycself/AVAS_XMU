@@ -38,7 +38,7 @@ frontend/src/
   bridge.ts       与后端的通信（fetch + WebSocket、令牌、blob）；host.ts 桌面窗口 / 浏览器的差异（文件对话框、打开文件、退出、缩放）
   components/     ui.tsx（按钮、输入框等基础组件）、overlays.tsx（菜单、对话框、toast）、Plot.tsx（Plotly 封装）、FileDialog.tsx（浏览器模式的文件选择器）
   pages/          九个页面（ScanPage 是参数扫描，LearnPage 是加速器入门）
-  learn/          入门：content/*.zh.md / *.en.md 章节，chapters.ts 章节表与审核状态，directives.ts 内嵌块，LabView / TutorialView / FieldView / ParamsTable，MathView（temml）
+  learn/          入门：content/*.zh.md / *.en.md 章节，chapters.ts 章节表与审核状态，directives.ts 内嵌块，LabView / TutorialView / FieldView / ParamsTable / BeamlineView，MathView（temml）
   lattice/        文本编辑器（Monaco）、结构编辑器、可视化编辑器、2D 布局、3D 视图（Beamline3D.tsx 只是 React 壳，b3dViewer.ts / b3dHud.ts / b3dGeometry.ts 单向依赖）
   results/ files/ assistant/ shell/ store/（zustand）；util.ts（basename、cssColor、niceStep、debounce）；shell/shortcuts.ts（全部快捷键的唯一表）；results/CompareTab.tsx 运行对比
   i18n/zh_CN.json 中文翻译（英文原文 → 中文）
@@ -95,7 +95,7 @@ packaging/        PyInstaller + Inno Setup 打包
 - 非模态浮动窗口一律用 `components/FloatingWindow.tsx`（拖动、八向缩放、最大化／还原、Esc 关闭、跟随界面缩放），使用说明和元件场分布窗口都基于它；几何不持久化，每次打开回到 `initialRect`。不要再各写一套拖拽缩放。
 - **颜色**只来自 `styles/tokens.css` 的 CSS 变量；canvas 和 three.js 通过 `getComputedStyle` / `cssColor()` 读取变量。确实需要写死颜色时（Plotly 调色板、Monaco 主题）在该行注明 `design:allow-colour 原因`。主题切换必须保持一帧内完成，不要做逐元素重新计算样式的方案。
 - **文字**：界面文字写英文原文 `t("...")`，中文放 `zh_CN.json`；带参数用 `t("… {name}", { name })`。关键字、参数的物理说明来自 `avas/data/schema.py` 的中英文对照，前端用 `pick()` 选择，不要在组件里另写说明文字。
-- 布局仿 VS Code：菜单栏、左侧导航、页面、下方日志面板、状态栏。页面切换时**页面保持挂载**（`display: none`），写 effect 时要考虑页面隐藏的情况。
+- 布局仿 VS Code：菜单栏、左侧导航、页面、下方日志面板、状态栏。左侧导航可收成图标（`Ctrl+B`，`ui/sidebarCollapsed`）或完全隐藏（`Ctrl+Shift+B`／视图 → 隐藏侧边栏，`ui/sidebarHidden`）；隐藏时工具栏的侧栏按钮与 `Ctrl+B` 先让它重新显示。页面切换时**页面保持挂载**（`display: none`），写 effect 时要考虑页面隐藏的情况。
 - 界面缩放、主题、语言等偏好保存在 `%LOCALAPPDATA%\AVAS\gui.json`（`persist()`）；只影响单个视图的小状态可以放 `localStorage`，读写要 try/catch。
 
 ### 5.2 前后端通信
@@ -196,10 +196,13 @@ packaging/        PyInstaller + Inno Setup 打包
 ### 5.5 加速器入门
 
 - 入门页（`pages/LearnPage.tsx`）不需要打开项目。章节是 `frontend/src/learn/content/<id>.zh.md` 与 `<id>.en.md`，中英文同结构；`##` 小节必须带 `{#<章节id>-…}` 稳定 ID，两种语言 ID 相同，链接写 `[文字](#id)`。章节顺序、所属部分和审核状态只写在 `learn/chapters.ts`；内容由 AI 撰写时状态为 `ai-draft`，页面显示“AI 撰写，待审核”，物理人员审核后改为 `reviewed`。章节文字只由入门页懒加载（`learn/content.ts`），壳层和元件视图只引用 `chapters.ts`。
+- 写法按费曼学习法（2026-11-01 与用户商定）：每章先提出问题、给出物理图像，逐步推出方程并代入示例束流的数值，在需要验证处放实验或束线，设“想一想”与“容易误解的地方”；AVAS 关键字、参数表与约定集中在最后的参考小节 `## 在 AVAS 中 {#<章节id>-in-avas}`（页面以虚线和“参考”标签与理解部分分开），不能为了易读删去技术事实。第一部分是故事线“跟着一个质子走”（`journey-*` 六章：全貌、离子源与 LEBT、RFQ、MEBT、超导段、HEBT），解释加速器为什么分段、每段由什么组成；讲原理时可以介绍 AVAS 不模拟的段，但必须标明“AVAS 不模拟”并说明束流如何交给 AVAS。元件章节仍只介绍 AVAS 的元件。初始分布单独成章（`distributions`），配 `distribution` 实验：按教科书四维定义抽样 KV／WB／PB／GS，标注内核实际生成方式以 `inData.dst` 为准。
 - 公式写 LaTeX（`$…$`、单独成行的 `$$…$$`），由 temml 转成 MathML（`learn/MathView.tsx`，`trust: false`），入门章节和 AI 回答共用；`learn/content.test.ts` 编译全部章节公式并检查 ID、链接、内嵌块和中英文一致，公式错误要让 `npm test` 失败而不是显示成代码。
-- 章节中的交互只用四种内嵌块（`learn/directives.ts`）：`avas-lab`（实验）、`avas-params`（参数表直接取自 `schema.all`，不要在章节里重抄参数表）、`avas-field`（解析示意场或示例场图切片，沿用数据／示意的区分）、`avas-tutorial`。实验的参数、范围和全部数值都在后端 `avas/learn/labs.py`，物理计算复用 `avas/sim/linear_optics.py` 的矩阵和预览，不要在前端另写物理公式；实验结果属于线性模型，界面要注明以内核为准。`tests/test_learn.py` 检查章节里的实验预设和关键字确实存在。
+- 章节中的交互只用五种内嵌块（`learn/directives.ts`）：`avas-lab`（实验）、`avas-params`（参数表直接取自 `schema.all`，不要在章节里重抄参数表）、`avas-field`（解析示意场或示例场图切片，沿用数据／示意的区分）、`avas-tutorial`、`avas-beamline`（块内直接写 lattice 行，可省略 start／end，后端 `learn.beamline` 补齐并用示例束流算线性预览）。实验的参数、范围和全部数值都在后端 `avas/learn/labs.py`，物理计算复用 `avas/sim/linear_optics.py` 的矩阵和预览，不要在前端另写物理公式；实验结果属于线性模型，界面要注明以内核为准。`tests/test_learn.py` 检查章节里的实验预设和关键字确实存在，每个元件章节都有中英文相同、解析无问题、预览可算的 `avas-beamline`。
+- 束线示意一律复用结构页的 `LayoutView` 与 `Beamline3D`（`learn/BeamlineView.tsx`，2D／3D 切换、默认 2D，3D 只在接近可视区时挂载以节省 WebGL 上下文），lattice 经 `lattice.parse` 解析（不需要项目），点击元件显示只读 `ComponentView`；实验结果的 `beamline` 字段和教程预览提供包络。不要在入门里另画束线图。入门页左侧章节目录与右侧“本页内容”可各自收起为窄条（`localStorage` `avas.learn.panels`）。
 - 引导教程（`avas/learn/tutorial.py`）只用示例项目 `examples/hwr010` 的 `hwr010`、`sol` 场图和漂移段，首尾不放矩阵元件，lattice 文字保持 ASCII。示例项目由 `avas.paths.example_input_dir()` 定位，打包时 `packaging/avas.spec` 随附它的 beam/input/ini 与这两组场图。内核运行用 `Sandbox`（source `learn`）在 `<用户数据>/learn/runs/` 中进行，只保留最近 3 次，不需要也不触碰任何项目，与其他模拟互斥；结果事件 `learn.tutorial` 不带曲线，页面再用 `learn.tutorial.state` 取 blob。“另存为新项目”只写入新的或空的文件夹。
 - 讲解员是 AI 助手本身：`primer_contents / primer_search / primer_read / primer_show` 通过页面（`assistant/front.ts` 的 `learn.*`）读取章节，`primer_lab` 直接调用后端实验；这些工具不需要项目，助手在未打开项目时也可以对话。页面的 `ui.state` 带当前章节，提示词里有讲解员的规则。
+- 助手面板把一次回答之前的思考、中间说明和普通工具调用合并成一个默认收起的“思考过程”块（`assistant/steps.ts` 的 `layoutItems`），运行中标题显示当前步骤；修改提案、通知、错误以及带进度、图表或表格结果的工具调用仍单独显示。
 
 ### 5.6 AI 助手
 
@@ -246,7 +249,7 @@ packaging/        PyInstaller + Inno Setup 打包
 
 - **beam.txt twiss**：β 单位 mm/mrad；发射度是**归一化 rms**，π·mm·mrad（rms_x0 = sqrt(β·ε/(βγ))）；twissz 同样单位，z' = Δp/p。
 - **场图**：电场 MV/m × Ke，磁场 T × Kb；射频电场按 E·cos(ωt+φ0)，射频磁场用 sin；V3=0 的同步相位 = atan2(∫E sinφ, ∫E cosφ)。场图存储顺序要按**一组分量文件**判断（`avas/data/fieldmap.py: group_order()`），不能按单个文件判断。
-- **示例项目的场图本身有噪声**（2026-09-21 核实）：`examples/hwr010` 的 sol / bfield / hwr010 三组场图沿 z 的二阶差分平均为量程的 6～9 %，`sol.bsz` 在"平顶"区逐点在 5.9～10.1 之间跳。切片热图会把它显示成沿 z 的竖条纹——**那是数据，不是读取或切片的错误**。判断存储顺序的 `_cube_roughness` 在这种噪声下区分度很弱（sol 组两种顺序的粗糙度只差约 1 %），只能靠 `group_order()` 按整组投票，并用 Bz 峰值是否落在元件中心这类物理判据复核。横向场的正确性可以这样核实：按 B_r ≈ −(r/2)·dB_z/dz，B_z > 0 时螺线管**入口端**（场强上升）横截面上 (Bx, By) 处处指向轴心，**出口端**（场强下降）处处背离轴心，中心截面上横向场为零（2026-11-01 用 `sol` 核实：z ≈ 0.143 m 与 0.199 m 两个截面 4–18 mm 环带内分别 100 % 指向、100 % 背离轴心，z = 0.175 m 横向场为零；2026-09-21 原写"两端处处指向轴心"有误）。
+- **示例项目的场图本身有噪声**（2026-09-21 核实）：`examples/hwr010` 的 sol / bfield / hwr010 三组场图沿 z 的二阶差分平均为量程的 6～9 %，`sol.bsz` 在峰值附近逐点在 5.9～10.1 之间跳（`sol` 没有平顶：平滑后峰值约 8.3、位于 z ≈ 0.177 m，半高宽约 7.4 cm；2026-11-02 核实）。`sol` 的横向分量与 Bz 并不严格自洽：bsx/bsy 的径向梯度平滑后约为 −½·dBz/dz 的 0.88 倍（z = 0.1435 m、x = 1 cm 处 −0.99 对 −1.44），线性预览用这两个分量算边缘场，所以含 `sol` 的周期传输矩阵略偏离辛条件（特征值模约 0.96／1.04），长束线上会逐周期累积约 4 %；只用 Bz 按麦克斯韦方程推边缘场时偏差消失，相移变化小于 1°。切片热图会把它显示成沿 z 的竖条纹——**那是数据，不是读取或切片的错误**。判断存储顺序的 `_cube_roughness` 在这种噪声下区分度很弱（sol 组两种顺序的粗糙度只差约 1 %），只能靠 `group_order()` 按整组投票，并用 Bz 峰值是否落在元件中心这类物理判据复核。横向场的正确性可以这样核实：按 B_r ≈ −(r/2)·dB_z/dz，B_z > 0 时螺线管**入口端**（场强上升）横截面上 (Bx, By) 处处指向轴心，**出口端**（场强下降）处处背离轴心，中心截面上横向场为零（2026-11-01 用 `sol` 核实：z ≈ 0.143 m 与 0.199 m 两个截面 4–18 mm 环带内分别 100 % 指向、100 % 背离轴心，z = 0.175 m 横向场为零；2026-09-21 原写"两端处处指向轴心"有误）。
 - **displacepos** 内核按 **mm** 读取（手册写 m，已在 schema.py 注明）。
 - **RF 相位 V3**：V3=2 是 t=0 时刻的绝对相位；synData.txt 的 φRF = phase_t0 + 360·f·t_in。分段运行把中段单独拿出来时，要用 φRF − 360·f·(t_in − T_entry) 重新换算（`segment.rephase`），不能直接沿用或改成 V3=0。
 - **输出面**：超出 lattice 末端会报错；离末端太近（5 mm）也会失败，2 cm 可以，所以分段 lattice 会去掉离末端 5 cm 以内的输出面。内核结束时总会写 `outData_<末端>.dst`。

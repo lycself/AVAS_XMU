@@ -11,6 +11,7 @@ export type ShortcutId =
   | "stop"
   | "pages"
   | "sidebar"
+  | "sidebarHide"
   | "log"
   | "assistant"
   | "zoomIn"
@@ -38,6 +39,7 @@ export const SHORTCUTS: Shortcut[] = [
   { id: "stop", keys: "Shift+F5", label: "Stop the simulation" },
   { id: "pages", keys: "Ctrl+1 … Ctrl+9", label: "Switch to a page (in sidebar order)" },
   { id: "sidebar", keys: "Ctrl+B", label: "Collapse or expand the sidebar" },
+  { id: "sidebarHide", keys: "Ctrl+Shift+B", label: "Hide or show the sidebar" },
   { id: "log", keys: "Ctrl+J", label: "Show or hide the log panel" },
   { id: "assistant", keys: "Ctrl+Shift+A", label: "Show or hide the AI assistant" },
   { id: "zoomIn", keys: "Ctrl+=", label: "Zoom in" },

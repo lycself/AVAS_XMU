@@ -127,3 +127,12 @@
 .as-option.readonly { cursor: default; }
 .as-option-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 12px; }
 .as-option-title { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; color: var(--fg); }
+
+/* the thinking, notes and quick tool calls before an answer (steps.ts), folded */
+.as-steps { border-left: 2px solid var(--border-strong); padding-left: 8px; font-size: 12px; }
+.as-steps-head { display: flex; align-items: center; gap: 5px; color: var(--fg-muted); cursor: pointer; min-width: 0; }
+.as-steps-head .codicon { font-size: 13px; flex: none; }
+.as-steps-title { flex: none; }
+.as-steps-head .ellipsis { flex: 1 1 auto; min-width: 0; }
+.as-steps-body { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.as-steps-note { color: var(--fg-soft); }

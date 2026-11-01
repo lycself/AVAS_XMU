@@ -1,12 +1,13 @@
 // The primer's chapter list (small, imported by the shell and the element views).
 // The texts are in ./content and only the primer page loads them (./content.ts).
 
-export type PartId = "basics" | "elements" | "assembly";
+export type PartId = "journey" | "basics" | "elements" | "assembly";
 /** "ai-draft": written by the AI assistant, not yet checked by a physicist. */
 export type ReviewStatus = "ai-draft" | "reviewed";
 export type ChapterMeta = { id: string; part: PartId; status: ReviewStatus; keywords?: string[] };
 
 export const PARTS: { id: PartId; title: string }[] = [
+  { id: "journey", title: "A proton's journey" },
   { id: "basics", title: "Fundamentals" },
   { id: "elements", title: "Components" },
   { id: "assembly", title: "Building an accelerator" },
@@ -14,9 +15,16 @@ export const PARTS: { id: PartId; title: string }[] = [
 
 /** In reading order.  *keywords*: lattice keywords whose element details link here. */
 export const CHAPTERS: ChapterMeta[] = [
+  { id: "journey-overview", part: "journey", status: "ai-draft" },
+  { id: "journey-source", part: "journey", status: "ai-draft" },
+  { id: "journey-rfq", part: "journey", status: "ai-draft" },
+  { id: "journey-mebt", part: "journey", status: "ai-draft" },
+  { id: "journey-sc", part: "journey", status: "ai-draft" },
+  { id: "journey-hebt", part: "journey", status: "ai-draft" },
   { id: "intro", part: "basics", status: "ai-draft" },
   { id: "kinematics", part: "basics", status: "ai-draft" },
   { id: "phase-space", part: "basics", status: "ai-draft" },
+  { id: "distributions", part: "basics", status: "ai-draft", keywords: ["distribution"] },
   { id: "linear-optics", part: "basics", status: "ai-draft" },
   { id: "longitudinal", part: "basics", status: "ai-draft" },
   { id: "space-charge", part: "basics", status: "ai-draft" },
