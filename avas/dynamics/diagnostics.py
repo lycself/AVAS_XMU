@@ -93,14 +93,19 @@ class Diagnostics:
         return result.index(monitor.z, "right")
 
     def read(self, result):
-        """Noiseless readings of *result* [m]."""
+        """Noiseless readings of *result* [m]: at the model point of the monitor, or interpolated in z
+        between the rows of an engine run (``result.fidelity == "engine"``, rows a step apart)."""
         out = []
+        engine = getattr(result, "fidelity", "") == "engine"
         for m, p in self.channels():
             i = self._index(result, m)
-            if m.kind == "position":
-                out.append(result.centroid[i, PLANES[p]])
+            values = result.centroid[:, PLANES[p]] if m.kind == "position" else result.sigma[:, PLANES[p], PLANES[p]]
+            if engine:
+                keep = np.isfinite(values)
+                value = float(np.interp(m.z, result.z[keep], values[keep])) if keep.any() else math.nan
             else:
-                out.append(math.sqrt(max(result.sigma[i, PLANES[p], PLANES[p]], 0.0)))
+                value = values[i]
+            out.append(value if m.kind == "position" else math.sqrt(max(value, 0.0)))
         return np.array(out)
 
     def measure(self, result, rng=None, pulse=None):

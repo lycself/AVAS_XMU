@@ -52,6 +52,7 @@ hiddenimports = (
     + collect_submodules("avas.sim")
     + collect_submodules("avas.model")
     + collect_submodules("avas.dynamics")
+    + collect_submodules("avas.research")
     + collect_submodules("avas.post")
     + collect_submodules("avas.data")
     + collect_submodules("avas.utils")
