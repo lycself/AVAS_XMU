@@ -50,6 +50,7 @@ hiddenimports = (
     + collect_submodules("avas.api")
     + collect_submodules("avas.core")
     + collect_submodules("avas.sim")
+    + collect_submodules("avas.model")
     + collect_submodules("avas.post")
     + collect_submodules("avas.data")
     + collect_submodules("avas.utils")
