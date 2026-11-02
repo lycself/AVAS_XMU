@@ -11,6 +11,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EXAMPLE_INPUT = os.path.join(ROOT, "examples", "hwr010", "InputFile")
 sys.path.insert(0, ROOT)
 
+from avas.model import tracker  # noqa: E402
 from avas.sim import linear_optics as lo  # noqa: E402
 
 PROTON = 938.272088
@@ -281,7 +282,7 @@ def test_v3_0_phase_is_self_consistent_where_it_exists(energy, monkeypatch):
     lattice = "start\ndrift 0.05 0.02 0\nfield 0.21 0.02 0 1 162.5e6 -30 1.36 -1.36 hwr010\ndrift 0.2 0.02 0\nend\n"
     runs = []
     for iterations in (20, 200):
-        monkeypatch.setattr(lo, "MAX_ITER", iterations)
+        monkeypatch.setattr(tracker, "MAX_ITER", iterations)
         res = lo.linear_preview(lattice, beam, [EXAMPLE_INPUT], space_charge=False)
         cav = [e for e in res["elements"] if e["phase_rf"] is not None][0]
         assert cav["phase_s"] == pytest.approx(-30.0, abs=1e-6)
@@ -302,7 +303,7 @@ def test_v3_0_without_solution_uses_the_closest_phase_and_warns(energy, reach, m
     lattice = "start\ndrift 0.05 0.02 0\nfield 0.21 0.02 0 1 162.5e6 -30 1.36 -1.36 hwr010\ndrift 0.2 0.02 0\nend\n"
     runs = []
     for iterations in (20, 200):
-        monkeypatch.setattr(lo, "MAX_ITER", iterations)
+        monkeypatch.setattr(tracker, "MAX_ITER", iterations)
         res = lo.linear_preview(lattice, beam, [EXAMPLE_INPUT], space_charge=False)
         cav = [e for e in res["elements"] if e["phase_rf"] is not None][0]
         assert cav["phase_s"] == pytest.approx(reach, abs=0.1)

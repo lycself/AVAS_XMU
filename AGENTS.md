@@ -26,10 +26,12 @@ avas/
     services/     每个页面一个模块，函数用 @rpc("page.action") 注册；fs.py 给页面自带的文件选择器列目录；runs.py 运行记录归档；scan.py 参数扫描；learn.py 入门页的实验与教程
     web/          前端编译结果（提交到仓库，用户不需要 Node.js）
   ai/             AI 助手：client.py、agent.py、avas_tools.py（工具）、sandbox.py（副本上运行模拟）、avas_prompt.py
+  model/          线性模型（唯一的传输矩阵实现）：beam.py 束流与初始矩，elements.py 元件矩阵，fieldmaps.py 场图剖面缓存，tracker.py 参考粒子、切片矩阵与场图段缓存，
+                  spacecharge.py 线性空间电荷，model.py `LinearModel` / `ModelResult`（全分辨率 σ、质心、传输矩阵、Twiss、相移、旋钮与误差）
   learn/          加速器入门的后端：labs.py 交互实验（复用 linear_optics），tutorial.py 引导教程（示例场图搭 lattice、另存为项目）
   data/           schema.py（全部关键字的参数、单位、中英文说明）、lattice_doc.py（lattice 解析与检查）、segment.py（分段运行物理）、
                   lattice_edit.py（按名称 / 行号定位元件并改一个参数，beam/input 关键字改值；AI 工具、扫描、命令行共用）、inputs.py（复制文本输入）
-  sim/            模拟流程；linear_optics.py 线性包络预览；error.py 误差研究；scan.py 参数扫描（GUI 与命令行共用）
+  sim/            模拟流程；linear_optics.py 线性包络预览（`avas.model` 之上的薄包装，并重新导出旧名称）；error.py 误差研究；scan.py 参数扫描（GUI 与命令行共用）
   post/           后处理（analysis/、plot/）
   core/ api/ utils/ engine/ static/ gpu/    api/basic.py 只有运行入口（惰性导入），api/plotting.py 是命令行画图；无人调用的旧代码在仓库外 archive/
                   utils/readfile.py 的 read_lattice_mulp* 只是 LatticeDocument 之上的适配层（tests/test_lattice_parsers.py 有逐字节金标准）；
@@ -44,7 +46,7 @@ frontend/src/
   i18n/zh_CN.json 中文翻译（英文原文 → 中文）
   styles/tokens.css 全部颜色变量（浅色 + 深色）
 tests/            pytest；test_gui.py 覆盖页面调用的每个接口；前端 vitest（frontend/src/**/*.test.ts）
-tools/            手动运行的开发工具（不属于快速 pytest）：compare_preview_engine.py 用真实内核对比新旧线性预览（步骤见 CONTRIBUTING.md）
+tools/            手动运行的开发工具（不属于快速 pytest）：compare_preview_engine.py 用真实内核对比新旧线性预览，compare_centroid_engine.py 用单粒子运行核对线性模型的质心（步骤见 CONTRIBUTING.md）
 .github/workflows/ci.yml  CI：ruff + 快速 pytest（Windows，含 smoke）、npm test + build
 examples/hwr010/  示例项目（跑一次约 10–30 秒）
 docs/             使用说明（以 使用说明20260427.docx 为准，121 版已过时）、CHANGELOG
@@ -259,7 +261,8 @@ packaging/        PyInstaller + Inno Setup 打包
 - **DataSet.txt**：每行 41 列；z = 第 5 列 + 第 33 列（有二极铁时按 `dataset_envelope` 的规则累加弧长）；rms x/y/z 为第 16/18/20 列（m），最大值第 22/24/26 列，存活宏粒子数第 28 列，能量第 0 列（MeV）。内核运行开始时重建该文件，之后**逐行追加**，读取正在写的文件要丢弃不完整的最后一行（`read_dataset_array` 已处理）。
 - **进度行**形如 `Simulate progress 32.83%. Estimated remaining time 3s. Run time 3s.  5260  0.07m`，末尾两个数是存活宏粒子数和当前位置。
 - **误差研究**每组都会重新读取项目里的 lattice 文件（`avas/sim/error.py`），当前一次的输出在 `OutputFile/error_middle/output_0/`，完成的结果复制到 `OutputFile/error_output/output_<组>_<次>/`。
-- **线性包络预览**（`avas/sim/linear_optics.py`）只作快速评估：轴上参考粒子的能量与内核同步粒子（synData.txt）相差约 0.01 %，rms 通常差 1–2 %，多粒子效应强时可到 13 %；最终以内核结果为准。**DataSet.txt 第 0 列是全部宏粒子的平均能量**，粒子离轴时在三维场图里感受到不同的 Ez：示例 `hwr010` 离轴 2 mm 处的增益比轴上高 4–6 %，按 σ 1–1.8 mm 的高斯束平均高 2.5–5 %，内核的平均增益比预览高 4.5 %（1.527 MeV，2026-11-02 Windows 核实：0.3556 对 0.3395 MeV）；0.5 MeV 时两个间隙几乎抵消，内核平均增益反而低约 20 %。比较能量要分清同步粒子与平均值；`tools/compare_preview_engine.py` 两者都给出。**多周期 rms 的已知差别**（2026-11-02，20000 个宏粒子、3 次运行核实）：单腔时预览与内核的 rms x、y 相差 < 1 %（2000 个宏粒子时内核自身起伏可达 6 %，不要据此下结论）；教程新默认的 8 周期线上内核横向发射度增长约 16 %（x、y 相近，纵向 56 %），质心偏离轴线最多约 0.44 mm（x）/ 0.22 mm（y），末端 rms y 预览比内核小约 10 %（x 小 1 %）。线性模型里去掉 `sol` 的斜四极项、把 HWR 的 x/y 梯度对称化、或改用按束流尺寸加权的梯度，都只让结果变化 1–3 %，所以这是线性预览的已知局限（无发射度增长、不跟踪质心），不是可以在预览里修正的错误。
+- **线性模型**（`avas/model/`，2026-11-03 由 linear_optics.py 拆出）：编辑器预览、入门实验、AI 工具和将来的分析层都用它，不要另写传输矩阵或空间电荷。`LinearModel(text, beam, field_dirs)` 构建一次，`evaluate(space_charge, knobs, errors, centroid0, beam)` 返回 `ModelResult`，一律国际单位（m、rad、MeV，δ = Δp/p）；`linear_preview` 是 `ModelResult.preview()`，输出与拆分前逐位相同（不跟踪质心、不用段缓存）。每一步是仿射映射 x → M·x + d：常数项 d 只来自校正铁、元件错位（`errors` 的 dx、dy、roll，参考轨道不变）和场图轴上横向场（`map_dipoles`，可关闭；示例场图有噪声，`sol` + HWR 一个周期约偏 0.04 mm），只推动质心；σ 是关于质心的二阶矩，线性空间电荷以束流中心为中心，不推动质心。改元件参数（`knobs`，经 `lattice_edit` 定位）属于设计改变，重算参考粒子；场图段按"语句参数 + 入口 z、能量（V3 = 2 时加入口时间）"缓存，场图文件改动后要新建模型。校正铁按 schema 在下一个元件全长上施加均匀场：磁 By > 0 使正粒子向 −x 偏，Bx > 0 向 +y，电 Ex（kind 1，V/m）向 +x；这与场图梯度项的符号一致，但**质心约定尚未用内核核实**（`info["centroid_checked"]` 为 False），核实用 `tools/compare_centroid_engine.py`（需要 Windows）。superpose 块内场图先求和再切片，块内单个场图的错位不建模（报错）。`avas.paths.field_dirs()` 给出项目的场图目录（GUI 的 `Project.field_dirs` 也调用它）。
+- **线性包络预览**（`avas/sim/linear_optics.py`，模型见上一条）只作快速评估：轴上参考粒子的能量与内核同步粒子（synData.txt）相差约 0.01 %，rms 通常差 1–2 %，多粒子效应强时可到 13 %；最终以内核结果为准。**DataSet.txt 第 0 列是全部宏粒子的平均能量**，粒子离轴时在三维场图里感受到不同的 Ez：示例 `hwr010` 离轴 2 mm 处的增益比轴上高 4–6 %，按 σ 1–1.8 mm 的高斯束平均高 2.5–5 %，内核的平均增益比预览高 4.5 %（1.527 MeV，2026-11-02 Windows 核实：0.3556 对 0.3395 MeV）；0.5 MeV 时两个间隙几乎抵消，内核平均增益反而低约 20 %。比较能量要分清同步粒子与平均值；`tools/compare_preview_engine.py` 两者都给出。**多周期 rms 的已知差别**（2026-11-02，20000 个宏粒子、3 次运行核实）：单腔时预览与内核的 rms x、y 相差 < 1 %（2000 个宏粒子时内核自身起伏可达 6 %，不要据此下结论）；教程新默认的 8 周期线上内核横向发射度增长约 16 %（x、y 相近，纵向 56 %），质心偏离轴线最多约 0.44 mm（x）/ 0.22 mm（y），末端 rms y 预览比内核小约 10 %（x 小 1 %）。线性模型里去掉 `sol` 的斜四极项、把 HWR 的 x/y 梯度对称化、或改用按束流尺寸加权的梯度，都只让结果变化 1–3 %，所以这是线性预览的已知局限（无发射度增长、不跟踪质心），不是可以在预览里修正的错误。
 - **V3 = 0 的同步相位可能无解**（2026-11-02 用示例 hwr010 核实，Ke = 1.36、φs = −30°）：φs 定义为 atan2(∫E sinφ, ∫E cosφ)，在两个间隙几乎抵消的速度下，扫遍入口相位 φ0 得到的 φs 只覆盖一段角度（0.3 MeV 约 65°～107°，0.8 MeV 约 58°～136°，1.0 MeV 约 14°～144°）。按线性预览，加速的 −30° 解在 0.4–0.65 MeV 与 1.1 MeV 以上存在。**没有加速解时内核接受相差 180° 的解**（Windows 核实：0.7 MeV 入口相位 −107.7°、同步粒子减速 0.1129 MeV，synData.txt 仍记 φs = −29.92°，atan2 实为 150°；预览 −107.79°、−0.11286 MeV），按线性预览这发生在 0.7–0.75 MeV 与 1.05 MeV（1.05 MeV 也已核实：入口相位 −165.8°，同步粒子减速 0.095 MeV，预览相差 0.02°、0.005 %）；有多个根时内核取 φs(φ0) 上升分支上的那个。两种解都没有时（0.15–0.35、0.8–1.0 MeV）**内核拒绝运行**，报 “Initialisation stage error: … the scan phase to fail to find the corresponding RF phase”（核实：0.3、0.8、1.0 MeV）。线性预览先做不动点迭代（有解时都收敛），不收敛时扫描 φ0 并二分求根，依次找加速解、相差 180° 的解（给出“减速”警告），都没有时给出警告和可达范围、取最接近的 φs。
 - **弯转方向**：线性预览的 `bend_matrix` 对 α > 0 给出 R16 > 0（x 指向弯转外侧），即正粒子向 −x（竖直弯转向 −y）偏转；元件场示意图（`analyticField.ts` 的 `bendField`）按同一约定定轴上场符号，场梯度指数项 ∂By/∂x = −n·|B0|/ρ 与弯转方向无关并画出 Maxwell 伴随项。3D 视图（`beamline3dModel.ts` 的 `Orbit`）把 α > 0 画成向 +x 偏转，与之相反；手册没有说明内核的方向，尚未用内核核实（可用弯转后粒子 ⟨x·δ⟩ 的符号判定）。
 - **GPU**：`avas/gpu/` 只封装了 Linux 预编译的 `libPIC.so`，没有源码；不要提议做 Windows GPU 版本。多线程（input.txt `multithreading 1`）是 CPU 上的加速手段。

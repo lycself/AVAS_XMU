@@ -73,27 +73,56 @@ V3_LATTICE = ("start\ndrift 0.05 0.02 0\nfield 0.21 0.02 0 1 162.5e6 -30 1.36 -1
 
 
 # --------------------------------------------------------------------------- old preview
+OLD_PACKAGE = "avas_model_old"        # avas/model of the old revision, imported under this name
+
+
+def _git(*args):
+    return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, check=True).stdout
+
+
 def load_old_preview(ref, work):
-    """``(module, description)`` of ``avas/sim/linear_optics.py`` at Git revision *ref*."""
+    """``(module, description)`` of ``avas/sim/linear_optics.py`` at Git revision *ref*.
+
+    Since 2026-11-03 linear_optics.py is a thin layer over the package ``avas/model``; for such
+    revisions the package is taken from the same revision and imported as ``avas_model_old``.
+    """
     refs = [ref or OLD_REF]
     for r in refs:
         try:
-            sha = subprocess.run(["git", "rev-parse", "--short", r], cwd=ROOT, capture_output=True, text=True,
-                                 check=True).stdout.strip()
-            text = subprocess.run(["git", "show", f"{r}:avas/sim/linear_optics.py"], cwd=ROOT, capture_output=True,
-                                  check=True).stdout
+            sha = _git("rev-parse", "--short", r).decode().strip()
+            sources = {"avas/sim/linear_optics.py": _git("show", f"{r}:avas/sim/linear_optics.py")}
         except (OSError, subprocess.CalledProcessError):
             continue
-        path = os.path.join(work, "linear_optics_old.py")
-        with open(path, "wb") as fh:
-            fh.write(text)
-        spec = importlib.util.spec_from_file_location("avas_linear_optics_old", path)
+        try:
+            listing = _git("ls-tree", "--name-only", f"{r}:avas/model").decode().split()
+        except subprocess.CalledProcessError:          # before the split: one self-contained file
+            listing = []
+        for name in listing:
+            if name.endswith(".py"):
+                sources[f"avas/model/{name}"] = _git("show", f"{r}:avas/model/{name}")
+        folder = os.path.join(work, "old_preview")
+        os.makedirs(os.path.join(folder, OLD_PACKAGE), exist_ok=True)
+        for rel, text in sources.items():
+            text = text.replace(b"avas.model", OLD_PACKAGE.encode())
+            target = (os.path.join(folder, "linear_optics_old.py") if rel.startswith("avas/sim/")
+                      else os.path.join(folder, OLD_PACKAGE, os.path.basename(rel)))
+            with open(target, "wb") as fh:
+                fh.write(text)
+        sys.path.insert(0, folder)
+        spec = importlib.util.spec_from_file_location("avas_linear_optics_old", os.path.join(folder, "linear_optics_old.py"))
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        with open(new_lo.__file__, "rb") as fh:
-            same = fh.read().replace(b"\r\n", b"\n") == text.replace(b"\r\n", b"\n")
+        same = all(_same_file(os.path.join(ROOT, rel), text) for rel, text in sources.items())
         return module, f"{r} ({sha})" + (" – identical to the checked-out code!" if same else "")
     raise SystemExit(f"Cannot read avas/sim/linear_optics.py at {refs[0]} (git fetch first, or pass --old-ref).")
+
+
+def _same_file(path, text):
+    try:
+        with open(path, "rb") as fh:
+            return fh.read().replace(b"\r\n", b"\n") == text.replace(b"\r\n", b"\n")
+    except OSError:
+        return False
 
 
 # --------------------------------------------------------------------------- cases

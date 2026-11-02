@@ -93,7 +93,17 @@ git switch claude/preview-followups
 .venv\Scripts\python.exe tools\compare_preview_engine.py --repeat 3
 ```
 
-（分支合并后改用 `git switch main` 和 `git pull`。）`--old-ref <提交>` 指定别的旧版本。`--repeat N` 每个算例运行内核 N 次并给出差值范围（内核多线程，结果略有差别）；`--cases example,periods-new` 只跑部分算例，`--periods 8`、`--energies 0.3,0.4,0.6,0.7,0.8,1.0,1.05,1.1`（默认值，覆盖加速解、相差 180° 的减速解和无解三种情况及其边界）改算例参数，`--particles N` 统一设定每次内核运行的宏粒子数（教程算例默认只有 2000 个，统计噪声较大），`--work 文件夹` 指定输出位置。表格另外列出内核的发射度增长（x / y / z）和最大质心偏移，线性预览没有这些量。表格打印在终端，同时写成工作文件夹里的 `comparison.md` 和 `comparison.csv`（每次内核运行的日志在 `OutputFile_<n>.log`）。内核无法载入时会说明原因并只比较两个预览；某次内核运行失败（例如 V3 = 0 无解时的 scan phase 错误）时照样列出两个预览的结果和预览的警告；算例本身出错不影响其他算例，退出码为 1。这个脚本不在 `tests/` 里，快速 pytest 不会运行它。
+（分支合并后改用 `git switch main` 和 `git pull`。）`--old-ref <提交>` 指定别的旧版本（2026-11-03 起 linear_optics.py 只是 `avas/model/` 的薄包装，脚本会把同一版本的 `avas/model/` 一起取出，以 `avas_model_old` 的名字载入）。`--repeat N` 每个算例运行内核 N 次并给出差值范围（内核多线程，结果略有差别）；`--cases example,periods-new` 只跑部分算例，`--periods 8`、`--energies 0.3,0.4,0.6,0.7,0.8,1.0,1.05,1.1`（默认值，覆盖加速解、相差 180° 的减速解和无解三种情况及其边界）改算例参数，`--particles N` 统一设定每次内核运行的宏粒子数（教程算例默认只有 2000 个，统计噪声较大），`--work 文件夹` 指定输出位置。表格另外列出内核的发射度增长（x / y / z）和最大质心偏移，线性预览没有这些量。表格打印在终端，同时写成工作文件夹里的 `comparison.md` 和 `comparison.csv`（每次内核运行的日志在 `OutputFile_<n>.log`）。内核无法载入时会说明原因并只比较两个预览；某次内核运行失败（例如 V3 = 0 无解时的 scan phase 错误）时照样列出两个预览的结果和预览的警告；算例本身出错不影响其他算例，退出码为 1。这个脚本不在 `tests/` 里，快速 pytest 不会运行它。
+
+### 线性模型质心与内核对比
+
+`tools/compare_centroid_engine.py` 用单粒子运行（`particlenumber 1`、`spacecharge 0`）检查 `avas/model/` 的质心约定：磁校正铁 By、Bx 和电校正铁 Ex 的偏转方向与大小（`steerer-by`、`steerer-bx`、`steerer-ex`），粒子离轴 1 mm / 0.5 mm（`displacepos`，内核按 mm 读取）穿过教程的一个 `sol` + HWR 周期（`offset`，检查螺线管转向和射频场中的一阶传输），以及同一周期轴上粒子被场图自身横向场偏转的量（`map-dipoles`，模型分别给出计入和不计入场图二极分量的结果）。每个算例在临时文件夹里复制示例项目，不改动示例和用户项目。表格列出内核与模型末端和最大的质心 x / y（mm），以及沿 z 的差值 rms 相对内核最大偏移的比例，写成工作文件夹里的 `centroid.md` / `centroid.csv`。在 Windows 的仓库目录里：
+
+```bash
+.venv\Scripts\python.exe tools\compare_centroid_engine.py
+```
+
+`--cases steerer-by,offset` 只跑部分算例，`--work 文件夹` 指定输出位置，`--no-engine` 只打印模型结果。核实后把结论写进 AGENTS.md 第 6 节的“线性模型”一条，并把 `avas/model/model.py` 里的 `centroid_checked` 改为 True。
 
 ---
 
@@ -156,6 +166,7 @@ avas/            Python package
   ai/            AI assistant: OpenAI-compatible client, tool-call loop, AVAS tools, sandbox simulation, manual search, secrets
   api/           basic.py: unified entry point for simulation and plotting; qt/: interface used by the GUI
   core/          ctypes wrapper around the C++ engine
+  model/         the linear model (transfer matrices, space charge, centroid): LinearModel / ModelResult
   sim/           simulation flow: multi-particle, envelope, error studies, matching, acceptance; linear_optics.py preview
   post/          post-processing: analysis/ data analysis, plot/ plotting
   data/          output file parsing (DataSet, BeamSet, dst, ...)
@@ -166,7 +177,8 @@ avas/            Python package
 frontend/        GUI front-end source (React + TypeScript)
 examples/        example project (hwr010)
 tests/           pytest test suite
-tools/           developer tools run by hand (compare_preview_engine.py: linear preview vs engine)
+tools/           developer tools run by hand (compare_preview_engine.py: linear preview vs engine;
+                 compare_centroid_engine.py: linear-model centroid vs engine, single particle)
 scripts/         personal analysis scripts (not part of the software itself)
 packaging/       packaging: build.py, PyInstaller config, Inno Setup installer script, icon
 docs/            user manual and changelog
@@ -223,4 +235,14 @@ git switch claude/preview-followups
 .venv\Scripts\python.exe tools\compare_preview_engine.py --repeat 3
 ```
 
-(Once the branch is merged, use `git switch main` and `git pull` instead.) `--old-ref <revision>` picks another old version. `--repeat N` runs the engine N times per case and shows the spread (the engine is multi-threaded and varies a little); `--cases example,periods-new` runs a subset, `--periods 8` and `--energies 0.3,0.4,0.6,0.7,0.8,1.0,1.05,1.1` (the default: accelerating, decelerating (180° away) and unsolvable cases and the edges between them) change the cases, `--particles N` sets the macro-particles of every engine run (the tutorial cases use only 2000, which is noisy), `--work DIR` sets the output folder. The table also lists the engine's emittance growth (x / y / z) and largest centroid offsets, which the linear preview does not have. The table is printed and also written as `comparison.md` and `comparison.csv` in the work folder (each engine run's log is `OutputFile_<n>.log`). If the engine cannot be loaded the script says why and compares the previews only; when an engine run fails (for example the scan-phase error of an unsolvable V3 = 0 phase) the two previews and the preview's warnings are still listed; a case that breaks does not stop the others and makes the exit code 1. The script is not under `tests/`, so the fast pytest run does not collect it.
+(Once the branch is merged, use `git switch main` and `git pull` instead.) `--old-ref <revision>` picks another old version (since 2026-11-03 linear_optics.py is a thin layer over `avas/model/`; the script takes the package from the same revision and loads it as `avas_model_old`). `--repeat N` runs the engine N times per case and shows the spread (the engine is multi-threaded and varies a little); `--cases example,periods-new` runs a subset, `--periods 8` and `--energies 0.3,0.4,0.6,0.7,0.8,1.0,1.05,1.1` (the default: accelerating, decelerating (180° away) and unsolvable cases and the edges between them) change the cases, `--particles N` sets the macro-particles of every engine run (the tutorial cases use only 2000, which is noisy), `--work DIR` sets the output folder. The table also lists the engine's emittance growth (x / y / z) and largest centroid offsets, which the linear preview does not have. The table is printed and also written as `comparison.md` and `comparison.csv` in the work folder (each engine run's log is `OutputFile_<n>.log`). If the engine cannot be loaded the script says why and compares the previews only; when an engine run fails (for example the scan-phase error of an unsolvable V3 = 0 phase) the two previews and the preview's warnings are still listed; a case that breaks does not stop the others and makes the exit code 1. The script is not under `tests/`, so the fast pytest run does not collect it.
+
+### Linear-model centroid against the engine
+
+`tools/compare_centroid_engine.py` checks the centroid conventions of `avas/model/` with single-particle runs (`particlenumber 1`, `spacecharge 0`): direction and size of the kick of a magnetic steerer (By, Bx) and an electric one (Ex) (`steerer-by`, `steerer-bx`, `steerer-ex`), a particle started 1 mm / 0.5 mm off axis (`displacepos`, read in mm by the engine) through one `sol` + HWR period of the tutorial (`offset`: solenoid rotation sense and first-order transport through the RF map), and the deflection of an on-axis particle by the maps' own transverse fields in that period (`map-dipoles`, the model with and without the map dipoles). Every case copies the example project into a temporary folder; neither the example nor any user project is touched. The table gives the engine's and the model's final and largest centroid x / y (mm) and the rms of their difference along z relative to the largest engine offset, written as `centroid.md` / `centroid.csv` in the work folder. In the repository folder on Windows:
+
+```bash
+.venv\Scripts\python.exe tools\compare_centroid_engine.py
+```
+
+`--cases steerer-by,offset` runs a subset, `--work DIR` sets the output folder, `--no-engine` prints the model only. Once checked, record the result in the "linear model" item of AGENTS.md section 6 and set `centroid_checked` in `avas/model/model.py` to True.
