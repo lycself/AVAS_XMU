@@ -103,7 +103,7 @@ git switch claude/preview-followups
 .venv\Scripts\python.exe tools\compare_centroid_engine.py
 ```
 
-`--cases steerer-by,offset` 只跑部分算例，`--work 文件夹` 指定输出位置，`--no-engine` 只打印模型结果。核实后把结论写进 AGENTS.md 第 6 节的“线性模型”一条，并把 `avas/model/model.py` 里的 `centroid_checked` 改为 True。
+`--cases steerer-by,offset` 只跑部分算例，`--work 文件夹` 指定输出位置，`--no-engine` 只打印模型结果。2026-11-03 已全部核实（结论见 AGENTS.md 第 6 节“线性模型的质心约定”），`avas/model/model.py` 的 `centroid_checked` 为 True；改动质心约定后要重新运行并更新那一条。
 
 ---
 
@@ -245,4 +245,4 @@ git switch claude/preview-followups
 .venv\Scripts\python.exe tools\compare_centroid_engine.py
 ```
 
-`--cases steerer-by,offset` runs a subset, `--work DIR` sets the output folder, `--no-engine` prints the model only. Once checked, record the result in the "linear model" item of AGENTS.md section 6 and set `centroid_checked` in `avas/model/model.py` to True.
+`--cases steerer-by,offset` runs a subset, `--work DIR` sets the output folder, `--no-engine` prints the model only. Everything was checked on 2026-11-03 (results in the item on the linear model's centroid conventions in AGENTS.md section 6) and `centroid_checked` in `avas/model/model.py` is True; after changing a centroid convention, run it again and update that item.

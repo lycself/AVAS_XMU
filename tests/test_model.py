@@ -210,4 +210,4 @@ def test_model_of_a_project_folder():
     text = open(os.path.join(EXAMPLE, "InputFile", "lattice_mulp.txt")).read()
     prev = lo.linear_preview(text, beam, [os.path.join(EXAMPLE, "InputFile")])
     assert res.energy[-1] == pytest.approx(prev["energy"][-1], rel=1e-12)
-    assert res.rf and res.info["centroid_checked"] is False
+    assert res.rf and res.info["centroid_checked"] is True
