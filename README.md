@@ -119,6 +119,8 @@ avas doctor
 
 `avas run --help`、`avas plot --help` 和 `avas scan --help` 提供完整选项。运行输入快照保存在 `<输出>/inputs/`，`avas_run.json` 记录其位置；场图从原目录读取。绘图默认从运行记录查找输入目录，也可用 `--input` 指定。
 
+**Python 研究接口：** 在 notebook 或脚本中可直接调用线性模型（`avas.model`）、周期与控制分析（`avas.dynamics`）和研究接口（`avas.research`）。研究接口把项目的“变体”（lattice 参数、beam.txt / input.txt 关键字、种子、粒子数）交给线性模型或内核运行，内核在子进程中运行，结果按输入指纹缓存在 `<项目>/Research/<研究名>/`，可批量、并行、续跑，并可做多维扫描、拉丁超立方采样、线性模型与内核对比、多种子统计和数据导出；不会改动项目的输入和 OutputFile。示例见 `examples/research/`。
+
 **浏览器模式：** `avas serve --open` 启动服务并打开带访问令牌的地址，页面与桌面版共用功能。文件选择使用页面内对话框，文件导出使用下载。默认只监听本机；使用 `--host 0.0.0.0` 开放局域网时，请仅用于可信网络，目前没有用户管理和工作区隔离。关闭标签页不等于停止后端服务。
 
 ### 更新与常见问题
@@ -285,6 +287,8 @@ avas doctor
 ```
 
 Use `avas run --help`, `avas plot --help` and `avas scan --help` for full options. Input snapshots live in `<output>/inputs/` and are recorded in `avas_run.json`; field maps are read from their original directory. Plotting finds inputs from the run record unless overridden by `--input`.
+
+**Python research interface:** notebooks and scripts can use the linear model (`avas.model`), period and control analysis (`avas.dynamics`) and the research interface (`avas.research`). It runs "variants" of a project (lattice parameters, beam.txt / input.txt keywords, seed, particles) with the linear model or the engine; engine runs are child processes, cached by an input fingerprint under `<project>/Research/<study>/`, and can be batched, run in parallel and resumed, with multi-dimensional scans, Latin-hypercube samples, linear-vs-engine comparisons, seed ensembles and data exports. The project's inputs and OutputFile are never changed. Examples are in `examples/research/`.
 
 **Browser mode:** `avas serve --open` starts the service and opens a token-bearing URL. It shares the desktop pages, with in-page file dialogs and downloads for exports. The default listener is local only. Use `--host 0.0.0.0` only on trusted networks: user management and workspace isolation are not implemented. Closing the tab does not stop the backend service.
 

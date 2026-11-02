@@ -179,6 +179,7 @@ avas/            Python package
   core/          ctypes wrapper around the C++ engine
   model/         the linear model (transfer matrices, space charge, centroid): LinearModel / ModelResult
   dynamics/      dynamics and control analysis on the linear model: periods, envelope stability, responses, control
+  research/      notebook / script interface: variants, studies with cached engine runs, batches, scans, comparisons
   sim/           simulation flow: multi-particle, envelope, error studies, matching, acceptance; linear_optics.py preview
   post/          post-processing: analysis/ data analysis, plot/ plotting
   data/          output file parsing (DataSet, BeamSet, dst, ...)
@@ -187,7 +188,7 @@ avas/            Python package
   static/        atomic mass table, field tables
   gpu/ hpc/      GPU engine and HPC job scripts
 frontend/        GUI front-end source (React + TypeScript)
-examples/        example project (hwr010)
+examples/        example project (hwr010); research/ example scripts of the research interface
 tests/           pytest test suite
 tools/           developer tools run by hand (compare_preview_engine.py: linear preview vs engine;
                  compare_centroid_engine.py: linear-model centroid vs engine, single particle;
