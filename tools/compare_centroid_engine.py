@@ -14,8 +14,6 @@ of ``examples/hwr010`` in a temporary work folder.  Cases:
   after a short drift: the engine crashed on six) over a 0.2 m drift, then 1 m of drift: kick
   direction and size (expected −x for By > 0, +y for Bx > 0).
 * ``steerer-ex``  – electric steerer (``kind 1``, Ex = 1e5 V/m): direction and the V/m unit.
-* ``steerer-quad`` – the By steerer in front of a zero-gradient quadrupole instead of a drift
-  (in case the engine wants a magnet after a steerer).
 * ``offset-quad`` / ``offset-sol`` / ``offset-hwr`` – the particle started off axis
   (``displacepos`` 1 mm, 0.5 mm; read in mm by the engine) through one quadrupole, the ``sol``
   map alone or the HWR map alone: where a difference in ``offset`` comes from.
@@ -29,6 +27,9 @@ of ``examples/hwr010`` in a temporary work folder.  Cases:
 For each case the table gives the engine's and the model's centroid x / y at the end and their
 largest values (mm), the final energy (engine: the particle; model: the reference particle) and
 the rms of the model − engine difference along z relative to the largest engine offset; ``nan_rows`` counts DataSet rows without a centroid (they are left out).
+Single-particle runs of the engine sometimes give no centroid at all (every row NaN, different
+cases on different runs, 2026-11-03); such a run is repeated up to ``--attempts`` times
+(``attempts`` and the surviving macro-particles ``alive_end`` are listed).
 Written as ``centroid.md`` / ``centroid.csv`` (with the reasons of failed engine runs) and the
 curves as ``curves.csv`` (case, source, z, cx, cy) in the work folder.  ``--no-engine`` prints
 the model only.
@@ -88,8 +89,6 @@ def cases():
         ("steerer-by", LEAD + "steerer 0 0.03 0 0 0.001 0 0.01\n" + DRIFTS + "end\n", (0, 0)),
         ("steerer-bx", LEAD + "steerer 0 0.03 0 0.001 0 0 0.01\n" + DRIFTS + "end\n", (0, 0)),
         ("steerer-ex", LEAD + "steerer 0 0.03 0 100000 0 1 1000000\n" + DRIFTS + "end\n", (0, 0)),
-        ("steerer-quad", LEAD + "steerer 0 0.03 0 0 0.001 0 0.01\nquad 0.2 0.03 0 0\ndrift 1.0 0.03 0\nend\n",
-         (0, 0)),
         ("offset-quad", "start\ndrift 0.05 0.03 0\nquad 0.1 0.03 0 10\ndrift 0.5 0.03 0\nend\n", (1.0, 0.5)),
         ("offset-sol", "start\ndrift 0.05 0.02 0\nfield 0.35 0.02 0 3 0 0 0 0.3 sol\ndrift 0.6 0.02 0\nend\n",
          (1.0, 0.5)),
@@ -137,6 +136,7 @@ def main(argv=None):
     ap.add_argument("--work", help="work folder (default: a new temporary folder)")
     ap.add_argument("--cases", help="comma-separated subset of " + ",".join(c[0] for c in cases()))
     ap.add_argument("--no-engine", action="store_true", help="model only")
+    ap.add_argument("--attempts", type=int, default=3, help="engine runs per case while the centroid is all NaN")
     args = ap.parse_args(argv)
     work = os.path.abspath(args.work) if args.work else tempfile.mkdtemp(prefix="avas_centroid_compare_")
     os.makedirs(work, exist_ok=True)
@@ -166,9 +166,14 @@ def main(argv=None):
         ref = None
         if use_engine:
             try:
-                env = run_engine(inp, os.path.join(os.path.dirname(inp), "OutputFile"))
+                for attempt in range(1, max(1, args.attempts) + 1):
+                    env = run_engine(inp, os.path.join(os.path.dirname(inp), "OutputFile"))
+                    if np.isfinite(env["cx"]).any():
+                        break
+                    print(f"  engine run {attempt}: centroid is NaN on every row (alive {env['alive'][-1]:g})")
                 ref = (env["z"], env["cx"], env["cy"], env["energy"])
                 add(name, "engine", ref)
+                rows[-1].update(attempts=attempt, alive_end=float(env["alive"][-1]))
             except RuntimeError as exc:
                 print(f"  engine: {exc}")
                 notes.append(f"{name}: engine {exc} (log: {os.path.join(os.path.dirname(inp), 'OutputFile.log')})")
@@ -180,7 +185,7 @@ def main(argv=None):
                 print("  " + "  ".join(f"{k}={v:.4g}" if isinstance(v, float) else f"{k}={v}" for k, v in r.items()
                                        if k != "case"))
     keys = ["case", "source", "cx_end_mm", "cy_end_mm", "cx_maxabs_mm", "cy_maxabs_mm", "w_end_MeV", "z_end_m",
-            "nan_rows", "rms_diff_rel"]
+            "nan_rows", "attempts", "alive_end", "rms_diff_rel"]
     with open(os.path.join(work, "centroid.csv"), "w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=keys)
         writer.writeheader()
