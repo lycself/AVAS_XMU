@@ -101,7 +101,7 @@ def test_space_charge_depresses_the_phase_advance():
 def test_steerer_kick_is_spread_over_the_next_element(kind):
     energy, field, length, drift = 10.0, 2e-3 if kind == 0 else 2e5, 0.25, 1.0
     fields = f"0 {field}" if kind == 0 else f"{field} 0"          # By bends in x, Ex pushes in x
-    text = f"start\nsteerer 0 0.05 0 {fields} {kind}\ndrift {length} 0.05 0\ndrift {drift} 0.05 0\nend\n"
+    text = f"start\nsteerer 0 0.05 0 {fields} {kind} 1e9\ndrift {length} 0.05 0\ndrift {drift} 0.05 0\nend\n"
     res = LinearModel(text, make_beam(energy)).evaluate()
     p, beta = momentum(energy)
     theta = -MEV_TM * field * length / p if kind == 0 else field * 1e-6 * length / (beta * p)
@@ -117,7 +117,7 @@ def test_steerer_and_uniform_map_field_deflect_alike(tmp_path):
     write_uniform_map(str(tmp_path), "um", length, {"bsy": by, "bsx": 0.004})
     by_map = LinearModel(f"start\nfield {length} 0.03 0 3 0 0 0 1 um\ndrift 0.5 0.03 0\nend\n", make_beam(),
                          [str(tmp_path)]).evaluate()
-    by_steerer = LinearModel(f"start\nsteerer 0 0.03 0 0.004 {by} 0\ndrift {length} 0.03 0\ndrift 0.5 0.03 0\nend\n",
+    by_steerer = LinearModel(f"start\nsteerer 0 0.03 0 0.004 {by} 0 1\ndrift {length} 0.03 0\ndrift 0.5 0.03 0\nend\n",
                              make_beam()).evaluate()
     assert by_map.centroid[-1, 0] < 0 < by_map.centroid[-1, 2]        # positive charge, By > 0 bends to −x
     assert np.allclose(by_map.centroid[-1], by_steerer.centroid[-1], rtol=1e-9, atol=1e-15)
@@ -153,8 +153,8 @@ def test_rolled_quad_couples_and_a_quarter_turn_flips_it():
 
 
 def test_centroid_ignores_linear_space_charge_and_responses_add_up():
-    text = ("start\nS1: steerer 0 0.05 0 0.001 0.002 0\ndrift 0.2 0.05 0\nquad 0.1 0.05 0 8\n"
-            "S2: steerer 0 0.05 0 -0.002 0.001 0\ndrift 0.3 0.05 0\nquad 0.1 0.05 0 -8\ndrift 1 0.05 0\nend\n")
+    text = ("start\nS1: steerer 0 0.05 0 0.001 0.002 0 0.01\ndrift 0.2 0.05 0\nquad 0.1 0.05 0 8\n"
+            "S2: steerer 0 0.05 0 -0.002 0.001 0 0.01\ndrift 0.3 0.05 0\nquad 0.1 0.05 0 -8\ndrift 1 0.05 0\nend\n")
     model = LinearModel(text, make_beam(energy=3.0, current=10.0))
     with_sc, without = model.evaluate(), model.evaluate(space_charge=False)
     assert not np.allclose(with_sc.sigma[-1], without.sigma[-1], rtol=1e-3)
