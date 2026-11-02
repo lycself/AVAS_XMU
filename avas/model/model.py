@@ -29,9 +29,9 @@ import numpy as np
 
 from avas import paths
 from avas.data import lattice_edit, schema
-from avas.data.lattice_doc import LatticeDocument, to_float
+from avas.data.lattice_doc import LatticeDocument, format_statement, to_float
 from avas.model.beam import _check_beam, _sigma0, read_beam
-from avas.model.common import BLOWUP, MEV_TM, PreviewError, _kin, _to_int
+from avas.model.common import BLOWUP, MEV_TM, PreviewError, _kin, _to_int, _Warnings
 from avas.model.elements import _prefix_products
 from avas.model.spacecharge import _propagate_sc, _space_charge_setup
 from avas.model.tracker import _APERTURE_KEYS, SectionCache, _PreviewDocument, _track
@@ -95,21 +95,27 @@ class LinearModel:
     def with_knobs(self, knobs):
         """Lattice text with *knobs* applied: ``{target: {param: value}}``, target and param addressed as in
         :mod:`avas.data.lattice_edit` (name, 1-based line, ``{"index": n}``; parameter key or position)."""
-        text = self.text
-        if text is None:
+        if self.text is None:
             raise ModelError("Knobs need the lattice text, not a parsed document.")
-        for target, values in (knobs or {}).items():
-            if not isinstance(values, dict):
-                raise ModelError(f"Knob '{target}': give {{parameter: value}}.")
-            for param, value in values.items():
-                doc = _PreviewDocument(text)
-                try:
-                    text = lattice_edit.set_param(text, doc, _address(target), param, value)[0]
-                except lattice_edit.LatticeEditError as exc:
-                    raise ModelError(str(exc)) from None
-        return text
+        changed = {}                                     # line → (statement, parameters)
+        try:
+            for target, values in (knobs or {}).items():
+                if not isinstance(values, dict):
+                    raise ModelError(f"Knob '{target}': give {{parameter: value}}.")
+                st = lattice_edit.resolve(self.doc, _address(target))
+                params = changed.get(st.line_no, (st, list(st.params)))[1]
+                for param, value in values.items():
+                    k = lattice_edit.param_index(st, param)
+                    while len(params) <= k:
+                        params.append("0")
+                    params[k] = lattice_edit.check_value(st, k, value)
+                changed[st.line_no] = (st, params)
+        except lattice_edit.LatticeEditError as exc:
+            raise ModelError(str(exc)) from None
+        return lattice_edit.replace_lines(self.text, {line: format_statement(st, params=params)
+                                                      for line, (st, params) in changed.items()})
 
-    def evaluate(self, space_charge=None, knobs=None, errors=None, centroid0=None, beam=None):
+    def evaluate(self, space_charge=None, knobs=None, errors=None, centroid0=None, beam=None, sigma0=None):
         """Track the beam: returns a :class:`ModelResult`.
 
         *space_charge*: None = on when the beam current is positive.
@@ -118,6 +124,7 @@ class LinearModel:
         turned by *roll* about the beam axis (positive from x towards y).
         *centroid0*: initial centroid (x, x', y, y', z, δ) in m, rad and Δp/p.
         *beam*: values replacing those of the model's beam (``{"current": 5.0}``).
+        *sigma0*: initial second moments (6×6, m and rad) instead of the beam's Twiss parameters.
         """
         started = time.perf_counter()
         doc = _PreviewDocument(self.with_knobs(knobs)) if knobs else self.doc
@@ -125,7 +132,7 @@ class LinearModel:
         doc, tracker, warn = _track(doc, beam, self.field_dirs, self.cache, self.map_dipoles)
         mass, energy, charge = _check_beam(beam)
         _g0, bg0, _b0, _p0 = _kin(energy, mass)
-        sigma0 = _sigma0(beam, float(bg0))
+        sigma0 = _sigma0(beam, float(bg0)) if sigma0 is None else np.array(sigma0, dtype=float).reshape(6, 6)
         c0 = np.zeros(6) if centroid0 is None else np.asarray(centroid0, dtype=float).reshape(6)
         steps = tracker.arrays()
         sc = None
@@ -134,9 +141,9 @@ class LinearModel:
                 z, w = np.array([0.0]), np.array([energy])
                 sigma, centroid = sigma0[None].copy(), c0[None].copy()
                 lines, aperture = np.array([-1]), np.array([0.0])
-                mats = effective = d = np.zeros((0, 6, 6))
+                mats = effective = np.zeros((0, 6, 6))
                 d = np.zeros((0, 6))
-                gamma_s = beta_s = np.zeros(0)
+                gamma_s = beta_s = h_s = np.zeros(0)
             else:
                 _apply_errors(doc, steps, errors or {})
                 if self.track_centroid:
@@ -154,7 +161,7 @@ class LinearModel:
                 w = np.concatenate(([energy], steps["w"]))
                 lines = np.concatenate(([-1], steps["line"]))
                 aperture = np.concatenate(([0.0], steps["aperture"]))
-                gamma_s, beta_s = steps["gamma"], steps["beta"]
+                gamma_s, beta_s, h_s = steps["gamma"], steps["beta"], steps["h"]
             # beam blow-up / NaN: cut the curves there
             diag = np.stack([sigma[:, 0, 0], sigma[:, 2, 2], sigma[:, 4, 4]], axis=1)
             bad = ~(np.isfinite(diag).all(axis=1) & (diag[:, 0] >= 0) & (diag[:, 1] >= 0)
@@ -165,7 +172,7 @@ class LinearModel:
                      f"包络在 z = {z[max(cut, 0)]:.3f} m 处发散，预览到此为止。", "blowup")
             cut = max(cut, 1)
             z, w, sigma, centroid, lines, aperture = (a[:cut] for a in (z, w, sigma, centroid, lines, aperture))
-            mats, effective, d, gamma_s, beta_s = (a[:cut - 1] for a in (mats, effective, d, gamma_s, beta_s))
+            mats, effective, d, gamma_s, beta_s, h_s = (a[:cut - 1] for a in (mats, effective, d, gamma_s, beta_s, h_s))
         rms = np.sqrt(np.maximum(np.stack([sigma[:, 0, 0], sigma[:, 2, 2]], axis=1), 0.0)) * 1e3   # mm
 
         over = (aperture > 0) & (APERTURE_SIGMAS * np.maximum(rms[:, 0], rms[:, 1]) > aperture * 1e3)
@@ -195,7 +202,7 @@ class LinearModel:
             info["cache"] = {"hits": self.cache.hits, "misses": self.cache.misses}
         return ModelResult(doc=doc, beam=beam, mass=mass, charge=charge, z=z, energy=w, sigma=sigma,
                            centroid=centroid, mats=mats, effective=effective, d=d, step_gamma=gamma_s,
-                           step_beta=beta_s, line=lines, aperture=aperture, elements=elements,
+                           step_beta=beta_s, step_h=h_s, line=lines, aperture=aperture, elements=elements,
                            rf=dict(tracker.rf), warnings=warn.items, info=info)
 
 
@@ -304,7 +311,8 @@ class ModelResult:
 
     ``z`` [m], ``energy`` [MeV], ``sigma`` (·, 6, 6) second moments about the centroid and
     ``centroid`` (·, 6) in (x, x', y, y', z, δ) with m, rad and δ = Δp/p; ``mats`` the step matrices,
-    ``effective`` the same with the space-charge kicks folded in, ``d`` the step constants;
+    ``effective`` the same with the space-charge kicks folded in, ``d`` the step constants
+    (``step_gamma``, ``step_beta``, ``step_h``: Lorentz factors and length of each step);
     ``line`` the 0-based lattice line of each point (−1 in gaps); ``elements``, ``rf``
     (line → (entry RF phase, synchronous phase) in degrees), ``warnings`` [(en, zh)] and ``info``.
     """
@@ -372,6 +380,34 @@ class ModelResult:
         r11, r12 = prod[:, i, i], prod[:, i, i + 1]
         mu = np.unwrap(np.arctan2(r12, beta0 * r11 - alpha0 * r12))
         return np.concatenate(([0.0], mu))
+
+    def propagate(self, sigma, start=0, end=None, space_charge=None, current=None):
+        """Second moments *sigma* (6×6 at point *start*) pushed to point *end* through the steps of this result.
+
+        *space_charge*: None = as the result; *current* [mA] replaces the beam current of the kicks.
+        Returns ``(sigmas, effective)``: the moments at points start … end and the step matrices with
+        the kicks folded in.  The kicks are grouped from *start*, so a part of the line differs from the
+        same part of the full evaluation by the grouping only (second order in the step).
+        """
+        end = len(self.z) - 1 if end is None else end
+        sigma = np.asarray(sigma, dtype=float).reshape(6, 6)
+        mats = self.mats[start:end]
+        if space_charge is None:
+            space_charge = self.info["space_charge"]
+        sc = None
+        if space_charge and len(mats):
+            beam = dict(self.beam) if current is None else dict(self.beam, current=current)
+            steps = {"gamma": self.step_gamma[start:end], "beta": self.step_beta[start:end], "h": self.step_h[start:end]}
+            sc = _space_charge_setup(beam, self.mass, self.charge, steps, _Warnings(), True)
+        if not len(mats):
+            return sigma[None].copy(), mats.copy()
+        with np.errstate(all="ignore"):
+            if sc is None:
+                prod = _prefix_products(mats)
+                full, effective = prod @ sigma @ prod.transpose(0, 2, 1), mats
+            else:
+                full, effective = _propagate_sc(mats, sigma, sc)
+        return np.concatenate([sigma[None], full]), effective
 
     def index(self, z, side="left"):
         """Point index at *z* [m]: the first point at or after it (``side="left"``) or the last at or
