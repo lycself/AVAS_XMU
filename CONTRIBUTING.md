@@ -107,7 +107,7 @@ git switch claude/preview-followups
 
 ### 轨道响应矩阵与内核对比
 
-`tools/compare_response_engine.py` 用内核检查 `avas/dynamics` 的轨道响应矩阵：在临时文件夹里复制示例项目，束线为“漂移 · 校正铁 S1 · `sol` · 校正铁 S2 · HWR · 漂移”，四个位置监测器，内核先不加冲量运行一次，再对 S1、S2 的 By、Bx 各加 1 mT 运行一次（质心对冲量是线性的，单边差分即可）。束流用 200 个宏粒子、发射度缩小 1000 倍、不计空间电荷，取平均位置作为质心，避开单粒子运行的不稳定。表格列出两个矩阵的每个元素（mm/mT）和差值相对最大元素的比例，写成工作文件夹里的 `response.md` / `response.csv`。在 Windows 的仓库目录里：
+`tools/compare_response_engine.py` 用内核检查 `avas/dynamics` 的轨道响应矩阵：在临时文件夹里复制示例项目，束线为“漂移 · 校正铁 S1 · `sol` · 校正铁 S2 · HWR · 漂移”，四个位置监测器，内核先不加冲量运行一次，再对 S1、S2 的 By、Bx 各加 1 mT 运行一次（质心对冲量是线性的，单边差分即可）。束流用 200 个宏粒子、发射度缩小 1000 倍、不计空间电荷，取平均位置作为质心，避开单粒子运行的不稳定；每次运行都写 `randomseed 12345`，粒子相同，基准运行做两次，两次之差作为噪声底列在报告末尾。表格列出两个矩阵的每个元素（mm/mT）和差值相对最大元素的比例，写成工作文件夹里的 `response.md` / `response.csv`。在 Windows 的仓库目录里：
 
 ```bash
 .venv\Scripts\python.exe tools\compare_response_engine.py
@@ -262,7 +262,7 @@ git switch claude/preview-followups
 
 ### Orbit response matrix against the engine
 
-`tools/compare_response_engine.py` checks the orbit response matrix of `avas/dynamics` with the engine: it copies the example project into a temporary folder, builds the line "drift · steerer S1 · `sol` · steerer S2 · HWR · drift" with four position monitors, runs the engine once without kicks and once with 1 mT on each of S1 By, S1 Bx, S2 By, S2 Bx (the centroid is linear in the kicks, so one-sided steps suffice). The beam has 200 macro-particles, emittances 1000 times smaller than the example's and no space charge; its mean position is the centroid, without the instability of single-particle runs. The table lists every element of both matrices (mm/mT) and their difference relative to the largest element, written as `response.md` / `response.csv` in the work folder. In the repository folder on Windows:
+`tools/compare_response_engine.py` checks the orbit response matrix of `avas/dynamics` with the engine: it copies the example project into a temporary folder, builds the line "drift · steerer S1 · `sol` · steerer S2 · HWR · drift" with four position monitors, runs the engine once without kicks and once with 1 mT on each of S1 By, S1 Bx, S2 By, S2 Bx (the centroid is linear in the kicks, so one-sided steps suffice). The beam has 200 macro-particles, emittances 1000 times smaller than the example's and no space charge; its mean position is the centroid, without the instability of single-particle runs. Every run uses `randomseed 12345`, so the particles are the same; the base case runs twice and the difference is reported as the noise floor. The table lists every element of both matrices (mm/mT) and their difference relative to the largest element, written as `response.md` / `response.csv` in the work folder. In the repository folder on Windows:
 
 ```bash
 .venv\Scripts\python.exe tools\compare_response_engine.py

@@ -12,9 +12,12 @@ and four position monitors (at the end of the 0.1 m drift after ``sol``, after t
 and 0.4 m further).  The engine runs once without kicks and once per knob (S1 By, S1 Bx, S2 By,
 S2 Bx; one-sided steps, the centroid is linear in the kicks) with *particles* macro-particles of
 a beam whose emittances are 1000 times smaller than the example's and without space charge, so
-the mean position is the centroid without the instability of single-particle runs.  The table
-gives every element of both matrices (mm per mT) and their difference relative to the largest
-element; written as ``response.md`` / ``response.csv`` in the work folder.
+the mean position is the centroid without the instability of single-particle runs.  Every run
+uses ``randomseed 12345`` (input.txt), so all runs start from the same particles: with a new
+sample per run the mean of 200 particles moved by about 3.5 µm, 0.0035 mm/mT per 1 mT step
+(2026-11-03).  The base case runs twice; the difference of the two is the noise floor.  The
+table gives every element of both matrices (mm per mT) and their difference relative to the
+largest element; written as ``response.md`` / ``response.csv`` in the work folder.
 """
 import argparse
 import csv
@@ -35,6 +38,7 @@ from compare_centroid_engine import _edit  # noqa: E402
 from compare_preview_engine import _copy_example, engine_available, run_engine  # noqa: E402
 
 STEP = 1e-3                    # T per knob
+SEED = 12345                   # fixed engine seed: the same particles in every run
 LATTICE = """start
 drift 0.05 0.03 0
 S1: steerer 0 0.03 0 0 0 0 0.01
@@ -60,7 +64,7 @@ def make_input(folder, particles):
     twiss = {p: [float(v) for v in lines[f"twiss{p}"]] for p in "xyz"}
     _edit(beam, {"particlenumber": particles, "current": 0,
                  **{f"twiss{p}": [t[0], t[1], t[2] * 1e-3] for p, t in twiss.items()}})
-    _edit(os.path.join(inp, "input.txt"), {"spacecharge": 0})
+    _edit(os.path.join(inp, "input.txt"), {"spacecharge": 0, "randomseed": SEED})
     return inp
 
 
@@ -94,6 +98,9 @@ def main(argv=None):
             print(f"ENGINE NOT AVAILABLE ({reason}); model only.")
         else:
             base = engine_readings(inp, os.path.join(work, "case", "OutputFile_base"), MONITORS)
+            again = engine_readings(inp, os.path.join(work, "case", "OutputFile_base2"), MONITORS)
+            floor = float(np.abs(again - base).max() / STEP)
+            print(f"  noise floor (two base runs): {floor:.3g} mm/mT")
             engine = np.zeros_like(resp.matrix)
             for j, knob in enumerate(knobs):
                 folder = os.path.join(work, f"knob_{knob.target}_{knob.param}")
@@ -125,6 +132,8 @@ def main(argv=None):
         if engine is not None:
             worst = np.abs(resp.matrix - engine).max() / scale
             fh.write(f"\nLargest difference: {worst:.3g} of the largest element.\n")
+            fh.write(f"Noise floor (two base runs, same seed): {floor:.3g} mm/mT = {floor / scale:.3g} of the largest "
+                     "element.\n")
             print(f"largest difference {worst:.3g} of the largest element")
     print(f"written: {os.path.join(work, 'response.md')}")
     return 0
