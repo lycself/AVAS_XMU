@@ -15,10 +15,11 @@ centroid alone.  Changing a lattice parameter (a *knob*) changes the design:
 the reference particle is tracked again.  Offsets and rolls (*errors*) and
 steerers are deviations from the design: the reference stays.
 
-Sign conventions of the centroid (steerer kick direction, the meaning of an
-element offset, the deflection by map fields) follow the field-map kicks of
-the envelope model but are not yet checked against the engine; ``info``
-says so (``centroid_checked``).
+The centroid conventions (steerer kick direction, units and length, first-order
+transport, the deflection by the on-axis fields of maps) were checked against
+single-particle engine runs on 2026-11-03 (``tools/compare_centroid_engine.py``;
+``info["centroid_checked"]``).  Off-axis, the engine follows a map's own
+transverse fields, which the model reduces to their linear part on the axis.
 """
 import math
 import os
@@ -189,7 +190,7 @@ class LinearModel:
             })
         info = {"space_charge": sc is not None, "elapsed_ms": (time.perf_counter() - started) * 1e3,
                 "slices": len(z) - 1, "centroid": self.track_centroid, "map_dipoles": self.map_dipoles,
-                "centroid_checked": False}
+                "centroid_checked": True}
         if self.cache is not None:
             info["cache"] = {"hits": self.cache.hits, "misses": self.cache.misses}
         return ModelResult(doc=doc, beam=beam, mass=mass, charge=charge, z=z, energy=w, sigma=sigma,
