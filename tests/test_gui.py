@@ -351,6 +351,7 @@ def test_pause_resume_and_segment_run(project):
     """Pause freezes the engine and the clock; a segment run from the full run's particle file matches the full run."""
     import time
     from avas.gui import context
+    from avas.data import segment
     from avas.gui.services import runner, segments
     work = os.path.join(WORK, "segment_project")
     shutil.rmtree(work, ignore_errors=True)
@@ -358,6 +359,13 @@ def test_pause_resume_and_segment_run(project):
     os.makedirs(os.path.join(work, "OutputFile"))
     with open(os.path.join(work, "InputFile", "lattice_mulp.txt"), "w", encoding="utf-8") as fh:
         fh.write(SEGMENT_LATTICE)
+    # a fixed seed makes the full run and the LEBT segment sample the same particles (the segment stages
+    # copy input.txt as is), so the comparisons below do not depend on two independent samplings
+    input_path = os.path.join(work, "InputFile", "input.txt")
+    with open(input_path, encoding="utf-8") as fh:
+        input_text = fh.read()
+    with open(input_path, "w", encoding="utf-8") as fh:
+        fh.write(segment.set_keywords(input_text, {"randomseed": "12345"}))
     ok("project.open", path=work)
     r = runner.runner()
     try:
@@ -409,6 +417,9 @@ def test_pause_resume_and_segment_run(project):
         _wait_for_job(r)
         assert job2.ok, job2.message
         assert job2.meta["entry"]["source"] == os.path.basename(lebt.root)
+        for staged in (lebt.root, job2.root):
+            with open(os.path.join(staged, "InputFile", "input.txt"), encoding="utf-8") as fh:
+                assert segment.keyword_value(fh.read(), "randomseed") == ["12345"]
         part2 = _last_dataset_row(job2.output_dir)
         assert part2[0] == pytest.approx(full[0], rel=2e-3) and part2[16] == pytest.approx(full[16], rel=0.05)
         # a changed beam upstream makes the LEBT result unusable
@@ -436,6 +447,7 @@ def test_pause_resume_and_segment_run(project):
 def test_delete_run_records(project, monkeypatch):
     """Run records go to the recycle bin: a segment folder as a whole, the project's OutputFile emptied."""
     from avas.gui import context
+    from avas.data import segment
     from avas.gui.services import runner, segments
     work = os.path.join(WORK, "delete_project")
     shutil.rmtree(work, ignore_errors=True)
