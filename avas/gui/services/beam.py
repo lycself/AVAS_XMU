@@ -15,7 +15,7 @@ from avas.utils.beamconfig import BeamConfig
 from avas.gui import context
 from avas.gui.bridge import UserError, rpc
 from avas.gui.locks import require_unlocked
-from avas.gui.textio import read_text, write_text
+from avas.gui.textio import normalized_write_text, read_text, write_text
 
 log = logging.getLogger("avas.gui")
 
@@ -204,7 +204,8 @@ def _save_secondary(p, secondary):
         if on or line_no is not None:
             write_text(input_path, set_keyword_value(text, "secondarybeam", 1 if on else 0), source="beam")
     text = secondary.get("text")
-    if text is not None and text != now["text"] and (now["exists"] or text.strip()):
+    changed = text is not None and normalized_write_text(text) != normalized_write_text(now["text"])
+    if changed and (now["exists"] or text.strip()):
         write_text(now["path"], text, source="beam")
         log.info("saved %s", now["name"])
 

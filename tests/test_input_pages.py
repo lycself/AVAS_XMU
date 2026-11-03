@@ -39,8 +39,9 @@ def project(tmp_path_factory):
 
 
 def read(path):
-    with open(path, encoding="utf-8") as fh:
-        return fh.read()
+    """The file as the pages get it (line endings kept: a Windows checkout has CRLF)."""
+    from avas.gui.textio import read_text
+    return read_text(path)
 
 
 def keyword_lines(path, keyword):
@@ -87,18 +88,25 @@ def test_beam_restore_from_history(project):
 
 
 def test_settings_companion_tables(project):
+    # CRLF on disk, as in a Windows checkout: the page gets the file as it is
+    with open(project / "scanData.txt", "rb") as fh:
+        raw = fh.read()
+    with open(project / "scanData.txt", "wb") as fh:
+        fh.write(raw.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))
     data = ok("settings.load")
     comp = data["companions"]
     assert comp["scanData"]["exists"] is True and comp["boundary"]["exists"] is False
     assert comp["scanData"]["text"] == read(project / "scanData.txt")
 
-    # unchanged tables are not rewritten; an empty boundary table does not create the file
+    # unchanged tables are not rewritten, even when the table hands back LF line endings;
+    # an empty boundary table does not create the file
     mtime = os.path.getmtime(project / "scanData.txt")
-    ok("settings.save", form=data["form"], meta=data["meta"], companions={"boundary": "", "scanData": comp["scanData"]["text"]})
+    for text in (comp["scanData"]["text"], comp["scanData"]["text"].replace("\r\n", "\n")):
+        ok("settings.save", form=data["form"], meta=data["meta"], companions={"boundary": "", "scanData": text})
     assert os.path.getmtime(project / "scanData.txt") == mtime and not (project / "boundary.txt").exists()
 
     boundary = "start\n1 copper 0.5 0.02 0.02 RLP 0 0 0 0 0 0\nend\n"
-    scan = comp["scanData"]["text"].rstrip("\n") + "\n"
+    scan = comp["scanData"]["text"].replace("\r\n", "\n").rstrip("\n") + "\n"
     saved = ok("settings.save", form={**data["form"], "boundary": True}, meta=data["meta"],
                companions={"boundary": boundary, "scanData": scan + "-30 0\n"})
     assert saved["form"]["boundary"] is True

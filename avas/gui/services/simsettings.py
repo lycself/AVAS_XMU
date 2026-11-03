@@ -10,7 +10,7 @@ from avas.gui import context
 from avas.gui.bridge import UserError, rpc
 from avas.gui.locks import require_unlocked
 from avas.gui.filehistory import capture
-from avas.gui.textio import read_text, write_text
+from avas.gui.textio import normalized_write_text, read_text, write_text
 
 
 def safe_int(v, default):
@@ -194,8 +194,8 @@ def save(form, meta, companions=None, restoredFrom=None):
         raise UserError(res["data"]["msg"])
     now = _companions(p)
     for key, text in (companions or {}).items():
-        if key not in now or text is None or text == now[key]["text"]:
-            continue
+        if key not in now or text is None or normalized_write_text(text) == normalized_write_text(now[key]["text"]):
+            continue                                        # unchanged, or only its line endings differ
         if now[key]["exists"] or text.strip():           # an empty table does not create the file
             write_text(now[key]["path"], text, source="settings")
     return load()
