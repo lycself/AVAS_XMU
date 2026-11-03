@@ -54,6 +54,7 @@ import { setAssistantOpen, setAssistantWidth, useAssistant } from "../assistant/
 const AssistantPanel = lazy(() => import("../assistant/AssistantPanel").then((m) => ({ default: m.AssistantPanel })));
 import { fmtSeconds } from "../format";
 import { useLang } from "../i18n";
+import { useMotion } from "../lattice/bunchPlayer";
 
 const ProjectPage = lazy(() => import("../pages/ProjectPage"));
 const BeamPage = lazy(() => import("../pages/BeamPage"));
@@ -362,7 +363,9 @@ function Sidebar() {
   const dirtyByPage: Partial<Record<PageId, boolean>> = { beam: dirty.beam, lattice: dirty.lattice, settings: dirty.settings, files: dirty.files };
   return (
     <nav className={cx("sidebar", collapsed && "collapsed")}>
-      <div className="sidebar-header">{!collapsed && <>AVAS <VersionStamp /></>}</div>
+      <div className="sidebar-header" aria-hidden={collapsed}>
+        AVAS <VersionStamp />
+      </div>
       {PAGES.map((p) => {
         const meta = PAGE_META[p];
         const busy = p === "run" && running;
@@ -378,12 +381,21 @@ function Sidebar() {
               else setPage(p);
             }}
           >
-            {busy && paused ? <Icon name="debug-pause" className="nav-paused" /> : busy ? <Spinner size={20} /> : <Icon name={meta.icon} />}
-            {!collapsed && <span className="nav-label">{t(meta.label)}</span>}
+            <span className="nav-icon">{busy && paused ? <Icon name="debug-pause" className="nav-paused" /> : busy ? <Spinner size={20} /> : <Icon name={meta.icon} />}</span>
+            <span className="nav-label">{t(meta.label)}</span>
             {dirtyByPage[p] && <span className="nav-dot" data-tip={t("Unsaved changes")} />}
           </button>
         );
       })}
+      <button
+        className="nav-item sidebar-toggle"
+        onClick={() => setSidebarCollapsed(!collapsed)}
+        data-tip={collapsed ? t("Expand the sidebar (Ctrl+B)") : t("Collapse the sidebar (Ctrl+B)")}
+        aria-label={collapsed ? t("Expand the sidebar (Ctrl+B)") : t("Collapse the sidebar (Ctrl+B)")}
+      >
+        <span className="nav-icon"><Icon name={collapsed ? "chevron-right" : "chevron-left"} /></span>
+        <span className="nav-label">{t("Collapse")}</span>
+      </button>
     </nav>
   );
 }
@@ -531,6 +543,12 @@ export function Shell() {
     setVisited((v) => (v.has(page) ? v : new Set(v).add(page)));
   }, [page]);
 
+  // the View → Motion setting for CSS transitions (sidebars, primer panels)
+  const motion = useMotion();
+  useEffect(() => {
+    document.documentElement.dataset.motion = motion;
+  }, [motion]);
+
   const sideW = liveWidth ?? (collapsed ? COLLAPSED_WIDTH : width);
 
   const startSidebarDrag = (() => {
@@ -600,7 +618,7 @@ export function Shell() {
       <div className="shell-body">
         {!hidden && (
           <>
-            <div className="sidebar-wrap" style={{ width: sideW }}>
+            <div className={cx("sidebar-wrap", liveWidth == null && "animate")} style={{ width: sideW }}>
               <Sidebar />
             </div>
             <div

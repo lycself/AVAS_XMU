@@ -1,6 +1,19 @@
 /* Primer page (pages/LearnPage.tsx, src/learn). Colours come from tokens.css only. */
-.learn-page { flex: 1 1 auto; display: flex; min-height: 0; min-width: 0; }
-.learn-nav { width: 236px; flex: none; overflow: auto; border-right: 1px solid var(--border); padding: 12px 8px 16px; background: var(--sidebar-bg); }
+.learn-page { position: relative; flex: 1 1 auto; display: flex; min-height: 0; min-width: 0; }
+/* side panels slide open and closed (width), their content keeps its width while they move */
+.learn-nav, .learn-toc { flex: none; width: 0; overflow: hidden; transition: width .18s ease, box-shadow .18s ease; }
+.learn-nav { background: var(--sidebar-bg); }
+.learn-nav.open { width: 248px; border-right: 1px solid var(--border); }
+.learn-toc.open { width: 212px; border-left: 1px solid var(--border); }
+.learn-panel-inner { height: 100%; overflow: auto; }
+.learn-nav .learn-panel-inner { width: 248px; padding: 12px 8px 16px; }
+.learn-toc .learn-panel-inner { width: 212px; padding: 10px 8px 14px; font-size: 12px; }
+/* narrow page: the panels float over the article (drawers) */
+.learn-nav.drawer, .learn-toc.drawer { position: absolute; top: 0; bottom: 0; z-index: 20; background: var(--sidebar-bg); }
+.learn-nav.drawer { left: 0; }
+.learn-toc.drawer { right: 0; }
+.learn-nav.drawer.open, .learn-toc.drawer.open { box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28); }
+.learn-scrim { position: absolute; inset: 0; z-index: 15; }
 .learn-search { width: 100%; margin-bottom: 10px; }
 .learn-part { margin-bottom: 12px; }
 .learn-part-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--fg-muted); padding: 4px 8px; }
@@ -10,15 +23,18 @@
 .learn-nav-item .ellipsis { flex: 1 1 auto; min-width: 0; }
 .learn-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--warning); flex: none; }
 .learn-main { flex: 1 1 auto; overflow: auto; min-width: 0; }
+/* the bar above the article: panel toggles and where the reader is */
+.learn-bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px;
+  background: var(--editor-bg); border-bottom: 1px solid var(--border); font-size: 12px; }
+.learn-bar-btn { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border: 1px solid transparent; border-radius: 4px;
+  background: none; color: var(--fg-muted); font: inherit; cursor: pointer; white-space: nowrap; }
+.learn-bar-btn:hover { background: var(--list-hover); color: var(--fg-strong); }
+.learn-bar-btn.on { background: var(--list-active); color: var(--fg-strong); }
+.learn-crumbs { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 4px; color: var(--fg); }
+.learn-crumbs .codicon { font-size: 12px; }
 .learn-article { max-width: 1120px; padding: 22px 36px 40px; line-height: 1.6; }
-.learn-toc { width: 200px; flex: none; overflow: auto; border-left: 1px solid var(--border); padding: 10px 8px 14px; font-size: 12px; }
-.learn-nav-top { display: flex; align-items: center; gap: 4px; margin-bottom: 10px; }
-.learn-nav-top .learn-search { flex: 1 1 auto; min-width: 0; margin-bottom: 0; }
-.learn-toc-top { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
-/* a hidden chapter list / "On this page" panel leaves a narrow rail with the button that brings it back */
-.learn-rail { flex: none; width: 32px; display: flex; flex-direction: column; align-items: center; padding-top: 10px; border-right: 1px solid var(--border); background: var(--sidebar-bg); }
-.learn-rail.right { border-right: 0; border-left: 1px solid var(--border); background: none; }
-@media (max-width: 820px) { .learn-nav { width: 180px; } .learn-article { padding: 16px 18px 32px; } }
+[data-motion="off"] .learn-nav, [data-motion="off"] .learn-toc { transition: none; }
+@media (max-width: 820px) { .learn-article { padding: 16px 18px 32px; } .learn-bar-btn span { display: none; } }
 
 .learn-head { margin-bottom: 18px; border-bottom: 1px solid var(--border); padding-bottom: 12px; }
 .learn-kicker { color: var(--accent); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }

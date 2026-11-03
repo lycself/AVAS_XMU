@@ -1,9 +1,9 @@
 // Primer page ("加速器入门"): chapters on accelerator physics and on every AVAS
 // component, with interactive labs, parameter tables from the schema, field
 // pictures and the guided tutorial (see src/learn).  Works without a project.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Markdown, type FenceRenderer } from "../components/Markdown";
-import { Button, Icon, IconButton, TextInput, cx } from "../components/ui";
+import { Button, Icon, TextInput, cx } from "../components/ui";
 import { useLang, useT } from "../i18n";
 import { PARTS, loadChapters, locate, searchChapters, type Chapter } from "../learn/content";
 import { BeamlineBlock } from "../learn/BeamlineView";
@@ -46,6 +46,10 @@ function StatusBadge({ chapter }: { chapter: Chapter }) {
   );
 }
 
+// below these widths of the page the panels float over the article instead of taking room from it
+const NAV_DOCK_WIDTH = 720;
+const TOC_DOCK_WIDTH = 1060;
+
 export default function LearnPage() {
   const t = useT();
   const lang = useLang((s) => s.lang);
@@ -54,9 +58,23 @@ export default function LearnPage() {
   const chapters = useMemo(() => loadChapters(learnLang()), [lang]);
   const [query, setQuery] = useState("");
   const main = useRef<HTMLDivElement>(null);
+  const host = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(1400);
+  const [drawer, setDrawer] = useState<null | "nav" | "toc">(null);
   const chapter = chapters.find((c) => c.id === chapterId) ?? chapters[0];
   const index = chapters.indexOf(chapter);
   const hits = useMemo(() => (query.trim() ? searchChapters(chapters, query) : []), [chapters, query]);
+
+  // docked panels where there is room, drawers over the article where there is not
+  useLayoutEffect(() => {
+    const el = host.current;
+    if (!el) return;
+    if (el.clientWidth) setWidth(el.clientWidth);
+    const ro = new ResizeObserver(() => setWidth(el.clientWidth || 1400));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const floating = { nav: width < NAV_DOCK_WIDTH, toc: width < TOC_DOCK_WIDTH };
 
   // scroll to the requested section (or the top) once the chapter is on screen
   useEffect(() => {
@@ -65,10 +83,19 @@ export default function LearnPage() {
     const box = main.current;
     if (!box) return;
     requestAnimationFrame(() => {
-      if (el) box.scrollTop = el.offsetTop - 12;
+      if (el) box.scrollTop = el.offsetTop - 48;
       else box.scrollTop = 0;
     });
   }, [chapterId, anchor, nonce, page]);
+
+  useEffect(() => {
+    if (!drawer) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setDrawer(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [drawer]);
 
   if (!chapter)
     return (
@@ -78,6 +105,7 @@ export default function LearnPage() {
     );
   const go = (id: string) => {
     setQuery("");
+    setDrawer(null);
     showLearn(id);
   };
   const onClick = (e: React.MouseEvent) => {
@@ -92,34 +120,58 @@ export default function LearnPage() {
   const prev = chapters[index - 1];
   const next = chapters[index + 1];
   const part = PARTS.find((p) => p.id === chapter.part);
+  const hasToc = !query.trim() && chapter.sections.length > 1;
+  const navOpen = floating.nav ? drawer === "nav" : panels.nav;
+  const tocOpen = hasToc && (floating.toc ? drawer === "toc" : panels.toc);
+  const toggle = (which: "nav" | "toc") => {
+    if (floating[which]) setDrawer((d) => (d === which ? null : which));
+    else setLearnPanel(which, !panels[which]);
+  };
+  const activeSection = chapter.sections.find((s) => s.id === anchor);
   return (
-    <div className="learn-page">
-      {panels.nav ? (
-        <nav className="learn-nav" aria-label={t("Primer contents")}>
-          <div className="learn-nav-top">
-            <TextInput className="learn-search" placeholder={t("Search the primer")} aria-label={t("Search the primer")} value={query} onChange={(e) => setQuery(e.target.value)} />
-            <IconButton icon="layout-sidebar-left" active tip={t("Hide the chapter list")} onClick={() => setLearnPanel("nav", false)} />
-          </div>
+    <div className="learn-page" ref={host}>
+      <nav className={cx("learn-nav", navOpen && "open", floating.nav && "drawer")} aria-label={t("Primer contents")} aria-hidden={!navOpen}>
+        <div className="learn-panel-inner">
+          <TextInput className="learn-search" placeholder={t("Search the primer")} aria-label={t("Search the primer")} value={query} onChange={(e) => setQuery(e.target.value)} />
           {PARTS.map((p) => (
             <div key={p.id} className="learn-part">
               <div className="learn-part-title">{t(p.title)}</div>
               {chapters
                 .filter((c) => c.part === p.id)
                 .map((c) => (
-                  <button key={c.id} className={cx("learn-nav-item", c.id === chapter.id && !query && "active")} onClick={() => go(c.id)}>
+                  <button key={c.id} className={cx("learn-nav-item", c.id === chapter.id && !query && "active")} onClick={() => go(c.id)} tabIndex={navOpen ? 0 : -1}>
                     <span className="ellipsis">{c.title}</span>
                     {c.status === "ai-draft" && <span className="learn-dot" data-tip={t("AI-written, awaiting review")} />}
                   </button>
                 ))}
             </div>
           ))}
-        </nav>
-      ) : (
-        <div className="learn-rail">
-          <IconButton icon="layout-sidebar-left-off" tip={t("Show the chapter list")} onClick={() => setLearnPanel("nav", true)} />
         </div>
-      )}
+      </nav>
       <div className="learn-main" ref={main} onClick={onClick}>
+        <div className="learn-bar">
+          <button className={cx("learn-bar-btn", navOpen && "on")} onClick={() => toggle("nav")} data-tip={navOpen ? t("Hide the chapter list") : t("Show the chapter list")} aria-pressed={navOpen}>
+            <Icon name="list-tree" />
+            <span>{t("Chapters")}</span>
+          </button>
+          <div className="learn-crumbs ellipsis">
+            {part && <span className="soft">{t(part.title)}</span>}
+            {part && <Icon name="chevron-right" className="soft" />}
+            <span>{chapter.title}</span>
+            {activeSection && hasToc && (
+              <>
+                <Icon name="chevron-right" className="soft" />
+                <span className="soft">{activeSection.title}</span>
+              </>
+            )}
+          </div>
+          {hasToc && (
+            <button className={cx("learn-bar-btn", tocOpen && "on")} onClick={() => toggle("toc")} data-tip={tocOpen ? t("Hide \"On this page\"") : t("Show \"On this page\"")} aria-pressed={tocOpen}>
+              <span>{t("On this page")}</span>
+              <Icon name="list-selection" />
+            </button>
+          )}
+        </div>
         {query.trim() ? (
           <div className="learn-article">
             <h1 className="page-title">{t("Search results")}</h1>
@@ -176,25 +228,19 @@ export default function LearnPage() {
           </article>
         )}
       </div>
-      {!query.trim() &&
-        chapter.sections.length > 1 &&
-        (panels.toc ? (
-          <nav className="learn-toc" aria-label={t("On this page")}>
-            <div className="learn-toc-top">
-              <div className="learn-part-title">{t("On this page")}</div>
-              <IconButton icon="layout-sidebar-right" active tip={t("Hide \"On this page\"")} onClick={() => setLearnPanel("toc", false)} />
-            </div>
+      {hasToc && (
+        <nav className={cx("learn-toc", tocOpen && "open", floating.toc && "drawer")} aria-label={t("On this page")} aria-hidden={!tocOpen}>
+          <div className="learn-panel-inner">
+            <div className="learn-part-title">{t("On this page")}</div>
             {chapter.sections.map((s) => (
-              <button key={s.id} className={cx("learn-toc-item", anchor === s.id && "active")} onClick={() => go(s.id)}>
+              <button key={s.id} className={cx("learn-toc-item", anchor === s.id && "active")} onClick={() => go(s.id)} tabIndex={tocOpen ? 0 : -1}>
                 {s.title}
               </button>
             ))}
-          </nav>
-        ) : (
-          <div className="learn-rail right">
-            <IconButton icon="layout-sidebar-right-off" tip={t("Show \"On this page\"")} onClick={() => setLearnPanel("toc", true)} />
           </div>
-        ))}
+        </nav>
+      )}
+      {drawer && <div className="learn-scrim" onClick={() => setDrawer(null)} />}
     </div>
   );
 }

@@ -232,13 +232,19 @@ def test_visual_editor_data(project):
 
 
 def test_files_page(project):
+    # runs generate lattice.txt in <output>/inputs since 2026-09-20; older versions left one in InputFile,
+    # which the Files page must still recognise (and refuse to save)
+    leftover = os.path.join(project["inputDir"], "lattice.txt")
+    with open(leftover, "w", encoding="utf-8") as fh:
+        fh.write("start\nend\n")
     listing = ok("files.list")
     roles = {f["name"]: f["role"] for f in listing["files"]}
     assert roles["beam.txt"] == "beam" and roles["lattice_mulp.txt"] == "lattice_run"
     assert roles["lattice.txt"] == "generated" and roles["part_rfq.dst"] == "particles"
     opened = ok("files.open", path=os.path.join(project["inputDir"], "input.txt"))
     assert opened["view"] == "text" and "steppercycle" in opened["text"]
-    assert rpc("files.save", path=os.path.join(project["inputDir"], "lattice.txt"), text="x")["ok"] is False
+    assert rpc("files.save", path=leftover, text="x")["ok"] is False
+    os.remove(leftover)
     assert rpc("files.open", path=os.path.join(ROOT, "README.md"))["ok"] is False      # outside InputFile
     new = ok("files.create", name="notes.txt")
     renamed = ok("files.rename", path=new, newName="notes2.txt")
