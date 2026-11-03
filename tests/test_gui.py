@@ -447,7 +447,6 @@ def test_pause_resume_and_segment_run(project):
 def test_delete_run_records(project, monkeypatch):
     """Run records go to the recycle bin: a segment folder as a whole, the project's OutputFile emptied."""
     from avas.gui import context
-    from avas.data import segment
     from avas.gui.services import runner, segments
     work = os.path.join(WORK, "delete_project")
     shutil.rmtree(work, ignore_errors=True)
