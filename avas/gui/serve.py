@@ -82,6 +82,8 @@ def main(argv=None, args=None, parser=None):
         services.runner.shutdown()
         services.assistant.shutdown()
         services.scan.shutdown()
+        services.study.shutdown()
+        services.analysis.shutdown()
         srv.shutdown()
     return 0
 

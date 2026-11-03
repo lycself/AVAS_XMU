@@ -43,7 +43,7 @@ Windows 安装版和便携版无需 Python、Git 或 GitHub 账户。请保留�
 | 设置 Settings | 配置模拟类型、步长、空间电荷、多线程与误差研究 |
 | 文件 Files | 查看和编辑输入文件，检查场图曲线、切片及粒子分布 |
 | 运行 Run | 启动、暂停、停止模拟，查看实时包络、运行记录与回放 |
-| 扫描 Scan | 扫描元件或束流／模拟参数，汇总指标、表格与曲线 |
+| 研究 Study | 参数扫描（线性模型或内核，一维／二维热图）、周期稳定区图谱、响应矩阵与可控性、反馈仿真 |
 | 结果 Results | 分析包络、发射度、损失、能量等，对比运行并导出 PNG／PDF／SVG |
 | 入门 Primer | 加速器原理、各元件的物理与参数、交互实验和引导教程，无需打开项目 |
 
@@ -61,7 +61,7 @@ Windows 安装版和便携版无需 Python、Git 或 GitHub 账户。请保留�
 
 运行页支持本次和历史运行的回放，结构页可回放上次运行；均可暂停、继续或结束。束团、粒子云和线性包络预览用于示意与快速评估，最终结果以内核计算为准。
 
-完整运行与误差研究在输出目录的 `inputs/` 快照上运行；分段结果写入 `Segments/`，扫描结果写入 `Scans/`。完整运行、误差研究和分段运行期间（含暂停），输入文件只读。已保留的完整运行存入 `Runs/`，可在结果页与其他运行对比。
+完整运行与误差研究在输出目录的 `inputs/` 快照上运行；分段结果写入 `Segments/`，研究页的内核运行写入 `Research/gui/`（与 Python 研究接口共用，旧扫描结果仍在 `Scans/`）。结构页“周期分析”标签给出周期的相移、匹配束和稳定性；结果页可叠加按该次运行输入计算的线性模型。完整运行、误差研究和分段运行期间（含暂停），输入文件只读。已保留的完整运行存入 `Runs/`，可在结果页与其他运行对比。
 
 #### 加速器入门
 
@@ -212,7 +212,7 @@ Eight pages follow the simulation workflow, plus an accelerator primer. The inte
 | Settings | Configure simulation type, step size, space charge, threading and error studies |
 | Files | Inspect and edit inputs, field profiles and slices, and particle distributions |
 | Run | Start, pause and stop simulations; inspect live envelopes, records and replay |
-| Scan | Sweep element, beam or simulation parameters; collect metrics, tables and curves |
+| Study | Parameter scans (linear model or engine, 1D / 2D heat maps), period stability charts, response matrix and controllability, feedback simulation |
 | Results | Analyze envelopes, emittance, losses and energy; compare runs and export PNG/PDF/SVG |
 | Primer | Accelerator physics, the physics and parameters of every component, interactive labs and a guided tutorial; no project needed |
 
@@ -230,7 +230,7 @@ View field map / View field distribution opens a floating window with transverse
 
 Run replays current and historical results; Lattice replays the last run. Both support pause, resume and end. Bunches, particle clouds and linear envelope previews are schematic or preliminary views; use engine results for final analysis.
 
-Full runs and error studies use an `inputs/` snapshot in the output directory. Segment results go to `Segments/`, scans to `Scans/`. Inputs are read-only during full runs, error studies and segmented runs, including pauses. Retained full runs are stored in `Runs/` and can be compared on Results.
+Full runs and error studies use an `inputs/` snapshot in the output directory. Segment results go to `Segments/`; engine runs of the Study page go to `Research/gui/` (shared with the Python research interface; older scans stay in `Scans/`). The Periods tab of the Lattice page shows phase advances, matched beam and stability of a period; Results can overlay the linear model of a run's own inputs. Inputs are read-only during full runs, error studies and segmented runs, including pauses. Retained full runs are stored in `Runs/` and can be compared on Results.
 
 #### Accelerator primer
 

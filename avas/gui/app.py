@@ -198,6 +198,8 @@ def main(argv=None, language=None):
     services.runner.shutdown()
     services.assistant.shutdown()
     services.scan.shutdown()
+    services.study.shutdown()
+    services.analysis.shutdown()
     srv.shutdown()
     return 0
 

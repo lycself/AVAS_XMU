@@ -13,7 +13,8 @@ import numpy as np
 
 from avas.dynamics.moments import plane_indices, set_upper, upper
 
-ENVELOPE_TOL = 1e-4         # |eigenvalue| above 1 + this counts as an envelope instability
+ENVELOPE_TOL = 1e-4         # |eigenvalue| above 1 + this (+ 2·(|λ| − 1) of an accelerating cell's normalised
+                            # transfer matrix, which the products λi·λj carry) counts as an envelope instability
 
 
 def envelope_jacobian(period, matched=None, current=None, step=1e-6):
@@ -42,7 +43,8 @@ def envelope_jacobian(period, matched=None, current=None, step=1e-6):
         jac[:, k] = (f(x0 + h) - f(x0 - h)) / (2 * step)
     values = np.linalg.eigvals(jac)
     rows, cols = np.triu_indices(len(idx))
-    return {"matrix": jac, "eigenvalues": values, "max_modulus": float(np.abs(values).max()),
-            "stable": bool(np.all(np.abs(values) <= 1 + ENVELOPE_TOL)),
+    tolerance = ENVELOPE_TOL + 2 * max(0.0, matched["zero_current"]["max_modulus"] - 1)
+    return {"matrix": jac, "eigenvalues": values, "max_modulus": float(np.abs(values).max()), "tolerance": tolerance,
+            "stable": bool(np.all(np.abs(values) <= 1 + tolerance)),
             "mode_tunes_deg": sorted(math.degrees(math.atan2(v.imag, v.real)) for v in values if v.imag > 1e-9),
             "labels": [(idx[i], idx[j]) for i, j in zip(rows, cols)], "scale": scale, "matched": matched}

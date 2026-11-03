@@ -213,3 +213,8 @@
 .ve-status .player-bar { min-width: 0; max-width: 100%; }
 
 .replay-stop .codicon::before { content: ""; display: inline-block; width: 8px; height: 8px; background: currentColor; }
+
+/* period analysis tab */
+.period-panel { padding: 8px 12px; }
+.period-table td:first-child { white-space: nowrap; }
+.period-table td { text-align: right; }

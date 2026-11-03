@@ -9,3 +9,12 @@
 .compare-sources { width: 260px; flex: none; overflow: auto; padding: 4px 6px; border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px; }
 .compare-source-label { display: inline-flex; flex-direction: column; line-height: 1.2; }
 .compare-plot { position: relative; flex: 1; }
+
+/* Study page */
+.study-tabs { margin-bottom: 12px; }
+.study-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 12px 24px; }
+.study-table td { padding: 2px 4px; }
+.study-table input, .study-table select { width: 100%; min-width: 60px; }
+.study-facts { margin: 8px 0 0; padding-left: 20px; }
+.study-point { border: 1px solid var(--border); border-radius: 4px; padding: 8px; margin-bottom: 8px; }
+.scan-table tr.active td { background: var(--list-active); }

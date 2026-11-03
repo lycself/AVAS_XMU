@@ -320,3 +320,18 @@ def test_study_file_round_trip(tmp_path):
         dyn.load_study({"lattice_steerers": "xy"})
     with pytest.raises(ValueError, match="Unknown"):
         dyn.load_study({"bpms": []})
+
+
+@needs_example
+def test_accelerating_cell_is_judged_with_its_own_tolerance():
+    # the normalised sol + HWR period is symplectic only to |λ| − 1 ≈ 4e-4: at a weak current its matched
+    # beam, envelope and modes must not be reported as unconverged or unstable because of that
+    from avas.learn import tutorial
+    beam = dict(tutorial.preview_beam("periods"), current=0.2)
+    cell = dyn.Period(LinearModel(tutorial.lattice("periods", {"periods": 2}), beam, [EXAMPLE_INPUT]).evaluate(),
+                      z=(0.05, 0.81))
+    matched = cell.matched()
+    assert 1e-6 < matched["tolerance"] < 1e-2 and matched["converged"]
+    jac = dyn.envelope_jacobian(cell, matched)
+    assert jac["max_modulus"] > 1 + 1e-4 and jac["stable"]
+    assert {m["class"] for m in dyn.modes(cell.transfer()[:4, :4])} == {"stable"}

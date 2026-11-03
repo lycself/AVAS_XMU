@@ -226,7 +226,28 @@ class Sandbox:
         out = os.path.join(self.root, f"run_{self.count:03d}")
         shutil.rmtree(out, ignore_errors=True)
         os.makedirs(out)
-        cmd = runner.simulation_command(self.input_dir, out, "basic") + ["--field", self.field_dir, "--lattice", self.lattice_name]
+        seconds = self.run_in(self.input_dir, out, self.field_dir, self.lattice_name, stop_event, progress, timeout)
+        if not keep:
+            for name in os.listdir(out):
+                if name not in KEEP_OUTPUT:
+                    p = os.path.join(out, name)
+                    if os.path.isfile(p):
+                        try:
+                            os.remove(p)
+                        except OSError:
+                            pass
+        return out, seconds
+
+    def run_in(self, input_dir, out, field_dir, lattice_name, stop_event=None, progress=None, timeout=None,
+               log_path=None):
+        """Run the engine on *input_dir* into *out* as one simulation of this study (pause, stop, the
+        Run page's live display and the one-simulation-at-a-time rule apply); returns the seconds it ran,
+        not counting pauses.  Used by :meth:`run` and by research studies started from the GUI
+        (:mod:`avas.gui.services.study`).  *log_path* receives the last lines of the output."""
+        from avas.gui.services import runner
+        if not self._own_activity:
+            raise SandboxError("Begin the study first.")
+        cmd = runner.simulation_command(input_dir, out, "basic") + ["--field", field_dir, "--lattice", lattice_name]
         env = dict(os.environ)
         env.update(PYTHONUNBUFFERED="1", PYTHONIOENCODING="utf-8", MPLBACKEND="Agg", AVAS_GUI_CHILD="1")
         from avas.paths import PACKAGE_DIR
@@ -249,7 +270,7 @@ class Sandbox:
             proc = subprocess.Popen(cmd, cwd=self.root, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                     stderr=subprocess.STDOUT, creationflags=flags)
             _active.update(proc=proc, job=self.job_id, out=out, index=self.count,
-                           lattice=os.path.join(self.input_dir, self.lattice_name), field_dirs=[self.field_dir])
+                           lattice=os.path.join(input_dir, lattice_name), field_dirs=[field_dir])
             if _activity is not None:
                 _activity.update(index=self.count, percent=0.0, line="")
                 if _activity["paused_since"] is not None:      # paused while starting
@@ -323,21 +344,18 @@ class Sandbox:
             with _lock:
                 _active.update(proc=None, job=None, out=None, index=None, lattice=None, field_dirs=None)
         seconds = max(0.0, time.time() - started - paused_s)
+        if log_path:
+            try:
+                with open(log_path, "w", encoding="utf-8") as fh:
+                    fh.write("\n".join(tail) + "\n")
+            except OSError:
+                pass
         if code != 0:
             if self._stopped(stop_event):
                 raise SandboxError("stopped")
             message = next((ln[6:].strip() for ln in reversed(tail) if ln.lower().startswith("error:")), None)
             raise SandboxError(message or (tail[-1] if tail else f"engine exit code {code}"))
-        if not keep:
-            for name in os.listdir(out):
-                if name not in KEEP_OUTPUT:
-                    p = os.path.join(out, name)
-                    if os.path.isfile(p):
-                        try:
-                            os.remove(p)
-                        except OSError:
-                            pass
-        return out, seconds
+        return seconds
 
     def cleanup(self, keep_dirs=()):
         """Remove run folders except *keep_dirs* and end the study."""
