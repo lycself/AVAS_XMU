@@ -174,7 +174,8 @@ class Period:
         (default the stable ones; x and y together when coupled).
 
         Returns ``sigma`` (6×6 at the entry, geometric), ``planes``, ``emittances``, ``current``,
-        ``converged``, ``residual``, ``zero_current`` and ``depressed`` (:func:`floquet` of the
+        ``converged`` (residual below ``tolerance``: 1e-6, or 4·(|λ| − 1) of an accelerating cell), ``residual``,
+        ``zero_current`` and ``depressed`` (:func:`floquet` of the
         period without and with this beam's space charge), ``tune_depression`` (σ/σ0 per plane) and
         ``mismatch`` of the beam at the entry against the matched one.
         """
@@ -190,6 +191,9 @@ class Period:
             raise ValueError(f"The zero-current motion of planes {planes} is not stable.")
         idx = plane_indices(planes)
         residual, converged = 0.0, True
+        # an accelerating cell is periodic only after normalisation, to about |λ| − 1 (ε): its fixed point
+        # is met to a few ε, not to round-off
+        tolerance = max(1e-6, 4 * max(0.0, zc["max_modulus"] - 1))
         if current > 0:
             scale = np.sqrt(np.abs(np.outer(np.diag(sigma), np.diag(sigma))))[np.ix_(idx, idx)]
             scale = scale[np.triu_indices(len(idx))]
@@ -203,10 +207,11 @@ class Period:
             sol = least_squares(resid, upper(sigma, idx) / scale, method="lm", xtol=1e-14, ftol=1e-14)
             sigma = set_upper(sigma, idx, sol.x * scale)
             residual = float(np.max(np.abs(resid(sol.x))))
-            converged = bool(residual < 1e-6)
+            converged = bool(residual < tolerance)
         depressed = floquet(self.transfer(sigma, current)) if current > 0 else zc
         out = {"sigma": sigma, "planes": planes, "emittances": targets, "current": current,
-               "converged": converged, "residual": residual, "zero_current": zc, "depressed": depressed}
+               "converged": converged, "residual": residual, "tolerance": tolerance, "zero_current": zc,
+               "depressed": depressed}
         out["tune_depression"] = {p: depressed["planes"][p]["mu_deg"] / zc["planes"][p]["mu_deg"] for p in planes}
         out["mismatch"] = {p: mismatch(base, sigma, p) for p in planes}
         return out

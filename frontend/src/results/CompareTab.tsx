@@ -154,5 +154,6 @@ export function sourceName(s: CompareSource, t: (k: string, a?: Record<string, s
   if (s.kind === "project") return `${t("Full lattice")} (OutputFile)`;
   if (s.kind === "archived") return s.label;
   if (s.kind === "segment") return t("Segment {label}", { label: s.label });
+  if (s.kind === "research") return t("Study {name}", { name: `${(s as any).study ?? ""}: ${s.label}` });
   return s.label;
 }

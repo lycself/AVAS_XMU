@@ -65,9 +65,11 @@ def observability(a, c, horizon=None, noise=None):
             "eigenvalues": np.sort(values)[::-1]}
 
 
-def modes(a, b=None, c=None, tol=1e-7):
+def modes(a, b=None, c=None, tol=1e-7, stable_tol=1e-3):
     """Eigenmodes of *a* with the PBH tests: ``[{"eigenvalue", "modulus", "tune_deg", "controllable",
-    "observable", "class"}]``; class "stable" | "stabilizable" | "uncontrollable" (see module doc)."""
+    "observable", "class"}]``; class "stable" | "stabilizable" | "uncontrollable" (see module doc).
+    *tol*: rank tolerance; *stable_tol*: |λ| up to 1 + this is stable (normalised accelerating cells are
+    symplectic only to about 5e-4, see :data:`avas.dynamics.period.STABLE_TOL`)."""
     a = np.atleast_2d(a)
     n = a.shape[0]
     out = []
@@ -76,7 +78,7 @@ def modes(a, b=None, c=None, tol=1e-7):
         ctrl = None if b is None else _rank(np.hstack([shifted, np.atleast_2d(b).astype(complex)]), tol) == n
         obs = None if c is None else _rank(np.vstack([shifted, np.atleast_2d(c).astype(complex)]), tol) == n
         modulus = float(abs(lam))
-        if modulus <= 1 + tol:
+        if modulus <= 1 + stable_tol:
             cls = "stable"
         else:
             cls = "stabilizable" if ctrl else "uncontrollable"

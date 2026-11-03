@@ -8,6 +8,7 @@ import { deleteUnit, duplicateUnit, moveUnit, moveUnitTo } from "./structureOps"
 import { Checkbox, CommitInput, cx, Icon, Select, Tabs } from "../components/ui";
 import { pick, t, useT } from "../i18n";
 import { ComponentView } from "./ComponentView";
+import { PeriodPanel } from "./PeriodPanel";
 import { Beamline } from "./Beamline";
 import { elementType, matchesStatement } from "./elementType";
 import { selectedGroups } from "./treeSelection";
@@ -657,7 +658,7 @@ function ParamGrid({ doc, kw, selected, readOnly, onSelect, onEdits }: { doc: La
 export function StructureEditor({ doc, schema, selected, selectionRequest = 0, onSelect, onEdits, onRangeEdits, getLines, frequency, readOnly, fieldmaps, fieldDirs, parseError }: Props) {
   const tt = useT();
   const kw = useMemo(() => new Map(schema.lattice.map((k) => [k.key, k])), [schema]);
-  const [tab, setTab] = useState<"structure" | "table">("structure");
+  const [tab, setTab] = useState<"structure" | "table" | "periods">("structure");
   const [split, setSplit] = useState(0.52);
   const [revealRequest, setRevealRequest] = useState(0);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -694,6 +695,7 @@ export function StructureEditor({ doc, schema, selected, selectionRequest = 0, o
         tabs={[
           { value: "structure", label: tt("Structure"), icon: "list-tree" },
           { value: "table", label: tt("Parameter table"), icon: "table" },
+          { value: "periods", label: tt("Periods"), icon: "symbol-color", tip: tt("Phase advances, matched beam and stability of the lattice's periods (linear model)") },
         ]}
       />
       <div className="structure-body" ref={bodyRef}>
@@ -739,8 +741,12 @@ export function StructureEditor({ doc, schema, selected, selectionRequest = 0, o
               <PropertyPanel doc={doc} st={st} kw={kw} readOnly={readOnly} fieldmaps={fieldmaps} onEdits={onEdits} />
             </div>
           </div>
-        ) : (
+        ) : tab === "table" ? (
           <ParamGrid doc={doc} kw={kw} selected={selected} readOnly={readOnly} onSelect={(l) => onSelect(l, "grid")} onEdits={onEdits} />
+        ) : (
+          <div className="pane grow property-scroll">
+            <PeriodPanel getText={() => (getLines?.() ?? []).join("\n")} fieldDirs={fieldDirs ?? null} revision={doc} />
+          </div>
         )}
       </div>
       <div className="structure-status soft">

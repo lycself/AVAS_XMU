@@ -62,7 +62,7 @@ const SettingsPage = lazy(() => import("../pages/SettingsPage"));
 const FilesPage = lazy(() => import("../pages/FilesPage"));
 const RunPage = lazy(() => import("../pages/RunPage"));
 const ResultsPage = lazy(() => import("../pages/ResultsPage"));
-const ScanPage = lazy(() => import("../pages/ScanPage"));
+const StudyPage = lazy(() => import("../pages/StudyPage"));
 const LearnPage = lazy(() => import("../pages/LearnPage"));
 
 const PAGE_META: Record<PageId, { label: string; icon: string; render: () => ReactNode }> = {
@@ -72,7 +72,7 @@ const PAGE_META: Record<PageId, { label: string; icon: string; render: () => Rea
   settings: { label: "Settings", icon: "settings-gear", render: () => <SettingsPage /> },
   files: { label: "Files", icon: "files", render: () => <FilesPage /> },
   run: { label: "Run", icon: "play-circle", render: () => <RunPage /> },
-  scan: { label: "Scan", icon: "graph-scatter", render: () => <ScanPage /> },
+  scan: { label: "Study", icon: "beaker", render: () => <StudyPage /> },
   results: { label: "Results", icon: "graph-line", render: () => <ResultsPage /> },
   learn: { label: "Primer", icon: "mortar-board", render: () => <LearnPage /> },
 };

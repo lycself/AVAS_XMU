@@ -3,7 +3,7 @@ import { archiveRun, deleteRunRecord } from "../actions";
 import { call, on } from "../bridge";
 import { openPath, pickFile, pickFolder } from "../host";
 import { reportError, toast } from "../components/overlays";
-import { Button, cx, Empty, Icon, IconButton, Radio, Select, Spinner, Tabs, TextInput } from "../components/ui";
+import { Button, Checkbox, cx, Empty, Icon, IconButton, Radio, Select, Spinner, Tabs, TextInput } from "../components/ui";
 import { runStatusLabel } from "../format";
 import { useT } from "../i18n";
 import { AcceptanceFooter, PlotTab } from "../results/PlotTab";
@@ -83,6 +83,7 @@ const TREE: { group: string; items: { key: ItemKey; label: string; icon: string 
   },
 ];
 
+const LINEAR_TYPES = ["rms_x", "rms_y", "rms_xy", "c_x", "c_y", "c_xy", "energy", "emittance_x", "emittance_y", "emittance_z"];
 const ENVELOPE = ["rms_x", "rms_y", "rms_xy", "max_x", "max_y", "max_xy", "c_x", "c_y", "c_xy", "phi", "beta_x", "beta_y", "beta_z", "beta_xyz", "alpha_x"];
 
 type Tab = { id: string; key: ItemKey; title: string };
@@ -127,6 +128,7 @@ function TabContent({ tab, ov, refreshKey }: { tab: Tab; ov: Overview; refreshKe
   const t = useT();
   const out = ov.outputDir;
   const [type, setType] = useState(tab.key === "emittance" ? "emittance_x" : tab.key === "loss" ? "loss" : tab.key === "energy" ? "energy" : "rms_x");
+  const [linear, setLinear] = useState(false);
   const [unit, setUnit] = useState("period");
   const [ratios, setRatios] = useState<Record<string, string>>({});
   const [appliedRatios, setAppliedRatios] = useState<Record<string, string>>({});
@@ -147,16 +149,26 @@ function TabContent({ tab, ov, refreshKey }: { tab: Tab; ov: Overview; refreshKe
       return (
         <PlotTab
           plot="dataset"
-          params={{ type }}
+          params={{ type, linear: linear && LINEAR_TYPES.includes(type) }}
           outputDir={out}
           title={type}
           refreshKey={refreshKey}
           options={
-            choices.length > 1 && (
-              <Opt label={t("Quantity")}>
-                <Select value={type} options={choices.map((c) => ({ value: c, label: c }))} onChange={setType} />
-              </Opt>
-            )
+            <>
+              {choices.length > 1 && (
+                <Opt label={t("Quantity")}>
+                  <Select value={type} options={choices.map((c) => ({ value: c, label: c }))} onChange={setType} />
+                </Opt>
+              )}
+              {LINEAR_TYPES.includes(type) && (
+                <Checkbox
+                  checked={linear}
+                  onChange={setLinear}
+                  label={t("Linear model")}
+                  tip={t("Dashed: the linear model of this run's own inputs (its inputs/ snapshot), to see what the multi-particle simulation adds.")}
+                />
+              )}
+            </>
           }
         />
       );
@@ -459,7 +471,9 @@ function PltToDstTool({ ov }: { ov: Overview }) {
 }
 
 type ResultSource = {
-  kind: "project" | "segment" | "archived";
+  kind: "project" | "segment" | "archived" | "research";
+  study?: string;
+  seed?: number | null;
   label: string;
   outputDir: string;
   status?: string | null;
@@ -568,7 +582,9 @@ export default function ResultsPage() {
         ? `${tt("Full lattice")} (OutputFile)`
         : s.kind === "archived"
           ? [s.label, s.time ?? "", s.status && s.status !== "finished" ? runStatusLabel(s.status) : null].filter(Boolean).join("  ·  ")
-          : [
+          : s.kind === "research"
+            ? [tt("Study {name}", { name: s.study ?? "" }), s.label, s.time ?? ""].filter(Boolean).join("  ·  ")
+            : [
             tt("Segment {label}", { label: s.label }),
             `z ${s.zStart ?? "?"}–${s.zEnd ?? "?"} m`,
             s.entry ? tt(ENTRY_SHORT[s.entry] ?? s.entry) : null,
@@ -588,7 +604,7 @@ export default function ResultsPage() {
   };
 
   const deleteCurrent = async () => {
-    if (!current || !(await deleteRunRecord(current))) return;
+    if (!current || current.kind === "research" || !(await deleteRunRecord({ ...current, kind: current.kind }))) return;
     setTabs([]);
     if (current.kind === "segment") {
       setOutputDir(undefined); // the effect on outputDir reloads the overview
@@ -675,7 +691,7 @@ export default function ResultsPage() {
             {tt("Keep this run")}
           </Button>
         )}
-        {current && (
+        {current && current.kind !== "research" && (
           <IconButton
             icon="trash"
             tip={running ? tt("Cannot delete while a simulation is running") : tt("Move this run record to the recycle bin")}
@@ -702,6 +718,11 @@ export default function ResultsPage() {
       {current?.kind === "archived" && (
         <div className="muted results-source-note">
           {tt("Kept run {label}: a copy of OutputFile/ made {time}; its input files are in inputs/.", { label: current.label, time: current.archivedAt ?? "" })}
+        </div>
+      )}
+      {current?.kind === "research" && (
+        <div className="muted results-source-note">
+          {tt("Engine run of study {name} (Research/{name}/): {label}; seed {seed}. Its inputs are in the run's input/ folder.", { name: current.study ?? "", label: current.label, seed: current.seed ?? "–" })}
         </div>
       )}
       {current?.kind === "segment" && (

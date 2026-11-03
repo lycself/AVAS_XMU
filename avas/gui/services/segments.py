@@ -365,9 +365,38 @@ def list_segments(project):
     return out
 
 
+def _research_runs(p, limit=200):
+    """Finished engine runs of the project's research studies (``Research/<study>/runs/*``), newest first."""
+    root = os.path.join(p.path, "Research")
+    found = []
+    if not os.path.isdir(root):
+        return found
+    for study in sorted(os.listdir(root)):
+        runs = os.path.join(root, study, "runs")
+        if not os.path.isdir(runs):
+            continue
+        for name in os.listdir(runs):
+            try:
+                with open(os.path.join(runs, name, "run.json"), encoding="utf-8") as fh:
+                    rec = json.load(fh)
+            except (OSError, ValueError):
+                continue
+            if rec.get("status") != "done":
+                continue
+            variant = rec.get("variant") or {}
+            changes = [f"{t}.{k}={v}" for t, ps in (variant.get("lattice") or {}).items() for k, v in ps.items()]
+            changes += [f"{k}={v}" for k, v in (variant.get("beam") or {}).items()]
+            found.append({"kind": "research", "label": rec.get("label") or ", ".join(changes) or name,
+                          "outputDir": os.path.join(runs, name, "output"), "status": "finished", "study": study,
+                          "time": rec.get("finished") or rec.get("started"), "seed": rec.get("seed")})
+    found.sort(key=lambda r: r.get("time") or "", reverse=True)
+    return found[:limit]
+
+
 @rpc("results.sources")
 def sources():
-    """Result folders of the project: OutputFile, archived runs (Runs/) and every segment run."""
+    """Result folders of the project: OutputFile, archived runs (Runs/), research engine runs (Research/) and
+    every segment run."""
     p = context.project().require()
     info = p.last_run() or {}
     out = [{"kind": "project", "label": "OutputFile", "outputDir": p.output_dir, "status": info.get("status"),
@@ -378,6 +407,7 @@ def sources():
                     "outputDir": rec["folder"], "status": rec.get("status"),
                     "time": rec.get("finished") or rec.get("started"), "mode": rec.get("mode"),
                     "elapsed_s": rec.get("elapsed_s"), "archivedAt": rec.get("archived_at")})
+    out += _research_runs(p)
     for meta in list_segments(p):
         seg = meta.get("segment") or {}
         out.append({"kind": "segment", "label": meta.get("label") or os.path.basename(meta["folder"]),

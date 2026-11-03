@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { call } from "../bridge";
 import { pickFile } from "../host";
 import { confirmDialog, DialogFrame, reportError, showDialog, toast } from "../components/overlays";
@@ -11,6 +11,7 @@ import { fileSaved } from "../store/pages";
 import { FormRow, NoProject, PageHeader, RunLockBanner, useProjectOpen } from "./common";
 import { useEditable } from "./useEditable";
 import { isFloat, isInt } from "./widgets";
+import { BEAM_TWISS_EVENT } from "../lattice/PeriodPanel";
 
 type Form = Record<string, any> & {
   use_dst: boolean;
@@ -150,6 +151,24 @@ export default function BeamPage() {
     validate,
     files: (d) => (d ? [d.path] : []),
   });
+
+  // the Lattice page's period panel hands over a matched beam (unsaved until the user saves here)
+  useEffect(() => {
+    const fill = (e: Event) => {
+      const matched = (e as CustomEvent<Record<string, { alpha: number | null; beta: number | null }>>).detail;
+      if (locked || !matched) return;
+      ed.setValue((d) => {
+        const form = { ...d.form };
+        for (const [plane, v] of Object.entries(matched)) {
+          if (v.alpha != null) form[`alpha_${plane}`] = String(Number(v.alpha.toPrecision(6)));
+          if (v.beta != null) form[`beta_${plane}`] = String(Number(v.beta.toPrecision(6)));
+        }
+        return { ...d, form };
+      });
+    };
+    window.addEventListener(BEAM_TWISS_EVENT, fill);
+    return () => window.removeEventListener(BEAM_TWISS_EVENT, fill);
+  }, [ed, locked]);
 
   if (!open) return <NoProject />;
   if (!ed.value) return <div className="empty-state">{ed.error ? <span className="danger-text">{ed.error}</span> : <Spinner size={24} />}</div>;

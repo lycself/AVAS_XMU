@@ -568,6 +568,87 @@ def build_tools(host):
                 "warnings": [w[0] for w in res.get("warnings") or []],
                 "columns": ["z_m", "rms_x_mm", "rms_y_mm", "energy_MeV"], "rows": table}
 
+    # ------------------------------------------------------------------ linear-model analyses (read only)
+    def _analysis(fn, *a, **kw):
+        from avas.gui.bridge import UserError
+        try:
+            return fn(*a, **kw)
+        except UserError as exc:
+            raise ToolError(str(exc)) from exc
+
+    def analyze_period(args, ctx):
+        from avas.gui.services import analysis
+        _name, _path, text, _source, doc = lattice()
+        rows = []
+        if args.get("changes"):
+            text, rows = _apply_param_changes(doc, text, args["changes"])
+        periods = _analysis(analysis.periods, text)
+        if not periods:
+            raise ToolError("The lattice has no period: a period is marked by 'lattice n 1' … 'lattice_end'.")
+        res = _analysis(analysis.period, text, int(args.get("period") or 1), args.get("current"))
+        return {"note": "linear model; phase advances in degrees per period, beta in mm/mrad, emittances normalised "
+                        "rms in pi mm mrad; 'envelope' is the stability of the linearised envelope map (max |eigenvalue| "
+                        "> 1 means an envelope instability such as the 90 degree stop band)",
+                "periods": periods, "hypothetical_changes": rows, "analysis": res}
+
+    def linear_grid(args, ctx):
+        from avas.gui.services.lattice import _beam_for_preview
+        from avas.model import LinearModel, ModelError, PreviewError
+        _name, _path, text, _source, doc = lattice()
+        axes = args.get("axes") or []
+        if not 1 <= len(axes) <= 2:
+            raise ToolError("Give one or two axes.")
+        resolved = []
+        for ax in axes:
+            values = [float(v) for v in ax.get("values") or []]
+            if not values or len(values) > 40:
+                raise ToolError("Each axis needs 1 to 40 values.")
+            if str(ax.get("param")).lower() == "current" and not any(ax.get(k) for k in ("line", "name", "index")):
+                resolved.append(("current", None, values))
+                continue
+            st = resolve(doc, ax)
+            k = param_index(st, ax.get("param"))
+            resolved.append(("lattice", (st.line_no + 1, param_info(st, k)["param"]), values))
+        model = LinearModel(text, _beam_for_preview(project()), project().field_dirs())
+        metrics = args.get("metrics") or ["rms_x_max", "rms_y_max", "energy_out"]
+        from avas.research.runs import _linear_metrics
+        rows = []
+        import itertools
+        for combo in itertools.product(*(r[2] for r in resolved)):
+            kw = {}
+            for (kind, where, _vals), v in zip(resolved, combo):
+                if kind == "current":
+                    kw["beam"] = {"current": v}
+                else:
+                    kw.setdefault("knobs", {}).setdefault(where[0], {})[where[1]] = v
+            try:
+                m = _linear_metrics(model.evaluate(**kw))
+                rows.append(list(combo) + [_g(m.get(k)) for k in metrics])
+            except (ModelError, PreviewError, ValueError) as exc:
+                rows.append(list(combo) + [None] * len(metrics) + [str(exc)])
+        names = [("current_mA" if kind == "current" else f"line{where[0]}.{where[1]}") for kind, where, _v in resolved]
+        if ctx is not None and len(resolved) == 1 and args.get("show_chart", True) and metrics:
+            ctx.emit({"kind": "chart", "title": f"linear model: {metrics[0]}", "x": [r[0] for r in rows],
+                      "series": [{"name": metrics[0], "y": [r[1] for r in rows]}], "xlabel": names[0]})
+        return {"note": "linear model (approximate; no losses or emittance growth); sizes in mm, energy in MeV",
+                "columns": names + list(metrics), "rows": rows}
+
+    def response_analysis(args, ctx):
+        from avas.gui.services import analysis
+        spec = _analysis(analysis.diagnostics)
+        monitors = args.get("monitors") or spec["monitors"]
+        knobs = args.get("knobs") or spec["knobs"]
+        res = _analysis(analysis.response, monitors, knobs)
+        out = {"note": "linear model; matrix in m per knob unit (T for steerers); singular values of the response "
+                       "matrix, rank, reading patterns no knob can correct and knob combinations no monitor sees",
+               "source": spec["source"], "readings": res["readings"], "knobs": res["knobs"],
+               "singular_values": [_g(v) for v in res["singular"]], "rank": res["rank"], "condition": _g(res["condition"]),
+               "uncorrectable_patterns": res["uncorrectable"], "invisible_knob_combinations": res["invisible"],
+               "knob_error_from_monitor_noise": {k: _g(v) for k, v in zip(res["knobs"], res["knobNoise"])}}
+        if args.get("period"):
+            out["period_modes"] = _analysis(analysis.period_modes, monitors, knobs, int(args["period"]))
+        return out
+
     # ------------------------------------------------------------------ write tools
     def _propose_lattice(ctx, doc, name, path, text, new_text, rows, reason, diff=None):
         if new_text == text:
@@ -1227,6 +1308,17 @@ def build_tools(host):
           {"name": {"type": "string"}, "start_line": {"type": "integer"}, "count": {"type": "integer"}}, read_input_file, required=["name"]),
         T("preview_envelope", "Fast approximate linear envelope (rms x/y along z, energy) of the current lattice, optionally with hypothetical parameter changes that are NOT written. Seconds instead of minutes; use it for what-if checks.",
           {"changes": {"type": "array", "items": CHANGE}, "points": {"type": "integer"}}, preview_envelope),
+        T("analyze_period", "Periodic-cell analysis of a 'lattice … lattice_end' period of the current lattice (linear model): phase advances with and without space charge, tune depression, matched Twiss, mismatch of the project's beam, Floquet and envelope stability. Optional hypothetical parameter changes (NOT written) and beam current [mA].",
+          {"period": {"type": "integer", "description": "1-based period number"}, "current": {"type": "number"},
+           "changes": {"type": "array", "items": CHANGE}}, analyze_period),
+        T("linear_grid", "Scan one or two parameters with the fast linear model (no files written): each axis is an element address with param and values, or {\"param\": \"current\", \"values\": [...]} for the beam current. Metrics: rms_x_max, rms_y_max, rms_x_out, rms_y_out, energy_out, emit_x_out, emit_y_out, centroid_x_max, centroid_y_max.",
+          {"axes": {"type": "array", "items": {"type": "object", "properties": {**TARGET, "param": {"type": "string"},
+                                                                                "values": {"type": "array", "items": {"type": "number"}}},
+                                               "required": ["param", "values"]}},
+           "metrics": {"type": "array", "items": {"type": "string"}}}, linear_grid, required=["axes"]),
+        T("response_analysis", "Response matrix of the monitors to the knobs (linear model) and what it means for correction: singular values, rank, uncorrectable reading patterns, invisible knob combinations, noise amplification. Monitors and knobs default to Research/diagnostics.json, else the lattice's diag_position/diag_size lines and steerers. With period: the controllability / observability and mode classes of that period's centroid motion.",
+          {"monitors": {"type": "array", "items": {"type": "object"}}, "knobs": {"type": "array", "items": {"type": "object"}},
+           "period": {"type": "integer"}}, response_analysis),
         T("edit_lattice", "Change parameters of lattice elements (one proposal for all changes; the user approves it). Values in the units of the manual.",
           {"changes": {"type": "array", "items": CHANGE}, "reason": REASON}, edit_lattice, required=["changes"]),
         T("edit_lattice_bulk", "Change one parameter of every element matching a filter: set, multiply or add (e.g. scale all quadrupole gradients by 1.05).",

@@ -67,10 +67,13 @@ class Study:
     read-only project).  *seed*: input.txt ``randomseed`` of runs whose variant has none.
     *strict*: fingerprint the field maps by content.  *engine_command*: ``f(input_dir, output_dir,
     field_dir, lattice) -> argv`` (default ``avas run``; tests use a stand-in).  *timeout*: seconds.
+    *runner*: ``f(input_dir, output_dir, field_dir, lattice, log_path, stop, progress) -> seconds``
+    replacing the plain child process (the GUI runs studies through its sandbox, so they can be
+    paused and show on the Run page); it raises :class:`~avas.research.engine.EngineError`.
     """
 
     def __init__(self, project, name="study", root=None, seed=DEFAULT_SEED, strict=False, engine_command=None,
-                 timeout=None):
+                 timeout=None, runner=None):
         self.input_dir = input_folder(project)
         project_dir = os.path.dirname(self.input_dir) if os.path.basename(self.input_dir) == "InputFile" else self.input_dir
         self.root = os.path.abspath(root or os.path.join(project_dir, RESEARCH_DIR, re.sub(r"[^\w\-.]+", "_", name)))
@@ -79,6 +82,7 @@ class Study:
         self.strict = strict
         self.command = engine_command or engine.default_command
         self.timeout = timeout
+        self.runner = runner
         self.lattice_name = paths.lattice_source_name(self.input_dir)
         self.field_dirs = paths.field_dirs(self.input_dir)
         self._model = None
@@ -187,10 +191,14 @@ class Study:
                   "project": self.input_dir, "lattice": self.lattice_name, "field_dir": field_dir,
                   "started": datetime.datetime.now().isoformat(timespec="seconds")}
         _write(record_path, record)
-        command = self.command(os.path.join(folder, "input"), out, field_dir, self.lattice_name)
+        log_path = os.path.join(folder, "engine.log")
         try:
-            record["seconds"] = engine.run(command, folder, os.path.join(folder, "engine.log"), self.timeout, stop,
-                                           progress)
+            if self.runner is not None:
+                record["seconds"] = self.runner(os.path.join(folder, "input"), out, field_dir, self.lattice_name,
+                                                log_path, stop, progress)
+            else:
+                command = self.command(os.path.join(folder, "input"), out, field_dir, self.lattice_name)
+                record["seconds"] = engine.run(command, folder, log_path, self.timeout, stop, progress)
             engine.trim_output(out)
             from avas.post.analysis.run_diagnostics import dataset_metrics
             record["metrics"] = dataset_metrics(out) or {}

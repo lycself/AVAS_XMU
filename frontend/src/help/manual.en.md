@@ -34,6 +34,8 @@ Visual mode starts in read-only browsing. Enter editing before changing elements
 
 The top-left controls in 2D and 3D zoom and fit the view. Double-click the 2D view to fit all; in 3D, double-click empty space to fit all or an element to focus it. Manual 3D zoom stops roaming and bunch following.
 
+The Periods tab of Text + Structure analyses the periods marked by `lattice n 1` … `lattice_end`: phase advances with and without current, tune depression, matched α / β, mismatch of the present beam, Floquet and envelope stability, and the phase advance of every period along the line. It uses the editor's current text and the project's beam (linear model; accelerating periods are normalised by βγ). Use the matched α, β on the Beam page only fills the Beam page's fields; saving there writes beam.txt.
+
 ## Simulation settings
 
 Settings manages simulation options in input.txt with undo and redo. See the input reference entries for individual fields.
@@ -62,13 +64,19 @@ The bunch and particle cloud are illustrations based on rms envelopes, not actua
 
 ## Parameter scans
 
-Choose a lattice element parameter or a beam.txt / input.txt keyword, supply values and start the scan. Each value runs on an input copy without replacing original inputs or the full-run result.
+The Study page (formerly Scan) has four tabs; everything runs on copies of the inputs and leaves the project's inputs and full-run results alone.
 
-Follow the table, curve and run status. Results live under Scans, with a run_NNN directory per value and scan.json / scan.csv summaries. A normal run cannot start during a scan.
+Parameter scan: choose one or two axes (a lattice element parameter, or a beam.txt / input.txt keyword) and their values, with the linear model (a whole map in seconds) or the engine (one multi-particle simulation per point, one at a time, pausable and stoppable on Run). One axis gives a curve, two a heat map; click a point to see its envelope along the line, or open an engine run on Results. Engine runs use a fixed random seed and are kept in `Research/gui/`; a point with identical inputs comes from the cache, and `avas.research` in scripts reads the same runs. Scan descriptions live in `Research/gui/scans/`. Scans from the old `Scans/` remain listed.
+
+Stability chart: choose a period and two axes (element parameter or beam current); every point gets the matched beam with space charge, the phase advances and the envelope stability, drawn as heat maps. Empty cells have no matched beam.
+
+Response & controllability: monitors (position or rms size, resolution) and knobs (steerers, element parameters or offsets) default to the lattice's `diag_position` / `diag_size` lines and steerers; edit them and save to `Research/diagnostics.json`. Compute the response matrix of the linear model or of the engine (one run per knob), its singular values, rank, uncorrectable reading patterns and the effect of monitor noise on the knobs, and which modes of a period are stable, controllable and observable.
+
+Feedback: simulate pulse-to-pulse orbit feedback with gain, delay, a drifting element and monitor noise, compare the readings with and without feedback, and see the theoretical stability limit.
 
 ## Results analysis
 
-Choose the latest output, a kept run, a segment result or another output directory in Results, then select plots or phase-space views. Interactive zoom and figure export are available.
+Choose the latest output, a kept run, a segment result, an engine run of the Study page or another output directory in Results, then select plots or phase-space views. Interactive zoom and figure export are available. Envelope, centroid, energy and emittance plots can overlay the linear model of the run's own inputs (dashed, Linear model) to show what the multi-particle simulation adds.
 
 Compare runs overlays the same quantity from multiple runs. Check units, inputs and coordinate ranges before comparing. Multithreaded simulations can differ slightly; output need not be byte-identical.
 
