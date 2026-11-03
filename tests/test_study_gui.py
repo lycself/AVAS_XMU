@@ -82,6 +82,14 @@ def wait(method, key="running", timeout=120):
         time.sleep(0.1)
 
 
+def wait_event(events, name, timeout=5):
+    """Events go out in batches (bridge flusher, every ~40 ms): wait for *name* to arrive."""
+    deadline = time.time() + timeout
+    while not any(name in e for e in events):
+        assert time.time() < deadline, f"event {name} not delivered"
+        time.sleep(0.05)
+
+
 # --------------------------------------------------------------------------- scans
 def test_linear_two_axis_scan_records_and_points(project, monkeypatch):
     from avas.gui import bridge
@@ -98,13 +106,13 @@ def test_linear_two_axis_scan_records_and_points(project, monkeypatch):
             metrics=["rms_x_out", "energy_out"], label="grid")
     assert st["running"] is True
     wait("study.state")
+    wait_event(events, "study.finished")
     bridge.unsubscribe(deliver)
     scan = ok("study.state")["scan"]
     assert scan["status"] == "finished" and len(scan["rows"]) == 9 and scan["shape"] == [3, 3]
     assert all(r["rms_x_out"] > 0 for r in scan["rows"])
     hot, cold = scan["rows"][2], scan["rows"][0]                       # same G, 20 mA against 0 mA
     assert hot["values"] == [6.0, 20.0] and hot["rms_x_out"] != cold["rms_x_out"]
-    assert any("study.finished" in e for e in events)
     listed = ok("study.list")
     assert listed[0]["label"] == "grid" and listed[0]["fidelity"] == "linear" and listed[0]["done"] == 9
     assert ok("study.load", path=listed[0]["path"])["axes"][1]["keyword"] == "current"
@@ -172,13 +180,13 @@ def test_stability_chart_in_a_thread(project):
     ok("analysis.chartStart", period=1, x={"kind": "lattice", "target": "6", "param": "G"}, xs="6, 10",
        y={"kind": "current"}, ys="0, 5")
     wait("analysis.chartState")
+    wait_event(events, "analysis.chartFinished")
     bridge.unsubscribe(deliver)
     result = ok("analysis.chartState")["result"]
     assert result["status"] == "finished" and result["done"] == 4
     grid = np.array(result["grid"]["sigma0"], dtype=float)
     assert grid.shape == (2, 2) and grid[0, 1] > grid[0, 0]                  # stronger quad, larger σ0
     assert np.array(result["grid"]["sigma"], dtype=float)[1, 0] < grid[1, 0]   # 5 mA depresses it
-    assert any("analysis.chartFinished" in e for e in events)
 
 
 # --------------------------------------------------------------------------- monitors, response, feedback

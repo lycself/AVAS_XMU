@@ -1442,5 +1442,9 @@
   "No plane of this period has a stable motion: nothing to match.": "这个周期没有一个平面的运动是稳定的，无法匹配。",
   "The lattice has no 'lattice … lattice_end' period; give z=(z0, z1).": "lattice 中没有 'lattice … lattice_end' 周期；请给出 z=(z0, z1)。",
   "Drifting quantity": "漂移的量",
-  "default": "默认"
+  "default": "默认",
+  "Chapters": "章节",
+  "Expand the sidebar (Ctrl+B)": "展开侧栏（Ctrl+B）",
+  "Collapse the sidebar (Ctrl+B)": "收起侧栏（Ctrl+B）",
+  "Collapse": "收起"
 }
