@@ -437,7 +437,7 @@ def plt_info(path):
     steps = obj.get_step()
     if obj.numofp <= 0 or steps <= 0:
         raise UserError(f"{os.path.basename(path)} contains no particle dumps. Set 'Output every N steps (plt)' "
-                        "to a value > 0 on the Settings page and run the simulation again.")
+                        "to a value > 0 on the Simulation settings page and run the simulation again.")
     headers = obj.get_all_dict()
     return {"steps": steps, "particles": obj.numofp,
             "items": [{"step": i, "index": h.get("index"), "location": h.get("location"), "time": h.get("time"),

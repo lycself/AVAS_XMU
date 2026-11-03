@@ -258,7 +258,7 @@ Coupled and uncoupled:
 
 Random seeds:
 
-- `[error] seed` in `ini.ini` ("Seed" under "Error study" on the Settings page, `--seed` on the command line) decides the error sampling (and the random starting values of the correction). The same seed and lattice give the same error sequence.
+- `[error] seed` in `ini.ini` ("Seed" under "Error study" on the Simulation settings page, `--seed` on the command line) decides the error sampling (and the random starting values of the correction). The same seed and lattice give the same error sequence.
 - `randomseed` (listed under `beam.txt` in the manual, written in `input.txt` in the example project) seeds the generation of the initial particle distribution, a setting independent of the error seed. Fix both when comparing two error studies.
 
 ### Static error correction: commands
@@ -309,7 +309,7 @@ The `[error]` section of `ini.ini`:
 | `seed` | random seed of the error sampling |
 | `if_normal` | 1 = run an error-free reference first |
 
-In the interface: choose None / Static / Dynamic / Static + dynamic under "Error study" on the Settings page and fill in "Seed" (runs from the interface always do the error-free reference first); then write `err_step`, error commands and switches in the lattice, save and run. On the command line: `avas run --input … --output … --mode stat|dyn|stat_dyn --seed 7`, with `--no-normal` to skip the reference run; `--mode auto` (the default) reads `ini.ini`. The AI assistant's `set_error_study` tool changes the same two settings (with the user's approval).
+In the interface: choose None / Static / Dynamic / Static + dynamic under "Error study" on the Simulation settings page and fill in "Seed" (runs from the interface always do the error-free reference first); then write `err_step`, error commands and switches in the lattice, save and run. On the command line: `avas run --input … --output … --mode stat|dyn|stat_dyn --seed 7`, with `--no-normal` to skip the reference run; `--mode auto` (the default) reads `ini.ini`. The AI assistant's `set_error_study` tool changes the same two settings (with the user's approval).
 
 Like a full run, an error study runs on the `inputs/` snapshot of the output folder and does not rewrite the project's InputFile; during the run (including pauses) the input files are read-only.
 
@@ -334,7 +334,7 @@ A run whose beam does not reach the end of the lattice (the last DataSet positio
 - The "Error study" group of the Results page has two kinds of plots: "Emittance growth and loss" (reading `errors_par*.txt`) and "Output parameters" (with the mean or root-mean-square statistic).
 - The detailed result of a single run can be viewed on the Results page by choosing its `error_output/output_<group>_<run>` folder.
 
-A real statistical study needs the engine: copy the example project to a practice folder, add `err_step` and error commands as in the example above, choose the error mode on the Settings page and run.
+A real statistical study needs the engine: copy the example project to a practice folder, add `err_step` and error commands as in the example above, choose the error mode on the Simulation settings page and run.
 
 ## Further reading {#errors-reading}
 

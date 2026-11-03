@@ -104,7 +104,7 @@ packaging/        PyInstaller + Inno Setup 打包
 - 非模态浮动窗口一律用 `components/FloatingWindow.tsx`（拖动、八向缩放、最大化／还原、Esc 关闭、跟随界面缩放），使用说明和元件场分布窗口都基于它；几何不持久化，每次打开回到 `initialRect`。不要再各写一套拖拽缩放。
 - **颜色**只来自 `styles/tokens.css` 的 CSS 变量；canvas 和 three.js 通过 `getComputedStyle` / `cssColor()` 读取变量。确实需要写死颜色时（Plotly 调色板、Monaco 主题）在该行注明 `design:allow-colour 原因`。主题切换必须保持一帧内完成，不要做逐元素重新计算样式的方案。
 - **文字**：界面文字写英文原文 `t("...")`，中文放 `zh_CN.json`；带参数用 `t("… {name}", { name })`。关键字、参数的物理说明来自 `avas/data/schema.py` 的中英文对照，前端用 `pick()` 选择，不要在组件里另写说明文字。
-- 布局仿 VS Code：菜单栏、左侧导航、页面、下方日志面板、状态栏。左侧导航可收成图标（`Ctrl+B`、侧栏底部的收起按钮或双击分隔条，`ui/sidebarCollapsed`；图标固定在 46 px 列内，收起只是宽度滑动，动效遵守 视图 → 动效，`<html data-motion>`）或完全隐藏（`Ctrl+Shift+B`／视图 → 隐藏侧边栏，`ui/sidebarHidden`）；隐藏时工具栏的侧栏按钮与 `Ctrl+B` 先让它重新显示。页面切换时**页面保持挂载**（`display: none`），写 effect 时要考虑页面隐藏的情况。
+- 布局仿 VS Code：菜单栏、左侧导航、页面、下方日志面板、状态栏。左侧导航按 `store/app.ts` 的 `PAGE_GROUPS` 分三组：工作流（项目、束流、结构、模拟设置、文件、运行、结果）、研究页，加速器入门固定在底部、与收起按钮同组；`PAGES` 由它展开，`Ctrl+1…9` 与视图菜单都按这个顺序，调整顺序只改 `PAGE_GROUPS`。设置页在导航中叫“模拟设置”（与菜单栏的“设置”区分），页面 id 仍为 `settings`。左侧导航可收成图标（`Ctrl+B`、侧栏底部的收起按钮或双击分隔条，`ui/sidebarCollapsed`；图标固定在 46 px 列内，收起只是宽度滑动，动效遵守 视图 → 动效，`<html data-motion>`）或完全隐藏（`Ctrl+Shift+B`／视图 → 隐藏侧边栏，`ui/sidebarHidden`）；隐藏时工具栏的侧栏按钮与 `Ctrl+B` 先让它重新显示。页面切换时**页面保持挂载**（`display: none`），写 effect 时要考虑页面隐藏的情况。
 - 界面缩放、主题、语言等偏好保存在 `%LOCALAPPDATA%\AVAS\gui.json`（`persist()`）；只影响单个视图的小状态可以放 `localStorage`，读写要 try/catch。
 
 ### 5.2 前后端通信
@@ -134,7 +134,7 @@ packaging/        PyInstaller + Inno Setup 打包
 
 - 文件历史跟随具体文件，不设全局主导航入口。文件页在左侧文件列表下方设置可折叠、可拖动调高的历史区，两区独立滚动，标明当前文件；选择版本在右侧主区域对比，文件树保留可用。结构页在文件选择框旁提供「历史」按钮，弹窗左侧版本列表、右侧差异，下方恢复操作。两处共用版本与恢复逻辑；原编辑器保持挂载，恢复仍可撤销、另行保存且遵守运行锁。切换文件／项目清除旧对比；恢复前校验目标及当前编辑内容。元件栏全部类型按单行横向滚动展示，名称不因窗口变窄隐藏，左右箭头、触控板横滑及 Shift＋滚轮可导航，保留点击／拖拽插入。
 
-- 文件历史由 `gui/filehistory.py` 统一记录，存于项目 `.avas_history/`，支持 lattice、beam.txt、input.txt（单文件最多 2 MB），保存前保留旧文本、成功写入后记录新文本，相邻相同内容不重复。文本／结构／可视化编辑、文件页、束流页、设置页、已批准 AI 写入共用；历史按项目内相对文件路径归属，重命名后视为另一文件，不自动清理版本。结构页和文件页提供历史对比，`history.prepareRestore` 先检查运行锁并留存当前编辑内容，只返回历史文本，由编辑器以独立撤销步骤应用，保存仍走原接口，不新增绕过 AI 批准或运行锁的输入写入通道。历史从启用后的保存开始；外部修改在下次 AVAS 保存时留存，不监视外部编辑过程。
+- 文件历史由 `gui/filehistory.py` 统一记录，存于项目 `.avas_history/`，支持 lattice、beam.txt、input.txt（单文件最多 2 MB），保存前保留旧文本、成功写入后记录新文本，相邻相同内容不重复。文本／结构／可视化编辑、文件页、束流页、设置页、已批准 AI 写入共用；历史按项目内相对文件路径归属，重命名后视为另一文件，不自动清理版本。结构页和文件页提供历史对比，束流页与模拟设置页的「历史」按钮（beam.txt／input.txt）复用同一对话框：对比的是已保存的文件，恢复时经 `beam.parse`／`settings.parse` 把版本文本换成表单值，作为一步可撤销修改，保存时带 `restoredFrom`（只恢复页面管理的关键字，其余行保持当前文件）；`history.prepareRestore` 先检查运行锁并留存当前编辑内容，只返回历史文本，由编辑器以独立撤销步骤应用，保存仍走原接口，不新增绕过 AI 批准或运行锁的输入写入通道。历史从启用后的保存开始；外部修改在下次 AVAS 保存时留存，不监视外部编辑过程。
 
 - 可视化编辑的撤销／重做直接使用当前 Monaco 文本模型的历史，不依赖键盘焦点；无对应历史时按钮禁用。「撤销本次所有修改」恢复到进入本次编辑时的文本，保持编辑状态，恢复本身作为独立一步可撤销，写入文件仍需保存。文本点击按鼠标命中的实际模型行选中元件，重复点击仍定位；键盘移动同步选中，程序定位、编辑和撤销／重做造成的光标移动不得覆盖元件选择。
 
@@ -153,6 +153,7 @@ packaging/        PyInstaller + Inno Setup 打包
 - 2D / 3D 视图区左上角统一使用 ViewNavigation 的放大、缩小、显示全部按钮，外层不再重复提供入口；2D 为工具栏预留顶部空间。按钮围绕当前观察中心缩放，不依赖指针检测。3D 双击空白显示全部、双击元件聚焦；2D 双击视图显示全部，图例双击仍只显示该曲线。3D 手动缩放停止漫游和束团跟随。
 
 - 可视化编辑器的 2D / 3D 上方视图区随可用高度收缩（最低 160px），下方元件列表和参数面板至少保留 180px；空间不足时编辑器滚动，不能裁掉下方面板。窗口缩小时不覆盖用户保存的视图区高度，恢复窗口后恢复该高度；拖动分隔条从实际显示高度开始计算。
+- **输入文件的归属**（2026-11-03 与用户商定）：初始粒子分布的显示（`ParticlesView`，叠加按粒子协方差算的 rms 椭圆）和二次粒子（input.txt 的 `secondarybeam` 开关 + SeParticle.txt 表格）在束流页；boundary.txt 与 scanData.txt 的表格在模拟设置页，分别在“启用边界”和“相位扫描 = 从 scanData.txt”下方展开。这些小文件随页面一起保存（`beam.save` 的 `secondary`、`settings.save` 的 `companions`），只在内容变化时写，空表格不新建文件，同样受运行锁约束。束流页只改 input.txt 的 `secondarybeam` 一行，模拟设置页不管理这个关键字，两页写 input.txt 互不覆盖。文件页是 InputFile 的文件浏览器（原始文本、场图、文件管理），不要再让某项功能只能从文件页进入。元件场分布窗口底部的“场图文件”表（`lattice.fieldInfo`）列出每个分量文件的实际路径、网格、范围、归一化与存储格式。
 - 一个 lattice 文件在界面里只有**一个 Monaco 文本模型**，它是唯一的数据源。结构编辑器、可视化编辑器、AI 助手的修改都以"一次修改 = 一步撤销"写回这个文本模型，再重新解析（`lattice.parse`）。不要另存一份可以单独修改的元件数据。
 - `LatticeEditor` 用带 key 的子元素切换"文本 + 结构"和"可视化编辑器"两种模式，保证文本面板不被重新挂载（未保存的文字和撤销历史不丢）。
 - 修改只改写对应的行，保留注释和页面不认识的关键字；beam.txt、input.txt 保存时同样只改页面管理的关键字。
@@ -180,7 +181,7 @@ packaging/        PyInstaller + Inno Setup 打包
 - **参数扫描**（`avas/sim/scan.py`、`services/scan.py`、`avas scan`）：在 `<项目>/Scans/<名称>_<时间>/` 下用 `Sandbox(root=...)` 跑副本，
   每个取值一个 `run_NNN/`，结果 `scan.json` / `scan.csv`。扫描是一个 activity（source `scan`），运行页 / 状态栏 / 实时显示按 assistant 同样处理，
   期间不能开始普通运行；`scan.start` 在返回前就占住 runner（`prepare_scan`），不要改成线程里再占。改 lattice 参数用 `avas/data/lattice_edit.py`。
-- **研究页**（`pages/StudyPage.tsx`，页面 id 仍为 `scan`，导航保持 9 页、Ctrl+1…9 不变）：扫描、稳定区图谱、响应与可控性、反馈四个标签。内核扫描和内核响应矩阵都是研究层（`avas.research`）的运行，存于 `<项目>/Research/gui/`，notebook 的 `Study(项目, name="gui")` 读到同一批记录和缓存；GUI 通过 `Study(runner=…)` 把每次内核运行交给 AI 沙盒的 `Sandbox.run_in`，所以它们是 source `scan` 的 activity：运行页显示、可暂停／停止、与普通运行互斥，`study.start`／`analysis.responseEngineStart` 在返回前就占住 runner。线性扫描、周期面板、稳定区图谱、响应矩阵和反馈只用线性模型，不加运行锁、不写输入文件。扫描描述在 `Research/gui/scans/*.json`（删除只删描述，运行留在缓存）；旧的 `Scans/` 只读列出（`scan.*` 与 `avas scan` 不变）。监测器与旋钮保存在 `<项目>/Research/diagnostics.json`（study.json 格式），默认取自 lattice 的 `diag_*` 和校正铁；内核没有确定性的错位旋钮，内核响应只接受 lattice 参数。周期面板是结构页“文本 + 结构”的第三个标签（`lattice/PeriodPanel.tsx`），用编辑器当前文本；“把匹配的 α、β 填入束流页”只经窗口事件 `avas:beam-twiss` 改束流页的未保存表单，不新增写文件入口。结果页来源新增 kind `research`（不可在 GUI 删除）；包络／质心／能量／发射度图的“线性模型”开关按该次运行自己的输入（`output/inputs/` 快照或研究运行的 `input/`）计算虚线，不用项目当前输入。
+- **研究页**（`pages/StudyPage.tsx`，页面 id 仍为 `scan`，在导航中单独一组）：扫描、稳定区图谱、响应与可控性、反馈四个标签。内核扫描和内核响应矩阵都是研究层（`avas.research`）的运行，存于 `<项目>/Research/gui/`，notebook 的 `Study(项目, name="gui")` 读到同一批记录和缓存；GUI 通过 `Study(runner=…)` 把每次内核运行交给 AI 沙盒的 `Sandbox.run_in`，所以它们是 source `scan` 的 activity：运行页显示、可暂停／停止、与普通运行互斥，`study.start`／`analysis.responseEngineStart` 在返回前就占住 runner。线性扫描、周期面板、稳定区图谱、响应矩阵和反馈只用线性模型，不加运行锁、不写输入文件。扫描描述在 `Research/gui/scans/*.json`（删除只删描述，运行留在缓存）；旧的 `Scans/` 只读列出（`scan.*` 与 `avas scan` 不变）。监测器与旋钮保存在 `<项目>/Research/diagnostics.json`（study.json 格式），默认取自 lattice 的 `diag_*` 和校正铁；内核没有确定性的错位旋钮，内核响应只接受 lattice 参数。周期面板是结构页“文本 + 结构”的第三个标签（`lattice/PeriodPanel.tsx`），用编辑器当前文本；“把匹配的 α、β 填入束流页”只经窗口事件 `avas:beam-twiss` 改束流页的未保存表单，不新增写文件入口。结果页来源新增 kind `research`（不可在 GUI 删除）；包络／质心／能量／发射度图的“线性模型”开关按该次运行自己的输入（`output/inputs/` 快照或研究运行的 `input/`）计算虚线，不用项目当前输入。
 - AI 助手的参数扫描 / 优化在 `<项目>/.avas_ai/runs/` 的副本里运行（`avas/ai/sandbox.py`），开始时复制输入文件，**不能改动项目的 InputFile 和 OutputFile**。
 - **运行锁**：完整运行、误差研究、分段运行进行中（包括暂停）时，所有输入文件只读。原因：分段运行每个阶段开始时才复制 InputFile，
   而且 `<输出>/inputs/` 快照与实时显示都对应运行开始时的输入（完整运行和误差研究自 2026-09-20 起都在该快照上运行，不再读 InputFile）。

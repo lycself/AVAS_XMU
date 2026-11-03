@@ -170,7 +170,7 @@ input:spacecharge input:scmethod input:numofgrid input:meshrms
 input:multithreading input:dumpperiodicity input:boundary input:longlimits input:pchistogram input:scanphase
 ```
 
-- **多线程**：写 `multithreading 1` 使用多线程，单线程就**不写这一行**。手册说 0 表示关闭，但内核遇到 `multithreading 0`（以及 2、3 等）会在起点丢失全部粒子（已用示例项目核实）。界面的设置页已按此处理。
+- **多线程**：写 `multithreading 1` 使用多线程，单线程就**不写这一行**。手册说 0 表示关闭，但内核遇到 `multithreading 0`（以及 2、3 等）会在起点丢失全部粒子（已用示例项目核实）。界面的模拟设置页已按此处理。
 - **损失边界**：粒子超出元件孔径 `R` 记为损失；`boundary 1` 时改用 `boundary.txt` 中的边界，lattice 中的半径不再生效，损失粒子写入 `CollisionData.txt`。`longlimits 1 相位 能量` 打开纵向损失判定，与 [纵向动力学](#longitudinal) 中的分界线概念对应。
 - **粒子数据**：`dumpperiodicity V1` 每 $V_1$ 步把全部粒子写入 `Beamset.plt`（0 表示不写）；文件可能很大。`pchistogram 1 份数` 生成 `pchistogram.dat`。
 - **相位扫描**：`scanphase` 控制射频腔的相位扫描或从 `scanData.txt` 读取相位（见 [纵向动力学](#longitudinal)）。

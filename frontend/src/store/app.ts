@@ -8,7 +8,10 @@ import type { BuildInfo } from "../components/VersionStamp";
 
 export type ThemeMode = "system" | "light" | "dark";
 export type PageId = "project" | "beam" | "lattice" | "settings" | "files" | "run" | "scan" | "results" | "learn";
-export const PAGES: PageId[] = ["project", "beam", "lattice", "settings", "files", "run", "scan", "results", "learn"];
+/** Sidebar groups, top to bottom: the simulation workflow (the inputs, run, results), the Study page, and the
+ *  primer pinned at the bottom. Ctrl+1 … Ctrl+9 follow this order. */
+export const PAGE_GROUPS: PageId[][] = [["project", "beam", "lattice", "settings", "files", "run", "results"], ["scan"], ["learn"]];
+export const PAGES: PageId[] = PAGE_GROUPS.flat();
 /** Pages that work without an open project. */
 export const PROJECTLESS_PAGES: PageId[] = ["project", "learn"];
 export const SCALES = [90, 100, 110, 125, 150];

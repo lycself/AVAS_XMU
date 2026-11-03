@@ -45,8 +45,8 @@ export const SHORTCUTS: Shortcut[] = [
   { id: "zoomIn", keys: "Ctrl+=", label: "Zoom in" },
   { id: "zoomOut", keys: "Ctrl+-", label: "Zoom out" },
   { id: "zoomReset", keys: "Ctrl+0", label: "Reset zoom" },
-  { id: "undo", keys: "Ctrl+Z", label: "Undo", scope: "Beam and Settings pages, outside a text box" },
-  { id: "redo", keys: "Ctrl+Y", label: "Redo", scope: "Beam and Settings pages, outside a text box" },
+  { id: "undo", keys: "Ctrl+Z", label: "Undo", scope: "Beam and Simulation settings pages, outside a text box" },
+  { id: "redo", keys: "Ctrl+Y", label: "Redo", scope: "Beam and Simulation settings pages, outside a text box" },
 ];
 
 export const SHORTCUT = Object.fromEntries(SHORTCUTS.map((s) => [s.id, s])) as Record<ShortcutId, Shortcut>;

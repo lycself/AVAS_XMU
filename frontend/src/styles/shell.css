@@ -47,7 +47,10 @@ body.dragging .sash-v, body.dragging { cursor: col-resize; }
 .nav-item.dim:not(.active) { color: var(--fg-soft); }
 .nav-label { flex: 1; overflow: hidden; text-overflow: ellipsis; padding-right: 12px; transition: opacity .12s ease; }
 .sidebar.collapsed .nav-label { opacity: 0; }
-.sidebar-toggle { margin-top: auto; height: 32px; color: var(--fg-soft); border-top: 1px solid var(--border); }
+.nav-sep { flex: none; height: 1px; margin: 6px 10px; background: var(--border); }
+/* the primer and the collapse button stay at the bottom, below whatever space is left */
+.nav-bottom { margin-top: auto; display: flex; flex-direction: column; border-top: 1px solid var(--border); }
+.sidebar-toggle { height: 32px; color: var(--fg-soft); }
 .sidebar-toggle .codicon { font-size: 16px; }
 .sidebar-toggle .nav-label { font-size: 12px; }
 .nav-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--fg-muted); flex: none; }

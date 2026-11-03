@@ -209,7 +209,7 @@ AVAS 界面和线性预览把读入的数值乘以 `norm`。示例场图的 `nor
 内核在**场图目录**中按文件名查找场图：
 
 - 默认是项目的 `InputFile/`；
-- 可以在设置页"场图 → 目录"中指定，保存在 ini.ini 的 `[project] fieldSource`（空表示 InputFile）；
+- 可以在模拟设置页"场图 → 目录"中指定，保存在 ini.ini 的 `[project] fieldSource`（空表示 InputFile）；
 - 命令行 `avas run --input DIR --output DIR --field DIR` 用 `--field` 指定，缺省时读 ini.ini 的设置，再缺省为输入目录。
 
 运行时 AVAS 把文本输入复制到 `<输出>/inputs/`，内核以副本为输入，但场图仍从原来的场图目录读取，所以大文件不会被复制。找不到场图时，结构页给出警告，线性预览把该元件当作漂移段并提示。
