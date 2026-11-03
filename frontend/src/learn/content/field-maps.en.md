@@ -209,7 +209,7 @@ Mnemonic: `e`/`b` for electric/magnetic, `d`/`s` for dynamic (RF)/static, the la
 The engine looks for maps by file name in the **field map directory**:
 
 - by default the project's `InputFile/`;
-- it can be set on the Settings page under "Field maps → Directory", stored as `[project] fieldSource` in ini.ini (empty means InputFile);
+- it can be set on the Simulation settings page under "Field maps → Directory", stored as `[project] fieldSource` in ini.ini (empty means InputFile);
 - on the command line `avas run --input DIR --output DIR --field DIR` sets it with `--field`; without it the ini.ini setting is used, and failing that the input directory.
 
 For a run AVAS copies the text inputs to `<output>/inputs/` and the engine uses the copies, but the maps are still read from the original field map directory, so the large files are not copied. When a map is not found the Lattice page warns, and the linear preview treats the element as a drift and says so.

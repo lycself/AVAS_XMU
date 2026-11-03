@@ -341,7 +341,7 @@ function TabContent({ tab, ov, refreshKey }: { tab: Tab; ov: Overview; refreshKe
         <PhaseViewer source={{ kind: "plt", files: ov.plt }} outputDir={out} refreshKey={refreshKey} />
       ) : (
         <Empty icon="info" title={t("No .plt file in the results folder")}>
-          {t("Set 'Output every N steps (plt)' to a value > 0 on the Settings page and run the simulation again.")}
+          {t("Set 'Output every N steps (plt)' to a value > 0 on the Simulation settings page and run the simulation again.")}
         </Empty>
       );
     case "expand":

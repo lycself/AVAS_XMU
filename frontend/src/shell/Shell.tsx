@@ -2,7 +2,7 @@ import { pointerDevice } from "../components/pointer";
 import { VersionStamp } from "../components/VersionStamp";
 // Window chrome: menu bar, tool bar, side bar, page area, log panel, status bar.
 import { checkUpdates, UpdateNotice } from "../updates";
-import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   closeProject,
   isTyping,
@@ -28,6 +28,7 @@ import { Button, cx, Icon, IconButton, Spinner } from "../components/ui";
 import { LANGUAGES, t as tr, useT, type Language } from "../i18n";
 import { keyMatches, SHORTCUT, SHORTCUTS, type ShortcutId } from "./shortcuts";
 import {
+  PAGE_GROUPS,
   PAGES,
   PROJECTLESS_PAGES,
   persist,
@@ -70,7 +71,7 @@ const PAGE_META: Record<PageId, { label: string; icon: string; render: () => Rea
   project: { label: "Project", icon: "home", render: () => <ProjectPage /> },
   beam: { label: "Beam", icon: "pulse", render: () => <BeamPage /> },
   lattice: { label: "Lattice", icon: "list-ordered", render: () => <LatticePage /> },
-  settings: { label: "Settings", icon: "settings-gear", render: () => <SettingsPage /> },
+  settings: { label: "Simulation settings", icon: "tools", render: () => <SettingsPage /> },
   files: { label: "Files", icon: "files", render: () => <FilesPage /> },
   run: { label: "Run", icon: "play-circle", render: () => <RunPage /> },
   scan: { label: "Study", icon: "beaker", render: () => <StudyPage /> },
@@ -361,41 +362,50 @@ function Sidebar() {
   const projectOpen = useApp((s) => s.project.open);
   const dirty = useDirty((s) => s.dirty);
   const dirtyByPage: Partial<Record<PageId, boolean>> = { beam: dirty.beam, lattice: dirty.lattice, settings: dirty.settings, files: dirty.files };
+  const navItem = (p: PageId) => {
+    const meta = PAGE_META[p];
+    const busy = p === "run" && running;
+    const needsProject = !PROJECTLESS_PAGES.includes(p);
+    return (
+      <button
+        key={p}
+        aria-label={t(meta.label)}
+        className={cx("nav-item", page === p && "active", needsProject && !projectOpen && "dim")}
+        data-tip={collapsed ? t(meta.label) : undefined}
+        onClick={() => {
+          if (page === p && collapsed) setSidebarCollapsed(false);
+          else setPage(p);
+        }}
+      >
+        <span className="nav-icon">{busy && paused ? <Icon name="debug-pause" className="nav-paused" /> : busy ? <Spinner size={20} /> : <Icon name={meta.icon} />}</span>
+        <span className="nav-label">{t(meta.label)}</span>
+        {dirtyByPage[p] && <span className="nav-dot" data-tip={t("Unsaved changes")} />}
+      </button>
+    );
+  };
   return (
     <nav className={cx("sidebar", collapsed && "collapsed")}>
       <div className="sidebar-header" aria-hidden={collapsed}>
         AVAS <VersionStamp />
       </div>
-      {PAGES.map((p) => {
-        const meta = PAGE_META[p];
-        const busy = p === "run" && running;
-        const needsProject = !PROJECTLESS_PAGES.includes(p);
-        return (
-          <button
-            key={p}
-            aria-label={t(meta.label)}
-            className={cx("nav-item", page === p && "active", needsProject && !projectOpen && "dim")}
-            data-tip={collapsed ? t(meta.label) : undefined}
-            onClick={() => {
-              if (page === p && collapsed) setSidebarCollapsed(false);
-              else setPage(p);
-            }}
-          >
-            <span className="nav-icon">{busy && paused ? <Icon name="debug-pause" className="nav-paused" /> : busy ? <Spinner size={20} /> : <Icon name={meta.icon} />}</span>
-            <span className="nav-label">{t(meta.label)}</span>
-            {dirtyByPage[p] && <span className="nav-dot" data-tip={t("Unsaved changes")} />}
-          </button>
-        );
-      })}
-      <button
-        className="nav-item sidebar-toggle"
-        onClick={() => setSidebarCollapsed(!collapsed)}
-        data-tip={collapsed ? t("Expand the sidebar (Ctrl+B)") : t("Collapse the sidebar (Ctrl+B)")}
-        aria-label={collapsed ? t("Expand the sidebar (Ctrl+B)") : t("Collapse the sidebar (Ctrl+B)")}
-      >
-        <span className="nav-icon"><Icon name={collapsed ? "chevron-right" : "chevron-left"} /></span>
-        <span className="nav-label">{t("Collapse")}</span>
-      </button>
+      {PAGE_GROUPS.slice(0, -1).map((group, i) => (
+        <Fragment key={group[0]}>
+          {i > 0 && <div className="nav-sep" role="separator" />}
+          {group.map(navItem)}
+        </Fragment>
+      ))}
+      <div className="nav-bottom">
+        {PAGE_GROUPS[PAGE_GROUPS.length - 1].map(navItem)}
+        <button
+          className="nav-item sidebar-toggle"
+          onClick={() => setSidebarCollapsed(!collapsed)}
+          data-tip={collapsed ? t("Expand the sidebar (Ctrl+B)") : t("Collapse the sidebar (Ctrl+B)")}
+          aria-label={collapsed ? t("Expand the sidebar (Ctrl+B)") : t("Collapse the sidebar (Ctrl+B)")}
+        >
+          <span className="nav-icon"><Icon name={collapsed ? "chevron-right" : "chevron-left"} /></span>
+          <span className="nav-label">{t("Collapse")}</span>
+        </button>
+      </div>
     </nav>
   );
 }
