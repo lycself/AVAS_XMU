@@ -1,0 +1,6 @@
+The input path has been set to C:\Users\lycself\tmp_avas_m5a\dllref\ER19_beam_stat_and_dyn_lines_single\inputs\
+The fieldMap path has been set to C:\Users\lycself\tmp_avas_m5a\repo\examples\hwr010\InputFile\
+The output path has been set to C:\Users\lycself\tmp_avas_m5a\dllref\ER19_beam_stat_and_dyn_lines_single\OutputFile\
+The programme is running.
+Lattice initialisation complete, total length 0.2 m
+A total of 1 output planes

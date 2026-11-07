@@ -1,6 +1,7 @@
 #include "core/beam.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -67,7 +68,8 @@ void finish_sp_out(Beam& b, const Lattice& lat) {
 }
 
 // particlenumber 1: one macro particle displaced by displacepos / displacedpos.
-void init_single(Beam& b, Params& p, const Lattice& lat, double betaGamma0, double atomicMass) {
+void init_single(Beam& b, Params& p, const Lattice& lat, double betaGamma0, double atomicMass,
+                 const std::array<double, 26>* berr) {
     for (int i = 0; i <= 1; ++i) {
         b.x[i] = b.y[i] = b.ux[i] = b.uy[i] = b.z[i] = 0.0;
         b.uz[i] = betaGamma0;
@@ -88,6 +90,25 @@ void init_single(Beam& b, Params& p, const Lattice& lat, double betaGamma0, doub
     b.ux[0] = p.displacedPos[0] * 0.01 * b.uz[0];
     b.uy[0] = p.displacedPos[1] * 0.01 * b.uz[0];
     b.uz[0] = (p.displacedPos[2] * 0.01 + 1.0) * b.uz[0];
+    if (berr) {
+        // beam errors on the single particle: dx, dy, dx', dy' (slopes), dphi as a shift in z at
+        // the particle velocity, dE on the kinetic energy (direction kept)
+        const auto& e = *berr;
+        const double mc2 = p.restMass;
+        b.x[0] = e[1] * 0.001 + b.x[0];
+        b.y[0] = e[2] * 0.001 + b.y[0];
+        b.ux[0] = e[4] * 0.001 * b.uz[0] + b.ux[0];
+        b.uy[0] = e[5] * 0.001 * b.uz[0] + b.uy[0];
+        const double p2 = b.ux[0] * b.ux[0] + b.uy[0] * b.uy[0] + b.uz[0] * b.uz[0];
+        const double g = std::sqrt(p2 + 1.0);
+        const double vz = b.uz[0] / g * k::c;
+        b.z[0] = b.z[0] - (e[3] * k::deg_to_rad) / (k::two_pi * p.frequency) * vz;
+        const double g1 = (g - 1.0) + e[6] / mc2 + 1.0;
+        const double scale = std::sqrt(g1 * g1 - 1.0) / std::sqrt(p2);
+        b.ux[0] *= scale;
+        b.uy[0] *= scale;
+        b.uz[0] *= scale;
+    }
     b.zMin = b.zMax = b.z[0];
     b.totalWeight = 1.0;
     b.tMin = b.bunchTime = 0.0;
@@ -195,11 +216,48 @@ std::string dst_bytes(std::int32_t n, double ibMa, double fMHz, const std::vecto
 // The random seed of the corrected engine: randomseed, or the time when it is 0.  The value is
 // printed and written next to inData.dst so that every run can be repeated.
 std::uint64_t default_seed(const Params& p) {
-    std::int64_t seed = static_cast<std::int64_t>(p.randomSeed);
+    std::int64_t seed = p.fixedSeed != 0 ? p.fixedSeed : static_cast<std::int64_t>(p.randomSeed);
     if (seed == 0) seed = static_cast<std::int64_t>(std::time(nullptr));
     say("Random seed: " + std::to_string(seed));
     write_file(paths().output + "inData.seed.txt", "randomseed " + std::to_string(seed) + "\n", false);
     return static_cast<std::uint64_t>(seed);
+}
+
+// Beam errors of the current error sample (spec 70 5), columns 1-13: dx dy (mm), dphi (deg),
+// dx' dy' (mrad), dE (MeV), demittance x y z (%), mismatch x y z (%), dIb (mA).  AVAS.dll reads only
+// the dynamic beam row; a static beam error alone leaves that row out of the sample and the
+// original dereferences a null pointer.  The corrected engine adds the static and the dynamic row.
+// Returns false without beam errors; `marked` is the "applied" flag of the row (AVAS.dll changes
+// the current and the Twiss parameters only when it is set, the shifts always).
+bool beam_errors(const Lattice& lat, std::array<double, 26>& e, bool& marked) {
+    e.fill(0.0);
+    marked = false;
+    const ErrorSample* es = lat.sample;
+    if (!es || es->flags[0] + es->flags[1] == 0) return false;
+    if (compat_dll()) {
+        if (es->dyn.empty()) compat_abort("access violation reading 0x0000000000000000 (err_beam_stat)");
+        const std::vector<double>& r = es->dyn[0];
+        for (size_t c = 0; c < r.size() && c < e.size(); ++c) e[c] = r[c];
+        marked = !r.empty() && r[0] == 1.0;
+        return true;
+    }
+    for (const auto* rows : {&es->stat, &es->dyn}) {
+        if (rows->empty() || (*rows)[0].empty() || (*rows)[0][0] != 1.0) continue;
+        const std::vector<double>& r = (*rows)[0];
+        for (size_t c = 1; c < r.size() && c < e.size(); ++c) e[c] += r[c];
+        marked = true;
+    }
+    return marked;
+}
+
+// Shifts of one .dst row (x, y cm; x', y' rad; phi rad; W MeV).
+void shift_dst_row(double* r, const std::array<double, 26>& e) {
+    r[0] = e[1] * 0.1 + r[0];
+    r[1] = e[4] * 0.001 + r[1];
+    r[2] = e[2] * 0.1 + r[2];
+    r[3] = e[5] * 0.001 + r[3];
+    r[4] = e[3] * 0.017453292519943295 + r[4];
+    r[5] = r[5] + e[6];
 }
 
 // Generation from the Twiss parameters (spec 50 2.4.1-2.4.5).
@@ -215,6 +273,23 @@ void init_generated(Beam& b, Params& p, const Lattice& lat) {
     const double atomicMass = mc2 * k::inv_proton_mc2;
     p.atomicMass = atomicMass;
     p.current = p.current * 0.001;
+    std::array<double, 26> berr{};
+    bool bmark = false;
+    const bool hasBeamErr = beam_errors(lat, berr, bmark);
+    if (hasBeamErr && bmark) {
+        p.current = berr[13] * 0.001 + p.current;
+        auto& tw = p.twiss;
+        const bool zSet = compat || (tw[6] != kTwissUnset && tw[6] != kTwissDcMark);
+        tw[0] = (berr[7] * 0.01 + 1.0) * tw[0];
+        tw[3] = (berr[8] * 0.01 + 1.0) * tw[3];
+        if (zSet) tw[6] = (berr[9] * 0.01 + 1.0) * tw[6];
+        const int idx[3][2] = {{1, 2}, {4, 5}, {7, 8}};
+        for (int q = 0; q < 3; ++q) {
+            if (q == 2 && !zSet) continue;
+            const double f = berr[10 + q] * 0.01 + 1.0;
+            for (int j : idx[q]) tw[j] = (f * f) * tw[j];  // pow(f, 2) of AVAS.dll is exact
+        }
+    }
     b.current = p.current;
     const int N = p.particleNumber;
     if (p.current == 0.0 || N == 1) {
@@ -239,7 +314,8 @@ void init_generated(Beam& b, Params& p, const Lattice& lat) {
     default_cores(p, N);
     if (N == 1) {
         p.cores.fill(1);
-        init_single(b, p, lat, betaGamma0, atomicMass);
+        // AVAS.dll leaves the single particle without beam errors; the corrected engine shifts it
+        init_single(b, p, lat, betaGamma0, atomicMass, (hasBeamErr && !compat) ? &berr : nullptr);
         return;
     }
 
@@ -374,6 +450,7 @@ void init_generated(Beam& b, Params& p, const Lattice& lat) {
     for (int i = 0; i < nb; ++i) {
         const double v[6] = {b.x[i], b.ux[i], b.y[i], b.uy[i], b.z[i], b.uz[i]};
         for (int j = 0; j < 6; ++j) table[6 * i + j] = v[j];
+        if (hasBeamErr) shift_dst_row(&table[6 * i], berr);  // beam error shifts (spec 70 5)
     }
     if (!write_file(paths().output + "inData.dst", dst_bytes(nb, ibMa, fMHz, table, mc2), false, true))
         throw EngineError("Insufficient permissions to write file: inData.dst");
@@ -492,8 +569,19 @@ void init_from_dst(Beam& b, Params& p, const Lattice& lat) {
         say("Particle weight loaded.");
     }
 
-    // inData.dst: the input copied (header bytes kept), with beam errors (none in M1).
-    if (!write_file(paths().output + "inData.dst", raw.substr(0, 23 + rows.size() * 8 + 8), false, true))
+    // beam errors: current and shifts (spec 70 5)
+    std::array<double, 26> berr{};
+    bool bmark = false;
+    if (beam_errors(lat, berr, bmark)) {
+        ib = ib + berr[13];
+        for (int i = 0; i < n; ++i) shift_dst_row(&rows[6 * i], berr);
+    }
+    // inData.dst: the input (header bytes kept) with the beam errors applied.
+    std::string dst = raw.substr(0, 23);
+    std::memcpy(&dst[6], &ib, 8);
+    dst.append(reinterpret_cast<const char*>(rows.data()), rows.size() * 8);
+    dst.append(raw, 23 + rows.size() * 8, 8);
+    if (!write_file(paths().output + "inData.dst", dst, false, true))
         throw EngineError("Insufficient permissions to write file: inData.dst");
 
     const double atomicMass = mc2 * k::inv_proton_mc2;
@@ -621,6 +709,16 @@ void init_from_edst(Beam& b, Params& p, const Lattice& lat) {
     double mc2;
     std::memcpy(&mc2, raw.data() + 23 + rec.size() * 8, 8);
     say(Text().s("Particle rest mass: ").g(mc2).s(" (MeV)").str());
+    if (!compat_dll()) {
+        // AVAS.dll ignores beam errors for .edst input; the corrected engine applies them to the
+        // particle records (not to the synchronous record)
+        std::array<double, 26> berr{};
+        bool bmark = false;
+        if (beam_errors(lat, berr, bmark)) {
+            ib = ib + berr[13];
+            for (int i = 0; i < n; ++i) shift_dst_row(&rec[9 * static_cast<size_t>(i)], berr);
+        }
+    }
     b.resize(n);
     b.fromDstFile = 1;
     b.useWeightFile = 1;

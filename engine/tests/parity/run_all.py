@@ -74,8 +74,11 @@ def default_report(doc, work):
         name = case["name"]
         if case.get("reference_only") or name.startswith(("S5", "E")) or name.startswith("RFQ"):
             continue
-        mine = read_rows(os.path.join(work, name, "summary", "synData.txt"))
-        ref = read_rows(os.path.join(HERE, "refs", name, "synData.txt"))
+        if case.get("new_engine_only"):
+            continue
+        sub = "output_0" if os.path.isdir(os.path.join(work, name, "summary", "output_0")) else ""
+        mine = read_rows(os.path.join(work, name, "summary", sub, "synData.txt"))
+        ref = read_rows(os.path.join(HERE, "refs", name, sub, "synData.txt"))
         elems = lattice_elements(case)
         dev, shift = [], []
         for r, q in zip(mine, ref):
@@ -87,8 +90,8 @@ def default_report(doc, work):
                 dev.append(abs(num(r[6]) - float(w[6])))
             if len(q) > 6:
                 shift.append(num(r[6]) - num(q[6]))
-        ds_new = read_rows(os.path.join(work, name, "summary", "DataSet.txt"))
-        ds_ref = read_rows(os.path.join(HERE, "refs", name, "DataSet.txt"))
+        ds_new = read_rows(os.path.join(work, name, "summary", sub, "DataSet.txt"))
+        ds_ref = read_rows(os.path.join(HERE, "refs", name, sub, "DataSet.txt"))
         cols = range(28, 41) if name in compare.single_particle_cases() else range(41)
         mrel = 0.0  # largest difference relative to the largest |value| of its column
         for c in cols:
@@ -311,9 +314,68 @@ def segment_drift_check(doc, work):
     return fails
 
 
+def output_digest(out):
+    """sha256 of DataSet.txt and outData_*.dst, of OutputFile and of every error sample output_<k>/."""
+    import hashlib
+    h = hashlib.sha256()
+    dirs = [out] + [os.path.join(out, d) for d in sorted(os.listdir(out)) if d.startswith("output_")]
+    for d in dirs:
+        if not os.path.isdir(d):
+            continue
+        for f in sorted(os.listdir(d)):
+            if f == "DataSet.txt" or f.startswith("outData_"):
+                h.update(f.encode())
+                h.update(open(os.path.join(d, f), "rb").read())
+    return h.hexdigest()
+
+
+def error_sample_digest(out):
+    """sha256 of the error sample files (StaticErrorData.txt, DynamicErrorData.txt) of every output_<k>/."""
+    import hashlib
+    h = hashlib.sha256()
+    for d in sorted(x for x in os.listdir(out) if x.startswith("output_")):
+        for f in ("StaticErrorData.txt", "DynamicErrorData.txt"):
+            p = os.path.join(out, d, f)
+            if os.path.exists(p):
+                h.update(f"{d}/{f}".encode())
+                h.update(open(p, "rb").read().replace(b"\r\n", b"\n"))
+    return h.hexdigest()
+
+
+def error_study_check(doc, work):
+    """Default mode, kernel error studies: (1) every sample equals a run of the nominal lattice with the
+    same errors written by hand (no accumulation between samples); (2) the error samples drawn from
+    a seed are the same on every platform."""
+    fails = 0
+    print("\nError samples in the default mode:")
+    for case in doc["cases"]:
+        m = case.get("default_manual_of")
+        if not m:
+            continue
+        a = os.path.join(work, m["case"], "OutputFile", f"output_{m['sample']}")
+        b = os.path.join(work, case["name"], "OutputFile", "output_0")
+        files = sorted(f for f in os.listdir(a) if f not in ("SimulationTime.txt", "synParticle.txt")) \
+            if os.path.isdir(a) else []
+        bad = [f for f in files if not os.path.exists(os.path.join(b, f)) or
+               open(os.path.join(a, f), "rb").read() != open(os.path.join(b, f), "rb").read()]
+        ok = bool(files) and not bad
+        fails += 0 if ok else 1
+        print(f"{case['name']:<24} {'ok  ' if ok else 'FAIL'} {m['case']} sample {m['sample']} = nominal lattice + "
+              f"the same errors ({len(files)} files{', differ: ' + ' '.join(bad) if bad else ''})")
+    for case in doc["cases"]:
+        want = case.get("default_errdata_sha256")
+        if not want:
+            continue
+        got = error_sample_digest(os.path.join(work, case["name"], "OutputFile"))
+        ok = got == want
+        fails += 0 if ok else 1
+        print(f"{case['name']:<24} {'ok  ' if ok else 'FAIL'} error samples sha256 {got[:16]}"
+              f"{'' if ok else ' expected ' + want[:16]}")
+    return fails
+
+
 def thread_check(lib, work, names):
     """Default mode: the same results with 1 thread and with OMP_NUM_THREADS / all cores."""
-    import hashlib
     one = os.path.join(work, "none_1thread")
     env = dict(os.environ, OMP_NUM_THREADS="1", AVAS_ENGINE_THREADS="1")
     subprocess.run([sys.executable, os.path.join(HERE, "run_engine.py"), "--lib", lib, "--work", one,
@@ -321,14 +383,8 @@ def thread_check(lib, work, names):
     fails = 0
     print("\nDefault mode, 1 thread against the multi-threaded run (DataSet.txt and outData_*.dst bytes):")
     for n in names:
-        def digest(root):
-            out = os.path.join(root, n, "OutputFile")
-            h = hashlib.sha256()
-            for f in sorted(os.listdir(out)):
-                if f == "DataSet.txt" or f.startswith("outData_"):
-                    h.update(open(os.path.join(out, f), "rb").read())
-            return h.hexdigest()
-        same = digest(one) == digest(os.path.join(work, "none"))
+        same = output_digest(os.path.join(one, n, "OutputFile")) == \
+            output_digest(os.path.join(work, "none", n, "OutputFile"))
         fails += 0 if same else 1
         print(f"{n:<24} {'ok  ' if same else 'FAIL'}")
     return fails
@@ -355,7 +411,9 @@ def main():
     bad += segment_drift_check(doc, os.path.join(work, "none"))
     bad += distribution_check(doc, os.path.join(work, "none"))
     bad += indata_sha_check(doc, os.path.join(work, "none"))
-    bad += thread_check(lib, work, ["SC1_spicnic_S1", "SC2_fft_S1", "SC5_spicnic_Z1", "D_GS_GS"])
+    bad += error_study_check(doc, os.path.join(work, "none"))
+    bad += thread_check(lib, work, ["SC1_spicnic_S1", "SC2_fft_S1", "SC5_spicnic_Z1", "D_GS_GS",
+                                    "ER3_quad_dyn_r2_step31_dst", "ER16_quad_dyn_spicnic_dst"])
     if bad:
         print(f"DEFAULT-MODE CHECKS FAILED: {bad}")
         return 1
@@ -369,8 +427,11 @@ def main():
         print(f"not compared across platforms: {name} ({why})")
     worst = 0.0
     for case in sorted(os.listdir(os.path.join(HERE, "refs"))):
-        for f in os.listdir(os.path.join(HERE, "refs", case)):
-            rp, np_ = os.path.join(HERE, "refs", case, f), os.path.join(work, "dll", case, "summary", f)
+        rdir = os.path.join(HERE, "refs", case)
+        files = [os.path.relpath(os.path.join(d, f), rdir) for d, _, fs in os.walk(rdir) for f in fs]
+        for rel in files:
+            f = os.path.basename(rel)
+            rp, np_ = os.path.join(rdir, rel), os.path.join(work, "dll", case, "summary", rel)
             if case in compare.expected_diff_cases() or case in libm_sensitive:
                 continue
             if f in ("console.txt", "files.txt") or not os.path.exists(np_):

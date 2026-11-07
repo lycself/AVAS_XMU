@@ -239,7 +239,7 @@
    ]
   },
   {
-   "name": "S5f_err_not_implemented",
+   "name": "S5f_err_step_too_few",
    "new_engine_only": true,
    "beam": {
     "particlenumber": 1
@@ -1862,6 +1862,789 @@
     "scmethod": "FFT",
     "lpboundary": 1
    }
+  },
+  {
+   "name": "ER1_quad_dyn_r0_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "100 50 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 1",
+    "err_quad_dyn_on 1 1 1 1 1 1 1",
+    "err_quad_ncpl_dyn 3 0 0.5 -0.3 0.2 -0.1 1.5 5 0.4",
+    "quad 0.1 0.02 0 10",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 -10",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "ER1_quad_dyn_r0_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 1",
+    "err_quad_dyn_on 1 1 1 1 1 1 1",
+    "err_quad_ncpl_dyn 3 0 0.5 -0.3 0.2 -0.1 1.5 5 0.4",
+    "quad 0.1 0.02 0 10",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 -10",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   }
+  },
+  {
+   "name": "ER2_quad_dyn_r1_step13_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "100 50 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 3",
+    "err_quad_dyn_on 1 1 1 1 1 1 1",
+    "err_quad_ncpl_dyn 3 1 0.5 -0.3 0.2 -0.1 1.5 5 0.4",
+    "quad 0.1 0.02 0 10",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 -10",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "default_errdata_sha256": "f3574a41a175ca998df0f7a80c4864362befa4ac61676519e89b5601bcf702a5"
+  },
+  {
+   "name": "ER3_quad_dyn_r2_step31_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 3 1",
+    "err_quad_dyn_on 1 1 1 1 1 1 1",
+    "err_quad_ncpl_dyn 3 2 0.5 -0.3 0.2 -0.1 1.5 5 0.4",
+    "quad 0.1 0.02 0 10",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 -10",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "default_errdata_sha256": "d067c32c950de8c314d8a15773aaf686cffafa78d92a090e4752c7a60b8aab18"
+  },
+  {
+   "name": "ER4_quad_dyn_step22_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "100 50 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 2 2",
+    "err_quad_dyn_on 1 0 0 0 0 1 0",
+    "err_quad_ncpl_dyn 3 0 0.5 0 0 0 0 10 0",
+    "quad 0.1 0.02 0 10",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 -10",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "ER4_quad_dyn_step22_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 2 2",
+    "err_quad_dyn_on 1 0 0 0 0 1 0",
+    "err_quad_ncpl_dyn 3 0 0.5 0 0 0 0 10 0",
+    "quad 0.1 0.02 0 10",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 -10",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   }
+  },
+  {
+   "name": "ER4m0_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "100 50 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 1",
+    "err_quad_dyn_on 1 0 0 0 0 1 0",
+    "err_quad_ncpl_dyn 3 0 0.25 0 0 0 0 5.0 0",
+    "quad 0.1 0.02 0 10",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 -10",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "new_engine_only": true,
+   "default_manual_of": {
+    "case": "ER4_quad_dyn_step22_single",
+    "sample": 0
+   }
+  },
+  {
+   "name": "ER4m1_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "100 50 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 1",
+    "err_quad_dyn_on 1 0 0 0 0 1 0",
+    "err_quad_ncpl_dyn 3 0 0.25 0 0 0 0 5.0 0",
+    "quad 0.1 0.02 0 10",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 -10",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "new_engine_only": true,
+   "default_manual_of": {
+    "case": "ER4_quad_dyn_step22_single",
+    "sample": 1
+   }
+  },
+  {
+   "name": "ER4m2_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "100 50 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 1",
+    "err_quad_dyn_on 1 0 0 0 0 1 0",
+    "err_quad_ncpl_dyn 3 0 0.5 0 0 0 0 10.0 0",
+    "quad 0.1 0.02 0 10",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 -10",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "new_engine_only": true,
+   "default_manual_of": {
+    "case": "ER4_quad_dyn_step22_single",
+    "sample": 2
+   }
+  },
+  {
+   "name": "ER4m3_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "100 50 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 1",
+    "err_quad_dyn_on 1 0 0 0 0 1 0",
+    "err_quad_ncpl_dyn 3 0 0.5 0 0 0 0 10.0 0",
+    "quad 0.1 0.02 0 10",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 -10",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "new_engine_only": true,
+   "default_manual_of": {
+    "case": "ER4_quad_dyn_step22_single",
+    "sample": 3
+   }
+  },
+  {
+   "name": "ER4m0_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 1",
+    "err_quad_dyn_on 1 0 0 0 0 1 0",
+    "err_quad_ncpl_dyn 3 0 0.25 0 0 0 0 5.0 0",
+    "quad 0.1 0.02 0 10",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 -10",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "new_engine_only": true,
+   "default_manual_of": {
+    "case": "ER4_quad_dyn_step22_dst",
+    "sample": 0
+   }
+  },
+  {
+   "name": "ER4m1_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 1",
+    "err_quad_dyn_on 1 0 0 0 0 1 0",
+    "err_quad_ncpl_dyn 3 0 0.25 0 0 0 0 5.0 0",
+    "quad 0.1 0.02 0 10",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 -10",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "new_engine_only": true,
+   "default_manual_of": {
+    "case": "ER4_quad_dyn_step22_dst",
+    "sample": 1
+   }
+  },
+  {
+   "name": "ER4m2_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 1",
+    "err_quad_dyn_on 1 0 0 0 0 1 0",
+    "err_quad_ncpl_dyn 3 0 0.5 0 0 0 0 10.0 0",
+    "quad 0.1 0.02 0 10",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 -10",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "new_engine_only": true,
+   "default_manual_of": {
+    "case": "ER4_quad_dyn_step22_dst",
+    "sample": 2
+   }
+  },
+  {
+   "name": "ER4m3_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 1",
+    "err_quad_dyn_on 1 0 0 0 0 1 0",
+    "err_quad_ncpl_dyn 3 0 0.5 0 0 0 0 10.0 0",
+    "quad 0.1 0.02 0 10",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 -10",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "new_engine_only": true,
+   "default_manual_of": {
+    "case": "ER4_quad_dyn_step22_dst",
+    "sample": 3
+   }
+  },
+  {
+   "name": "ER5_cav_stat_r0_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "100 50 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 1",
+    "err_cav_stat_on 1 1 1 1 1 1 1",
+    "err_cav_ncpl_stat 1 0 0.3 -0.2 0.5 -0.4 2 3 0.5",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "ER5_cav_stat_r1_step12_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 2",
+    "err_cav_stat_on 1 1 1 1 1 1 1",
+    "err_cav_ncpl_stat 1 1 0.3 -0.2 0.5 -0.4 2 3 0.5",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "default_errdata_sha256": "4dc3fc47280f7365ef792bd2b276d563a88a739da29ec8907fde35cce97c0608"
+  },
+  {
+   "name": "ER6_cav_dyn_r1_step12_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 2",
+    "err_cav_dyn_on 1 1 1 1 1 1 1",
+    "err_cav_ncpl_dyn 1 1 0.3 -0.2 0.5 -0.4 2 3 0.5",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "default_errdata_sha256": "a6ea1693aca32f866bcf90b794e18ef5ecdc0746066d3c7e16d1a7d6f9e2d2ab"
+  },
+  {
+   "name": "ER7_cav_dyn_r2_step21_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "100 50 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 2 1",
+    "err_cav_dyn_on 1 1 1 1 1 1 1",
+    "err_cav_ncpl_dyn 1 2 0.3 -0.2 0.5 -0.4 2 3 0.5",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "default_errdata_sha256": "585c12057c0c0c68fa684fce4d729a45f3580b7f735a0f1e82592323be816155"
+  },
+  {
+   "name": "ER8_sol_stat_quad_dyn_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "100 50 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 2",
+    "err_quad_stat_on 1 1 1 1 1 1 1",
+    "err_quad_ncpl_stat 3 0 0.4 -0.3 0.3 -0.2 2 4 0.3",
+    "err_quad_dyn_on 1 1 0 0 0 1 0",
+    "err_quad_ncpl_dyn 3 1 0.2 0.1 0 0 0 3 0",
+    "field 0.35 0.02 0 3 0 0 1 1 sol",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 10",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "ER8_sol_stat_quad_dyn_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 2",
+    "err_quad_stat_on 1 1 1 1 1 1 1",
+    "err_quad_ncpl_stat 3 0 0.4 -0.3 0.3 -0.2 2 4 0.3",
+    "err_quad_dyn_on 1 1 0 0 0 1 0",
+    "err_quad_ncpl_dyn 3 1 0.2 0.1 0 0 0 3 0",
+    "field 0.35 0.02 0 3 0 0 1 1 sol",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 10",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   }
+  },
+  {
+   "name": "ER9_solenoid_bend_dyn_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "100 50 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 1",
+    "err_quad_dyn_on 1 1 1 1 1 1 1",
+    "err_quad_ncpl_dyn 5 0 0.3 -0.2 0.1 0.2 1 5 0.2",
+    "solenoid 0.2 0.02 0 0.5",
+    "drift 0.05 0.02 0",
+    "edge 0 0.02 0 10 1.0 0.05 0.45 2.8 0",
+    "bend 0 0.02 0 20 1.0 0.3 0",
+    "edge 0 0.02 0 10 1.0 0.05 0.45 2.8 0",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "ER9_solenoid_bend_dyn_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 1",
+    "err_quad_dyn_on 1 1 1 1 1 1 1",
+    "err_quad_ncpl_dyn 5 0 0.3 -0.2 0.1 0.2 1 5 0.2",
+    "solenoid 0.2 0.02 0 0.5",
+    "drift 0.05 0.02 0",
+    "edge 0 0.02 0 10 1.0 0.05 0.45 2.8 0",
+    "bend 0 0.02 0 20 1.0 0.3 0",
+    "edge 0 0.02 0 10 1.0 0.05 0.45 2.8 0",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   }
+  },
+  {
+   "name": "ER10_beam_dyn_generated",
+   "beam": {
+    "randomseed": 12345,
+    "particlenumber": 2000
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 1",
+    "err_beam_dyn_on 1 1 1 1 1 1 1 1 1 1 1 1 1",
+    "err_beam_dyn 0 1 -0.5 2 0.3 -0.2 0.01 10 -5 20 10 -10 5 2",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "ER11_beam_dyn_r1_step12_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 2",
+    "err_beam_dyn_on 1 1 1 1 1 1 0 0 0 0 0 0 1",
+    "err_beam_dyn 1 1 -0.5 2 0.3 -0.2 0.01 0 0 0 0 0 0 2",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "default_errdata_sha256": "1d8a123c2716b8ea19fd3247e474bcddfcd77f3288bb253a53c89cc5a67dc71d"
+  },
+  {
+   "name": "ER12_beam_stat_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 1",
+    "err_beam_stat_on 1 1 0 0 0 0 0 0 0 0 0 0 0",
+    "err_beam_stat 0 1 -0.5",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "compat_expected_diff": "AVAS.dll crashes: a static beam error alone leaves the dynamic beam row out of the sample (access violation)"
+  },
+  {
+   "name": "ER13_cpl_ignored_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "100 50 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 1",
+    "err_quad_dyn_on 1 1 1 1 1 1 1",
+    "err_quad_ncpl_dyn 3 0 0.5 -0.3 0.2 -0.1 1.5 5 0.4",
+    "err_quad_cpl_dyn 1 0 0.5 0.5 0 0 0 5 0",
+    "err_cav_cpl_stat 1 0 0.5 0.5 0 0 1 1 0",
+    "err_quad_cpl_stat 1 0 1 1 0 0 0 1 0",
+    "err_cav_cpl_dyn 1 0 1 1 0 0 1 1 0",
+    "quad 0.1 0.02 0 10",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 -10",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "ER14_beam_dyn_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "100 50 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 1",
+    "err_beam_dyn_on 1 1 1 1 1 1 1 1 1 1 1 1 1",
+    "err_beam_dyn 0 1 -0.5 2 0.3 -0.2 0.01 10 -5 20 10 -10 5 2",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "ER15_r3_exit_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "100 50 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 1",
+    "err_quad_dyn_on 1 1 1 1 1 1 1",
+    "err_quad_ncpl_dyn 3 3 0.5 -0.3 0.2 -0.1 1.5 5 0.4",
+    "quad 0.1 0.02 0 10",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 -10",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "ER16_quad_dyn_spicnic_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 2",
+    "err_quad_dyn_on 1 1 1 1 1 1 1",
+    "err_quad_ncpl_dyn 3 1 0.5 -0.3 0.2 -0.1 1.5 5 0.4",
+    "quad 0.1 0.02 0 10",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 -10",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "SPICNIC",
+    "setnumberofcores": "64 54 1 24 1 48 96 12 48 12"
+   },
+   "space_charge": true,
+   "compat_tolerance": 1e-10,
+   "default_errdata_sha256": "587d6605639e94ffe993c2c94e2ff24795c086347ecf477d2e51924992c773fa"
+  },
+  {
+   "name": "ER17_sol_stat_only_r1_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 2",
+    "err_quad_stat_on 1 1 1 1 1 1 1",
+    "err_quad_ncpl_stat 1 1 0.4 -0.3 0.3 -0.2 2 4 0.3",
+    "field 0.35 0.02 0 3 0 0 1 1 sol",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "default_errdata_sha256": "0bd071796da043f582a48132b6ef0bc8edb020383d4e5d9eea19e43a35c407a8"
+  },
+  {
+   "name": "ER18_cav_stat_dyn_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 1",
+    "err_cav_stat_on 1 1 1 1 1 1 1",
+    "err_cav_ncpl_stat 1 0 0.3 -0.2 0.5 -0.4 2 3 0.5",
+    "err_cav_dyn_on 1 1 1 1 1 1 1",
+    "err_cav_ncpl_dyn 3 0 -0.2 0.1 0.3 0.2 -1 2 0.2",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   }
+  },
+  {
+   "name": "ER19_beam_stat_and_dyn_lines_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "100 50 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 1",
+    "err_beam_stat_on 1 1 0 0 0 0 0 0 0 0 0 0 0",
+    "err_beam_stat 0 1 0.5",
+    "err_beam_dyn_on 1 0 1 0 0 0 0 0 0 0 0 0 0",
+    "err_beam_dyn 0 0 2",
+    "err_quad_dyn_on 1 0 0 0 0 0 0",
+    "err_quad_ncpl_dyn 1 0 0.1",
+    "quad 0.1 0.02 0 10",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "ER20_r_minus1_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "100 50 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 2",
+    "err_quad_dyn_on 1 0 0 0 0 1 0",
+    "err_quad_ncpl_dyn 3 -1 0.5 0 0 0 0 10 0",
+    "quad 0.1 0.02 0 10",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 -10",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "compat_expected_diff": "r = -1: AVAS.dll keeps the previous value, which is an uninitialised stack value for the first draw (9.88131e-324 here)"
+  },
+  {
+   "name": "ER21_beam_stat_line_before_on_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "100 50 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 1",
+    "err_beam_stat 0 1 0.5",
+    "err_beam_stat_on 1 1 0 0 0 0 0 0 0 0 0 0 0",
+    "err_quad_dyn_on 1 0 0 0 0 0 0",
+    "err_quad_ncpl_dyn 1 0 0.1",
+    "quad 0.1 0.02 0 10",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
   }
  ]
 }

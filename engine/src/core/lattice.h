@@ -42,13 +42,38 @@ struct Element {
     double poleAngle = 0.0, gap = 0.0, fringeK1 = 0.0, fringeK2 = 0.0, psi = 0.0;            // edge
     int steerKind = 0;
     double steerX = 0.0, steerY = 0.0, steerMax = 0.0;  // steerer Bx/Ex, By/Ey
+    // element errors (SetErrPara): displacement (m), rotations (rad), scaled amplitudes
+    double errDx = 0, errDy = 0, errDz = 0, errRotX = 0, errRotY = 0, errRotZ = 0;
+    double keErr = 0, kbErr = 0, phaseErr = 0, fieldErr = 0;
 
     bool is_matrix() const {
         return kind == ElemKind::Quad || kind == ElemKind::Solenoid || kind == ElemKind::Bend || kind == ElemKind::Edge;
     }
 };
 
+// err_* lines of lattice.txt as stored by AVAS.dll's InitLattice (spec 70 2.1-2.3).
+struct ErrorParameter {
+    int a = 1, b = 1;                          // err_step a b (b = amplitude levels, a = repeats)
+    std::vector<double> beamVals;              // err_beam_stat / err_beam_dyn values (0 / 1 first)
+    std::vector<int> beamSwitches;             // err_beam_*_on switches, padded to 30 / 60
+    std::vector<double> beamLine[2];           // corrected engine: {r, x1..} of the static / dynamic line
+    std::vector<int> beamSw[2];                // corrected engine: switches of the static / dynamic line
+    std::vector<std::vector<double>> elemDefs; // {class, mode, E, N, r, x0..} padded to 20
+    std::vector<std::vector<int>> elemSwitches;// {class, mode, s0..} padded to 20
+    int nElements = 0;
+    int flags[4] = {0, 0, 0, 0};               // beam static, beam dynamic, element static, element dynamic
+    bool any() const { return flags[0] + flags[1] + flags[2] + flags[3] != 0; }
+};
+
+// One error sample: row 0 beam, row e + 1 element e (spec 70 3.2).
+struct ErrorSample {
+    std::vector<std::vector<double>> stat, dyn;
+    int flags[4] = {0, 0, 0, 0};
+};
+
 struct Lattice {
+    ErrorParameter err;
+    const ErrorSample* sample = nullptr;  // current error sample (null: no errors)
     std::vector<Element> elements;
     std::vector<double> elemZStart, elemLength, elemZEnd;
     FieldLibrary fm;

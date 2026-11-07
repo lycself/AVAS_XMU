@@ -17,6 +17,7 @@
 #include "core/dllmath.h"
 #include "core/engine.h"
 #include "core/errors.h"
+#include "core/errorset.h"
 #include "core/files.h"
 #include "core/format.h"
 #include "core/options.h"
@@ -127,6 +128,7 @@ public:
             for (const char* f : {"SpaceChargeMesh.txt", "SpaceChargeSet.plt"}) write_file(out + f, "", false);
         dataSet_.open(out + "DataSet.txt");
         synFile_.open(out + "synParticle.txt");
+        setup_errors();
 
         const std::vector<Segment> segs = segment_lattice();
         startClock_ = std::chrono::steady_clock::now();
@@ -187,7 +189,181 @@ private:
         if (k < 0) k = 0;
         if (k > last) k = last;
         b.elemIndex[i] = k;
+        // Lattice::GetErrExternalField: elements marked in the error sample use GetErrField; the
+        // synchronous particle always uses GetField
+        if (!errUse_.empty() && i != b.n && errUse_[static_cast<size_t>(k)]) {
+            element_err_field(i, t, lat_.elements[k]);
+            return;
+        }
         element_field(i, t, lat_.elements[k]);
+    }
+
+    // ---- error samples (spec 70 6, 7) ----
+    std::vector<char> errUse_;  // t-code: element uses GetErrField
+    std::vector<char> hetErr_;  // z-code: entrance / exit transform of the misalignment
+
+    void setup_errors() {
+        errUse_.clear();
+        hetErr_.clear();
+        const ErrorSample* es = lat_.sample;
+        if (!es) return;
+        // MethodMP::Run: errSampleOut, then SetErrInEle
+        write_error_sample(*es);
+        if (es->flags[2] + es->flags[3] == 0) return;
+        set_errors_in_elements(lat_, *es);
+        const size_t ne = lat_.elements.size();
+        auto marked = [](const std::vector<std::vector<double>>& rows, size_t k) {
+            return rows.size() > k + 1 && !rows[k + 1].empty() && rows[k + 1][0] == 1.0;
+        };
+        errUse_.assign(ne, 0);
+        hetErr_.assign(ne, 0);
+        for (size_t k = 0; k < ne; ++k) {
+            if (compat_) {
+                // AVAS.dll looks at the static row when static element errors are on (a field map
+                // with only a dynamic error then uses GetField), and the z-code at the dynamic row
+                errUse_[k] = es->flags[2] ? marked(es->stat, k) : marked(es->dyn, k);
+                hetErr_[k] = marked(es->dyn, k);
+            } else {
+                errUse_[k] = hetErr_[k] = marked(es->stat, k) || marked(es->dyn, k);
+            }
+        }
+    }
+
+    // Field::GetErrField (spec 70 6.3): the particle in the frame of the displaced and rotated
+    // field map, the field rotated back to the laboratory.  Other elements: as GetField.
+    void element_err_field(int i, double t, const Element& e) {
+        Beam& b = b_;
+        if (e.kind != ElemKind::Field || (e.fieldType != 1 && e.fieldType != 2 && e.fieldType != 3)) {
+            element_field(i, t, e);
+            return;
+        }
+        const double X0 = b.x[i] - e.errDx;
+        const double Y0 = b.y[i] - e.errDy;
+        double sz, cz, sy, cy, sx, cx;
+        dll_sincos(e.errRotZ, sz, cz);
+        const double X1 = X0 * cz + Y0 * sz;
+        const double Y1 = Y0 * cz - X0 * sz;
+        const double Z0 = (b.z[i] - e.errDz) - e.zStart;
+        dll_sincos(e.errRotY, sy, cy);
+        const double xl = cy * X1 - Z0 * sy;
+        const double T = Z0 * cy + sy * X1;
+        dll_sincos(e.errRotX, sx, cx);
+        const double yl = sx * T + cx * Y1;
+        const double zl = cx * T - sx * Y1;
+        const double r = std::sqrt(yl * yl + xl * xl);
+        // AVAS.dll checks the aperture without the boundary mode and the superposeout planes
+        const bool inside = 0.0 < zl && zl < e.length;
+        const bool lostHere = compat_ ? (inside && !(r < e.radius))
+                                      : (inside && e.radius <= r && b.boundaryMode[i] == 0 &&
+                                         e.zStart + 1e-06 < b.spOutZ1[i] && b.spOutZ0[i] < b.z[i]);
+        if (lostHere) {
+            b.lost[i] = 1;  // fields keep their previous values
+            return;
+        }
+        const MapView<double> m = lat_.fm.maps[e.mapIndex].view();
+        if (!(m.xmin < xl && xl < m.xmax && m.ymin < yl && yl < m.ymax && 0.0 < zl && zl < m.zlen)) {
+            b.ex[i] = b.ey[i] = b.ez[i] = b.bx[i] = b.by[i] = b.bz[i] = 0.0;
+            return;
+        }
+        double E[3] = {0, 0, 0}, B[3] = {0, 0, 0};
+        if (e.fieldType == 1) {
+            const double ke6 = e.keErr * 1000000.0;
+            trilinear(m, xl, yl, zl, [&](double w, const double* f) {
+                E[0] = f[0] * w * ke6 + E[0];
+                E[1] = f[1] * w * ke6 + E[1];
+                E[2] = f[2] * w * ke6 + E[2];
+                B[0] = f[3] * w * e.kbErr + B[0];
+                B[1] = f[4] * w * e.kbErr + B[1];
+                B[2] = f[5] * w * e.kbErr + B[2];
+            });
+            const int c = e.cavIndex;
+            const double phase = (t - lat_.fm.cavTime[c]) * e.frequency * k::two_pi +
+                                 (lat_.fm.cavPhase[c] + e.phaseErr) * k::deg_to_rad;
+            const double ce = dll_cos(phase);
+            const double cb = dll_cos(phase - k::half_pi);
+            for (int j = 0; j < 3; ++j) {
+                E[j] = ce * E[j];
+                B[j] = cb * B[j];
+            }
+        } else if (e.fieldType == 3) {
+            trilinear(m, xl, yl, zl, [&](double w, const double* f) {
+                for (int j = 0; j < 3; ++j) B[j] = f[j] * w * e.kbErr + B[j];
+            });
+        } else if (!compat_) {
+            // static electric map: AVAS.dll returns zero here (never an error target there)
+            const double ke6 = e.keErr * 1000000.0;
+            trilinear(m, xl, yl, zl, [&](double w, const double* f) {
+                for (int j = 0; j < 3; ++j) E[j] = f[j] * w * ke6 + E[j];
+            });
+        }
+        auto back = [&](double* F) {
+            const double a = F[2] * cx + F[1] * sx;   // z after the x rotation
+            const double bb = a * sy + F[0] * cy;    // x after the y rotation
+            const double yy = F[1] * cx - F[2] * sx;
+            const double zz = a * cy - F[0] * sy;
+            F[0] = bb * cz - yy * sz;
+            F[1] = yy * cz + bb * sz;
+            F[2] = zz;
+        };
+        back(E);
+        back(B);
+        b.ex[i] = E[0]; b.ey[i] = E[1]; b.ez[i] = E[2];
+        b.bx[i] = B[0]; b.by[i] = B[1]; b.bz[i] = B[2];
+    }
+
+    // z-code misalignment (spec 30 2.8.3): entrance transform T_in into the element frame;
+    // returns the local longitudinal position, which T_in drops.
+    static double het_err_in(double* r, const Element& e) {
+        const double X0 = r[0] - e.errDx, Y0 = r[2] - e.errDy, mdz = -e.errDz;
+        double sz, cz, sy, cy, sx, cx;
+        dll_sincos(e.errRotZ, sz, cz);
+        const double u = sz * Y0 + cz * X0;
+        const double v = cz * Y0 - sz * X0;
+        dll_sincos(e.errRotY, sy, cy);
+        dll_sincos(e.errRotX, sx, cx);
+        const double px1 = cz * r[1] + sz * r[3];
+        const double py1 = cz * r[3] - sz * r[1];
+        const double pz1 = cy * r[5] + sy * px1;
+        const double T = sy * u + cy * mdz;
+        r[0] = cy * u - sy * mdz;
+        r[1] = cy * px1 - sy * r[5];
+        r[2] = v * cx + T * sx;
+        r[3] = py1 * cx + sx * pz1;
+        r[5] = pz1 * cx - sx * py1;
+        return cx * T - sx * v;
+    }
+
+    // Exit transform T_out.  AVAS.dll adds the offsets before rotating back (and takes +dz as the
+    // local z), so T_out is not the inverse of T_in when the element is rotated; the corrected
+    // engine rotates back and then adds the offsets (exact inverse, zl from T_in).
+    void het_err_out(double* r, const Element& e, double zl) const {
+        double sz, cz, sy, cy, sx, cx;
+        dll_sincos(e.errRotX, sx, cx);
+        dll_sincos(e.errRotY, sy, cy);
+        double q, w;
+        if (compat_) {
+            const double Y1 = e.errDy + r[2];
+            q = (Y1 * sx + e.errDz * cx) * sy + (e.errDx + r[0]) * cy;
+            w = Y1 * cx - e.errDz * sx;
+        } else {
+            w = cx * r[2] - sx * zl;
+            const double T = sx * r[2] + cx * zl;
+            q = cy * r[0] + sy * T;
+        }
+        dll_sincos(e.errRotZ, sz, cz);
+        const double pxo = r[1];
+        const double pz1 = r[5] * cx + r[3] * sx;
+        const double px1 = pz1 * sy + pxo * cy;
+        const double py1 = r[3] * cx - r[5] * sx;
+        r[0] = q * cz - sz * w;
+        r[1] = px1 * cz - py1 * sz;
+        r[2] = q * sz + cz * w;
+        r[3] = py1 * cz + px1 * sz;
+        r[5] = pz1 * cy - pxo * sy;
+        if (!compat_) {
+            r[0] = r[0] + e.errDx;
+            r[2] = r[2] + e.errDy;
+        }
     }
 
     bool aperture_lost(int i, const Element& e) const {
@@ -500,10 +676,14 @@ private:
             double k1, k2;
             edge_k(e, k1, k2);
             const int hv = e.hv == 0 ? 0 : 1;
+            const bool err = !hetErr_.empty() && hetErr_[static_cast<size_t>(idx)];
             for_rows(pool, [&](int i) {
-                const double p2 = zrow_p2(rec[i].data());
-                edge_row(rec[i].data(), k1, k2, hv);
-                if (!compat_) zrow_keep_momentum(rec[i].data(), p2);
+                double* r = rec[i].data();
+                const double p2 = zrow_p2(r);
+                const double zl = err ? het_err_in(r, e) : 0.0;
+                edge_row(r, k1, k2, hv);
+                if (err) het_err_out(r, e, zl);
+                if (!compat_) zrow_keep_momentum(r, p2);
             });
             return;
         }
@@ -529,6 +709,16 @@ private:
                 r[3] = b_.scy[i] * a + r[3];
                 r[5] = a * b_.scz[i] + r[5];
                 inner(i);
+            };
+        }
+        if (!hetErr_.empty() && hetErr_[static_cast<size_t>(idx)]) {
+            // misaligned element: T_in before the space-charge kick, T_out after the transfer
+            const auto inner = one;
+            one = [&, inner](int i) {
+                double* r = rec[i].data();
+                const double zl = het_err_in(r, e);
+                inner(i);
+                het_err_out(r, e, zl);
             };
         }
         const bool average = mode == 2;

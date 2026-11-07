@@ -14,7 +14,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 TEXT = ["rc.txt", "synData.txt", "scanPhaseData.txt", "Phase.txt", "SingleParticle.txt", "DataSet.txt",
         "synParticle.txt", "ErrorLog.txt", "LongitudinalBeamLoss.txt", "FullParticle.summary.txt",
-        "SpaceChargeMesh.txt"]
+        "SpaceChargeMesh.txt", "StaticErrorData.txt", "DynamicErrorData.txt"]
 NUM = re.compile(r"^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$|^[-+]?(inf|nan)(\(ind\))?$")
 
 
@@ -121,42 +121,52 @@ def main():
         if case in expected:
             rows.append((case, "-", "EXPECTED", "", expected[case]))
             continue
-        rdir, ndir = os.path.join(a.refs, case), os.path.join(a.work, case, "summary")
-        if not os.path.isdir(ndir):
+        rdir0, ndir0 = os.path.join(a.refs, case), os.path.join(a.work, case, "summary")
+        if not os.path.isdir(ndir0):
             rows.append((case, "-", "MISSING", "", ""))
             all_ok = False
             continue
-        files = [f for f in TEXT if os.path.exists(os.path.join(rdir, f)) or os.path.exists(os.path.join(ndir, f))]
-        files += sorted(f for f in os.listdir(rdir) if f.endswith((".dst.txt", ".edst.txt", ".dstb.txt")))
-        rf = set(ln.split()[0] for ln in read(os.path.join(rdir, "files.txt")).splitlines() if ln.strip())
-        nf = set(ln.split()[0] for ln in read(os.path.join(ndir, "files.txt")).splitlines() if ln.strip())
-        if rf != nf:
-            rows.append((case, "files.txt", "DIFF", "", f"only ref: {sorted(rf - nf)} only new: {sorted(nf - rf)}"))
+        subs = sorted(d for d in os.listdir(rdir0) if d.startswith("output_") and os.path.isdir(os.path.join(rdir0, d)))
+        nsubs = sorted(d for d in os.listdir(ndir0) if d.startswith("output_") and os.path.isdir(os.path.join(ndir0, d)))
+        if subs != nsubs:
+            rows.append((case, "output_*", "DIFF", "", f"ref {subs} new {nsubs}"))
             all_ok = False
-        for f in files:
-            rp, np_ = os.path.join(rdir, f), os.path.join(ndir, f)
-            if not os.path.exists(rp) or not os.path.exists(np_):
-                rows.append((case, f, "MISSING", "", "ref" if not os.path.exists(rp) else "new"))
-                all_ok = False
+        for sub in [""] + subs:
+            rdir, ndir = os.path.join(rdir0, sub), os.path.join(ndir0, sub)
+            if sub and not os.path.isdir(ndir):
                 continue
-            ref, new = read(rp), read(np_)
-            if f.endswith((".dst.txt", ".edst.txt", ".dstb.txt")):
-                ok, nd, mrel, mabs, note = compare_dst(ref, new)
-            elif f == "DataSet.txt" and case in single:
-                # AVAS.dll never initialises the weight of a single macro particle, so the
-                # statistics columns 0-27 are garbage there; compare columns 28-40 only.
-                ok, nd, mrel, mabs, note = compare_text(ref, new, columns=set(range(28, 41)))
-                note = (note + " cols 28-40").strip()
-            else:
-                ok, nd, mrel, mabs, note = compare_text(ref, new)
-            tol = tolerances.get(case)
-            if not ok and tol is not None and mrel <= tol and not note.startswith(("lines", "N ")):
-                ok = True
-                status = "close"   # within the documented tolerance (rounding order)
-            else:
-                status = "identical" if ok else "DIFF"
-            all_ok &= ok
-            rows.append((case, f, status, "" if status == "identical" else f"{nd} lines, max rel {mrel:.3g}, max abs {mabs:.3g}", note))
+            pre = sub + "/" if sub else ""
+            files = [f for f in TEXT if os.path.exists(os.path.join(rdir, f)) or os.path.exists(os.path.join(ndir, f))]
+            files += sorted(f for f in os.listdir(rdir) if f.endswith((".dst.txt", ".edst.txt", ".dstb.txt")))
+            rf = set(ln.split()[0] for ln in read(os.path.join(rdir, "files.txt")).splitlines() if ln.strip())
+            nf = set(ln.split()[0] for ln in read(os.path.join(ndir, "files.txt")).splitlines() if ln.strip())
+            if rf != nf:
+                rows.append((case, pre + "files.txt", "DIFF", "", f"only ref: {sorted(rf - nf)} only new: {sorted(nf - rf)}"))
+                all_ok = False
+            for f in files:
+                rp, np_ = os.path.join(rdir, f), os.path.join(ndir, f)
+                if not os.path.exists(rp) or not os.path.exists(np_):
+                    rows.append((case, pre + f, "MISSING", "", "ref" if not os.path.exists(rp) else "new"))
+                    all_ok = False
+                    continue
+                ref, new = read(rp), read(np_)
+                if f.endswith((".dst.txt", ".edst.txt", ".dstb.txt")):
+                    ok, nd, mrel, mabs, note = compare_dst(ref, new)
+                elif f == "DataSet.txt" and case in single:
+                    # AVAS.dll never initialises the weight of a single macro particle, so the
+                    # statistics columns 0-27 are garbage there; compare columns 28-40 only.
+                    ok, nd, mrel, mabs, note = compare_text(ref, new, columns=set(range(28, 41)))
+                    note = (note + " cols 28-40").strip()
+                else:
+                    ok, nd, mrel, mabs, note = compare_text(ref, new)
+                tol = tolerances.get(case)
+                if not ok and tol is not None and mrel <= tol and not note.startswith(("lines", "N ")):
+                    ok = True
+                    status = "close"   # within the documented tolerance (rounding order)
+                else:
+                    status = "identical" if ok else "DIFF"
+                all_ok &= ok
+                rows.append((case, pre + f, status, "" if status == "identical" else f"{nd} lines, max rel {mrel:.3g}, max abs {mabs:.3g}", note))
     w = max(len(r[0]) for r in rows) if rows else 10
     for r in rows:
         if a.quiet and r[2] in ("identical", "close"):

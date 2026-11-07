@@ -41,6 +41,7 @@ set(AVAS_CORE_SOURCES
   src/core/beam.cpp
   src/core/distribution.cpp
   src/core/spacecharge.cpp
+  src/core/errorset.cpp
   src/core/synchronous.cpp
   src/core/tracker.cpp
   src/core/engine.cpp

@@ -9,6 +9,8 @@
 #include <vector>
 
 #include "core/errors.h"
+#include "core/errorset.h"
+#include "core/options.h"
 #include "core/format.h"
 #include "core/physics.h"
 #include "core/text.h"
@@ -186,6 +188,84 @@ static void test_space_charge_ellipsoid() {
     }
 }
 
+// Error sampling (spec 70 3): the corrected distributions (uniform on [-A, A), Gaussian with sigma A,
+// untruncated), their independence from the sample order, and the AVAS.dll rand() sequence.
+static Lattice error_lattice(int a, double r, int mode) {
+    Lattice lat;
+    Element q;
+    q.kind = ElemKind::Quad;
+    q.typeName = "quad";
+    lat.elements.push_back(q);
+    ErrorParameter& er = lat.err;
+    er.a = a;
+    er.b = 1;
+    std::vector<double> d{0.0, static_cast<double>(mode), 0.0, 1.0, r, 2.0, 0.0, 0.0, 0.0, 0.0, 5.0};
+    d.resize(20, 0.0);
+    er.elemDefs.push_back(d);
+    std::vector<int> sw{0, mode, 1, 0, 0, 0, 0, 1};
+    sw.resize(20, 0);
+    er.elemSwitches.push_back(sw);
+    er.nElements = 1;
+    er.flags[mode ? 3 : 2] = 1;
+    return lat;
+}
+
+static void test_error_sampling() {
+    const Compat saved = options().compat;
+    options().compat = Compat::None;
+    const int n = 200000;
+    for (double r : {1.0, 2.0}) {
+        MsvcRand unused;
+        const Lattice lat = error_lattice(n, r, 1);
+        const std::vector<ErrorSample> S = generate_error_set(lat, unused, 12345);
+        double s1 = 0.0, s2 = 0.0, mx = 0.0, s1g = 0.0, cross = 0.0;
+        int beyond3 = 0;
+        for (const ErrorSample& e : S) {
+            const double v = e.dyn[1][1], g = e.dyn[1][6];  // dx (A = 2), dG (A = 5)
+            s1 += v; s2 += v * v; s1g += g; cross += v * g;
+            mx = std::max(mx, std::fabs(v));
+            if (std::fabs(v) > 3.0 * 2.0) ++beyond3;
+        }
+        const double mean = s1 / n, var = s2 / n - mean * mean;
+        const double want = r == 1.0 ? 4.0 / 3.0 : 4.0;  // A^2/3 or A^2
+        CHECK(std::fabs(mean) < 5.0 * std::sqrt(want / n));
+        CHECK(std::fabs(var / want - 1.0) < 0.02);
+        CHECK(std::fabs(cross / n) < 5.0 * std::sqrt(want * (r == 1.0 ? 25.0 / 3.0 : 25.0) / n));  // columns independent
+        if (r == 1.0) CHECK(mx < 2.0);
+        else CHECK(beyond3 > 0 && beyond3 < n * 0.006);  // not truncated: about 0.27 % beyond 3 sigma
+        (void)s1g;
+        // the same seed gives the same samples, another seed others
+        const std::vector<ErrorSample> S2 = generate_error_set(lat, unused, 12345);
+        const std::vector<ErrorSample> S3 = generate_error_set(lat, unused, 12346);
+        CHECK(S2[777].dyn[1][1] == S[777].dyn[1][1] && S3[777].dyn[1][1] != S[777].dyn[1][1]);
+    }
+    // static r = 0: the fixed value; dynamic r = 0: equal steps x (j + 1) / b
+    {
+        MsvcRand unused;
+        Lattice lat = error_lattice(1, 0.0, 1);
+        lat.err.b = 4;
+        const std::vector<ErrorSample> S = generate_error_set(lat, unused, 1);
+        CHECK(S.size() == 4 && S[0].dyn[1][1] == 0.5 && S[3].dyn[1][1] == 2.0 && S[3].dyn[1][6] == 5.0);
+        Lattice ls = error_lattice(1, 0.0, 0);
+        ls.elements[0].kind = ElemKind::Field;  // static errors only reach static magnetic maps
+        ls.elements[0].typeName = "field";
+        ls.elements[0].words = {"field", "0.1", "0.02", "0", "3"};
+        ls.err.b = 4;
+        const std::vector<ErrorSample> T = generate_error_set(ls, unused, 1);
+        CHECK(T[0].stat[1][1] == 2.0 && T[3].stat[1][1] == 2.0);
+    }
+    // AVAS.dll: dynamic uniform d = (u - 0.5) A, value d + d, u = (rand() % 10000) / 10000
+    options().compat = Compat::Dll;
+    {
+        MsvcRand rng;  // state 1, as in a new process
+        const Lattice lat = error_lattice(2, 1.0, 1);
+        const std::vector<ErrorSample> S = generate_error_set(lat, rng, 0);
+        const double d0 = (41.0 * 0.0001 - 0.5) * 2.0, d1 = (static_cast<double>(18467 % 10000) * 0.0001 - 0.5) * 2.0;
+        CHECK(S[0].dyn[1][1] == d0 + d0 && S[1].dyn[1][1] == d1 + d1);
+    }
+    options().compat = saved;
+}
+
 int main() {
     test_split();
     test_numbers();
@@ -193,6 +273,7 @@ int main() {
     test_physics();
     test_random();
     test_space_charge_ellipsoid();
+    test_error_sampling();
     std::printf("%s (%d failures)\n", failures ? "FAILED" : "OK", failures);
     return failures;
 }

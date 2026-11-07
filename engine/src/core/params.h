@@ -1,5 +1,6 @@
 // Run parameters from input.txt and beam.txt (the original's Initial object, spec 10 2.3-2.5).
 #pragma once
+#include <cstdint>
 #include <array>
 #include <string>
 #include <vector>
@@ -29,6 +30,7 @@ struct Params {
     double stepPerCycle = 50.0;
     double seStep = 0.01;
     double randomSeed = 0.0;
+    std::int64_t fixedSeed = 0;  // corrected engine: seed resolved once for all error samples
     std::array<double, 5> longLimits{};
     std::array<double, 6> pcHistogram{};
     std::array<int, 3> numOfGrid{{-1, -1, -1}};

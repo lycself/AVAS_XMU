@@ -1,0 +1,6 @@
+The input path has been set to C:\Users\lycself\tmp_avas_m5a\dllref\ER12_beam_stat_dst\inputs\
+The fieldMap path has been set to C:\Users\lycself\tmp_avas_m5a\repo\examples\hwr010\InputFile\
+The output path has been set to C:\Users\lycself\tmp_avas_m5a\dllref\ER12_beam_stat_dst\OutputFile\
+The programme is running.
+Lattice initialisation complete, total length 0.31 m
+A total of 1 output planes

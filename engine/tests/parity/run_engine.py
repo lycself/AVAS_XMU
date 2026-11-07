@@ -47,7 +47,7 @@ sys.exit(100 + r)
 '''
 
 TEXT_FILES = ["synData.txt", "scanPhaseData.txt", "Phase.txt", "SingleParticle.txt", "DataSet.txt",
-              "LongitudinalBeamLoss.txt", "SpaceChargeMesh.txt"]
+              "LongitudinalBeamLoss.txt", "SpaceChargeMesh.txt", "StaticErrorData.txt", "DynamicErrorData.txt"]
 
 
 def set_keys(path, changes):
@@ -115,9 +115,14 @@ def summarise_edst(path):
     return "\n".join(out) + "\n"
 
 
-def summarise(out_dir, summary_dir, rc, log):
+def summarise(out_dir, summary_dir, rc, log, top=True):
     os.makedirs(summary_dir, exist_ok=True)
-    open(os.path.join(summary_dir, "rc.txt"), "w").write(f"{rc}\n")
+    if top:
+        open(os.path.join(summary_dir, "rc.txt"), "w").write(f"{rc}\n")
+        # error samples of the kernel's own error study: OutputFile/output_<k>/
+        for sub in sorted(os.listdir(out_dir)) if os.path.isdir(out_dir) else []:
+            if sub.startswith("output_") and os.path.isdir(os.path.join(out_dir, sub)):
+                summarise(os.path.join(out_dir, sub), os.path.join(summary_dir, sub), rc, "", top=False)
     files = sorted(os.listdir(out_dir)) if os.path.isdir(out_dir) else []
     with open(os.path.join(summary_dir, "files.txt"), "w") as fl:
         for f in files:
@@ -155,6 +160,8 @@ def summarise(out_dir, summary_dir, rc, log):
         elif f.endswith(".dstb"):
             open(os.path.join(summary_dir, f + ".txt"), "w").write(
                 "sha256 " + hashlib.sha256(open(os.path.join(out_dir, f), "rb").read()).hexdigest() + "\n")
+    if not top:
+        return
     # keep the console lines that carry results (no timing values)
     keep = []
     for ln in log.replace("\r", "\n").splitlines():
@@ -175,10 +182,11 @@ def main():
     ap.add_argument("--only", default="")
     ap.add_argument("--reference", action="store_true", help="also run reference-only cases")
     ap.add_argument("--timeout", type=float, default=600)
+    ap.add_argument("--cases", default=os.path.join(HERE, "cases.json"), help="case file (default: cases.json)")
     a = ap.parse_args()
     a.lib = os.path.abspath(a.lib)
     a.work = os.path.abspath(a.work)
-    cases_doc = json.load(open(os.path.join(HERE, "cases.json"), encoding="utf-8"))
+    cases_doc = json.load(open(a.cases, encoding="utf-8"))
     only = set(a.only.split(",")) if a.only else None
     base = os.path.join(a.repo, "examples", "hwr010", "InputFile")
     new_engine = "avas_engine" in os.path.basename(a.lib)

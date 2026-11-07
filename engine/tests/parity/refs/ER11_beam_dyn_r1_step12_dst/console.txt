@@ -1,0 +1,21 @@
+The input path has been set to C:\Users\lycself\tmp_avas_m5a\dllref\ER11_beam_dyn_r1_step12_dst\inputs\
+The fieldMap path has been set to C:\Users\lycself\tmp_avas_m5a\repo\examples\hwr010\InputFile\
+The output path has been set to C:\Users\lycself\tmp_avas_m5a\dllref\ER11_beam_dyn_r1_step12_dst\OutputFile\
+The programme is running.
+Lattice initialisation complete, total length 0.31 m
+A total of 1 output planes
+Average beam energy: 1.52979 (MeV)
+The number of macroparticle representative particles is 3740.16
+The 1 field, phi_0:53.0578    phi_s:-33  Frequency is 1.625e+08
+Entry  time 2.92424e-09  Entering energy 1.52979
+Export time 1.48643e-08    Export energy 1.87061
+Exit bunch energy: 1.87061
+The total distance simulated is 0.31 (m)
+Average beam energy: 1.53509 (MeV)
+The number of macroparticle representative particles is 11314.7
+The 1 field, phi_0:53.8137    phi_s:-33  Frequency is 1.625e+08
+Entry  time 2.91921e-09  Entering energy 1.53509
+Export time 1.48352e-08    Export energy 1.87838
+Exit bunch energy: 1.87486
+The total distance simulated is 0.31 (m)
+[parity] main_agent -> 0

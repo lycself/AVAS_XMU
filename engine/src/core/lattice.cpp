@@ -18,7 +18,8 @@ namespace avas {
 namespace {
 
 // Keywords the original kernel knows but the new engine does not implement yet.
-bool is_unimplemented(const std::string& k) {
+// err_* keywords read by the kernel (spec 70 2.2); the coupled err_*_cpl_* lines are ignored.
+bool is_error_keyword(const std::string& k) {
     static const char* const names[] = {
         "err_beam_stat", "err_beam_dyn", "err_cav_ncpl_stat", "err_cav_ncpl_dyn", "err_quad_ncpl_stat",
         "err_quad_ncpl_dyn", "err_step", "err_beam_stat_on", "err_beam_dyn_on", "err_quad_stat_on",
@@ -74,6 +75,8 @@ public:
             if (skip && w[0] != "start") continue;
             skip = false;
             if (w[0] == "end") {
+                lat_.err.nElements = static_cast<int>(lat_.elements.size());
+                if (lat_.err.beamVals.empty()) lat_.err.flags[0] = lat_.err.flags[1] = 0;
                 finish();
                 ended = true;
                 break;
@@ -153,10 +156,69 @@ private:
                 v = v < 0.0 ? 0.0 : 1.0;
             }
             lat_.spaceChargeComp.push_back({current_end(), 1.0, v});
-        } else if (is_unimplemented(k)) {
-            throw EngineError("Lattice keyword \"" + k + "\" is not implemented in the new engine yet");
+        } else if (is_error_keyword(k)) {
+            parse_error_line(w);
         } else if (!is_ignored(k) && !compat_dll()) {
             say("lattice.txt: unknown keyword \"" + k + "\" ignored");
+        }
+    }
+
+    // err_* keywords (spec 70 2.3); E = number of elements built so far
+    void parse_error_line(const std::vector<std::string>& w) {
+        ErrorParameter& er = lat_.err;
+        const std::string& k = w[0];
+        const double E = static_cast<double>(lat_.elements.size());
+        // AVAS.dll: up to 30 entries -> padded to 30, otherwise to 60 (spec 70 3.3)
+        auto pad_switches = [&] {
+            const size_t n = er.beamSwitches.size();
+            if (n < 31) er.beamSwitches.resize(30, 0);
+            else if (n < 60) er.beamSwitches.resize(60, 0);
+        };
+        if (k == "err_step") {
+            er.a = parse_int(w.at(1));
+            er.b = parse_int(w.at(2));
+        } else if (k == "err_beam_stat" || k == "err_beam_dyn") {
+            er.beamVals.push_back(k == "err_beam_dyn" ? 1.0 : 0.0);
+            auto& line = er.beamLine[k == "err_beam_dyn" ? 1 : 0];
+            line.clear();
+            for (size_t i = 1; i < w.size(); ++i) {
+                er.beamVals.push_back(parse_double(w[i]));
+                line.push_back(parse_double(w[i]));
+            }
+            pad_switches();
+        } else if (k == "err_beam_stat_on" || k == "err_beam_dyn_on") {
+            const bool dyn = k == "err_beam_dyn_on";
+            er.beamSwitches.push_back(dyn ? 1 : 0);
+            bool on = false;
+            er.beamSw[dyn ? 1 : 0].clear();
+            for (size_t i = 1; i < w.size(); ++i) {
+                const int v = parse_int(w[i]);
+                if (v != 0) on = true;
+                er.beamSwitches.push_back(v);
+                er.beamSw[dyn ? 1 : 0].push_back(v);
+            }
+            pad_switches();
+            if (on) er.flags[dyn ? 1 : 0] = 1;
+        } else if (k.find("_ncpl_") != std::string::npos) {
+            const double cls = k.rfind("err_cav", 0) == 0 ? 1.0 : 0.0;
+            const double mode = k.compare(k.size() - 4, 4, "_dyn") == 0 ? 1.0 : 0.0;
+            std::vector<double> d{cls, mode, E};
+            for (size_t i = 1; i < w.size(); ++i) d.push_back(parse_double(w[i]));
+            if (d.size() < 20) d.resize(20, 0.0);
+            er.elemDefs.push_back(d);
+        } else {  // err_quad/cav_stat/dyn_on
+            const int cls = k.rfind("err_cav", 0) == 0 ? 1 : 0;
+            const int mode = k.find("_dyn_on") != std::string::npos ? 1 : 0;
+            std::vector<int> sw{cls, mode};
+            bool on = false;
+            for (size_t i = 1; i < w.size(); ++i) {
+                const int v = parse_int(w[i]);
+                if (v != 0) on = true;
+                sw.push_back(v);
+            }
+            if (sw.size() < 20) sw.resize(20, 0);
+            er.elemSwitches.push_back(sw);
+            if (on) er.flags[mode ? 3 : 2] = 1;
         }
     }
 
@@ -495,7 +557,7 @@ private:
             w = block_line();
             if (w[0] == "err_cav_ncpl_stat" || w[0] == "err_cav_ncpl_dyn" || w[0] == "err_quad_ncpl_stat" ||
                 w[0] == "err_quad_ncpl_dyn") {
-                throw EngineError("Lattice keyword \"" + w[0] + "\" is not implemented in the new engine yet");
+                throw EngineError("Error lines inside a superpose block are not implemented in the new engine yet");
             }
             if (w[0] == "multipole") multipole_to_field(w);
             if (w.size() < 3) throw EngineError("Error! parameter not enough in element : " + w[0]);

@@ -4,10 +4,12 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <ctime>
 #include <stdexcept>
 
 #include "core/beam.h"
 #include "core/errors.h"
+#include "core/errorset.h"
 #include "core/files.h"
 #include "core/format.h"
 #include "core/lattice.h"
@@ -65,6 +67,64 @@ std::string seconds(std::chrono::steady_clock::time_point t0) {
 
 bool stop_requested() { return g_stop.load(); }
 
+// The C runtime rand() state of AVAS.dll belongs to the process (thread): error samples of a
+// later main_agent call continue the sequence.
+MsvcRand& crt_rand() {
+    static MsvcRand r;
+    return r;
+}
+
+// main_agent's error loop (spec 10 2.1.2, spec 70): a*b samples, each in output_<k>/.
+void run_error_samples(Lattice& lat, Params& p, int* state, int& stage,
+                       std::chrono::steady_clock::time_point t0) {
+    const bool compat = compat_dll();
+    std::uint64_t seed = 0;
+    if (!compat) {
+        // corrected: samples from the run's random seed (beam.txt overrides input.txt)
+        Params pb = p;
+        read_beam(pb);
+        std::int64_t sd = static_cast<std::int64_t>(pb.randomSeed);
+        if (sd == 0) sd = static_cast<std::int64_t>(std::time(nullptr));
+        say("Error sample seed: " + std::to_string(sd));
+        write_file(paths().output + "errorData.seed.txt", "randomseed " + std::to_string(sd) + "\n", false);
+        seed = static_cast<std::uint64_t>(sd);
+        p.fixedSeed = sd;  // the same seed for the errors and the initial bunch of every sample
+    }
+    const std::vector<ErrorSample> samples = generate_error_set(lat, crt_rand(), seed);
+    const std::string base = paths().output;
+    const Lattice nominal = compat ? Lattice() : lat;
+    const Params p0 = p;
+    for (size_t k = 0; k < samples.size(); ++k) {
+        const std::string dir = base + "output_" + std::to_string(k);
+        if (!file_exists(dir) && !make_dir(dir)) {
+            say("Error output folder creation failure");
+            compat_exit(1);
+        }
+        paths().output = dir + "/";
+        // AVAS.dll shares one lattice and one Initial between the samples (errors accumulate);
+        // the corrected engine starts every sample from the nominal lattice
+        Lattice fresh;
+        Params pk;
+        if (!compat) {
+            fresh = nominal;
+            pk = p0;
+        }
+        Lattice& L = compat ? lat : fresh;
+        Params& P = compat ? p : pk;
+        L.sample = &samples[k];
+        Beam beam;
+        init_particles(beam, P, L);
+        reject_unimplemented(P);
+        set_synchronous_phase(L, P, beam.uz[beam.n], false);
+        say("Initialization time: " + seconds(t0) + " s");
+        if (state && compat) *state = 2;
+        stage = 2;
+        run_tracking(L, beam, P);
+        say("Simulated total time: " + seconds(t0) + " s");
+    }
+    paths().output = base;
+}
+
 void set_paths(const std::string& input, const std::string& output, const std::string& field) {
     say("The input path has been set to " + input);
     say("The fieldMap path has been set to " + field);
@@ -106,6 +166,10 @@ int run_main_agent(int* state) {
             return 0;
         }
         init_lattice(lat, p);
+        if (lat.err.any()) {
+            run_error_samples(lat, p, state, stage, t0);
+            return 0;
+        }
         init_particles(beam, p, lat);
         reject_unimplemented(p);
         set_synchronous_phase(lat, p, beam.uz[beam.n], false);
