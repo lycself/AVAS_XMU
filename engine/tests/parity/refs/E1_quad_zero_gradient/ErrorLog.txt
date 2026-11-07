@@ -1,0 +1,1 @@
+     Initialisation stage error: The gradient of the quadrupole cannot be set to 0, Drift can be used to replace quadrupole with a field gradient of 0

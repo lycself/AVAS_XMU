@@ -1,0 +1,6 @@
+The input path has been set to C:\Users\lycself\tmp_avas_m2\dll\E1_quad_zero_gradient\inputs\
+The fieldMap path has been set to C:\Users\lycself\tmp_avas_m2\repo\examples\hwr010\InputFile\
+The output path has been set to C:\Users\lycself\tmp_avas_m2\dll\E1_quad_zero_gradient\OutputFile\
+The programme is running.
+The gradient of the quadrupole cannot be set to 0, Drift can be used to replace quadrupole with a field gradient of 0
+[parity] main_agent -> 1

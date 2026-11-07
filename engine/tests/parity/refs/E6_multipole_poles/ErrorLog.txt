@@ -1,0 +1,1 @@
+     Initialisation stage error: Abnormal setting of the number of magnetic poles

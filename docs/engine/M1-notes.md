@@ -123,3 +123,5 @@ AVAS.dll 用 `/fp:fast` 编译（`x/c` 被换成 `x*3.3356409519815204e-09` 等�
 - 未覆盖的路径：静电场图（类型 2）、二进制场图、一维场图、`singleparticlemode 1`、停滞判丢（LongitudinalBeamLoss.txt）都已实现但没有比对算例。
 - 规格 40 §3.4 的 SimulationTime.txt 只按格式写出（计时值本来就每次不同），PIC 计时恒为 0。
 - 原内核 `particlenumber 1` 的 DataSet 统计列不可复现（3.4），兼容模式也不追求一致。
+
+后续里程碑 M2（z-code 硬边元件、steerer、superpose、multipole、RFQ 结论）的实现记录与累积兼容开关清单见 [M2-notes.md](M2-notes.md)。

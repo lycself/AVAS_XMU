@@ -1,0 +1,1 @@
+     Initialisation stage error: Only one RF cavity is allowed to be used in a set of superimposed fields

@@ -94,6 +94,12 @@ def single_particle_cases():
     return {c["name"] for c in doc["cases"] if str(c.get("beam", {}).get("particlenumber", "")) == "1"}
 
 
+def expected_diff_cases():
+    """Cases where AVAS.dll has undefined behaviour or crashes: reported, not counted."""
+    doc = json.load(open(os.path.join(HERE, "cases.json"), encoding="utf-8"))
+    return {c["name"]: c["compat_expected_diff"] for c in doc["cases"] if c.get("compat_expected_diff")}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("work")
@@ -103,10 +109,14 @@ def main():
     a = ap.parse_args()
     only = set(a.only.split(",")) if a.only else None
     single = single_particle_cases()
+    expected = expected_diff_cases()
     all_ok = True
     rows = []
     for case in sorted(os.listdir(a.refs)):
         if only and case not in only:
+            continue
+        if case in expected:
+            rows.append((case, "-", "EXPECTED", "", expected[case]))
             continue
         rdir, ndir = os.path.join(a.refs, case), os.path.join(a.work, case, "summary")
         if not os.path.isdir(ndir):
@@ -141,7 +151,7 @@ def main():
             rows.append((case, f, status, "" if ok else f"{nd} lines, max rel {mrel:.3g}, max abs {mabs:.3g}", note))
     w = max(len(r[0]) for r in rows) if rows else 10
     for r in rows:
-        if a.quiet and r[2] == "identical":
+        if a.quiet and r[2] in ("identical",):
             continue
         print(f"{r[0]:<{w}}  {r[1]:<28} {r[2]:<9} {r[3]} {r[4]}")
     print("ALL IDENTICAL" if all_ok else "DIFFERENCES FOUND")

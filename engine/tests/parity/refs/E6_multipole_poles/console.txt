@@ -1,0 +1,5 @@
+The input path has been set to C:\Users\lycself\tmp_avas_m2\dll\E6_multipole_poles\inputs\
+The fieldMap path has been set to C:\Users\lycself\tmp_avas_m2\dll\E6_multipole_poles\inputs\
+The output path has been set to C:\Users\lycself\tmp_avas_m2\dll\E6_multipole_poles\OutputFile\
+The programme is running.
+[parity] main_agent -> 1

@@ -1,5 +1,6 @@
 #include "core/synchronous.h"
 
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -97,6 +98,11 @@ public:
         : lat_(lat), p_(p), gbzIn_(gbzIn), single_(single), compat_(compat_dll()) {}
 
     void run() {
+        if (!compat_) {
+            // bends whose path (arc) differs from their lattice length L, e.g. written with L = 0
+            for (const Element& e : lat_.elements)
+                if (e.kind == ElemKind::Bend && e.arc != e.length) bendExtra_.push_back({e.zStart, e.arc - e.length});
+        }
         if (p_.needSynPhase == 1) {
             say("Start scan phase....");
             scan_stage();
@@ -115,6 +121,22 @@ private:
     double gbzIn_;
     bool single_;
     bool compat_;
+    std::vector<std::pair<double, double>> bendExtra_;  // {zStart, arc - L}
+    size_t nextBend_ = 0;
+
+    // The hard-edge transfer moves the beam along the arc of a bend but along L in z.  When the
+    // two differ, the reference particle (which drifts through the bend here) gets the missing
+    // time (arc - L)/v, so that the RF phases downstream agree with the tracking.  AVAS.dll does
+    // not do this (and its tracking even uses half the arc when L < 0.85 arc).
+    void bend_time(SynParticle& s, double& t) {
+        while (nextBend_ < bendExtra_.size() && bendExtra_[nextBend_].first <= s.z()) {
+            const double uz = s.uz();
+            const double v = k::c * uz / std::sqrt(uz * uz + 1.0);
+            t += bendExtra_[nextBend_].second / v;
+            ++nextBend_;
+        }
+    }
+
     int nElem() const { return static_cast<int>(lat_.elements.size()); }
     double L() const { return lat_.total_length(); }
     double zStartOf(int i) const { return lat_.elemZStart[i]; }
@@ -148,7 +170,15 @@ private:
             for (int k = 0; k < 3; ++k) s.E[k] = s.B[k] = 0.0;
             return;
         }
+        if (e.kind != ElemKind::Field) {  // hard-edge elements and steerers: no field here
+            for (int k = 0; k < 3; ++k) s.E[k] = s.B[k] = 0.0;
+            return;
+        }
         const int type = e.fieldType;
+        if (type == 4) {
+            superpose_field(s, t, e);
+            return;
+        }
         if (type != 1 && type != 2 && type != 3) return;  // type 0 and others: nothing written
         if (e.radius <= r) {
             say(kNoExit);
@@ -186,6 +216,92 @@ private:
         }
     }
 
+    // Field::GetField(t, SynParticle&) type 4 (spec 30 2.5): sub-fields summed in the lab frame.
+    void superpose_field(SynParticle& s, double t, const Element& e) {
+        for (int k = 0; k < 3; ++k) s.E[k] = s.B[k] = 0.0;
+        const double x = s.coord[0], y = s.coord[2], z = s.coord[4];
+        for (size_t j = 0; j < e.subZStart.size(); ++j) {
+            const auto& P = e.subPlace[j];
+            const double dz = z - e.subZStart[j];
+            const double X0 = x - P[1], Y0 = y - P[2];
+            double s3, c3, s4, c4, s5, c5;
+            dll_sincos(P[3], s3, c3);
+            const double u = c3 * X0 + s3 * Y0;
+            const double v = Y0 * c3 - X0 * s3;
+            dll_sincos(P[5], s5, c5);
+            const double xl = c5 * u - dz * s5;
+            const double w = u * s5 + dz * c5;
+            dll_sincos(P[4], s4, c4);
+            const double zl = w * c4 - v * s4;
+            const double yl = s4 * w + v * c4;
+            if (0.0 < zl && zl < e.subLength[j] && e.inSuperposeOut == 0 &&
+                e.subRadius[j] <= std::sqrt(xl * xl + yl * yl)) {
+                say(kNoExit);
+                if (compat_) compat_exit(1);
+                throw EngineError(kNoExit);
+            }
+            const int st = e.subType[j];
+            if (st != 1 && st != 2 && st != 3) continue;
+            const MapView<double> m = lat_.fm.maps.at(e.subMap[j]).view();
+            if (!(m.xmin < xl && xl < m.xmax && m.ymin < yl && yl < m.ymax && 0.0 < zl && zl < m.zlen)) continue;
+            double S[3] = {0, 0, 0}, SB[3] = {0, 0, 0};
+            if (st == 1) {
+                trilinear(m, xl, yl, zl, [&](double wt, const double* f) {
+                    for (int q = 0; q < 3; ++q) S[q] = wt * f[q] * e.subKb[j] + S[q];
+                });
+            } else if (st == 3) {
+                trilinear(m, xl, yl, zl, [&](double wt, const double* f) {
+                    for (int q = 0; q < 3; ++q) S[q] = wt * f[q] * e.subKe[j] * 1000000.0 + S[q];
+                });
+            } else {
+                const double ke6 = e.subKe[j] * 1000000.0;
+                trilinear(m, xl, yl, zl, [&](double wt, const double* f) {
+                    S[0] = wt * f[0] * ke6 + S[0];
+                    S[1] = f[1] * wt * ke6 + S[1];
+                    S[2] = f[2] * wt * ke6 + S[2];
+                    SB[0] = f[3] * wt * e.subKb[j] + SB[0];
+                    SB[1] = f[4] * wt * e.subKb[j] + SB[1];
+                    SB[2] = f[5] * wt * e.subKb[j] + SB[2];
+                });
+            }
+            dll_sincos(P[4], s4, c4);
+            dll_sincos(P[5], s5, c5);
+            dll_sincos(P[3], s3, c3);
+            if (st == 1 || st == 3) {
+                double* D = st == 1 ? s.B : s.E;
+                double* O = st == 1 ? s.E : s.B;
+                const double a = S[1] * c4 - s4 * S[2];
+                const double bb = S[1] * s4 + c4 * S[2];
+                const double cz = bb * c5;
+                const double d = S[0] * c5 + s5 * bb;
+                D[0] = (c3 * d - a * s3) + D[0];
+                D[1] = (s3 * d + a * c3) + D[1];
+                D[2] = (cz - s5 * S[0]) + D[2];
+                for (int q = 0; q < 3; ++q) O[q] = O[q] + 0.0;
+            } else {
+                const int c = e.cavIndex;
+                const double phase = s.cavPhase.at(c) * k::deg_to_rad + (t - s.cavTime.at(c)) * e.frequency * k::two_pi;
+                const double cE = dll_cos(phase);
+                const double cB = dll_cos(phase - k::half_pi);
+                const double a = cE * S[1] * c4 - cE * S[2] * s4;
+                const double bb = s4 * cE * S[1] + cE * S[2] * c4;
+                const double cz = bb * c5;
+                const double d = S[0] * cE * c5 + s5 * bb;
+                s.E[0] = (c3 * d - a * s3) + s.E[0];
+                s.E[1] = (d * s3 + a * c3) + s.E[1];
+                s.E[2] = (cz - s5 * S[0] * cE) + s.E[2];
+                const double a2 = cB * SB[1] * c4 - cB * SB[2] * s4;
+                const double b2 = cB * SB[1] * s4 + cB * SB[2] * c4;
+                const double cz2 = b2 * c5;
+                const double d2 = SB[0] * cB * c5 + s5 * b2;
+                s.B[0] = (c3 * d2 - a2 * s3) + s.B[0];
+                s.B[1] = (s3 * d2 + a2 * c3) + s.B[1];
+                s.B[2] = (cz2 - s5 * SB[0] * cB) + s.B[2];
+                s.ezAmp = S[2];
+            }
+        }
+    }
+
     void push(SynParticle& s, double dt) { sync_push(s.coord, s.E, s.B, s.qOverM, dt, s.fullPush); }
 
     // Linear interpolation of z, uz (and t) back to a plane crossed in the last step.
@@ -220,7 +336,9 @@ private:
         double prev[6] = {s.z(), s.uz(), 0, 0, 0, 0};
         int cnt = 0;
         if (0.0 < nMax / p_.scanTStep) {
+            nextBend_ = 0;
             while (true) {
+                bend_time(s, t);
                 const double z = s.z();
                 if (0.0 <= z && z <= lat_.sp_exit() && z < L()) {
                     int i = s.elemIndex;
@@ -276,8 +394,59 @@ private:
         prev[0] = s.z(); prev[1] = s.uz();
         prev[2] = s.coord[0]; prev[3] = s.coord[1]; prev[4] = s.coord[2]; prev[5] = s.coord[3];
         push(s, dt);
-        // superposeout exits are not part of M1 (spOutCount is always 0 here)
+        const int j = lat_.spOutCur;
+        if (j < lat_.spOutCount && lat_.elements[s.elemIndex].inSuperposeOut != 0) {
+            s.fullPush = true;
+            const auto& row = lat_.spOut[j];
+            const double zs = lat_.elements[s.elemIndex].zStart;
+            const double cur[6] = {s.coord[0], s.coord[1], s.coord[2], s.coord[3], s.coord[4], s.coord[5]};
+            const double old[6] = {prev[2], prev[3], prev[4], prev[5], prev[0], prev[1]};
+            double lc[6], lp[6];
+            sp_local(row, zs, cur, lc);
+            sp_local(row, zs, old, lp);
+            if (lc[4] > 0.0) {  // crossed the exit plane of the block
+                const double r = lp[4] / (lp[4] - lc[4]);
+                for (int q : {0, 1, 2, 3, 5}) s.coord[q] = (lc[q] - lp[q]) * r + lp[q];
+                if (!compat_) {  // interpolate |p| separately (the field turns the momentum)
+                    const double pa = std::sqrt(lp[1] * lp[1] + lp[3] * lp[3] + lp[5] * lp[5]);
+                    const double pb = std::sqrt(lc[1] * lc[1] + lc[3] * lc[3] + lc[5] * lc[5]);
+                    const double pr = std::sqrt(s.coord[1] * s.coord[1] + s.coord[3] * s.coord[3] + s.coord[5] * s.coord[5]);
+                    if (pr > 0.0) {
+                        const double f = ((pb - pa) * r + pa) / pr;
+                        s.coord[1] *= f;
+                        s.coord[3] *= f;
+                        s.coord[5] *= f;
+                    }
+                }
+                s.coord[4] = row[6];
+                t = (r * dt + t) - dt;
+                if (row[6] == L()) {
+                    throw EngineError("A superposeout block that ends the lattice is not implemented in the new engine yet");
+                }
+                lat_.spOutCur = j + 1;
+                s.fullPush = false;
+            }
+        }
         t += dt;
+    }
+
+    // Coordinates {x, ux, y, uy, z, uz} in the frame of a superposeout exit (spec 20 2.6.6).
+    static void sp_local(const std::array<double, 7>& row, double zStart, const double* c, double* o) {
+        // SetSynPhase calls the CRT sin and cos here (not the static sincos)
+        const double s3 = dll_sin(row[3]), c3 = dll_cos(row[3]);
+        const double s5 = dll_sin(row[5]), c5 = dll_cos(row[5]);
+        const double s4 = dll_sin(row[4]), c4 = dll_cos(row[4]);
+        auto turn = [&](double X, double Y, double Z, double& xo, double& yo, double& zo) {
+            const double X1 = c3 * X + s3 * Y;
+            const double Y1 = c3 * Y - s3 * X;
+            const double X2 = c5 * X1 - s5 * Z;
+            const double Z2 = s5 * X1 + c5 * Z;
+            zo = c4 * Z2 - s4 * Y1;
+            yo = c4 * Y1 + s4 * Z2;
+            xo = X2;
+        };
+        turn(c[0] - row[1], c[2] - row[2], (c[4] - row[0]) - zStart, o[0], o[2], o[4]);
+        turn(c[1], c[3], c[5], o[1], o[3], o[5]);
     }
 
     // Track the particle through one cavity (or other field element) until it leaves at zEnd.
@@ -511,7 +680,9 @@ private:
         s.cavPhase = lat_.fm.cavPhase;
         s.cavTime.clear();
         bool done = false;
+        nextBend_ = 0;
         while (!done) {
+            bend_time(s, t);
             const double z = s.z();
             if (0.0 <= z && z <= lat_.sp_exit() && z < L()) {
                 int i = s.elemIndex;

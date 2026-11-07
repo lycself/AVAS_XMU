@@ -1,0 +1,14 @@
+bytes 79
+header 125 100 125
+N 1
+Ib 0.0
+f 162.5
+mc2 938.272088159928
+sha256 44cb90aec9ee36b417c551ea3f39c34889061d06ff97a72d01683b2639de3582
+x mean 0.0 rms 0.0 min 0.0 max 0.0
+xp mean 0.0 rms 0.0 min 0.0 max 0.0
+y mean 0.0 rms 0.0 min 0.0 max 0.0
+yp mean 0.0 rms 0.0 min 0.0 max 0.0
+phi mean 0.0 rms 0.0 min 0.0 max 0.0
+W mean 1.527028903644668 rms 0.0 min 1.527028903644668 max 1.527028903644668
+p0 0.0 0.0 0.0 0.0 0.0 1.527028903644668

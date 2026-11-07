@@ -1,0 +1,1 @@
+     simulation stage error: Do not allow the first element to be a hard-edged model element; very short drift can be added at the beginning

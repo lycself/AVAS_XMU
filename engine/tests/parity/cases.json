@@ -1,120 +1,938 @@
 {
-  "_doc": "M1 parity cases. Every case starts from examples/hwr010/InputFile (beam.txt, input.txt), applies the key edits, writes lattice.txt verbatim and runs the engine with field maps read from examples/hwr010/InputFile. 'common_input' is applied to every case.",
-  "common_input": {"spacecharge": 0},
-  "reference_omp_threads": 12,
-  "cases": [
-    {"name": "G0_generate", "reference_only": true,
-     "beam": {"randomseed": 12345},
-     "lattice": ["start", "drift 0.05 0.02 0", "end"],
-     "export": {"inData.dst": "data/hwr010_seed12345.dst"}},
-
-    {"name": "S1_single_onaxis",
-     "beam": {"particlenumber": 1},
-     "lattice": ["start", "drift 0.05 0.02 0",
-                 "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
-                 "drift 0.05 0.02 0", "end"]},
-
-    {"name": "S2a_single_offaxis_hwr_sol",
-     "beam": {"particlenumber": 1, "displacepos": "1 0 0", "displacedpos": "300 200 0"},
-     "lattice": ["start", "drift 0.05 0.02 0",
-                 "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 hwr010",
-                 "drift 0.05 0.02 0",
-                 "field 0.35 0.02 0 3 0 0 1 1 sol",
-                 "drift 0.05 0.02 0", "end"]},
-
-    {"name": "S2b_single_offaxis_neg",
-     "beam": {"particlenumber": 1, "displacepos": "-1 0.5 0", "displacedpos": "-200 100 0"},
-     "lattice": ["start", "drift 0.05 0.02 0",
-                 "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 hwr010",
-                 "drift 0.05 0.02 0",
-                 "field 0.35 0.02 0 3 0 0 1 1 sol",
-                 "drift 0.05 0.02 0", "end"]},
-
-    {"name": "S3a_two_cav_v0_v0",
-     "beam": {"particlenumber": 1},
-     "lattice": ["start",
-                 "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
-                 "drift 0.05 0.02 0",
-                 "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield", "end"]},
-
-    {"name": "S3b_two_cav_v2_v0",
-     "beam": {"particlenumber": 1},
-     "lattice": ["start",
-                 "field 0.21 0.02 2 1 162.5e6 0 1.36 -1.36 efield",
-                 "drift 0.05 0.02 0",
-                 "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield", "end"]},
-
-    {"name": "S3c_two_cav_v1_v0",
-     "beam": {"particlenumber": 1},
-     "lattice": ["start",
-                 "field 0.21 0.02 1 1 162.5e6 {PHI_S3A_CAV1} 1.36 -1.36 efield",
-                 "drift 0.05 0.02 0",
-                 "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield", "end"]},
-
-    {"name": "S4a_dst_S1",
-     "beam": {"readparticledistribution": "hwr010_seed12345.dst"},
-     "copy": {"hwr010_seed12345.dst": "data/hwr010_seed12345.dst"},
-     "lattice": ["start", "drift 0.05 0.02 0",
-                 "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
-                 "drift 0.05 0.02 0", "end"]},
-
-    {"name": "S4b_dst_S3a",
-     "beam": {"readparticledistribution": "hwr010_seed12345.dst"},
-     "copy": {"hwr010_seed12345.dst": "data/hwr010_seed12345.dst"},
-     "lattice": ["start",
-                 "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
-                 "drift 0.05 0.02 0",
-                 "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield", "end"]},
-
-    {"name": "S4c_dst_S3b",
-     "beam": {"readparticledistribution": "hwr010_seed12345.dst"},
-     "copy": {"hwr010_seed12345.dst": "data/hwr010_seed12345.dst"},
-     "lattice": ["start",
-                 "field 0.21 0.02 2 1 162.5e6 0 1.36 -1.36 efield",
-                 "drift 0.05 0.02 0",
-                 "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield", "end"]},
-
-    {"name": "S4d_dst_outputplane",
-     "beam": {"readparticledistribution": "hwr010_seed12345.dst"},
-     "copy": {"hwr010_seed12345.dst": "data/hwr010_seed12345.dst"},
-     "lattice": ["start", "drift 0.05 0.02 0",
-                 "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 hwr010",
-                 "outputplane -0.1",
-                 "drift 0.08 0.02 0", "end"]},
-
-    {"name": "S5a_unknown_element",
-     "beam": {"particlenumber": 1},
-     "lattice": ["start", "drift 0.05 0.02 0", "foo 0.1 0.02 0",
-                 "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
-                 "drift 0.05 0.02 0", "end"]},
-
-    {"name": "S5b_drift_too_few",
-     "beam": {"particlenumber": 1},
-     "lattice": ["start", "drift 0.05 0.02",
-                 "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
-                 "drift 0.05 0.02 0", "end"]},
-
-    {"name": "S5c_field_too_few",
-     "beam": {"particlenumber": 1},
-     "lattice": ["start", "drift 0.05 0.02 0",
-                 "field 0.21 0.02 0 1 162.5e6",
-                 "drift 0.05 0.02 0", "end"]},
-
-    {"name": "S5d_missing_fieldmap",
-     "beam": {"particlenumber": 1},
-     "lattice": ["start", "drift 0.05 0.02 0",
-                 "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 nosuchmap",
-                 "drift 0.05 0.02 0", "end"]},
-
-    {"name": "S5e_scan_phase_no_solution",
-     "beam": {"particlenumber": 1, "kneticenergy": 0.3},
-     "lattice": ["start", "drift 0.05 0.02 0",
-                 "field 0.21 0.02 0 1 162.5e6 -30 1.36 -1.36 hwr010",
-                 "drift 0.05 0.02 0", "end"]},
-
-    {"name": "S5f_quad_not_implemented", "new_engine_only": true,
-     "beam": {"particlenumber": 1},
-     "lattice": ["start", "drift 0.05 0.02 0", "quad 0.1 0.02 0 10",
-                 "drift 0.05 0.02 0", "end"]}
-  ]
+ "_doc": "M1 / M2 parity cases. Every case starts from examples/hwr010/InputFile (beam.txt, input.txt), applies the key edits, writes lattice.txt verbatim and runs the engine with field maps read from examples/hwr010/InputFile. 'common_input' is applied to every case.",
+ "common_input": {
+  "spacecharge": 0
+ },
+ "reference_omp_threads": 12,
+ "cases": [
+  {
+   "name": "G0_generate",
+   "reference_only": true,
+   "beam": {
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "export": {
+    "inData.dst": "data/hwr010_seed12345.dst"
+   }
+  },
+  {
+   "name": "S1_single_onaxis",
+   "beam": {
+    "particlenumber": 1
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "S2a_single_offaxis_hwr_sol",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 0 0",
+    "displacedpos": "300 200 0"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 hwr010",
+    "drift 0.05 0.02 0",
+    "field 0.35 0.02 0 3 0 0 1 1 sol",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "S2b_single_offaxis_neg",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "-1 0.5 0",
+    "displacedpos": "-200 100 0"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 hwr010",
+    "drift 0.05 0.02 0",
+    "field 0.35 0.02 0 3 0 0 1 1 sol",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "S3a_two_cav_v0_v0",
+   "beam": {
+    "particlenumber": 1
+   },
+   "lattice": [
+    "start",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "end"
+   ]
+  },
+  {
+   "name": "S3b_two_cav_v2_v0",
+   "beam": {
+    "particlenumber": 1
+   },
+   "lattice": [
+    "start",
+    "field 0.21 0.02 2 1 162.5e6 0 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "end"
+   ]
+  },
+  {
+   "name": "S3c_two_cav_v1_v0",
+   "beam": {
+    "particlenumber": 1
+   },
+   "lattice": [
+    "start",
+    "field 0.21 0.02 1 1 162.5e6 {PHI_S3A_CAV1} 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "end"
+   ]
+  },
+  {
+   "name": "S4a_dst_S1",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "S4b_dst_S3a",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "end"
+   ]
+  },
+  {
+   "name": "S4c_dst_S3b",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "field 0.21 0.02 2 1 162.5e6 0 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "end"
+   ]
+  },
+  {
+   "name": "S4d_dst_outputplane",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 hwr010",
+    "outputplane -0.1",
+    "drift 0.08 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "S5a_unknown_element",
+   "beam": {
+    "particlenumber": 1
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "foo 0.1 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "S5b_drift_too_few",
+   "beam": {
+    "particlenumber": 1
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "S5c_field_too_few",
+   "beam": {
+    "particlenumber": 1
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "S5d_missing_fieldmap",
+   "beam": {
+    "particlenumber": 1
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 nosuchmap",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "S5e_scan_phase_no_solution",
+   "beam": {
+    "particlenumber": 1,
+    "kneticenergy": 0.3
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -30 1.36 -1.36 hwr010",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "S5f_err_not_implemented",
+   "new_engine_only": true,
+   "beam": {
+    "particlenumber": 1
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "Z1_quad_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "100 50 0"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 10",
+    "drift 0.1 0.02 0",
+    "quad 0.1 0.02 0 -10",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "conserves_energy": true
+  },
+  {
+   "name": "Z1_quad_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 10",
+    "drift 0.1 0.02 0",
+    "quad 0.1 0.02 0 -10",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "conserves_energy": true
+  },
+  {
+   "name": "Z2_solenoid_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "100 50 0"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "solenoid 0.2 0.02 0 0.5",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "conserves_energy": true
+  },
+  {
+   "name": "Z2_solenoid_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "solenoid 0.2 0.02 0 0.5",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "conserves_energy": true
+  },
+  {
+   "name": "Z3_bendH_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "100 50 0"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "edge 0 0.02 0 10 1.0 0.05 0.45 2.8 0",
+    "bend 0 0.02 0 20 1.0 0.3 0",
+    "edge 0 0.02 0 10 1.0 0.05 0.45 2.8 0",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "conserves_energy": true
+  },
+  {
+   "name": "Z3_bendH_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "edge 0 0.02 0 10 1.0 0.05 0.45 2.8 0",
+    "bend 0 0.02 0 20 1.0 0.3 0",
+    "edge 0 0.02 0 10 1.0 0.05 0.45 2.8 0",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "conserves_energy": true
+  },
+  {
+   "name": "Z4_bendV_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "100 50 0"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "edge 0 0.02 0 10 1.0 0.05 0.45 2.8 1",
+    "bend 0.3490658503988659 0.02 0 20 1.0 0.3 1",
+    "edge 0 0.02 0 10 1.0 0.05 0.45 2.8 1",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "conserves_energy": true
+  },
+  {
+   "name": "Z4_bendV_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "edge 0 0.02 0 10 1.0 0.05 0.45 2.8 1",
+    "bend 0.3490658503988659 0.02 0 20 1.0 0.3 1",
+    "edge 0 0.02 0 10 1.0 0.05 0.45 2.8 1",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "conserves_energy": true
+  },
+  {
+   "name": "Z5_mixed_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "100 50 0"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 8",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "quad 0.1 0.02 0 -8",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "Z5_mixed_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 8",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "quad 0.1 0.02 0 -8",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "SP1_static_static_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "100 50 0"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "superpose 0 0 0 0 0 0",
+    "field 0.35 0.02 0 3 0 0 1 1 sol",
+    "superpose 0.05 0 0 0 0 0",
+    "field 0.35 0.02 0 3 0 0 1 -0.5 bfield",
+    "superposeend",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "conserves_energy": true
+  },
+  {
+   "name": "SP1_static_static_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "superpose 0 0 0 0 0 0",
+    "field 0.35 0.02 0 3 0 0 1 1 sol",
+    "superpose 0.05 0 0 0 0 0",
+    "field 0.35 0.02 0 3 0 0 1 -0.5 bfield",
+    "superposeend",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "conserves_energy": true
+  },
+  {
+   "name": "SP2_rf_static_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "100 50 0"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "superpose 0 0 0 0 0 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "superpose 0 0 0 0 0 0",
+    "field 0.35 0.02 0 3 0 0 1 0.3 sol",
+    "superposeend",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "compat_expected_diff": "phi_s is NaN in AVAS.dll: candidate index -1 read out of range (undefined behaviour; the dst variant stops with \"Scan phase error\")"
+  },
+  {
+   "name": "SP2_rf_static_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "superpose 0 0 0 0 0 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "superpose 0 0 0 0 0 0",
+    "field 0.35 0.02 0 3 0 0 1 0.3 sol",
+    "superposeend",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "SP3_rf_drift_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "100 50 0"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "superpose 0 0 0 0 0 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "superpose 0 0 0 0 0 0",
+    "drift 0.21 0.02 0",
+    "superposeend",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "SP3_rf_drift_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "superpose 0 0 0 0 0 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "superpose 0 0 0 0 0 0",
+    "drift 0.21 0.02 0",
+    "superposeend",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "compat_expected_diff": "phi_s is NaN in AVAS.dll: candidate index -1 read out of range (undefined behaviour; the single-particle variant stops with \"Scan phase error\")"
+  },
+  {
+   "name": "ST1_By_quad_single",
+   "beam": {
+    "particlenumber": 1
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "steerer 0 0.02 0 0 0.002 0 0.01",
+    "quad 0.1 0.02 0 5",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "conserves_energy": true
+  },
+  {
+   "name": "ST2_Bx_quad_single",
+   "beam": {
+    "particlenumber": 1
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "steerer 0 0.02 0 0.002 0 0 0.01",
+    "quad 0.1 0.02 0 5",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "conserves_energy": true
+  },
+  {
+   "name": "ST3_Ex_quad_single",
+   "beam": {
+    "particlenumber": 1
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "steerer 0 0.02 0 100000 0 1 1000000",
+    "quad 0.1 0.02 0 5",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "conserves_energy": true
+  },
+  {
+   "name": "ST4_By_field_single",
+   "beam": {
+    "particlenumber": 1
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "steerer 0 0.02 0 0 0.002 0 0.01",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "ST5_Bx_field_single",
+   "beam": {
+    "particlenumber": 1
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "steerer 0 0.02 0 0.002 0 0 0.01",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "ST6_Ex_field_single",
+   "beam": {
+    "particlenumber": 1
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "steerer 0 0.02 0 100000 0 1 1000000",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "ST1_By_quad_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "steerer 0 0.02 0 0 0.002 0 0.01",
+    "quad 0.1 0.02 0 5",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "conserves_energy": true
+  },
+  {
+   "name": "ST4_By_field_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "steerer 0 0.02 0 0 0.002 0 0.01",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "SP4_out_shift_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "100 50 0"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "superpose 0 0 0 0 0 0",
+    "field 0.35 0.02 0 3 0 0 1 1 sol",
+    "superposeout 0.35 0.001 0 0 0 0",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "conserves_energy": true
+  },
+  {
+   "name": "SP5_out_angle_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "100 50 0"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "superpose 0 0 0 0 0 0",
+    "field 0.35 0.02 0 3 0 0 1 1 sol",
+    "superposeout 0.35 0 0 0 1 0",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "conserves_energy": true
+  },
+  {
+   "name": "SP6_no_end_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "100 50 0"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "superpose 0 0 0 0 0 0",
+    "field 0.35 0.02 0 3 0 0 1 1 sol",
+    "drift 0.1 0.02 0",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "conserves_energy": true
+  },
+  {
+   "name": "SP7_rounding_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "100 50 0"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "superpose 0 0 0 0 0 0",
+    "drift 0.4234567 0.02 0",
+    "superpose 0 0 0 0 0 0",
+    "field 0.35 0.02 0 3 0 0 1 1 sol",
+    "superposeend",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "conserves_energy": true
+  },
+  {
+   "name": "SP4_out_shift_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "superpose 0 0 0 0 0 0",
+    "field 0.35 0.02 0 3 0 0 1 1 sol",
+    "superposeout 0.35 0.001 0 0 0 0",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "conserves_energy": true
+  },
+  {
+   "name": "MP_sextupole_G1",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 0 0"
+   },
+   "field_dir": "inputs",
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "multipole 0.1 0.03 0 3 20 0.1 0 0 m3",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "conserves_energy": true
+  },
+  {
+   "name": "MP_sextupole_G2",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 0 0"
+   },
+   "field_dir": "inputs",
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "multipole 0.1 0.03 0 3 20 0.2 0 0 m3",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "conserves_energy": true
+  },
+  {
+   "name": "RFQ1_minimal",
+   "beam": {
+    "particlenumber": 1,
+    "kneticenergy": 0.035
+   },
+   "timeout": 60,
+   "files": {
+    "rfqinputAnn.txt": [
+     "1 0 0 0 0 1.0 0.5 0.1 0.05 0.02 0.01 0.004 0.002",
+     "2 0 0 0 0 1.0 0.5 0.1 0.05 0.02 0.01 0.004 0.002",
+     "3 0 0 0 0 1.0 0.5 0.1 0.05 0.02 0.01 0.004 0.002",
+     "4 0 0 0 0 1.0 0.5 0.1 0.05 0.02 0.01 0.004 0.002",
+     "5 0 0 0 0 1.0 0.5 0.1 0.05 0.02 0.01 0.004 0.002",
+     "6 0 0 0 0 1.0 0.5 0.1 0.05 0.02 0.01 0.004 0.002"
+    ],
+    "rfqinputV.txt": [
+     "1 2.1 0 0 0.037000000000000005 0 0.003 0.004 0.9 0 0 0 0.51 1.2",
+     "2 2.2 0 0 0.03900000000000001 0 0.003 0.004 0.9 0 0 0 0.52 1.2",
+     "3 2.3 0 0 0.041 0 0.003 0.004 0.9 0 0 0 0.53 1.2",
+     "4 2.4 0 0 0.043000000000000003 0 0.003 0.004 0.9 0 0 0 0.54 1.2",
+     "5 2.5 0 0 0.045000000000000005 0 0.003 0.004 0.9 0 0 0 0.55 1.2",
+     "6 2.6 0 0 0.047 0 0.003 0.004 0.9 0 0 0 0.56 1.2"
+    ]
+   },
+   "lattice": [
+    "start",
+    "drift 0.01 0.02 0",
+    "rfq 0.2 0.01 0 1 162.5e6 -90 1 0 rfqinput",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "compat_expected_diff": "AVAS.dll crashes (access violation) on the rfq element; the new engine reports \"not implemented\""
+  },
+  {
+   "name": "E1_quad_zero_gradient",
+   "beam": {
+    "particlenumber": 1
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 0",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "E2_quad_too_few",
+   "beam": {
+    "particlenumber": 1
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "E3_first_hard_edge",
+   "beam": {
+    "particlenumber": 1
+   },
+   "lattice": [
+    "start",
+    "quad 0.1 0.02 0 10",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "E4_superpose_params",
+   "beam": {
+    "particlenumber": 1
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "superpose 0 0 0",
+    "field 0.35 0.02 0 3 0 0 1 1 sol",
+    "superposeend",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "E5_two_rf_superpose",
+   "beam": {
+    "particlenumber": 1
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "superpose 0 0 0 0 0 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "superpose 0 0 0 0 0 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "superposeend",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "E6_multipole_poles",
+   "beam": {
+    "particlenumber": 1
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "multipole 0.1 0.03 0 6 20 1 0 0 0 m6",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "field_dir": "inputs"
+  },
+  {
+   "name": "E7_solenoid_too_few",
+   "beam": {
+    "particlenumber": 1
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "solenoid 0.2 0.02 0",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  }
+ ]
 }

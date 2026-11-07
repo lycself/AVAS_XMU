@@ -1,0 +1,11 @@
+The input path has been set to C:\Users\lycself\tmp_avas_m2\dll\SP1_static_static_dst\inputs\
+The fieldMap path has been set to C:\Users\lycself\tmp_avas_m2\repo\examples\hwr010\InputFile\
+The output path has been set to C:\Users\lycself\tmp_avas_m2\dll\SP1_static_static_dst\OutputFile\
+The programme is running.
+Lattice initialisation complete, total length 0.5 m
+A total of 1 output planes
+Average beam energy: 1.52694 (MeV)
+The number of macroparticle representative particles is 1344.33
+Exit bunch energy: 1.52694
+The total distance simulated is 0.5 (m)
+[parity] main_agent -> 0

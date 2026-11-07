@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <cstring>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <thread>
 #include <vector>
@@ -107,6 +108,7 @@ public:
         const auto t0 = std::chrono::steady_clock::now();
         const int n = b_.n;
         planeRec_.assign(static_cast<size_t>(n) + 1, Rec{});
+        spRec_.assign(static_cast<size_t>(n) + 1, Rec{});
         dt_ = (1.0 / b_.frequency) / p_.stepPerCycle;
         say(Text().s("The total distance simulated is ").g(lat_.total_length()).s(" (m)").str());
         say(Text().s("Simulation time step is ").g(dt_).s(" (m)").str());
@@ -119,30 +121,15 @@ public:
         dataSet_.open(out + "DataSet.txt");
         synFile_.open(out + "synParticle.txt");
 
-        // M1: every element is a time-step element; one segment with the output-plane events.
-        std::vector<double> events;
-        std::vector<int> marks;
-        const auto& planes = p_.outputPlanes;
-        const int ne = static_cast<int>(lat_.elements.size());
-        for (int i = 0; i < ne; ++i) {
-            for (double pl : planes) {
-                if (lat_.elemZStart[i] < pl && pl <= lat_.elemZStart[i] + lat_.elemLength[i]) {
-                    if (events.empty() || pl > events.back()) {
-                        events.push_back(pl);
-                        marks.push_back(-1);
-                    }
-                }
-            }
-        }
-        const double zE = lat_.elemZStart[ne - 1] + lat_.elemLength[ne - 1];
-        if (events.empty() || zE != events.back()) {
-            events.push_back(zE);
-            marks.push_back(-2);
-        }
+        const std::vector<Segment> segs = segment_lattice();
         startClock_ = std::chrono::steady_clock::now();
         zStartRun_ = b_.z[n];
         double t = b_.tMin;
-        tcode(t, events, marks);
+        double zSeg = 0.0;
+        for (const Segment& sg : segs) {
+            if (sg.zcode) zcode(sg, t, zSeg);
+            else tcode(t, zSeg, sg.ev, sg.marks);
+        }
 
         say("Simulation completed, completion time " + time_stamp() + std::string(77, ' '));
         say("Total number of cycles 0. Solving the number of space charge effects 0");
@@ -167,6 +154,7 @@ private:
     double zStartRun_ = 0.0;
     std::chrono::steady_clock::time_point startClock_;
     std::vector<Rec> planeRec_;
+    std::vector<Rec> spRec_;  // superposeout exit crossings
     std::vector<std::array<double, 6>> oldCoord_;
     AppendFile dataSet_, synFile_;
 
@@ -206,7 +194,22 @@ private:
             b.ex[i] = b.ey[i] = b.ez[i] = b.bx[i] = b.by[i] = b.bz[i] = 0.0;
             return;
         }
+        if (e.kind != ElemKind::Field) {
+            // t-code fields of the hard-edge elements: quad and solenoid simplified, others none
+            b.ex[i] = b.ey[i] = b.ez[i] = b.bx[i] = b.by[i] = b.bz[i] = 0.0;
+            if (e.kind == ElemKind::Quad) {
+                b.bx[i] = b.y[i] * e.strength;
+                b.by[i] = e.strength * b.x[i];
+            } else if (e.kind == ElemKind::Solenoid) {
+                b.bz[i] = e.strength;
+            }
+            return;
+        }
         const int type = e.fieldType;
+        if (type == 4) {
+            superpose_field(i, t, e);
+            return;
+        }
         if (type != 1 && type != 2 && type != 3) return;
         if (aperture_lost(i, e)) {
             b.lost[i] = 1;  // fields keep their previous values (cleared on the next step)
@@ -259,6 +262,430 @@ private:
         }
     }
 
+    // Field::GetField type 4: sum of the sub-fields of a superpose block (spec 30 2.4.2).
+    void superpose_field(int i, double t, const Element& e) {
+        Beam& b = b_;
+        double E[3] = {0, 0, 0}, B[3] = {0, 0, 0};
+        auto store = [&] {
+            b.ex[i] = E[0]; b.ey[i] = E[1]; b.ez[i] = E[2];
+            b.bx[i] = B[0]; b.by[i] = B[1]; b.bz[i] = B[2];
+        };
+        const double x = b.x[i], y = b.y[i], z = b.z[i];
+        const size_t nsub = e.subZStart.size();
+        for (size_t j = 0; j < nsub; ++j) {
+            const auto& P = e.subPlace[j];
+            const double dz = z - e.subZStart[j];
+            const double X0 = x - P[1], Y0 = y - P[2];
+            double s3, c3, s4, c4, s5, c5;
+            dll_sincos(P[3], s3, c3);
+            const double u = c3 * X0 + s3 * Y0;
+            const double v = Y0 * c3 - X0 * s3;
+            dll_sincos(P[5], s5, c5);
+            const double xl = c5 * u - dz * s5;
+            const double w = u * s5 + dz * c5;
+            dll_sincos(P[4], s4, c4);
+            const double zl = w * c4 - v * s4;
+            const double yl = s4 * w + v * c4;
+            if (0.0 < zl && zl < e.subLength[j] && e.zStart + 1e-06 < b.spOutZ1[i] && b.spOutZ0[i] < z) {
+                const double r = e.rotMode == 0 ? std::sqrt(xl * xl + yl * yl)
+                                                : std::sqrt(b.rel[0][i] * b.rel[0][i] + b.rel[2][i] * b.rel[2][i]);
+                if (e.subRadius[j] <= r) {
+                    b.lost[i] = 1;
+                    store();  // the partial sum stays in the particle (as the original)
+                    return;
+                }
+            }
+            const int st = e.subType[j];
+            if (st != 1 && st != 2 && st != 3) continue;
+            const MapView<double> m = lat_.fm.maps[e.subMap[j]].view();
+            if (!(m.xmin < xl && xl < m.xmax && m.ymin < yl && yl < m.ymax && 0.0 < zl && zl < m.zlen)) continue;
+            double S[3] = {0, 0, 0}, SB[3] = {0, 0, 0};
+            if (st == 1) {
+                trilinear(m, xl, yl, zl, [&](double wt, const double* f) {
+                    for (int q = 0; q < 3; ++q) S[q] = wt * f[q] * e.subKb[j] + S[q];
+                });
+            } else if (st == 3) {
+                trilinear(m, xl, yl, zl, [&](double wt, const double* f) {
+                    for (int q = 0; q < 3; ++q) S[q] = wt * f[q] * e.subKe[j] * 1000000.0 + S[q];
+                });
+            } else {
+                const double ke6 = e.subKe[j] * 1000000.0;
+                trilinear(m, xl, yl, zl, [&](double wt, const double* f) {
+                    S[0] = wt * f[0] * ke6 + S[0];
+                    S[1] = f[1] * wt * ke6 + S[1];
+                    S[2] = f[2] * wt * ke6 + S[2];
+                    SB[0] = f[3] * wt * e.subKb[j] + SB[0];
+                    SB[1] = f[4] * wt * e.subKb[j] + SB[1];
+                    SB[2] = f[5] * wt * e.subKb[j] + SB[2];
+                });
+            }
+            dll_sincos(P[4], s4, c4);
+            dll_sincos(P[5], s5, c5);
+            dll_sincos(P[3], s3, c3);
+            if (st == 1 || st == 3) {
+                double* D = st == 1 ? B : E;
+                double* O = st == 1 ? E : B;
+                const double a = S[1] * c4 - s4 * S[2];
+                const double bb = S[1] * s4 + c4 * S[2];
+                const double cz = bb * c5;
+                const double d = S[0] * c5 + s5 * bb;
+                D[0] = (c3 * d - a * s3) + D[0];
+                D[1] = (s3 * d + a * c3) + D[1];
+                D[2] = (cz - s5 * S[0]) + D[2];
+                for (int q = 0; q < 3; ++q) O[q] = O[q] + 0.0;
+            } else {
+                const int c = e.cavIndex;
+                const double phase =
+                    (t - lat_.fm.cavTime[c]) * e.frequency * k::two_pi + lat_.fm.cavPhase[c] * k::deg_to_rad;
+                const double cE = dll_cos(phase);
+                const double cB = dll_cos(phase - k::half_pi);
+                const double a = cE * S[1] * c4 - cE * S[2] * s4;
+                const double bb = s4 * cE * S[1] + cE * S[2] * c4;
+                const double cz = bb * c5;
+                const double d = S[0] * cE * c5 + s5 * bb;
+                E[0] = (c3 * d - a * s3) + E[0];
+                E[1] = (d * s3 + a * c3) + E[1];
+                E[2] = (cz - s5 * S[0] * cE) + E[2];
+                const double a2 = cB * SB[1] * c4 - cB * SB[2] * s4;
+                const double b2 = cB * SB[1] * s4 + cB * SB[2] * c4;
+                const double cz2 = b2 * c5;
+                const double d2 = SB[0] * cB * c5 + s5 * b2;
+                B[0] = (c3 * d2 - a2 * s3) + B[0];
+                B[1] = (s3 * d2 + a2 * c3) + B[1];
+                B[2] = (cz2 - s5 * SB[0] * cB) + B[2];
+            }
+        }
+        store();
+    }
+
+    // ---- segmentation of the lattice into time-step and hard-edge segments (MethodMP::Run) ----
+    struct Segment {
+        bool zcode = false;
+        std::vector<double> ev;  // t segment: event positions
+        std::vector<int> elems;  // z segment: element indices
+        std::vector<int> marks;
+    };
+
+    // The original segments by type name: an element left with the default name "drift" after
+    // "parameter not enough" (compat=dll) is a time-step element.
+    static bool is_z(const Element& e) {
+        return e.typeName == "quad" || e.typeName == "solenoid" || e.typeName == "bend" || e.typeName == "edge";
+    }
+
+    std::vector<Segment> segment_lattice() const {
+        std::vector<Segment> segs;
+        const auto& P = p_.outputPlanes;
+        const int ne = static_cast<int>(lat_.elements.size());
+        auto zS = [&](int i) { return lat_.elemZStart[i]; };
+        auto zE = [&](int i) { return lat_.elemZStart[i] + lat_.elemLength[i]; };
+        auto isSteerer = [&](int i) { return lat_.elements[i].typeName == "steerer"; };
+        int i = 0;
+        bool flag = false;
+        while (i < ne) {
+            Segment sg;
+            if (is_z(lat_.elements[i])) {
+                sg.zcode = true;
+                while (true) {
+                    if (!is_z(lat_.elements[i])) break;
+                    sg.elems.push_back(i);
+                    if (flag) {
+                        sg.marks.push_back(i - 1);
+                        flag = false;
+                    } else {
+                        for (double pl : P) {
+                            if (pl == zE(i)) { sg.marks.push_back(-2); break; }
+                            if (zS(i) < pl && pl < zE(i)) { sg.marks.push_back(-1); break; }
+                        }
+                    }
+                    if (sg.marks.size() < sg.elems.size()) sg.marks.push_back(-3);
+                    i += 1;
+                    if (i >= ne) break;
+                    if (isSteerer(i)) {
+                        i += 1;
+                        flag = true;
+                    }
+                }
+            } else {
+                std::vector<std::pair<double, int>> ev;
+                while (true) {
+                    if (i >= ne || is_z(lat_.elements[i])) break;
+                    if (flag) {
+                        ev.push_back({zS(i) + 0.5 * lat_.elemLength[i], i - 1});
+                        flag = false;
+                    }
+                    for (double pl : P)
+                        if (zS(i) < pl && pl <= zE(i)) ev.push_back({pl, -1});
+                    for (const auto& row : lat_.spaceChargeComp)
+                        if (zS(i) <= row[0] && row[0] < zE(i)) ev.push_back({zS(i), -4});
+                    i += 1;
+                    if (i >= ne) break;
+                    if (isSteerer(i)) {
+                        i += 1;
+                        flag = true;
+                    }
+                }
+                std::stable_sort(ev.begin(), ev.end(),
+                                 [](const std::pair<double, int>& a, const std::pair<double, int>& b) {
+                                     return a.first < b.first;
+                                 });
+                for (const auto& e : ev) {
+                    sg.ev.push_back(e.first);
+                    sg.marks.push_back(e.second);
+                }
+                const int last = std::min(i, ne) - 1;
+                const double zEnd = zE(last);
+                if (sg.ev.empty() || zEnd != sg.ev.back()) {
+                    sg.ev.push_back(zEnd);
+                    sg.marks.push_back(-2);
+                }
+            }
+            segs.push_back(std::move(sg));
+        }
+        if (segs.empty() || segs.front().zcode) {
+            throw EngineError("Do not allow the first element to be a hard-edged model element; very short drift "
+                              "can be added at the beginning");
+        }
+        return segs;
+    }
+
+    // Steerer kick on z-code row r of particle i; lq0 = length of the kicked element.
+    void kick(double* r, const Element& st, double len, int i) const {
+        // AVAS.dll uses the charge-to-mass ratio of particle 0 for every particle
+        const double qm = compat_ ? b_.qOverM[0] : b_.qOverM[i];
+        const double p2 = zrow_p2(r);
+        steerer_kick(r, st.steerKind, st.steerX, st.steerY, len * qm);
+        // thin kick: the particle does not move across the field, so |p| is kept (AVAS.dll keeps uz)
+        if (!compat_) zrow_keep_momentum(r, p2);
+    }
+
+    // ---- hard-edge transfer of the z-code rows (MethodMP::HardEdgeTrans) ----
+    BendStep<double> bend_step(const Element& e, double zFrom, double zTo, bool half) const {
+        BendStep<double> s{};
+        s.s = e.arc;
+        // AVAS.dll recognises a half step by its length, so a bend written with L = 0 (or any
+        // L < 0.85 arc) only travels half of its arc; the corrected engine is told explicitly.
+        if (compat_ ? (zTo - zFrom) < e.arc * 0.85 : half) s.s = e.arc * 0.5;
+        s.h = e.h;
+        s.kx = e.kx;
+        s.kx2 = e.kx * e.kx;
+        s.ky = e.ky;
+        s.hv = e.hv == 0 ? 0 : 1;
+        dll_sincos(s.s * e.kx, s.sx, s.cx);
+        dll_sincos(s.s * e.ky, s.sy, s.cy);
+        return s;
+    }
+
+    void edge_k(const Element& e, double& k1, double& k2) const {
+        k1 = std::tan(e.poleAngle) / e.rho;
+        k2 = -(std::tan(e.poleAngle - e.psi) / e.rho);
+    }
+
+    void het(WorkerPool& pool, int idx, double zFrom, double zTo, bool half, int& mode, double& tRef) {
+        const Element& e = lat_.elements[idx];
+        const int n = b_.n;
+        auto& rec = planeRec_;
+        const double len = zTo - zFrom;
+        auto sc = [](double a, double& s, double& c) { dll_sincos(a, s, c); };
+        std::function<void(int)> one;
+        if (e.kind == ElemKind::Edge) {
+            double k1, k2;
+            edge_k(e, k1, k2);
+            const int hv = e.hv == 0 ? 0 : 1;
+            for_rows(pool, [&](int i) {
+                const double p2 = zrow_p2(rec[i].data());
+                edge_row(rec[i].data(), k1, k2, hv);
+                if (!compat_) zrow_keep_momentum(rec[i].data(), p2);
+            });
+            return;
+        }
+        if (e.kind == ElemKind::Quad) {
+            one = [&](int i) { quad_row(rec[i].data(), b_.qOverM[i], e.strength, len, sc); };
+        } else if (e.kind == ElemKind::Solenoid) {
+            one = [&](int i) { solenoid_row(rec[i].data(), b_.qOverM[i], e.strength, len, sc); };
+        } else if (e.kind == ElemKind::Bend) {
+            const BendStep<double> bs = bend_step(e, zFrom, zTo, half);
+            const double uzs = rec[n][5];
+            one = [&, bs, uzs](int i) { bend_row(rec[i].data(), uzs, bs); };
+        } else {
+            return;
+        }
+        const bool average = mode == 2;
+        mode = 0;
+        if (compat_) {
+            for_rows(pool, one);
+        } else {
+            // magnetic elements: |gamma*beta| of every particle is conserved
+            for_rows(pool, [&](int i) {
+                const double p2 = zrow_p2(rec[i].data());
+                one(i);
+                zrow_keep_momentum(rec[i].data(), p2);
+            });
+        }
+        if (average) {
+            // AVAS.dll sums with atomics in thread completion order (last bits not reproducible);
+            // the value is always replaced by the second half-step that follows.
+            double sT = 0.0, sC = 0.0;
+            for (int i = 0; i < n; ++i)
+                if (rec[i][7] == 1.0) { sT = sT + rec[i][6]; sC = sC + 1.0; }
+            tRef = sT / sC;
+        } else {
+            tRef = 1e10;
+            for (int i = 0; i < n; ++i)
+                if (rec[i][7] == 1.0 && rec[i][6] < tRef) tRef = rec[i][6];
+        }
+    }
+
+    template <class F>
+    void for_rows(WorkerPool& pool, F&& f) {
+        const int n = b_.n;
+        const int nb = std::max(1, std::min(n, 64));
+        const int chunk = (n + nb - 1) / nb;
+        pool.run(nb, [&](int kb) {
+            const int i1 = std::min(n, (kb + 1) * chunk);
+            for (int i = kb * chunk; i < i1; ++i)
+                if (planeRec_[i][7] == 1.0) f(i);
+        });
+    }
+
+    // Synchronous row through the element (whole length, or the first half when half is set).
+    void sync_het(const Element& e, double* r, bool half) const {
+        const double qm = b_.qOverM[b_.n];
+        auto sc = [](double a, double& s, double& c) { dll_sincos(a, s, c); };
+        const double len = half ? e.length * 0.5 : e.length;
+        const double p2 = zrow_p2(r);
+        sync_het_raw(e, r, half, qm, len, sc);
+        if (!compat_) zrow_keep_momentum(r, p2);
+    }
+
+    template <class SC>
+    void sync_het_raw(const Element& e, double* r, bool half, double qm, double len, SC sc) const {
+        switch (e.kind) {
+            case ElemKind::Quad: quad_sync_row(r, qm, e.strength, len, sc); break;
+            case ElemKind::Solenoid: solenoid_row(r, qm, e.strength, len, sc); break;
+            case ElemKind::Bend: {
+                BendStep<double> bs = bend_step(e, 0.0, e.arc, false);
+                if (half) {
+                    bs.s = e.arc * 0.5;
+                    dll_sincos(bs.s * e.kx, bs.sx, bs.cx);
+                    dll_sincos(bs.s * e.ky, bs.sy, bs.cy);
+                }
+                bend_sync_row(r, bs);
+                break;
+            }
+            case ElemKind::Edge: {
+                double k1, k2;
+                edge_k(e, k1, k2);
+                if (!half) edge_row(r, k1, k2, e.hv == 0 ? 0 : 1);
+                break;
+            }
+            default: break;
+        }
+    }
+
+    // zTotcode: rows at plane zPlane back to particles at time tRef; returns tRef.
+    double ztot(double zPlane, double tRef) {
+        Beam& b = b_;
+        const int n = b.n;
+        for (int i = 0; i < n; ++i) {
+            b.nextPlane[i] = 0;
+            Rec& r = planeRec_[i];
+            if (r[7] == 1.0)
+                ztot_row(r.data(), zPlane, tRef, !compat_, b.x[i], b.ux[i], b.y[i], b.uy[i], b.z[i], b.uz[i]);
+            r.fill(0.0);
+        }
+        Rec& r = planeRec_[n];
+        double x, ux, y, uy, z, uz;
+        ztot_row(r.data(), zPlane, tRef, !compat_, x, ux, y, uy, z, uz);
+        b.z[n] = z;
+        b.x[n] = b.ux[n] = b.y[n] = b.uy[n] = 0.0;
+        b.uz[n] = r[5];
+        b.nextPlane[n] = 0;
+        r.fill(0.0);
+        return tRef;
+    }
+
+    // ---- a hard-edge segment (MethodMP::zcodeRun) ----
+    void zcode(const Segment& sg, double& t, double& zSeg) {
+        const int n = b_.n;
+        if (p_.spaceCharge == 1) throw EngineError("Space charge in hard-edge elements is not implemented in the new engine yet");
+        int threads = options().threads > 0 ? options().threads : static_cast<int>(std::thread::hardware_concurrency());
+        threads = std::max(1, std::min(threads, 64));
+        WorkerPool pool(threads > 1 ? threads : 0);
+        double tRef = 0.0;
+        double zEnd = 0.0;
+        for (size_t j = 0; j < sg.elems.size(); ++j) {
+            const int idx = sg.elems[j];
+            const Element& e = lat_.elements[idx];
+            const double z0 = lat_.elemZStart[idx];
+            const double L = lat_.elemLength[idx];
+            const int mark = sg.marks[j];
+            int mode = 0;
+            const bool split = (p_.spaceCharge == 1 || mark > -1.5) && e.kind != ElemKind::Edge;
+            if (!split) {
+                het(pool, idx, z0, z0 + L, false, mode, tRef);
+            } else {
+                mode = 2;
+                const double zMid = L * 0.5 + z0;
+                het(pool, idx, z0, zMid, true, mode, tRef);
+                step_ += 1;
+                if (mark == -1) {
+                    if (compat_) {
+                        dst_out(zMid, planeRec_);
+                    } else {
+                        // the reference time of the dst file is the synchronous particle at the
+                        // middle of the element (AVAS.dll uses its entrance time)
+                        std::vector<Rec> copy = planeRec_;
+                        sync_het(e, copy[n].data(), true);
+                        dst_out(zMid, copy);
+                    }
+                } else if (mark >= 0) {
+                    for (int i = 0; i < n; ++i)
+                        if (planeRec_[i][7] == 1.0) kick(planeRec_[i].data(), lat_.elements[mark], e.length, i);
+                }
+                het(pool, idx, zMid, L + z0, true, mode, tRef);
+            }
+            sync_het(e, planeRec_[n].data(), false);
+            step_ += 1;
+            zEnd = L + z0;
+            if (mark == -2) dst_out(zEnd, planeRec_);
+        }
+        t = ztot(zEnd, tRef);
+        zSeg = zEnd;
+    }
+
+    // A linear interpolation of the momentum vector within a step shortens it when a magnetic
+    // field turns it (by about (turn angle)^2 / 8); the corrected engine interpolates the
+    // direction linearly and the magnitude separately.
+    static void interp_momentum_norm(double* rec, const double* a, const double* b, double r) {
+        const double pa = std::sqrt(a[1] * a[1] + a[3] * a[3] + a[5] * a[5]);
+        const double pb = std::sqrt(b[1] * b[1] + b[3] * b[3] + b[5] * b[5]);
+        const double pr = std::sqrt(rec[1] * rec[1] + rec[3] * rec[3] + rec[5] * rec[5]);
+        if (!(pr > 0.0)) return;
+        const double f = ((pb - pa) * r + pa) / pr;
+        rec[1] *= f;
+        rec[3] *= f;
+        rec[5] *= f;
+    }
+
+    // Coordinates {x, ux, y, uy, z, uz} in the frame of a superposeout exit (spec 20 2.6.6).
+    static void sp_local(const std::array<double, 7>& row, double zStart, const double* c, double* o) {
+        double s3, c3, s4, c4, s5, c5;
+        dll_sincos(row[3], s3, c3);
+        dll_sincos(row[5], s5, c5);
+        dll_sincos(row[4], s4, c4);
+        auto turn = [&](double X, double Y, double Z, double& xo, double& yo, double& zo) {
+            const double X1 = c3 * X + s3 * Y;
+            const double Y1 = c3 * Y - s3 * X;
+            const double X2 = c5 * X1 - s5 * Z;
+            const double Z2 = s5 * X1 + c5 * Z;
+            zo = c4 * Z2 - s4 * Y1;
+            yo = c4 * Y1 + s4 * Z2;
+            xo = X2;
+        };
+        turn(c[0] - row[1], c[2] - row[2], (c[4] - row[0]) - zStart, o[0], o[2], o[4]);
+        turn(c[1], c[3], c[5], o[1], o[3], o[5]);
+    }
+
     // ---- one time step of particles [i0, i1) (TcodeTrans) ----
     void trans(int i0, int i1, double zField, const std::vector<double>& events, double tEnd, double gp,
                const double sync[6], BlockAcc& acc) {
@@ -299,12 +726,36 @@ private:
             old = {b.x[i], b.ux[i], b.y[i], b.uy[i], b.z[i], b.uz[i]};
             if (b.lost[i] == 1) continue;
             boris_push(b.x[i], b.ux[i], b.y[i], b.uy[i], b.z[i], b.uz[i], tot, tot + 3, b.qOverM[i], dt_);
-            b.rel[0][i] = b.x[i] - sync[0];
-            b.rel[2][i] = b.y[i] - sync[2];
-            b.rel[4][i] = b.z[i] - sync[4];
-            b.rel[1][i] = b.ux[i];
-            b.rel[3][i] = b.uy[i];
-            b.rel[5][i] = b.uz[i];
+            if (b.rotMode == 0) {
+                b.rel[0][i] = b.x[i] - sync[0];
+                b.rel[2][i] = b.y[i] - sync[2];
+                b.rel[4][i] = b.z[i] - sync[4];
+                b.rel[1][i] = b.ux[i];
+                b.rel[3][i] = b.uy[i];
+                b.rel[5][i] = b.uz[i];
+            } else {
+                // coordinates relative to the synchronous particle, turned by the beam angle
+                double sn, cs;
+                dll_sincos(b.rotAngle, sn, cs);
+                const double dz = b.z[i] - sync[4];
+                if (b.rotMode == 2) {
+                    const double dx = b.x[i] - sync[0];
+                    b.rel[0][i] = cs * dx - sn * dz;
+                    b.rel[4][i] = sn * dx + cs * dz;
+                    b.rel[1][i] = b.ux[i] * cs - b.uz[i] * sn;
+                    b.rel[5][i] = b.uz[i] * cs + b.ux[i] * sn;
+                    b.rel[2][i] = b.y[i] - sync[2];
+                    b.rel[3][i] = b.uy[i];
+                } else {
+                    const double dy = b.y[i] - sync[2];
+                    b.rel[2][i] = cs * dy + sn * dz;
+                    b.rel[4][i] = dz * cs - dy * sn;
+                    b.rel[3][i] = b.uy[i] * cs + b.uz[i] * sn;
+                    b.rel[5][i] = b.uz[i] * cs - b.uy[i] * sn;
+                    b.rel[0][i] = b.x[i] - sync[0];
+                    b.rel[1][i] = b.ux[i];
+                }
+            }
             external_field(i, tEnd);
             if (b.uz[i] < 0.0 && lat_.spOutCount <= lat_.spOutCur && b.z[i] < 0.0) b.lost[i] = 1;
             const size_t m = static_cast<size_t>(b.nextPlane[i]);
@@ -315,9 +766,29 @@ private:
                     Rec& rec = planeRec_[i];
                     const double cur[6] = {b.x[i], b.ux[i], b.y[i], b.uy[i], b.z[i], b.uz[i]};
                     for (int j = 0; j < 6; ++j) rec[j] = (cur[j] - old[j]) * r + old[j];
+                    if (!compat_) interp_momentum_norm(rec.data(), old.data(), cur, r);
                     rec[6] = (r - 1.0) * dt_ + tEnd;
                     rec[7] = 1.0;
                     b.nextPlane[i] += 1;
+                }
+            }
+            // superposeout exit crossing (recorded in the exit frame; applied by tcode)
+            if (lat_.spOutCur < lat_.spOutCount && lat_.elements[b.elemIndex[i]].inSuperposeOut != 0 &&
+                spRec_[i][7] == 0.0 && b.z[i] > b.spOutZ0[i]) {
+                const auto& row = lat_.spOut[lat_.spOutCur];
+                const double zs = lat_.elements[b.elemIndex[i]].zStart;
+                const double cur[6] = {b.x[i], b.ux[i], b.y[i], b.uy[i], b.z[i], b.uz[i]};
+                double lc[6], lp[6];
+                sp_local(row, zs, cur, lc);
+                sp_local(row, zs, old.data(), lp);
+                if (lc[4] > 0.0) {
+                    const double r = lp[4] / (lp[4] - lc[4]);
+                    Rec& sr = spRec_[i];
+                    for (int j = 0; j < 6; ++j) sr[j] = (lc[j] - lp[j]) * r + lp[j];
+                    if (!compat_) interp_momentum_norm(sr.data(), lp, lc, r);
+                    sr[6] = (r - 1.0) * dt_ + tEnd;
+                    sr[7] = 1.0;
+                    acc.spCnt += 1;
                 }
             }
             if (b.lost[i] != 1 && i != n) {
@@ -367,6 +838,43 @@ private:
         for (int i = 0; i < n; ++i) {
             if (b.z[i] < b.zMin) b.zMin = b.z[i];
             if (b.zMax < b.z[i]) b.zMax = b.z[i];
+        }
+    }
+
+    // Beam frame inside a superposeout block (tcodeRun 4.2.15): turned to the synchronous momentum.
+    void rot_mode(double sync[6]) {
+        Beam& b = b_;
+        const int n = b.n;
+        Element& e = lat_.elements[b.elemIndex[n]];
+        const int rm = e.inSuperposeOut;
+        for (int j = 0; j < 6; ++j) sync[j] = 0.0;
+        sync[0] = b.x[n]; sync[1] = b.ux[n]; sync[2] = b.y[n]; sync[3] = b.uy[n]; sync[4] = b.z[n]; sync[5] = b.uz[n];
+        if (rm == 0) {
+            b.rotMode = 0;
+            return;
+        }
+        const double gz = b.uz[n];
+        const double gt = rm == 1 ? b.uy[n] : b.ux[n];
+        double th, sn, cs;
+        if (std::fabs(gz) <= 0.0003) {
+            th = gt > 0.0 ? k::half_pi : -k::half_pi;
+            cs = 6.123233995736766e-17;
+            sn = gt > 0.0 ? 1.0 : -1.0;
+        } else {
+            th = std::atan(gt / std::fabs(gz));
+            dll_sincos(th, sn, cs);
+        }
+        b.rotAngle = th;
+        if (rm == 1) {
+            b.rotMode = 1;
+            sync[3] = gt * cs + gz * sn;
+            sync[5] = cs * gz - gt * sn;
+            e.rotMode = 1;
+        } else {
+            b.rotMode = 2;
+            sync[1] = gt * cs - gz * sn;
+            sync[5] = sn * gt + gz * cs;
+            e.rotMode = 2;
         }
     }
 
@@ -485,7 +993,7 @@ private:
     }
 
     // ---- the time-step loop of one segment (tcodeRun) ----
-    void tcode(double& t, const std::vector<double>& events, const std::vector<int>& marks) {
+    void tcode(double& t, double& zSeg, const std::vector<double>& events, const std::vector<int>& marks) {
         Beam& b = b_;
         const int n = b.n;
         if (events[0] <= b.zMax) {
@@ -529,7 +1037,6 @@ private:
         prev[13] = b.totalWeight;
         prev[14] = prev[15] = prev[16] = prev[17] = 0.0;
         double sync[6] = {0, 0, 0, 0, 0, 0};
-        const double zSeg = 0.0;
         t = dt_ + t;
         trans(n, n + 1, zSeg, events, t, 0.0, sync, syncAcc);
         for (int j = 0; j < 6; ++j) sync[j] = 0.0;
@@ -631,14 +1138,59 @@ private:
             nAlivePrev = b.nAlive;
             prev[13] = b.totalWeight;
             // bend / displacement columns (rotMode is always 0 in M1)
-            if (prev[14] == 2.0) {
-                if (b.z[n] < zSeg) { prev[14] = 2; prev[15] = prev[16] = prev[17] = 0; }
-                else { prev[14] = prev[15] = prev[16] = 0; prev[17] = b.z[n] - zSeg; }
+            const auto& so = oldCoord_[n];
+            const int rot = b.rotMode;
+            if (rot == 0) {
+                if (prev[14] == 2.0) {
+                    if (b.z[n] < zSeg) { prev[14] = 2; prev[15] = prev[16] = prev[17] = 0; }
+                    else { prev[14] = prev[15] = prev[16] = 0; prev[17] = b.z[n] - zSeg; }
+                } else {
+                    prev[14] = prev[15] = prev[16] = 0;
+                    prev[17] = b.z[n] - so[4];
+                }
+            } else if (prev[14] == 2.0) {
+                prev[14] = 2; prev[15] = prev[16] = prev[17] = 0;
             } else {
-                prev[14] = prev[15] = prev[16] = 0;
-                prev[17] = b.z[n] - oldCoord_[n][4];
+                const double dT = rot == 1 ? b.y[n] - so[2] : b.x[n] - so[0];
+                const double dZ = b.z[n] - so[4];
+                if (spRec_[n][7] == 1.0) {
+                    const double f = 1.0 - (t - spRec_[n][6]) / dt_;
+                    prev[14] = 2; prev[15] = rot; prev[16] = dT * f; prev[17] = dZ * f;
+                } else {
+                    prev[14] = 1; prev[15] = rot; prev[16] = dT; prev[17] = dZ;
+                }
             }
             if (b.nAlive == 0) throw EngineError("End of simulation, all particles lost.                     ");
+
+            // every live particle crossed a superposeout exit: restart in the exit frame
+            if (b.nAlive <= lat_.spCrossCount && lat_.spOutCur < lat_.spOutCount) {
+                zSeg = lat_.spOut[lat_.spOutCur][6];
+                lat_.spCrossCount = 0;
+                if (zSeg == lat_.total_length()) {
+                    dst_out(zSeg, spRec_);
+                    return;
+                }
+                double tmin = 1e10;
+                for (int i = 0; i < n; ++i)
+                    if (spRec_[i][7] == 1.0 && spRec_[i][6] < tmin) tmin = spRec_[i][6];
+                for (int i = 0; i <= n; ++i) {
+                    const Rec& r = spRec_[i];
+                    if (r[7] != 1.0) {
+                        b.lost[i] = 1;
+                        continue;
+                    }
+                    // same back-propagation as zTotcode (AVAS.dll: gamma from gamma*beta_z only)
+                    ztot_row(r.data(), zSeg, tmin, !compat_, b.x[i], b.ux[i], b.y[i], b.uy[i], b.z[i], b.uz[i], true);
+                    b.spOutZ1[i] = lat_.spOut[lat_.spOutCur + 1][6];
+                    b.spOutZ0[i] = zSeg;
+                }
+                b.rotMode = 0;
+                b.rotAngle = 0.0;
+                t = tmin - dt_;
+                lat_.spOutCur += 1;
+                lat_.elements[b.elemIndex[n]].rotMode = 0;
+                for (auto& r : spRec_) r.fill(0.0);
+            }
 
             // events: output planes passed by every live particle
             {
@@ -653,8 +1205,31 @@ private:
                         return;
                     }
                     iEv += 1;
-                    dst_out(zev, planeRec_);
-                    for (auto& r : planeRec_) r.fill(0.0);
+                    const int m = marks[iEv - 1];
+                    if (m > 0) {
+                        // steerer: kick at the middle of the following element, then restart the
+                        // time-step loop from the crossing records (MethodMP::tcodeRun)
+                        const double lq = lat_.elements[m + 1].length;
+                        for (int i = 0; i < n; ++i) {
+                            Rec& r = planeRec_[i];
+                            if (r[7] != 1.0) continue;
+                            r[4] = 0.0;
+                            kick(r.data(), lat_.elements[m], lq, i);
+                        }
+                        double tmin = 1e10;
+                        for (int i = 0; i < n; ++i)
+                            if (planeRec_[i][7] == 1.0 && planeRec_[i][6] < tmin) tmin = planeRec_[i][6];
+                        t = ztot(zev, tmin);
+                        zSeg = zev;
+                        const std::vector<double> ev2(events.begin() + static_cast<long>(iEv), events.end());
+                        const std::vector<int> mk2(marks.begin() + static_cast<long>(iEv), marks.end());
+                        tcode(t, zSeg, ev2, mk2);
+                        return;
+                    }
+                    if (m != -4) {  // -4: spacechargecomp change (no output)
+                        dst_out(zev, planeRec_);
+                        for (auto& r : planeRec_) r.fill(0.0);
+                    }
                 }
             }
             const auto now = std::chrono::steady_clock::now();
@@ -665,8 +1240,7 @@ private:
             t = dt_ + t;
             trans(n, n + 1, zSeg, events, t, b.gamma, sync, syncAcc);
             syncAcc.reset();
-            sync[0] = b.x[n]; sync[1] = b.ux[n]; sync[2] = b.y[n]; sync[3] = b.uy[n]; sync[4] = b.z[n]; sync[5] = b.uz[n];
-            b.rotMode = 0;
+            rot_mode(sync);
             step_ += 1;
             // particles that stop crossing the next plane are declared lost
             int nc = 0;

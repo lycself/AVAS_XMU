@@ -155,4 +155,278 @@ AVAS_HD inline void sync_push(R coord[6], const R E[3], const R B[3], R qOverM, 
     coord[4] = uz * v * dt + coord[4];
 }
 
+
+// ---- z-code (hard-edge matrix) kernels -------------------------------------------------------
+// A z-code row is {x, ux, y, uy, dt, uz, t, flag}: the particle at a fixed z plane, u = gamma*beta,
+// t the time it reaches the plane, dt the time of the last transfer (MethodMP::HardEdgeTrans).
+namespace k {
+constexpr double c2 = 8.987551787368176e16;  // c^2 as folded by the DLL
+constexpr double inv_c2 = 1.1126500560536185e-17;
+}  // namespace k
+
+// Common prologue of the particle workers: returns gamma^2 and the slopes, advances the time.
+template <class R>
+AVAS_HD inline R zrow_advance(R* r, R len, R& xa, R& ya) {
+    const R g2 = (r[5] * r[5] + r[3] * r[3]) + (r[1] * r[1] + R(1));
+    const R iuz = R(1) / r[5];
+    xa = iuz * r[1];
+    ya = iuz * r[3];
+    const R vz = std::sqrt((R(k::c2) - R(k::c2) / g2) / ((ya * ya + xa * xa) + R(1)));
+    const R dt = len / vz;
+    r[6] = dt + r[6];
+    r[4] = dt;
+    return g2;
+}
+
+// Quadrupole, particle version (fn.1-3).  sincos = the static sincos of the DLL.
+template <class R, class SinCos>
+AVAS_HD inline void quad_row(R* r, R qOverM, R G, R len, SinCos sincos) {
+    R xa, ya;
+    const R g2 = zrow_advance(r, len, xa, ya);
+    const R qG = qOverM * G;
+    const R gb = std::sqrt((R(1) - R(1) / g2) * g2);
+    const R kq = std::sqrt(std::fabs(qG / (gb * R(k::c))));
+    const R x = r[0], y = r[2];
+    const R xp = r[1] / r[5];
+    const R yp = r[3] / r[5];
+    const R ik = R(1) / kq;
+    R X, Xp, Y, Yp;
+    R s, c;
+    sincos(len * kq, s, c);
+    const R sh = std::sinh(kq * len), ch = std::cosh(kq * len);
+    if (qG > R(0)) {
+        X = c * x + (s * xp) * ik;
+        Xp = c * xp - s * (kq * x);
+        Y = (sh * yp) * ik + ch * y;
+        Yp = sh * (kq * y) + ch * yp;
+    } else {
+        X = (sh * xp) * ik + ch * x;
+        Xp = sh * (kq * x) + ch * xp;
+        Y = c * y + (s * yp) * ik;
+        Yp = c * yp - s * (kq * y);
+    }
+    r[0] = X;
+    r[1] = r[5] * Xp;
+    r[2] = Y;
+    r[3] = r[5] * Yp;
+}
+
+// Quadrupole, synchronous row (whole element, time from the total velocity).
+template <class R, class SinCos>
+AVAS_HD inline void quad_sync_row(R* r, R qOverM, R G, R len, SinCos sincos) {
+    const R g2 = (r[5] * r[5] + r[3] * r[3]) + (r[1] * r[1] + R(1));
+    const R beta = std::sqrt(R(1) - R(1) / g2);
+    const R gamma = std::sqrt(g2);
+    const R qG = G * qOverM;
+    const R kq = std::sqrt(std::fabs(qG / ((gamma * R(k::c)) * beta)));
+    const R dt = (R(k::inv_c) / beta) * len;
+    r[4] = dt;
+    r[6] = dt + r[6];
+    const R x = r[0], y = r[2];
+    const R xp = r[1] / r[5];
+    const R yp = r[3] / r[5];
+    const R ik = R(1) / kq;
+    R s, c;
+    sincos(len * kq, s, c);
+    const R sh = std::sinh(kq * len), ch = std::cosh(kq * len);
+    R X, Xp, Y, Yp;
+    if (qG > R(0)) {
+        X = c * x + (s * xp) * ik;
+        Xp = c * xp - s * (kq * x);
+        Y = (sh * yp) * ik + ch * y;
+        Yp = sh * (kq * y) + ch * yp;
+    } else {
+        X = (sh * xp) * ik + ch * x;
+        Xp = sh * (kq * x) + ch * xp;
+        Y = c * y + (s * yp) * ik;
+        Yp = c * yp - s * (kq * y);
+    }
+    r[0] = X;
+    r[1] = r[5] * Xp;
+    r[2] = Y;
+    r[3] = r[5] * Yp;
+}
+
+// Hard-edge solenoid (fn.4-6 and the synchronous row): K = qB/(2p).
+template <class R, class SinCos>
+AVAS_HD inline void solenoid_row(R* r, R qOverM, R B, R len, SinCos sincos) {
+    R xa, ya;
+    const R g2 = zrow_advance(r, len, xa, ya);
+    const R gb = std::sqrt((R(1) - R(1) / g2) * g2);
+    const R K = (R(k::half_inv_c) / gb) * (qOverM * B);
+    const R x = r[0], y = r[2];
+    R S, C;
+    sincos(len * K, S, C);
+    const R SC = C * S, C2 = C * C, S2 = S * S, iK = R(1) / K;
+    const R X = ((S2 * ya + SC * xa) * iK + C2 * x) + SC * y;
+    const R Xp = ((C2 * xa - (K * x) * SC) - (K * y) * S2) + SC * ya;
+    const R Y = (C2 * y - ((S2 * xa) * iK + SC * x)) + (SC * ya) * iK;
+    const R Yp = (((K * x) * S2 - SC * xa) - (K * y) * SC) + C2 * ya;
+    r[0] = X;
+    r[1] = r[5] * Xp;
+    r[2] = Y;
+    r[3] = r[5] * Yp;
+}
+
+// Bend parameters prepared by the dispatcher (fn.7-12): s = path length of this transfer.
+template <class R>
+struct BendStep {
+    R s, h, kx, kx2, ky, sx, cx, sy, cy;
+    int hv;
+};
+
+// Bend, particle version.  uzs = gamma*beta_z of the synchronous row (momentum deviation).
+template <class R>
+AVAS_HD inline void bend_row(R* r, R uzs, const BendStep<R>& b) {
+    const R delta = (r[5] - uzs) / uzs;
+    const R g2 = (r[5] * r[5] + r[3] * r[3]) + (r[1] * r[1] + R(1));
+    const R iuz = R(1) / r[5];
+    const R xa = iuz * r[1];
+    const R ya = iuz * r[3];
+    const R vz2 = ((R(1) - R(1) / g2) * R(k::c2)) / ((ya * ya + xa * xa) + R(1));
+    const R dt = b.s / std::sqrt(vz2);
+    r[6] = dt + r[6];
+    r[4] = dt;
+    // bending plane (q, qa), other plane (o, oa)
+    const R q = b.hv == 0 ? r[0] : r[2];
+    const R qa = b.hv == 0 ? xa : ya;
+    const R o = b.hv == 0 ? r[2] : r[0];
+    const R oa = b.hv == 0 ? ya : xa;
+    const R dh = delta * b.h;
+    const R Q = ((qa * b.sx) / b.kx + b.cx * q) + (dh * (R(1) - b.cx)) / b.kx2;
+    const R Qp = (qa * b.cx - (b.kx * q) * b.sx) + (dh * b.sx) / b.kx;
+    R O, Op;
+    if (b.ky == R(0)) {
+        O = b.s * oa + o;
+        Op = oa;
+    } else {
+        O = (b.sy * oa) / b.ky + b.cy * o;
+        Op = oa * b.cy - (o * b.ky) * b.sy;
+    }
+    if (b.hv == 0) {
+        r[0] = Q; r[1] = r[5] * Qp; r[2] = O; r[3] = r[5] * Op;
+    } else {
+        r[2] = Q; r[3] = r[5] * Qp; r[0] = O; r[1] = r[5] * Op;
+    }
+}
+
+// Bend, synchronous row: transverse momentum cleared, no dispersion term, whole arc.
+template <class R>
+AVAS_HD inline void bend_sync_row(R* r, const BendStep<R>& b) {
+    const R g2 = (r[5] * r[5] + r[3] * r[3]) + (r[1] * r[1] + R(1));
+    const R iuz = R(1) / r[5];
+    const R xa0 = iuz * r[1];
+    const R ya0 = iuz * r[3];
+    const R vz = std::sqrt((R(k::c2) - R(k::c2) / g2) / ((ya0 * ya0 + xa0 * xa0) + R(1)));
+    const R dt = b.s / vz;
+    r[6] = dt + r[6];
+    r[4] = dt;
+    const R q = b.hv == 0 ? r[0] : r[2];
+    const R o = b.hv == 0 ? r[2] : r[0];
+    const R qa = R(0), oa = R(0);
+    const R Q = (b.sx * qa) * (R(1) / b.kx) + b.cx * q;
+    const R Qp = b.cx * qa - (b.kx * q) * b.sx;
+    R O, Op;
+    if (b.ky == R(0)) {
+        O = b.s * oa + o;
+        Op = oa;
+    } else {
+        O = (b.sy * oa) / b.ky + b.cy * o;
+        Op = oa * b.cy - (o * b.ky) * b.sy;
+    }
+    if (b.hv == 0) {
+        r[0] = Q; r[1] = r[5] * Qp; r[2] = O; r[3] = r[5] * Op;
+    } else {
+        r[2] = Q; r[3] = r[5] * Qp; r[0] = O; r[1] = r[5] * Op;
+    }
+}
+
+// Edge (pole-face) thin lens: k1 in the bending plane, k2 in the other one.
+template <class R>
+AVAS_HD inline void edge_row(R* r, R k1, R k2, int hv) {
+    const R iuz = R(1) / r[5];
+    const R xp = iuz * r[1];
+    const R yp = iuz * r[3];
+    R Xp, Yp;
+    if (hv == 0) {
+        Xp = k1 * r[0] + xp;
+        Yp = r[2] * k2 + yp;
+    } else {
+        Xp = r[0] * k2 + xp;
+        Yp = r[2] * k1 + yp;
+    }
+    r[1] = r[5] * Xp;
+    r[3] = r[5] * Yp;
+}
+
+// Restores |gamma*beta| = sqrt(p2) of a z-code row after a magnetic transfer, keeping the new
+// slopes x' = ux/uz, y' = uy/uz.  The DLL keeps uz fixed, so every change of slope changes |p|.
+template <class R>
+AVAS_HD inline void zrow_keep_momentum(R* r, R p2) {
+    const R xp = r[1] / r[5];
+    const R yp = r[3] / r[5];
+    R uz = std::sqrt(p2 / (R(1) + xp * xp + yp * yp));
+    if (r[5] < R(0)) uz = -uz;
+    r[5] = uz;
+    r[1] = uz * xp;
+    r[3] = uz * yp;
+}
+
+template <class R>
+AVAS_HD inline R zrow_p2(const R* r) {
+    return r[1] * r[1] + r[3] * r[3] + r[5] * r[5];
+}
+
+// Steerer kick on a z-code row.  lq = (length of the following element) * q/m.
+// kind 0: magnetic (bx, by in T); kind 1: electric (ex, ey in V/m).
+template <class R>
+AVAS_HD inline void steerer_kick(R* r, int kind, R wx, R wy, R lq) {
+    if (kind == 0) {
+        const R dX = (lq * wy) * R(k::inv_c);
+        const R dY = (lq * wx) * R(k::inv_c);
+        r[1] = r[1] - dX;
+        r[3] = dY + r[3];
+        return;
+    }
+    const R dX = (lq * wx) * R(k::inv_c2);
+    const R dY = (lq * wy) * R(k::inv_c2);
+    if (kind == 1) {
+        const R g2 = (r[5] * r[5] + r[3] * r[3]) + (r[1] * r[1] + R(1));
+        const R ib = R(1) / std::sqrt(R(1) - R(1) / g2);
+        r[1] = dX * ib + r[1];
+        r[3] = dY * ib + r[3];
+    } else {
+        r[1] = r[1] - dX;
+        r[3] = dY + r[3];
+    }
+}
+
+// zTotcode: z-code row -> particle at time tRef (straight line back from the plane).
+// fullGamma = false reproduces AVAS.dll, which takes gamma from gamma*beta_z alone.
+template <class R>
+AVAS_HD inline void ztot_row(const R* r, R zPlane, R tRef, bool fullGamma, R& x, R& ux, R& y, R& uy, R& z,
+                             R& uz, bool restartForm = false) {
+    const R dt = r[6] - tRef;
+    if (!fullGamma) {
+        const R g = r[5] * r[5] + R(1);
+        const R ig = R(1) / std::sqrt(g);
+        x = r[0] - (dt * r[1]) * (ig * R(k::c));
+        y = r[2] - (dt * r[3]) * (ig * R(k::c));
+        // zTotcode multiplies beta*c first, the superposeout restart of tcodeRun beta*dt first
+        z = restartForm ? zPlane - (std::sqrt(R(1) - R(1) / g) * dt) * R(k::c)
+                        : zPlane - (std::sqrt(R(1) - R(1) / g) * R(k::c)) * dt;
+    } else {
+        const R gamma = std::sqrt(r[1] * r[1] + R(1) + r[3] * r[3] + r[5] * r[5]);
+        const R beta = std::sqrt(R(1) - (R(1) / gamma) / gamma);
+        const R xp = r[1] / r[5], yp = r[3] / r[5];
+        const R vz = std::sqrt((beta * R(k::c) * beta * R(k::c)) / (xp * xp + yp * yp + R(1)));
+        x = r[0] - ((r[1] * dt) / gamma) * R(k::c);
+        y = r[2] - ((r[3] * dt) / gamma) * R(k::c);
+        z = -dt * vz + zPlane;
+    }
+    ux = r[1];
+    uy = r[3];
+    uz = r[5];
+}
+
 }  // namespace avas

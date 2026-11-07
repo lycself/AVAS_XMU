@@ -1,0 +1,10 @@
+The input path has been set to C:\Users\lycself\tmp_avas_m2\dll\SP1_static_static_single\inputs\
+The fieldMap path has been set to C:\Users\lycself\tmp_avas_m2\repo\examples\hwr010\InputFile\
+The output path has been set to C:\Users\lycself\tmp_avas_m2\dll\SP1_static_static_single\OutputFile\
+The programme is running.
+Lattice initialisation complete, total length 0.5 m
+A total of 1 output planes
+The intensity is set to 0
+Exit bunch energy: 1.52703
+The total distance simulated is 0.5 (m)
+[parity] main_agent -> 0

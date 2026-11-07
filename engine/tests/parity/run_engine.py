@@ -185,11 +185,16 @@ def main():
         open(os.path.join(inp, "lattice.txt"), "w", newline="\n").write(lattice)
         for dst_name, src in case.get("copy", {}).items():
             shutil.copy(os.path.join(HERE, src), os.path.join(inp, dst_name))
+        for fname, text in case.get("files", {}).items():
+            open(os.path.join(inp, fname), "w", newline="\n").write("\n".join(text) + "\n" if isinstance(text, list) else text)
+        # field maps are read from the example (read only); cases that generate maps (multipole)
+        # use their own input folder
+        field = inp if case.get("field_dir") == "inputs" else base
         t0 = time.time()
         try:
-            proc = subprocess.run([sys.executable, "-c", CHILD, a.lib, inp + os.sep, out + os.sep, base + os.sep,
+            proc = subprocess.run([sys.executable, "-c", CHILD, a.lib, inp + os.sep, out + os.sep, field + os.sep,
                                    a.compat], cwd=d, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                  timeout=a.timeout)
+                                  timeout=case.get("timeout", a.timeout))
             rc = proc.returncode - 100 if proc.returncode >= 100 else f"exit {proc.returncode}"
             log = proc.stdout.decode("latin-1")
         except subprocess.TimeoutExpired as e:
