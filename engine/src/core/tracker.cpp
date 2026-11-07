@@ -155,6 +155,7 @@ private:
     std::chrono::steady_clock::time_point startClock_;
     std::vector<Rec> planeRec_;
     std::vector<Rec> spRec_;  // superposeout exit crossings
+    double segEnd_ = 1e300;   // end of the current time-step segment
     std::vector<std::array<double, 6>> oldCoord_;
     AppendFile dataSet_, synFile_;
 
@@ -757,6 +758,12 @@ private:
                 }
             }
             external_field(i, tEnd);
+            if (!compat_ && b.z[i] > segEnd_) {
+                // past the end of this time-step segment the particle is already recorded for the
+                // next (hard-edge) segment: it drifts without field (AVAS.dll applies the simplified
+                // t-code fields of the hard-edge elements there)
+                b.ex[i] = b.ey[i] = b.ez[i] = b.bx[i] = b.by[i] = b.bz[i] = 0.0;
+            }
             if (b.uz[i] < 0.0 && lat_.spOutCount <= lat_.spOutCur && b.z[i] < 0.0) b.lost[i] = 1;
             const size_t m = static_cast<size_t>(b.nextPlane[i]);
             if (m + 1 <= events.size()) {
@@ -922,6 +929,36 @@ private:
         const int s = b.n;
         const double t0 = rec[s][6];
         const double mc2 = b.restMass[s];
+        char zname[64];
+        std::snprintf(zname, sizeof zname, "%f", z);
+        if (b.fromDstFile) {
+            // .edst: every selected particle (synchronous one included) with charge, mass, weight
+            std::vector<double> rows;
+            for (int i = 0; i <= s; ++i) {
+                const Rec& r = rec[i];
+                if (r[7] != 1.0) continue;
+                const double u2 = compat_ ? r[5] * r[5] : r[1] * r[1] + r[3] * r[3] + r[5] * r[5];
+                const double w = b.weight[i];
+                const double v[9] = {r[0] * 100.0, r[1] / r[5], r[2] * 100.0, r[3] / r[5],
+                                     (r[6] - t0) * k::two_pi * b.frequency, (std::sqrt(u2 + 1.0) - 1.0) * b.restMass[i],
+                                     b.charge[i] / w / k::e_charge, b.mass[i] / w / k::m_proton * k::proton_mc2, w};
+                rows.insert(rows.end(), v, v + 9);
+            }
+            const std::int32_t cnt = static_cast<std::int32_t>(rows.size() / 9) - 1;
+            const double cur = b.current * 1000.0;
+            const double fm = b.frequency * 1e-06;
+            std::string out;
+            out.push_back(static_cast<char>(0x7D));
+            out.push_back(static_cast<char>(0x64));
+            out.append(reinterpret_cast<const char*>(&cnt), 4);
+            out.append(reinterpret_cast<const char*>(&cur), 8);
+            out.append(reinterpret_cast<const char*>(&fm), 8);
+            out.push_back(static_cast<char>(0x7D));
+            out.append(reinterpret_cast<const char*>(rows.data()), rows.size() * 8);
+            out.append(reinterpret_cast<const char*>(&mc2), 8);
+            if (!write_file(paths().output + "outData_" + zname + ".edst", out, false, true)) say("output error");
+            return;
+        }
         std::vector<double> rows;
         double sumW = 0.0;
         for (int i = 0; i < s; ++i) {
@@ -949,9 +986,14 @@ private:
         out.push_back(static_cast<char>(0x7D));
         out.append(reinterpret_cast<const char*>(rows.data()), rows.size() * 8);
         out.append(reinterpret_cast<const char*>(&mc2), 8);
-        char name[64];
-        std::snprintf(name, sizeof name, "%f", z);
-        if (!write_file(paths().output + "outData_" + name + ".dst", out, false, true)) say("output error");
+        if (!write_file(paths().output + "outData_" + zname + ".dst", out, false, true)) say("output error");
+        if (b.useWeightFile) {
+            std::string wb;
+            wb.append(reinterpret_cast<const char*>(&cnt), 4);
+            for (int i = 0; i < s; ++i)
+                if (rec[i][7] == 1.0) wb.append(reinterpret_cast<const char*>(&b.weight[i]), 8);
+            if (!write_file(paths().output + "outData_" + zname + ".dstb", wb, false, true)) say("output error");
+        }
     }
 
     void beam_out(int mode, double t, double zs, int step) {
@@ -994,6 +1036,8 @@ private:
 
     // ---- the time-step loop of one segment (tcodeRun) ----
     void tcode(double& t, double& zSeg, const std::vector<double>& events, const std::vector<int>& marks) {
+        // the last element of this segment ends here (the lattice end for the last segment)
+        segEnd_ = events.back() < lat_.total_length() ? events.back() : 1e300;
         Beam& b = b_;
         const int n = b.n;
         if (events[0] <= b.zMax) {

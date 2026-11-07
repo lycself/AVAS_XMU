@@ -39,6 +39,7 @@ set(AVAS_CORE_SOURCES
   src/core/fieldmap.cpp
   src/core/lattice.cpp
   src/core/beam.cpp
+  src/core/distribution.cpp
   src/core/synchronous.cpp
   src/core/tracker.cpp
   src/core/engine.cpp

@@ -124,7 +124,7 @@ def main():
             all_ok = False
             continue
         files = [f for f in TEXT if os.path.exists(os.path.join(rdir, f)) or os.path.exists(os.path.join(ndir, f))]
-        files += sorted(f for f in os.listdir(rdir) if f.endswith(".dst.txt"))
+        files += sorted(f for f in os.listdir(rdir) if f.endswith((".dst.txt", ".edst.txt", ".dstb.txt")))
         rf = set(ln.split()[0] for ln in read(os.path.join(rdir, "files.txt")).splitlines() if ln.strip())
         nf = set(ln.split()[0] for ln in read(os.path.join(ndir, "files.txt")).splitlines() if ln.strip())
         if rf != nf:
@@ -137,7 +137,7 @@ def main():
                 all_ok = False
                 continue
             ref, new = read(rp), read(np_)
-            if f.endswith(".dst.txt"):
+            if f.endswith((".dst.txt", ".edst.txt", ".dstb.txt")):
                 ok, nd, mrel, mabs, note = compare_dst(ref, new)
             elif f == "DataSet.txt" and case in single:
                 # AVAS.dll never initialises the weight of a single macro particle, so the

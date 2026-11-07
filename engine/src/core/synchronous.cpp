@@ -42,7 +42,9 @@ void setup(SynParticle& s, const Params& p, double gbzIn) {
     say("Start initialising synchronised particles");
     double w = 0.0, mc2 = 938.272029, gbz = 0.0;
     bool haveW = false;
-    if (p.distFile == "unknown" || p.secondaryBeam != 0) {
+    bool hasDot = false;
+    const bool edst = extension(p.distFile, hasDot) == "edst" && hasDot;
+    if (p.distFile == "unknown" || p.secondaryBeam != 0 || edst) {
         std::string raw;
         if (!read_file(paths().input + "beam.txt", raw)) {
             say("File \"beam.txt\" not opened!");
@@ -60,6 +62,7 @@ void setup(SynParticle& s, const Params& p, double gbzIn) {
         if (!haveW) throw EngineError("beam.txt has no kneticenergy");
         const double g = w / mc2 + 1.0;
         gbz = std::sqrt(1.0 - 1.0 / (g * g)) * g;  // gbzIn is ignored on this branch
+        if (edst && gbzIn != -33.0) gbz = gbzIn;     // .edst: beam.txt for W, mc2, f; gbz given
     } else {
         std::string raw;
         if (!read_file(paths().input + p.distFile, raw) || raw.size() < 31) {

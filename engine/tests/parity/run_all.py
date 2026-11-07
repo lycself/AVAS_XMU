@@ -149,6 +149,168 @@ def energy_check(doc, work):
     return fails
 
 
+def read_dst(path):
+    import struct
+    raw = open(path, "rb").read()
+    n = struct.unpack("<i", raw[2:6])[0]
+    f = struct.unpack("<d", raw[14:22])[0] * 1e6
+    rows = [struct.unpack("<6d", raw[23 + 48 * i: 71 + 48 * i]) for i in range(n)]
+    return rows, f
+
+
+def beam_keys(path):
+    keys = {}
+    for ln in open(path, encoding="utf-8", errors="replace"):
+        w = ln.split("!")[0].split()
+        if w:
+            keys[w[0].lower()] = w[1:]
+    return keys
+
+
+def ks(values, cdf):
+    v = sorted(values)
+    n = len(v)
+    return max(max(abs((i + 1) / n - cdf(x)), abs(i / n - cdf(x))) for i, x in enumerate(v))
+
+
+def distribution_check(doc, work):
+    """Default mode: the generated inData.dst against the Twiss input (statistics) and the radial
+    laws of KV / WB / PB; the transverse-longitudinal correlation must vanish."""
+    print("\nGenerated distributions in the default mode (inData.dst against the beam.txt input):")
+    fails = 0
+    cdf4 = {"KV": None, "WB": lambda s: s * s, "PB": lambda s: 3 * s * s - 2 * s ** 3}
+    cdf2 = {"KV": lambda s: s, "WB": lambda s: 2 * s - s * s, "PB": lambda s: 1 - (1 - s) ** 3}
+    rmax = {"KV": 4.0, "WB": 6.0, "PB": 8.0}
+    for case in doc["cases"]:
+        if not case.get("generation") or case.get("input", {}).get("probe"):
+            continue
+        name = case["name"]
+        p = os.path.join(work, name, "OutputFile", "inData.dst")
+        if not os.path.exists(p):
+            print(f"{name:<24} FAIL no inData.dst")
+            fails += 1
+            continue
+        rows, f = read_dst(p)
+        n = len(rows)
+        k = beam_keys(os.path.join(work, name, "inputs", "beam.txt"))
+        mc2 = float(k.get("particlerestmass", ["938.272029"])[0])
+        w0 = float(k["kneticenergy"][0])
+        g0 = w0 / mc2 + 1
+        bg0 = math.sqrt(g0 * g0 - 1)
+        dist = k.get("distribution", ["GS", "GS"])
+        dc = k.get("beamtype", [""])[0] == "dc" or "twissz" not in k
+        msgs, ok = [], True
+        tol = 4.0 * math.sqrt(2.0 / n) + 0.01   # rms emittance / beta / alpha: ~4 sigma
+
+        def plane(q, qp, tw, label, kind, cdf):
+            nonlocal ok
+            a, b, e = (float(v) for v in tw)
+            eps = e * 1e-6 / bg0 if label != "z" else e * 1e-6 / (bg0 * g0 * g0)
+            mq, mp = sum(q) / n, sum(qp) / n
+            sqq = sum((x - mq) ** 2 for x in q) / n
+            spp = sum((x - mp) ** 2 for x in qp) / n
+            sqp = sum((x - mq) * (y - mp) for x, y in zip(q, qp)) / n
+            em = math.sqrt(sqq * spp - sqp * sqp)
+            be, al = sqq / em, -sqp / em
+            dev = max(abs(em / eps - 1), abs(be / b - 1), abs(al - a) / max(1.0, abs(a)))
+            if dev > tol:
+                ok = False
+            msgs.append(f"{label}: eps {em / eps:.4f} beta {be / b:.4f} alpha {al:+.3f}/{a:+.3f}")
+            gam = (1 + a * a) / b
+            return [(gam * x * x + 2 * a * x * y + b * y * y) / eps for x, y in zip(q, qp)]
+
+        # inData.dst gives each particle where it crosses z = 0; undo that drift (x' z) to get the
+        # generated snapshot back (z from the phase)
+        zc = []
+        for r in rows:
+            g = r[5] / mc2 + 1
+            pt = math.sqrt(g * g - 1)
+            vz = pt / math.sqrt(1 + r[1] ** 2 + r[3] ** 2) / g * 299792458.0
+            zc.append(0.0 if dc else -r[4] / (2 * math.pi * f) * vz)
+        x = [r[0] / 100 + r[1] * zi for r, zi in zip(rows, zc)]
+        xp = [r[1] for r in rows]
+        y = [r[2] / 100 + r[3] * zi for r, zi in zip(rows, zc)]
+        yp = [r[3] for r in rows]
+        jx = plane(x, xp, k["twissx"], "x", dist[0], None)
+        jy = plane(y, yp, k["twissy"], "y", dist[0], None)
+        if dist[0] in rmax:
+            s4 = [(u + v) / rmax[dist[0]] for u, v in zip(jx, jy)]
+            if dist[0] == "KV":
+                d = max(abs(v - 1) for v in s4)
+                msgs.append(f"KV J/4eps max dev {d:.1e}")
+                ok &= d < 1e-9
+            else:
+                d = ks([min(v, 1.0) for v in s4], cdf4[dist[0]])
+                msgs.append(f"{dist[0]} radial KS {d:.3f}")
+                ok &= d < 1.63 / math.sqrt(n) * 1.5 and max(s4) <= 1 + 1e-3
+        if not dc:
+            # z, delta from phi, W (delta on the total momentum)
+            z, dl = [], []
+            for r in rows:
+                g = r[5] / mc2 + 1
+                pt = math.sqrt(g * g - 1)
+                vz = pt / math.sqrt(1 + r[1] ** 2 + r[3] ** 2) / g * 299792458.0
+                z.append(-r[4] / (2 * math.pi * f) * vz)
+                dl.append(pt / bg0 - 1)
+            jz = plane(z, dl, k["twissz"], "z", dist[1], None)
+            if dist[1] in rmax:
+                sz = [v / rmax[dist[1]] for v in jz]
+                d = ks([min(v, 1.0) for v in sz], cdf2[dist[1]])
+                msgs.append(f"{dist[1]} long. KS {d:.3f}")
+                ok &= d < 1.63 / math.sqrt(n) * 1.5 and max(sz) <= 1 + 1e-3
+
+            def corr(a, b):
+                ma, mb = sum(a) / n, sum(b) / n
+                c = sum((u - ma) * (v - mb) for u, v in zip(a, b))
+                return c / math.sqrt(sum((u - ma) ** 2 for u in a) * sum((v - mb) ** 2 for v in b))
+            cx, cp = corr(x, [r[4] for r in rows]), corr(xp, [r[5] for r in rows])
+            msgs.append(f"corr(x,phi) {cx:+.3f} corr(x',W) {cp:+.3f}")
+            ok &= abs(cx) < 4 / math.sqrt(n) and abs(cp) < 4 / math.sqrt(n)
+        fails += 0 if ok else 1
+        print(f"{name:<24} {'ok  ' if ok else 'FAIL'} " + "; ".join(msgs))
+    return fails
+
+
+def indata_sha_check(doc, work):
+    """Default mode: the inData.dst of a seed must be bit-identical on every platform."""
+    import hashlib
+    fails, seen = 0, 0
+    for case in doc["cases"]:
+        want = case.get("default_indata_sha256")
+        if not want:
+            continue
+        seen += 1
+        p = os.path.join(work, case["name"], "OutputFile", "inData.dst")
+        got = hashlib.sha256(open(p, "rb").read()).hexdigest() if os.path.exists(p) else "missing"
+        if got != want:
+            fails += 1
+            print(f"{case['name']:<24} FAIL inData.dst sha256 {got[:16]} expected {want[:16]}")
+    print(f"\ninData.dst of the default mode bit-identical to the recorded value: {seen - fails}/{seen}")
+    return fails
+
+
+def segment_drift_check(doc, work):
+    """Default mode: particles past the end of a time-step segment drift without field, so in the
+    first segment (a drift) the rms slopes x', y' (DataSet columns 17, 19) do not change."""
+    fails = 0
+    print("\nField-free drift past the segment end (default mode):")
+    for case in doc["cases"]:
+        if not case.get("segment_drift_check"):
+            continue
+        ds = read_rows(os.path.join(work, case["name"], "summary", "DataSet.txt"))
+        first = []
+        for r in ds:
+            if first and int(r[39]) != int(first[-1][39]) + 1:
+                break
+            first.append(r)
+        cx = {r[17] for r in first}
+        cy = {r[19] for r in first}
+        ok = len(cx) == 1 and len(cy) == 1 and len(first) > 2
+        fails += 0 if ok else 1
+        print(f"{case['name']:<24} {'ok  ' if ok else 'FAIL'} {len(first)} rows, rms x' {sorted(cx)[:2]}, rms y' {sorted(cy)[:2]}")
+    return fails
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--lib", default=None)
@@ -166,23 +328,30 @@ def main():
     sys.argv = ["compare.py", os.path.join(work, "dll"), "--quiet"]
     identical = compare.main() == 0
     default_report(doc, os.path.join(work, "none"))
-    if energy_check(doc, os.path.join(work, "none")):
-        print("ENERGY NOT CONSERVED in the default mode")
+    bad = energy_check(doc, os.path.join(work, "none"))
+    bad += segment_drift_check(doc, os.path.join(work, "none"))
+    bad += distribution_check(doc, os.path.join(work, "none"))
+    bad += indata_sha_check(doc, os.path.join(work, "none"))
+    if bad:
+        print(f"DEFAULT-MODE CHECKS FAILED: {bad}")
         return 1
     if identical:
         return 0
     if a.strict:
         return 1
     # tolerate last-bit libm differences on other platforms
+    libm_sensitive = {c["name"]: c["libm_sensitive"] for c in doc["cases"] if c.get("libm_sensitive")}
+    for name, why in libm_sensitive.items():
+        print(f"not compared across platforms: {name} ({why})")
     worst = 0.0
     for case in sorted(os.listdir(os.path.join(HERE, "refs"))):
         for f in os.listdir(os.path.join(HERE, "refs", case)):
             rp, np_ = os.path.join(HERE, "refs", case, f), os.path.join(work, "dll", case, "summary", f)
-            if case in compare.expected_diff_cases():
+            if case in compare.expected_diff_cases() or case in libm_sensitive:
                 continue
             if f in ("console.txt", "files.txt") or not os.path.exists(np_):
                 continue
-            if f.endswith(".dst.txt"):
+            if f.endswith((".dst.txt", ".edst.txt", ".dstb.txt")):
                 ok, _, mrel, _, _ = compare.compare_dst(compare.read(rp), compare.read(np_))
             else:
                 cols = set(range(28, 41)) if (f == "DataSet.txt" and case in compare.single_particle_cases()) else None

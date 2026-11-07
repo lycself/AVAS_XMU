@@ -144,7 +144,15 @@ private:
         } else if (k == "spacechargecomp") {
             // AVAS.dll only: compensation factor V from here on (space charge x (1 - V) for V < 1).
             if (w.size() < 2) throw EngineError("keyword: spacechargecomp, Insufficient parameters");
-            lat_.spaceChargeComp.push_back({current_end(), 1.0, parse_double(w[1])});
+            double v = parse_double(w[1]);
+            if (!compat_dll() && (v < 0.0 || v > 1.0)) {
+                // corrected engine: the space charge factor 1 - V is limited to [0, 1] (AVAS.dll
+                // ignores V >= 1 silently and amplifies the space charge for V < 0)
+                say(Text().s("lattice.txt: spacechargecomp ").g(v).s(" outside [0, 1], limited to ")
+                        .g(v < 0.0 ? 0.0 : 1.0).str());
+                v = v < 0.0 ? 0.0 : 1.0;
+            }
+            lat_.spaceChargeComp.push_back({current_end(), 1.0, v});
         } else if (is_unimplemented(k)) {
             throw EngineError("Lattice keyword \"" + k + "\" is not implemented in the new engine yet");
         } else if (!is_ignored(k) && !compat_dll()) {

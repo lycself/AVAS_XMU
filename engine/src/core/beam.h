@@ -33,6 +33,8 @@ struct Beam {
     std::array<double, 3> rms{};
     int nAlive = 0;
     int rotMode = 0;
+    int fromDstFile = 0;    // particles read from .edst (per-particle charge, mass, weight)
+    int useWeightFile = 0;  // .dstb weights (indweight 1) or .edst
     double rotAngle = 0.0;
     double time = 0.0;
 

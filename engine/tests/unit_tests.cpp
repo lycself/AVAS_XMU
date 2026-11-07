@@ -1,4 +1,6 @@
+#include <algorithm>
 // Unit tests of the text, format and physics helpers (no framework; exit code = failures).
+#include "core/rng.h"
 #include <cmath>
 #include <cstdio>
 #include <limits>
@@ -76,11 +78,54 @@ static void test_physics() {
     CHECK(sc[0] == 0 && sc[1] == 0 && sc[5] > 0.05);
 }
 
+static void test_random() {
+    // MSVC CRT rand(): srand(1) -> 41, 18467, 6334
+    MsvcRand m;
+    m.srand(1);
+    CHECK(m.rand() == 41 && m.rand() == 18467 && m.rand() == 6334);
+    // Philox4x32-10 known-answer tests (Random123)
+    Philox4x32 ph{{0u, 0u}};
+    const std::uint32_t c0[4] = {0, 0, 0, 0};
+    std::uint32_t o[4];
+    ph.block(c0, o);
+    CHECK(o[0] == 0x6627e8d5u && o[1] == 0xe169c58du && o[2] == 0xbc57ac4cu && o[3] == 0x9b00dbd8u);
+    Philox4x32 pp{{0xa4093822u, 0x299f31d0u}};
+    const std::uint32_t cp[4] = {0x243f6a88u, 0x85a308d3u, 0x13198a2eu, 0x03707344u};
+    pp.block(cp, o);
+    CHECK(o[0] == 0xd16cfe09u && o[1] == 0x94fdccebu && o[2] == 0x5001e420u && o[3] == 0x24126ea1u);
+    // portable log / sin / cos close to libm
+    double worst = 0.0;
+    for (int i = 1; i < 200000; ++i) {
+        const double x = std::exp(-40.0 + 80.0 * i / 200000.0) * (1.0 + 1e-3 * (i % 7));
+        const double r = std::fabs(p_log(x) - std::log(x)) / std::max(1.0, std::fabs(std::log(x)));
+        worst = std::max(worst, r);
+    }
+    CHECK(worst < 4e-16);
+    double ws = 0.0;
+    for (int i = 0; i < 200000; ++i) {
+        const double u = (i + 0.37) / 200000.0;
+        double s, c;
+        p_sincos_turns(u, s, c);
+        ws = std::max(ws, std::max(std::fabs(s - std::sin(6.283185307179586 * u)),
+                                   std::fabs(c - std::cos(6.283185307179586 * u))));
+    }
+    CHECK(ws < 2e-15);
+    for (int i = 0; i <= 100; ++i) {
+        const double u = i / 100.0;
+        const double sv = p_parabolic_inv(u);
+        CHECK(std::fabs(sv * sv * (3 - 2 * sv) - u) < 1e-14);
+    }
+    double u[2];
+    ph.uniform2(7, 1, 0, u);
+    CHECK(u[0] > 0.0 && u[0] < 1.0 && u[1] > 0.0 && u[1] < 1.0);
+}
+
 int main() {
     test_split();
     test_numbers();
     test_format();
     test_physics();
+    test_random();
     std::printf("%s (%d failures)\n", failures ? "FAILED" : "OK", failures);
     return failures;
 }

@@ -287,7 +287,8 @@
     "drift 0.05 0.02 0",
     "end"
    ],
-   "conserves_energy": true
+   "conserves_energy": true,
+   "segment_drift_check": true
   },
   {
    "name": "Z2_solenoid_single",
@@ -320,7 +321,8 @@
     "drift 0.05 0.02 0",
     "end"
    ],
-   "conserves_energy": true
+   "conserves_energy": true,
+   "segment_drift_check": true
   },
   {
    "name": "Z3_bendH_single",
@@ -659,7 +661,8 @@
     "drift 0.05 0.02 0",
     "end"
    ],
-   "conserves_energy": true
+   "conserves_energy": true,
+   "segment_drift_check": true
   },
   {
    "name": "ST4_By_field_dst",
@@ -930,6 +933,427 @@
     "start",
     "drift 0.05 0.02 0",
     "solenoid 0.2 0.02 0",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "D_GS_GS",
+   "beam": {
+    "randomseed": 12345,
+    "distribution": "GS GS"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "generation": true,
+   "default_indata_sha256": "210d251cedd8800ece2b093a44720bd4b17b872ca3c3ed17000dc67be7381c6e"
+  },
+  {
+   "name": "D_KV_KV",
+   "beam": {
+    "randomseed": 12345,
+    "distribution": "KV KV"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "generation": true,
+   "default_indata_sha256": "3ad063d5f2bfcfaeed2cf150a11109b004d03960177ee0f181ad0a87a210bb6a"
+  },
+  {
+   "name": "D_WB_WB",
+   "beam": {
+    "randomseed": 12345,
+    "distribution": "WB WB"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "generation": true,
+   "default_indata_sha256": "8919fe66fb19fbbccf99a1f23230fccca12820a037bfd575c88deadaa9a5a793"
+  },
+  {
+   "name": "D_PB_PB",
+   "beam": {
+    "randomseed": 12345,
+    "distribution": "PB PB"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "generation": true,
+   "default_indata_sha256": "8b2d5ff4f0a577f6c08dc9c120a1232b15fd75b468181517b05d75dd1f4e2d98",
+   "libm_sensitive": "PB2D: one particle (U = 1 edge) takes another atan2/pow branch with a non-Windows libm"
+  },
+  {
+   "name": "D_KV_GS",
+   "beam": {
+    "randomseed": 12345,
+    "distribution": "KV GS"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "generation": true,
+   "default_indata_sha256": "124f4b77ed2d7c63f5946ca527b89ef7d1ebd4ad9b3984f5a9c5b25aae710c93"
+  },
+  {
+   "name": "D_GS_WB",
+   "beam": {
+    "randomseed": 12345,
+    "distribution": "GS WB"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "generation": true,
+   "default_indata_sha256": "217c43c27d949a7e9e227620f49bbf539d613c80e6d2f1e0b5b576debceea51b"
+  },
+  {
+   "name": "D_PB_KV",
+   "beam": {
+    "randomseed": 12345,
+    "distribution": "PB KV"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "generation": true,
+   "default_indata_sha256": "f2e43d2f5fe91c95ec310ad1bdd38e4265157fba7b01bd56ed7d83382acb32af",
+   "libm_sensitive": "PB2D: one particle (U = 1 edge) takes another atan2/pow branch with a non-Windows libm"
+  },
+  {
+   "name": "D_GS_GS_seed1",
+   "beam": {
+    "randomseed": 1
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "generation": true,
+   "default_indata_sha256": "31e54f63476f6e49223dd0b5bbc47f63b162d0a3c0c17704caafa2e5a981ac41"
+  },
+  {
+   "name": "D_GS_GS_seed777777",
+   "beam": {
+    "randomseed": 777777
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "generation": true,
+   "default_indata_sha256": "4117f8521d8d47190a80c2a599c878300d37685602167c5b2b339c427c96eed4"
+  },
+  {
+   "name": "D_KV_KV_seed1",
+   "beam": {
+    "randomseed": 1,
+    "distribution": "KV KV"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "generation": true,
+   "default_indata_sha256": "fda206573fd3bf31616f76433c134318cb136a2d25a77b30550a9434ff74e25f"
+  },
+  {
+   "name": "D_PB_PB_seed99",
+   "beam": {
+    "randomseed": 99,
+    "distribution": "PB PB"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "generation": true,
+   "default_indata_sha256": "72dc15bd416913e05e007035fdc211a1bbd6c55f82ea3532382c03678ff1b9b0"
+  },
+  {
+   "name": "D_GS_GS_n200",
+   "beam": {
+    "randomseed": 12345,
+    "particlenumber": 200
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "generation": true,
+   "default_indata_sha256": "3ed9199ce88051d5b7bff376f4d0a15ecf580ee78e30554f0c06f8a6dc388124"
+  },
+  {
+   "name": "D_PB_PB_n200",
+   "beam": {
+    "randomseed": 12345,
+    "distribution": "PB PB",
+    "particlenumber": 200
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "generation": true,
+   "default_indata_sha256": "aea6fefd019973eefdf2d7273537fd38812b8b25d3f8b311f6bf5968bf4dc5c5"
+  },
+  {
+   "name": "D_WB_KV_n200",
+   "beam": {
+    "randomseed": 12345,
+    "distribution": "WB KV",
+    "particlenumber": 200
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "generation": true,
+   "default_indata_sha256": "b9479e2e47fe72ac554813e4a27de4f1e7302066ce3cd16e118433a69610a117"
+  },
+  {
+   "name": "D_GS_dc_spread",
+   "beam": {
+    "randomseed": 12345,
+    "beamtype": "dc",
+    "kneticenergy": "1.5270289036445652 0.01"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "generation": true,
+   "default_indata_sha256": "5b1548b1282a54a66b0ad1f220f791c9d061c245047b835e76cc41be0817dbc8"
+  },
+  {
+   "name": "D_KV_dc",
+   "beam": {
+    "randomseed": 12345,
+    "distribution": "KV GS",
+    "beamtype": "dc"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "generation": true,
+   "default_indata_sha256": "aef67a141e04e21e61e0e7bc9e47a7c26cdb7c3daac163a33d3c40bc8325cd7f"
+  },
+  {
+   "name": "D_WB_no_twissz",
+   "beam": {
+    "randomseed": 12345,
+    "distribution": "WB GS",
+    "twissz": null
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "generation": true,
+   "default_indata_sha256": "3021e5dc21e56e02c10756da256415f3f0efa4299537b37b59657e722a47b61f"
+  },
+  {
+   "name": "D_probe",
+   "beam": {
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "generation": true,
+   "input": {
+    "probe": 1
+   },
+   "default_indata_sha256": "8fa5e0c48e590245d1b58b5880442ed4d779b8c5066b91e722f6edd8889f97f4",
+   "libm_sensitive": "probe grid: the centroids are sums of +-sigma that cancel to ~1e-20, so last-bit sigma differences change them completely"
+  },
+  {
+   "name": "D_probe_n100",
+   "beam": {
+    "randomseed": 12345,
+    "particlenumber": 100
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "generation": true,
+   "input": {
+    "probe": 1
+   },
+   "compat_expected_diff": "AVAS.dll reads past the 100 generated rows (probe needs 125): undefined behaviour",
+   "default_indata_sha256": "d01ffff024d1f65b7cf21893091fc74343f36f4c3e2c09a3f6927f740f2d65c2"
+  },
+  {
+   "name": "D_twiss_alpha0",
+   "beam": {
+    "randomseed": 12345,
+    "twissx": "0 0.37743 0.13768",
+    "twissy": "0 0.37292 0.14059",
+    "twissz": "0 0.37292 0.26506"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "generation": true,
+   "default_indata_sha256": "01b83303ed593868faff414fd80c93d936918259622f172e795b535375338e51"
+  },
+  {
+   "name": "D_twiss_round",
+   "beam": {
+    "randomseed": 12345,
+    "distribution": "KV KV",
+    "twissx": "1 1.4142135623730951 0.13768",
+    "twissy": "-1 1.4142135623730951 0.14059"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "generation": true,
+   "default_indata_sha256": "9a613bd868b0fcaf4674f2067fedaf735d4a50268c13305a09006bcc7917cd13"
+  },
+  {
+   "name": "D_seed_input",
+   "beam": {
+    "randomseed": null
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "generation": true,
+   "input": {
+    "randomseed": 12345
+   },
+   "default_indata_sha256": "210d251cedd8800ece2b093a44720bd4b17b872ca3c3ed17000dc67be7381c6e"
+  },
+  {
+   "name": "D_seed_fraction",
+   "beam": {
+    "randomseed": 12345.9
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "generation": true,
+   "default_indata_sha256": "210d251cedd8800ece2b093a44720bd4b17b872ca3c3ed17000dc67be7381c6e"
+  },
+  {
+   "name": "D_edst",
+   "beam": {
+    "readparticledistribution": "small300.edst"
+   },
+   "copy": {
+    "small300.edst": "data/small300.edst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "D_dst_weight",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "input": {
+    "indweight": 1
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst",
+    "hwr010_seed12345.dstb": "data/hwr010_seed12345.dstb"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
     "drift 0.05 0.02 0",
     "end"
    ]

@@ -133,3 +133,14 @@ DataSet 第 0 列按打印精度必须全程不变，outData_*.dst 的平均 W �
 - 硬边元件在 z-code 中不判孔径（与原内核相同）；superpose 含 RF 腔时不允许 superposeout（两种模式都报原内核的错误）。
 - 没有比对算例的路径：静电子场（superpose 中 type 2）、带转角 θz/θy 的 superposeout、多个 superposeout、steerer 后接 bend、两个相邻 steerer、
   z 段中点输出面、`spacechargecomp` 事件。
+
+## 用户决定（2026-11-07）
+
+"待用户决定"各项按推荐处理：
+1. **L = 0 的 bend**：默认模式走完整弧长，并在相位确定阶段计入这段弧长的渡越时间（与写成 L = 弧长的 bend 一致）；compat=dll 复现半弧。
+2. **multipole**：默认模式场强与 G 成正比（G 即手册意义上的多极强度）；compat=dll 复现 ∝ G²。
+3. **RFQ**：两种模式都报 not implemented，待用户提供真实的 RFQ 输入与期望的物理模型后再实现。
+4. **spacechargecomp V**：默认模式空间电荷系数取 1 − V 并截断到 [0, 1]（V = 1 即完全补偿），V 超出 [0, 1] 时打印警告；compat=dll 复现原 DLL（V ≥ 1 静默忽略、负值放大）。M4 实现空间电荷时落实。
+5. **已越过段末的粒子**：默认模式按无场漂移推进（不再用简化的 quad / solenoid 场），仍计入统计；compat=dll 复现原行为。M4 之前实现。
+
+M3 已实现上面的第 4、5 项（spacechargecomp 截断与警告；越过段末的粒子无场漂移），见 [M3-notes.md](M3-notes.md)。

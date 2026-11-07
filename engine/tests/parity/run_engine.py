@@ -96,6 +96,25 @@ def summarise_dst(path):
     return "\n".join(out) + "\n"
 
 
+def summarise_edst(path):
+    b = open(path, "rb").read()
+    if len(b) < 23:
+        return f"short file {len(b)} bytes\n"
+    h0, h1, n, ib, f, h2 = struct.unpack("<BBiddB", b[:23])
+    m = (len(b) - 31) // 72          # records (the header count is one less)
+    body = b[23:23 + 72 * m]
+    vals = struct.unpack("<%dd" % (9 * m), body)
+    out = [f"bytes {len(b)}", f"header {h0} {h1} {h2}", f"N {n}", f"Ib {ib!r}", f"f {f!r}",
+           "sha256 " + hashlib.sha256(body).hexdigest()]
+    names = ["x", "xp", "y", "yp", "phi", "W", "Q", "mc2", "w"]
+    for c in range(9):
+        col = vals[c::9]
+        mm = math.fsum(col) / m
+        r = math.sqrt(math.fsum((v - mm) ** 2 for v in col) / m)
+        out.append(f"{names[c]} mean {mm!r} rms {r!r} min {min(col)!r} max {max(col)!r}")
+    return "\n".join(out) + "\n"
+
+
 def summarise(out_dir, summary_dir, rc, log):
     os.makedirs(summary_dir, exist_ok=True)
     open(os.path.join(summary_dir, "rc.txt"), "w").write(f"{rc}\n")
@@ -131,6 +150,11 @@ def summarise(out_dir, summary_dir, rc, log):
     for f in files:
         if f.endswith(".dst"):
             open(os.path.join(summary_dir, f + ".txt"), "w").write(summarise_dst(os.path.join(out_dir, f)))
+        elif f.endswith(".edst"):
+            open(os.path.join(summary_dir, f + ".txt"), "w").write(summarise_edst(os.path.join(out_dir, f)))
+        elif f.endswith(".dstb"):
+            open(os.path.join(summary_dir, f + ".txt"), "w").write(
+                "sha256 " + hashlib.sha256(open(os.path.join(out_dir, f), "rb").read()).hexdigest() + "\n")
     # keep the console lines that carry results (no timing values)
     keep = []
     for ln in log.replace("\r", "\n").splitlines():

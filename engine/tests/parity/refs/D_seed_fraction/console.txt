@@ -1,0 +1,13 @@
+The input path has been set to C:\Users\lycself\tmp_avas_m3\dll\D_seed_fraction\inputs\
+The fieldMap path has been set to C:\Users\lycself\tmp_avas_m3\repo\examples\hwr010\InputFile\
+The output path has been set to C:\Users\lycself\tmp_avas_m3\dll\D_seed_fraction\OutputFile\
+The programme is running.
+Lattice initialisation complete, total length 0.31 m
+A total of 1 output planes
+The number of particles represented by a single macro particle: 1344.33
+The 1 field, phi_0:52.6602    phi_s:-33  Frequency is 1.625e+08
+Entry  time 2.92688e-09  Entering energy 1.52703
+Export time 1.48796e-08    Export energy 1.86654
+Exit bunch energy: 1.86654
+The total distance simulated is 0.31 (m)
+[parity] main_agent -> 0
