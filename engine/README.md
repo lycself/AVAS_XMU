@@ -4,6 +4,8 @@
 
 目标：同一份 C++ 物理代码（`__host__ __device__`）编译成 CPU 版（OpenMP）和 CUDA 版；macOS 的 MPS 用 PyTorch。支持 macOS（CPU、MPS）、Windows 和 Linux（CPU、NVIDIA GPU，最低 Pascal sm_61），包括 CentOS 7 / glibc 2.17 的离线集群。精度分 `auto`／`fp64`／`fp32` 三档，`auto` 在 fp64 全速的卡上用 fp64，其余用 fp32 相对参考粒子坐标。
 
+逆向整理的规格在 [docs/engine/](../docs/engine/README.md)：数据结构、8 个子系统、280 个对齐项、已实测核实的结论和待做的比对实验。
+
 ## 目录
 
 - `docker/manylinux2014-cuda12.4.Dockerfile`：Linux 构建环境（glibc 2.17、devtoolset-10、CUDA 12.4）。服务器连不上 CentOS vault 源，CUDA rpm 从 NVIDIA 的 `.cn` 镜像下载后用 `--nodeps` 安装（`cuda-nvcc` 声明依赖系统 `gcc-c++`，实际使用 devtoolset 的编译器）。
