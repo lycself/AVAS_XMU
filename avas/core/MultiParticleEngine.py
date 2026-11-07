@@ -1,11 +1,16 @@
-"""ctypes wrapper of the simulation engine (``AVAS.dll`` on Windows, ``libAVAS.so`` on Linux)."""
+"""ctypes wrapper of the simulation engine (``AVAS.dll`` on Windows, ``libAVAS.so`` on Linux).
+
+With the environment variable ``AVAS_ENGINE=new`` the rebuilt engine from ``engine/build`` is loaded
+instead (same C interface); ``AVAS_ENGINE_LIB`` overrides its path and ``AVAS_ENGINE_COMPAT=dll``
+makes it reproduce the original AVAS.dll.
+"""
 import ctypes
 import os
 import platform
 import sys
 from ctypes import POINTER, c_char_p, c_int, c_wchar_p
 
-from avas.paths import ENGINE_DIR
+from avas.paths import ENGINE_DIR, new_engine_build_dirs
 
 _WINDOWS = platform.system() == "Windows"
 
@@ -33,6 +38,28 @@ def _unbuffer_c_stdout():
         pass
 
 
+def _new_engine_path():
+    """Library of the rebuilt engine when ``AVAS_ENGINE=new`` (engine/build of the source tree).
+
+    ``AVAS_ENGINE_LIB`` may name the library file directly.  Returns None when the original
+    kernel is to be used.
+    """
+    if os.environ.get("AVAS_ENGINE", "").strip().lower() != "new":
+        return None
+    explicit = os.environ.get("AVAS_ENGINE_LIB")
+    if explicit:
+        return explicit
+    names = {"Windows": "avas_engine.dll", "Darwin": "libavas_engine.dylib"}
+    name = names.get(platform.system(), "libavas_engine.so")
+    dirs = new_engine_build_dirs()
+    for d in dirs:
+        candidate = os.path.join(d, name)
+        if os.path.exists(candidate):
+            return candidate
+    raise ValueError(f"AVAS_ENGINE=new but {name} was not found under {dirs[0]}; build it "
+                     "(cmake -S engine -B engine/build && cmake --build engine/build) or set AVAS_ENGINE_LIB")
+
+
 class MultiParticleEngine:
     """Loads the engine once; ``get_path`` sets the folders, ``main_agent`` runs (1) or stops (2) it.
 
@@ -43,13 +70,14 @@ class MultiParticleEngine:
 
     def __init__(self):
         _unbuffer_c_stdout()
-        self.dll_dir = ENGINE_DIR
-        self.dll_path = os.path.join(ENGINE_DIR, "AVAS.dll" if _WINDOWS else "libAVAS.so")
+        new_engine = _new_engine_path()
+        self.dll_dir = os.path.dirname(os.path.abspath(new_engine)) if new_engine else ENGINE_DIR
+        self.dll_path = new_engine or os.path.join(ENGINE_DIR, "AVAS.dll" if _WINDOWS else "libAVAS.so")
         self.so_path = self.dll_path                     # old name, kept for callers that print it
         try:
             if _WINDOWS and hasattr(os, "add_dll_directory"):
                 # make libfftw3*.dll / MSVCP140.dll next to AVAS.dll resolvable
-                os.add_dll_directory(ENGINE_DIR)
+                os.add_dll_directory(self.dll_dir)
             self.library = ctypes.CDLL(self.dll_path)
         except OSError as e:
             raise ValueError(f"Failed to load the simulation engine '{self.dll_path}'. Reason: {e}") from e

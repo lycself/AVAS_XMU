@@ -1,0 +1,16 @@
+The input path has been set to C:\Users\lycself\tmp_avas_m1\dll\S3a_two_cav_v0_v0\inputs\
+The fieldMap path has been set to C:\Users\lycself\tmp_avas_m1\repo\examples\hwr010\InputFile\
+The output path has been set to C:\Users\lycself\tmp_avas_m1\dll\S3a_two_cav_v0_v0\OutputFile\
+The programme is running.
+Lattice initialisation complete, total length 0.47 m
+A total of 1 output planes
+The intensity is set to 0
+The 1 field, phi_0:52.6614    phi_s:-33  Frequency is 1.625e+08
+Entry  time 0  Entering energy 1.52703
+Export time 1.19527e-08    Export energy 1.86654
+The 2 field, phi_0:92.6054    phi_s:-33  Frequency is 1.625e+08
+Entry  time 1.46007e-08  Entering energy 1.86654
+Export time 2.52852e-08    Export energy 2.33157
+Exit bunch energy: 2.33157
+The total distance simulated is 0.47 (m)
+[parity] main_agent -> 0

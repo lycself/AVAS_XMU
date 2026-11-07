@@ -53,7 +53,7 @@ frontend/src/
   styles/tokens.css 全部颜色变量（浅色 + 深色）
 tests/            pytest；test_gui.py 覆盖页面调用的每个接口；前端 vitest（frontend/src/**/*.test.ts）
 tools/            手动运行的开发工具（不属于快速 pytest）：compare_preview_engine.py 用真实内核对比新旧线性预览，compare_centroid_engine.py 用单粒子运行核对线性模型的质心，compare_response_engine.py 用小发射度多粒子束核对轨道响应矩阵（步骤见 CONTRIBUTING.md）
-engine/           新计算内核（重建中，原内核源码已丢失；在 engine-rebuild 分支开发，全部功能对齐前不合并 main，说明见 engine/README.md）：docker/ Linux 构建环境（manylinux2014 + CUDA 12.4），tools/ 工具链检查与 Ghidra 导出脚本；逆向导出的伪代码不进仓库
+engine/           新计算内核（重建中，原内核源码已丢失；在 engine-rebuild 分支开发，全部功能对齐前不合并 main，说明见 engine/README.md，规格在 docs/engine/）：src/ C++ 源码（CMake 构建），tests/parity/ 与原 AVAS.dll 的比对，docker/ Linux 构建环境（manylinux2014 + CUDA 12.4），tools/ 工具链检查、原内核比对实验与 Ghidra 导出脚本；逆向导出的伪代码不进仓库。从源码运行时设 `AVAS_ENGINE=new` 让 `avas run` 加载 engine/build 下的新库，`AVAS_ENGINE_COMPAT=dll` 复现原内核缺陷
 .github/workflows/ci.yml  CI：ruff + 快速 pytest（Windows，含 smoke）、npm test + build
 examples/hwr010/  示例项目（跑一次约 10–30 秒）；examples/research/ 研究接口示例脚本（`# %%` 分格，VS Code / Jupyter 可逐格运行）
 docs/             使用说明（以 使用说明20260427.docx 为准，121 版已过时）、CHANGELOG

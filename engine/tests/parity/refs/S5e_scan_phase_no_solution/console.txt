@@ -1,0 +1,9 @@
+The input path has been set to C:\Users\lycself\tmp_avas_m1\dll\S5e_scan_phase_no_solution\inputs\
+The fieldMap path has been set to C:\Users\lycself\tmp_avas_m1\repo\examples\hwr010\InputFile\
+The output path has been set to C:\Users\lycself\tmp_avas_m1\dll\S5e_scan_phase_no_solution\OutputFile\
+The programme is running.
+Lattice initialisation complete, total length 0.31 m
+A total of 1 output planes
+The intensity is set to 0
+The 1 field, phi_0:-162.395    phi_s:-30  Frequency is 1.625e+08
+[parity] main_agent -> 1

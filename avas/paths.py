@@ -9,6 +9,8 @@ import sys
 
 PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
 ENGINE_DIR = os.path.join(PACKAGE_DIR, "engine")
+# source checkout root (holds engine/, the rebuilt kernel, when running from source)
+SOURCE_ROOT = os.path.dirname(PACKAGE_DIR)
 STATIC_DIR = os.path.join(PACKAGE_DIR, "static")
 I18N_DIR = os.path.join(PACKAGE_DIR, "i18n")
 
@@ -28,6 +30,12 @@ LOG_DIR = os.path.join(USER_DATA_DIR, "logs")
 
 def engine_file(name):
     return os.path.join(ENGINE_DIR, name)
+
+
+def new_engine_build_dirs():
+    """Directories searched for the rebuilt engine library (``AVAS_ENGINE=new``)."""
+    build = os.path.join(SOURCE_ROOT, "engine", "build")
+    return [build, os.path.join(build, "Release"), os.path.join(build, "RelWithDebInfo")]
 
 
 def static_file(name):

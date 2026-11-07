@@ -1,0 +1,6 @@
+The input path has been set to C:\Users\lycself\tmp_avas_m1\dll\S5d_missing_fieldmap\inputs\
+The fieldMap path has been set to C:\Users\lycself\tmp_avas_m1\repo\examples\hwr010\InputFile\
+The output path has been set to C:\Users\lycself\tmp_avas_m1\dll\S5d_missing_fieldmap\OutputFile\
+The programme is running.
+The one-dimensional field has been expanded into a three-dimensional field.
+[parity] main_agent -> 1

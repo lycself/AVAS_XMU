@@ -1,0 +1,1 @@
+     Initialisation stage error: Abnormal settings of the initial energy or the phase parameters of the lattice cause the scan phase to fail to find the corresponding RF phase
