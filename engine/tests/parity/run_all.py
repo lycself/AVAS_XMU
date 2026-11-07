@@ -354,10 +354,24 @@ def error_study_check(doc, work):
             continue
         a = os.path.join(work, m["case"], "OutputFile", f"output_{m['sample']}")
         b = os.path.join(work, case["name"], "OutputFile", "output_0")
-        files = sorted(f for f in os.listdir(a) if f not in ("SimulationTime.txt", "synParticle.txt")) \
-            if os.path.isdir(a) else []
-        bad = [f for f in files if not os.path.exists(os.path.join(b, f)) or
-               open(os.path.join(a, f), "rb").read() != open(os.path.join(b, f), "rb").read()]
+        skip = {"SimulationTime.txt", "synParticle.txt"}
+        if not os.path.isdir(b):   # the hand-made run has no error lines
+            b = os.path.join(work, case["name"], "OutputFile")
+            skip |= {"StaticErrorData.txt", "DynamicErrorData.txt", "errorData.seed.txt"}
+        files = sorted(f for f in os.listdir(a) if f not in skip) if os.path.isdir(a) else []
+        if m.get("only") == "dst_transverse":
+            # the synchronous particle never sees element errors, so only the absolute transverse
+            # particle coordinates of the outData files can be compared with the displaced lattice
+            files = [f for f in files if f.startswith("outData_") and f.endswith(".dst")]
+
+            def same(f):
+                ra, fa = read_dst(os.path.join(a, f))
+                rb, fb = read_dst(os.path.join(b, f))
+                return len(ra) == len(rb) and all(x[:4] == y[:4] for x, y in zip(ra, rb))
+            bad = [f for f in files if not os.path.exists(os.path.join(b, f)) or not same(f)]
+        else:
+            bad = [f for f in files if not os.path.exists(os.path.join(b, f)) or
+                   open(os.path.join(a, f), "rb").read() != open(os.path.join(b, f), "rb").read()]
         ok = bool(files) and not bad
         fails += 0 if ok else 1
         print(f"{case['name']:<24} {'ok  ' if ok else 'FAIL'} {m['case']} sample {m['sample']} = nominal lattice + "
@@ -371,6 +385,64 @@ def error_study_check(doc, work):
         fails += 0 if ok else 1
         print(f"{case['name']:<24} {'ok  ' if ok else 'FAIL'} error samples sha256 {got[:16]}"
               f"{'' if ok else ' expected ' + want[:16]}")
+    return fails
+
+
+def loop_feature_check(doc, work):
+    """Default mode, M5b features: boundary.txt hits lie on the pipe wall (straight pipe of LB1),
+    lpboundary keeps every particle within half an RF period of the synchronous one, longlimits keeps
+    the phase window, secondary particles are written at every output plane and read SeParticle.txt."""
+    fails = 0
+    print("\nBoundary, lpboundary, longlimits and secondary particles (default mode):")
+    cd = os.path.join(work, "LB1_boundary_straight_single", "OutputFile", "collisionData.txt")
+    rows = read_rows(cd)
+    ok = len(rows) == 1 and abs(math.hypot(num(rows[0][0]) - 0.0, num(rows[0][1])) - 0.01) < 2e-6
+    fails += 0 if ok else 1
+    print(f"{'LB1_boundary_straight_single':<32} {'ok  ' if ok else 'FAIL'} hit radius {math.hypot(num(rows[0][0]), num(rows[0][1])) if rows else math.nan:.6g} m (pipe 0.01 m)")
+    for name in ("LP1_lpboundary_dst", "LP2_lpboundary_fft_dst", "LP3_lpboundary_spicnic_dst"):
+        ds = read_rows(os.path.join(work, name, "OutputFile", "DataSet.txt"))
+        # column 26 = max |dz| (m); half period beta*lambda/2 from the synchronous gamma*beta_z (col 34)
+        worst = max((num(r[26]) / (0.5 * 299792458.0 / 162.5e6 * num(r[34]) / math.hypot(1, num(r[34]))) for r in ds[1:]),
+                    default=math.inf)
+        ok = worst <= 1.0 + 1e-9
+        fails += 0 if ok else 1
+        print(f"{name:<32} {'ok  ' if ok else 'FAIL'} max |dz| / (beta lambda / 2) = {worst:.6f}")
+    ds = read_rows(os.path.join(work, "LL1_longlimits_dst", "OutputFile", "DataSet.txt"))
+    worst = max((num(r[26]) / (60.0 / 360.0 / 162.5e6 * 299792458.0 * num(r[34]) / math.hypot(1, num(r[34]))) for r in ds[2:]),
+                default=math.inf)
+    ok = worst <= 1.0 + 1e-6
+    fails += 0 if ok else 1
+    print(f"{'LL1_longlimits_dst':<32} {'ok  ' if ok else 'FAIL'} max |dz| / phase window = {worst:.6f}")
+    for case in doc["cases"]:
+        want = case.get("default_secondary_planes")
+        if not want:
+            continue
+        out = os.path.join(work, case["name"], "OutputFile")
+        files = sorted(f for f in os.listdir(out) if f.startswith("outData_") and f.endswith(".txt")) if os.path.isdir(out) else []
+        lines = [len(read_rows(os.path.join(out, f))) for f in files]
+        ok = len(files) == want and all(n == 3 for n in lines)
+        fails += 0 if ok else 1
+        print(f"{case['name']:<32} {'ok  ' if ok else 'FAIL'} {len(files)} output planes, particles {lines}")
+    return fails
+
+
+def secondary_steerer_check(work):
+    """G-31: a steerer has no effect on secondary particles. The particles written at the output planes
+    (outData_*.txt) of SB6 (with a steerer) and SB6n (without) are identical, in the AVAS.dll references,
+    in compat=dll and in the default mode."""
+    fails = 0
+    print("\nSteerer ignored by secondary particles (SB6 against SB6n):")
+    for label, base, sub in (("AVAS.dll", os.path.join(HERE, "refs"), ""), ("compat=dll", os.path.join(work, "dll"), "summary"),
+                             ("default", os.path.join(work, "none"), "summary")):
+        dirs = [os.path.join(base, n, sub) for n in ("SB6_secondary_steerer", "SB6n_secondary_no_steerer")]
+        if not all(os.path.isdir(d) for d in dirs):
+            print(f"{label:<12} skip (no results)")
+            continue
+        files = [sorted(f for f in os.listdir(d) if f.startswith("outData_") and f.endswith(".txt")) for d in dirs]
+        same = bool(files[0]) and files[0] == files[1] and all(
+            open(os.path.join(dirs[0], f), "rb").read() == open(os.path.join(dirs[1], f), "rb").read() for f in files[0])
+        fails += 0 if same else 1
+        print(f"{label:<12} {'ok  ' if same else 'FAIL'} {len(files[0])} output planes")
     return fails
 
 
@@ -412,8 +484,11 @@ def main():
     bad += distribution_check(doc, os.path.join(work, "none"))
     bad += indata_sha_check(doc, os.path.join(work, "none"))
     bad += error_study_check(doc, os.path.join(work, "none"))
+    bad += loop_feature_check(doc, os.path.join(work, "none"))
+    bad += secondary_steerer_check(work)
     bad += thread_check(lib, work, ["SC1_spicnic_S1", "SC2_fft_S1", "SC5_spicnic_Z1", "D_GS_GS",
-                                    "ER3_quad_dyn_r2_step31_dst", "ER16_quad_dyn_spicnic_dst"])
+                                    "ER3_quad_dyn_r2_step31_dst", "ER16_quad_dyn_spicnic_dst",
+                                    "LP2_lpboundary_fft_dst", "LB2_boundary_mixed_dst"])
     if bad:
         print(f"DEFAULT-MODE CHECKS FAILED: {bad}")
         return 1
@@ -426,6 +501,11 @@ def main():
     for name, why in libm_sensitive.items():
         print(f"not compared across platforms: {name} ({why})")
     worst = 0.0
+    ignore = {c["name"]: c["compat_ignore_lines"] for c in doc["cases"] if c.get("compat_ignore_lines")}
+    # AVAS.dll crashes or lets a C++ exception escape: the return code and the console message are
+    # those of Windows (ctypes OSError); other platforms end with a signal instead
+    win_end = {c["name"] for c in doc["cases"] if c.get("windows_process_end")}
+    worst_at = ""
     for case in sorted(os.listdir(os.path.join(HERE, "refs"))):
         rdir = os.path.join(HERE, "refs", case)
         files = [os.path.relpath(os.path.join(d, f), rdir) for d, _, fs in os.walk(rdir) for f in fs]
@@ -434,17 +514,25 @@ def main():
             rp, np_ = os.path.join(rdir, rel), os.path.join(work, "dll", case, "summary", rel)
             if case in compare.expected_diff_cases() or case in libm_sensitive:
                 continue
-            if f in ("console.txt", "files.txt") or not os.path.exists(np_):
+            if case in win_end and f in ("rc.txt", "console_check.txt"):
                 continue
+            if f in ("console.txt", "files.txt") or f.endswith(".sha.txt") or not os.path.exists(np_):
+                continue   # binary outputs are compared bit for bit on Windows only
             if f.endswith((".dst.txt", ".edst.txt", ".dstb.txt")):
                 ok, _, mrel, _, _ = compare.compare_dst(compare.read(rp), compare.read(np_))
             else:
                 cols = set(range(28, 41)) if (f == "DataSet.txt" and case in compare.single_particle_cases()) else None
-                ok, _, mrel, _, note = compare.compare_text(compare.read(rp), compare.read(np_), cols)
+                ra, na = compare.read(rp), compare.read(np_)
+                drop = ignore.get(case, {}).get(rel.replace(os.sep, "/"))
+                if drop:   # lines holding uninitialised memory of AVAS.dll
+                    ra = "\n".join(ln for k, ln in enumerate(ra.split("\n")) if k not in drop)
+                    na = "\n".join(ln for k, ln in enumerate(na.split("\n")) if k not in drop)
+                ok, _, mrel, _, note = compare.compare_text(ra, na, cols)
                 if note.startswith("lines"):
                     mrel = math.inf
-            worst = max(worst, mrel)
-    print(f"\nlargest relative difference to AVAS.dll: {worst:.3g}")
+            if mrel > worst:
+                worst, worst_at = mrel, f"{case}/{rel}"
+    print(f"\nlargest relative difference to AVAS.dll: {worst:.3g} ({worst_at})")
     return 0 if worst < 1e-10 else 1
 
 

@@ -1,0 +1,7 @@
+The input path has been set to C:\Users\lycself\tmp_avas_m5b\dllref\SI_B26_sync_drift_aperture\inputs\
+The fieldMap path has been set to C:\Users\lycself\tmp_avas_m5b\repo\examples\hwr010\InputFile\
+The output path has been set to C:\Users\lycself\tmp_avas_m5b\dllref\SI_B26_sync_drift_aperture\OutputFile\
+The programme is running.
+Lattice initialisation complete, total length 0.45 m
+A total of 1 output planes
+The intensity is set to 0

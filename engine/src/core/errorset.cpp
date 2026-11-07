@@ -171,7 +171,7 @@ std::vector<ErrorSample> generate_error_set(const Lattice& lat, MsvcRand& rng, s
                 if ((*swr)[s] != 1) continue;
                 const int c = static_cast<int>(s) - 2;
                 for (const auto& d : er.elemDefs) {
-                    if (d[0] != cls || d[1] != mode) continue;
+                    if (d[0] == 2.0 || d[0] != cls || d[1] != mode) continue;
                     const int E = static_cast<int>(d[2]);
                     const int N = static_cast<int>(d[3]);
                     const double r = d[4];
@@ -214,6 +214,46 @@ std::vector<ErrorSample> generate_error_set(const Lattice& lat, MsvcRand& rng, s
                             }
                     }
                 }
+                // superpose records (spec 70 3.6): element rec[2], sub-field rec[19]; AVAS.dll draws
+                // only the dynamic ones, the corrected engine also the static ones
+                if (mode == 1 || !compat) {
+                    for (const auto& d : er.elemDefs) {
+                        if (d[0] != 2.0) continue;
+                        for (size_t o = 0; o + 20 <= d.size(); o += 20) {
+                            const double* rec = &d[o];
+                            if (rec[1] != static_cast<double>(mode) || static_cast<int>(rec[18]) != cls) continue;
+                            const int e = static_cast<int>(rec[2]);
+                            const int sub = static_cast<int>(rec[19]);
+                            const double r = rec[4];
+                            const double x = 5 + c < 18 ? rec[5 + c] : 0.0;
+                            for (int j = 0; j < b; ++j)
+                                for (int i = 0; i < a; ++i) {
+                                    const int k = j * a + i;
+                                    double val;
+                                    if (compat) {
+                                        const double A = ((j + 1) * x) / b;
+                                        if (r == 0.0) val = A;
+                                        else if (r == 1.0) { const double dd = (uni() - 0.5) * A; val = dd + dd; }
+                                        else if (r == 2.0) val = gauss.next(rng, A);
+                                        else if (r == 3.0) { say(kUnknownElem); compat_exit(1); }
+                                        else val = lastDyn;
+                                        lastDyn = val;
+                                    } else {
+                                        val = def_value(k, 1000 + e * 64 + sub, c, mode, r, x, j);
+                                    }
+                                    auto& rows = mode == 0 ? S[k].stat : S[k].dyn;
+                                    const size_t col = static_cast<size_t>(sub) * 12 + static_cast<size_t>(c) + 1;
+                                    if (rows.size() <= static_cast<size_t>(e + 1) || rows[e + 1].size() <= col) {
+                                        if (!compat) throw EngineError("An error line inside a superpose block has no sub-field to act on");
+                                        continue;
+                                    }
+                                    rows[e + 1][col] = val;
+                                    rows[e + 1][static_cast<size_t>(sub) * 12] = 1.0;
+                                    rows[e + 1][0] = 1.0;  // AVAS.dll marks the element row as well
+                                }
+                        }
+                    }
+                }
             }
         }
     }
@@ -246,6 +286,65 @@ void set_errors_in_elements(Lattice& lat, const ErrorSample& es) {
             e.errRotZ = d(5) * deg + e.errRotZ;
             e.strength = (d(6) * 0.01 + 1.0) * e.strength;
             e.fieldErr = e.strength;
+        } else if (e.kind == ElemKind::Field && e.fieldType == 4) {
+            // spec 70 4.2: per sub-field, from its 12 slots of the row (only dynamic ones are drawn)
+            const size_t ns = e.subType.size();
+            e.subErr.assign(ns, std::array<double, 12>{});
+            for (size_t q = 0; q < ns; ++q) {
+                auto& se = e.subErr[q];
+                const int t = e.subType[q];
+                if (t == 1) se[7] = e.subKb[q];
+                else if (t == 2) { se[7] = e.subKb[q]; se[8] = e.subKe[q]; }
+                else if (t == 3) se[8] = e.subKe[q];
+                auto slot = [&](const std::vector<double>* R, int c) {
+                    const size_t idx = q * 12 + static_cast<size_t>(c);
+                    return (R && idx < R->size()) ? (*R)[idx] : 0.0;
+                };
+                if (compat_dll()) {
+                    const std::vector<double>* R = f3 ? D : S;
+                    if (!R || slot(R, 0) != 1.0) continue;
+                    se[0] = 1.0;
+                    se[1] += slot(R, 1) * 0.001;
+                    se[2] += slot(R, 2) * 0.001;
+                    se[3] += slot(R, 7) * 0.001;
+                    se[4] += slot(R, 3) * deg;
+                    se[5] += slot(R, 4) * deg;
+                    if (t == 1 || t == 3) {
+                        se[6] += slot(R, 5) * deg;
+                        const double f = slot(R, 6) * 0.01 + 1.0;
+                        if (t == 1) se[7] = f * e.subKb[q];
+                        else se[8] = f * e.subKe[q];
+                    } else if (t == 2) {
+                        double p5 = slot(R, 5);
+                        if (f2 && f3) p5 = p5 + slot(S, 5);
+                        se[7] = (p5 * 0.01 + 1.0) * e.subKb[q];
+                        se[8] = (p5 * 0.01 + 1.0) * e.subKe[q];
+                        se[9] += slot(R, 6);
+                    }
+                    continue;
+                }
+                // corrected: static and dynamic slots add up
+                const bool hs = S && slot(S, 0) == 1.0, hd = D && slot(D, 0) == 1.0;
+                if (!hs && !hd) continue;
+                auto sum = [&](int c) { return (hs ? slot(S, c) : 0.0) + (hd ? slot(D, c) : 0.0); };
+                se[0] = 1.0;
+                se[1] = sum(1) * 0.001;
+                se[2] = sum(2) * 0.001;
+                se[3] = sum(7) * 0.001;
+                se[4] = sum(3) * deg;
+                se[5] = sum(4) * deg;
+                if (t == 1 || t == 3) {
+                    se[6] = sum(5) * deg;
+                    const double f = sum(6) * 0.01 + 1.0;
+                    if (t == 1) se[7] = f * e.subKb[q];
+                    else se[8] = f * e.subKe[q];
+                } else if (t == 2) {
+                    const double f = sum(5) * 0.01 + 1.0;
+                    se[7] = f * e.subKb[q];
+                    se[8] = f * e.subKe[q];
+                    se[9] = sum(6);
+                }
+            }
         } else if (e.kind == ElemKind::Field && (e.fieldType == 1 || e.fieldType == 2 || e.fieldType == 3)) {
             e.errDx = e.errDy = e.errDz = e.errRotX = e.errRotY = e.errRotZ = 0.0;
             e.keErr = e.kbErr = e.phaseErr = 0.0;

@@ -1,0 +1,5 @@
+The input path has been set to C:\Users\lycself\tmp_avas_m5b\dllref\EX_A22_no_end\inputs\
+The fieldMap path has been set to C:\Users\lycself\tmp_avas_m5b\repo\examples\hwr010\InputFile\
+The output path has been set to C:\Users\lycself\tmp_avas_m5b\dllref\EX_A22_no_end\OutputFile\
+The programme is running.
+The intensity is set to 0

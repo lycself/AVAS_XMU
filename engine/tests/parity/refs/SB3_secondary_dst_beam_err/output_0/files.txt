@@ -1,0 +1,11 @@
+DataSet.txt 0
+DynamicErrorData.txt 65
+Phase.txt 108
+SeSynParticle.txt 4500
+collisionData.txt 0
+inData.dst 252511
+outData_0.310000.txt 635366
+scanPhaseData.txt 1539
+synData.txt 384
+synParticle.txt 0
+testP.txt 0

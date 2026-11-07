@@ -1,0 +1,1 @@
+     simulation stage error: Tcode won't start, there are particles located behind the output plane. headParticleCoordinates: 0.001000 line: 0.000100

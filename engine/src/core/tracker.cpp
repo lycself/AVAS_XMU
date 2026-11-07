@@ -105,12 +105,14 @@ using Rec = std::array<double, 8>;  // crossing record: x, ux, y, uy, z, uz, t, 
 class Tracker {
 public:
     Tracker(Lattice& lat, Beam& b, Params& p) : lat_(lat), b_(b), p_(p), compat_(compat_dll()) {
-        if (p.spaceCharge == 1 && p.impScField == 1)
-            throw EngineError("beam.txt impscfield 1 (importSCF) is not implemented in the new engine yet");
         if (p.spaceCharge == 1) sc_ = std::make_unique<SpaceCharge>(p, b.n);
     }
 
     void run() {
+        if (b_.secondary) {
+            run_secondary();
+            return;
+        }
         const auto t0 = std::chrono::steady_clock::now();
         const int n = b_.n;
         planeRec_.assign(static_cast<size_t>(n) + 1, Rec{});
@@ -129,12 +131,38 @@ public:
         dataSet_.open(out + "DataSet.txt");
         synFile_.open(out + "synParticle.txt");
         setup_errors();
+        if (p_.dumpPeriodicity != 0) {
+            // BeamSet.plt header (truncating)
+            std::string h;
+            h.push_back(static_cast<char>(0x7D));
+            h.push_back(static_cast<char>(0x64));
+            const std::int32_t d32 = p_.dumpPeriodicity, n32 = n;
+            const double cur = b_.current * 1000.0, fm = b_.frequency / 1000000.0, mc2 = b_.restMass[n];
+            h.append(reinterpret_cast<const char*>(&d32), 4);
+            h.append(reinterpret_cast<const char*>(&n32), 4);
+            h.append(reinterpret_cast<const char*>(&cur), 8);
+            h.append(reinterpret_cast<const char*>(&fm), 8);
+            h.append(reinterpret_cast<const char*>(&mc2), 8);
+            if (!write_file(out + "BeamSet.plt", h, false, true))
+                throw EngineError("BeamSet.plt open failed, Check permissions");
+        }
 
         const std::vector<Segment> segs = segment_lattice();
         startClock_ = std::chrono::steady_clock::now();
         zStartRun_ = b_.z[n];
         double t = b_.tMin;
         double zSeg = 0.0;
+        if (p_.dumpPeriodicity != 0) {
+            for (int i = 0; i < n; ++i) {
+                b_.rel[0][i] = b_.x[i] - b_.x[n];
+                b_.rel[1][i] = b_.ux[i];
+                b_.rel[2][i] = b_.y[i] - b_.y[n];
+                b_.rel[3][i] = b_.uy[i];
+                b_.rel[4][i] = b_.z[i] - b_.z[n];
+                b_.rel[5][i] = b_.uz[i];
+            }
+            beam_out(0, b_.tMin, b_.z[n], -1);
+        }
         for (const Segment& sg : segs) {
             if (sg.zcode) zcode(sg, t, zSeg);
             else tcode(t, zSeg, sg.ev, sg.marks);
@@ -153,6 +181,416 @@ public:
     }
 
 private:
+    // ---------------- secondary particles (MethodMP::SeRun, spec 70 9-10) ----------------
+    struct Segment;
+    int maxSec_ = 0;
+    std::vector<double> bendRef_;  // reference gamma*beta_z of each bend (from the synchronous particle)
+
+    void run_secondary() {
+        const int n = b_.n;
+        say(Text().s("The total distance simulated is ").g(lat_.total_length()).s(" (m)").str());
+        say("Start simulation, start time " + time_stamp());
+        const std::string& out = paths().output;
+        for (const char* f : {"DataSet.txt", "synParticle.txt", "SeSynParticle.txt", "testP.txt", "collisionData.txt"})
+            write_file(out + f, "", false);
+        setup_errors();
+        if (p_.dumpPeriodicity != 0) {
+            std::string h;
+            h.push_back(static_cast<char>(0x7D));
+            h.push_back(static_cast<char>(0x64));
+            const std::int32_t d32 = p_.dumpPeriodicity, n32 = n;
+            const double cur = b_.current * 1000.0, fm = b_.frequency / 1000000.0, mc2 = b_.restMass[n];
+            h.append(reinterpret_cast<const char*>(&d32), 4);
+            h.append(reinterpret_cast<const char*>(&n32), 4);
+            h.append(reinterpret_cast<const char*>(&cur), 8);
+            h.append(reinterpret_cast<const char*>(&fm), 8);
+            h.append(reinterpret_cast<const char*>(&mc2), 8);
+            if (!write_file(out + "BeamSet.plt", h, false, true)) throw EngineError("BeamSet.plt open failed, Check permissions");
+        }
+        std::vector<Segment> segs = segment_lattice();
+        for (Segment& sg : segs) {
+            if (sg.zcode) continue;
+            // spacechargecomp events do not exist in SeRun
+            std::vector<double> ev;
+            std::vector<int> mk;
+            for (size_t j = 0; j < sg.ev.size(); ++j)
+                if (sg.marks[j] != -4) { ev.push_back(sg.ev[j]); mk.push_back(sg.marks[j]); }
+            sg.ev = ev;
+            sg.marks = mk;
+        }
+        bendRef_.assign(lat_.elements.size(), 0.0);
+        maxSec_ = 0;
+        auto track = [&](int i, bool isSync) {
+            Rec S{};
+            for (const Segment& sg : segs) {
+                if (sg.zcode) se_zrun(sg, S, i, isSync);
+                else se_trun(sg, S, i, isSync);
+            }
+        };
+        track(n, true);
+        say("Synchronized particles have completed simulation.");
+        maxSec_ *= 10;
+        for (int i = 0; i < n; ++i) {
+            if (stop_requested()) throw EngineError("Programs terminated by users.                       ");
+            track(i, false);
+            char line[160];
+            std::snprintf(line, sizeof line, "Simulating the %d particle.  total number of particles %d.                          \r", i, n);
+            say_raw(line);
+        }
+        int alive = 0;
+        for (int i = 0; i < n; ++i)
+            if (b_.lost[i] != 1) ++alive;
+        say("Simulation completed, completion time " + time_stamp() + "   Number of particles not lost: " +
+            std::to_string(alive) + std::string(77, ' '));
+    }
+
+    void se_syn_out(int i) {
+        const Beam& b = b_;
+        Text t;
+        for (double v : {b.x[i], b.ux[i], b.y[i], b.uy[i], b.z[i], b.uz[i], b.bx[i], b.by[i], b.bz[i]})
+            t.fixed(v, 12).s("  ");
+        t.i(b.lost[i]).nl();
+        write_file(paths().output + "SeSynParticle.txt", t.str(), true);
+    }
+
+    void se_plane_out(int i, const Rec& S, double z, bool isSync) {
+        char zn[64];
+        std::snprintf(zn, sizeof zn, "%f", z);
+        const std::string f = paths().output + "outData_" + zn + ".txt";
+        if (isSync) {
+            write_file(f, "", false);
+            return;
+        }
+        Text t;
+        t.i(b_.id[i]).s(" ");
+        for (int j : {0, 1, 2, 3, 6}) t.fixed(S[j], 15).s("  ");
+        t.fixed(S[5], 15).nl();
+        write_file(f, t.str(), true);
+    }
+
+    // SeTRun: own-time steps of one particle through a time-step segment
+    void se_trun(const Segment& sg, Rec& S, int i, bool isSync) {
+        Beam& b = b_;
+        if (b.lost[i] != 0) return;
+        const std::vector<double>& P = sg.ev;
+        const double L = lat_.total_length();
+        const bool errOn = lat_.sample && (lat_.sample->flags[2] + lat_.sample->flags[3] != 0);
+        int iter = 0;
+        // AVAS.dll compares z with a register that holds 0 only in the first step and afterwards the
+        // particle's own new z (the comparisons with 0 then always pass); the corrected engine uses 0
+        double thr = 0.0;
+        while (true) {
+            ++iter;
+            if (!isSync) {
+                if (iter > maxSec_) {
+                    b.lost[i] = 1;
+                    return;
+                }
+            } else {
+                se_syn_out(i);
+            }
+            double z = b.z[i];
+            int& ei = b.elemIndex[i];
+            const bool inSp = lat_.elements[static_cast<size_t>(ei)].inSuperposeOut != 0;
+            double E[3] = {0, 0, 0}, B[3] = {0, 0, 0};
+            if ((thr <= z && b.lost[i] == 0 && z <= L) || (inSp && b.lost[i] == 0)) {
+                if (z >= thr) {
+                    const int last = static_cast<int>(lat_.elements.size()) - 1;
+                    if (z < lat_.elemZStart[static_cast<size_t>(ei)]) {
+                        do { --ei; } while (ei > 0 && z < lat_.elemZStart[static_cast<size_t>(ei)]);
+                    } else if (lat_.elemZEnd[static_cast<size_t>(ei)] <= z) {
+                        do {
+                            // AVAS.dll stops at a superposeout block when there are no element errors
+                            if (!errOn && lat_.elements[static_cast<size_t>(ei)].inSuperposeOut != 0) break;
+                            ++ei;
+                        } while (ei < last && lat_.elemZEnd[static_cast<size_t>(ei)] <= z);
+                    }
+                    if (ei < 0) ei = 0;
+                    if (ei > last) ei = last;
+                    const Element& e = lat_.elements[static_cast<size_t>(ei)];
+                    if (!errUse_.empty() && errUse_[static_cast<size_t>(ei)]) element_err_field(i, b.t[i], e);
+                    else element_field(i, b.t[i], e);
+                    E[0] = b.ex[i]; E[1] = b.ey[i]; E[2] = b.ez[i];
+                    B[0] = b.bx[i]; B[1] = b.by[i]; B[2] = b.bz[i];
+                }
+            } else {
+                if (L < z) b.lost[i] = 2;
+                if (z < thr) b.lost[i] = 1;
+            }
+            const double old[6] = {b.x[i], b.ux[i], b.y[i], b.uy[i], b.z[i], b.uz[i]};
+            if (b.lost[i] != 0) {
+                if (isSync && maxSec_ < iter) maxSec_ = iter;
+                return;
+            }
+            const double qm = b.qOverM[i], dt = b.dt[i];
+            double ux = b.ux[i], uy = b.uy[i], uz = b.uz[i], f;
+            if (qm == 0.0) {
+                const double g = std::sqrt((uy * uy + uz * uz) + (ux * ux + 1.0));
+                f = (k::c / g) * dt;
+            } else {
+                const double hq = qm * k::inv_c;
+                const double h = hq * dt * 0.5;
+                ux = h * E[0] + ux;
+                uy = h * E[1] + uy;
+                uz = h * E[2] + uz;
+                const double g = std::sqrt((uz * uz + uy * uy) + (ux * ux + 1.0));
+                const double tau = (dt * qm) / g;
+                const double a = tau * B[0], bb = tau * B[1], c = tau * B[2];
+                const double bb2 = bb * bb, a2 = a * a, c2 = c * c;
+                const double D = 1.0 / ((a2 + bb2 + c2) * 0.25 + 1.0);
+                const double ab = bb * a * 0.5, ac = c * a * 0.5, bc = c * bb * 0.5;
+                const double h2 = hq * dt * 0.5;
+                const double nx = ((((a2 - bb2) - c2) * 0.25 + 1.0) * ux + (ab + c) * uy + (ac - bb) * uz) * D + E[0] * h2;
+                const double ny = ((((bb2 - c2) - a2) * 0.25 + 1.0) * uy + (ab - c) * ux + (bc + a) * uz) * D + E[1] * h2;
+                const double nz = E[2] * h2 + ((bc - a) * uy + (ac + bb) * ux + (((c2 - bb2) - a2) * 0.25 + 1.0) * uz) * D;
+                ux = nx; uy = ny; uz = nz;
+                const double g2 = std::sqrt((uz * uz + uy * uy) + (ux * ux + 1.0));
+                f = (k::c / g2) * dt;
+            }
+            b.ux[i] = ux; b.uy[i] = uy; b.uz[i] = uz;
+            b.z[i] = f * uz + b.z[i];
+            b.x[i] = f * ux + b.x[i];
+            b.y[i] = uy * f + b.y[i];
+            b.t[i] = dt + b.t[i];
+            z = b.z[i];
+            if (compat_) thr = z;
+            // output planes (the original outputs only at the last one of the segment)
+            const size_t kp = static_cast<size_t>(b.nextPlane[i]);
+            if (kp + 1 <= P.size() && P[kp] <= z && lat_.elements[static_cast<size_t>(ei)].inSuperposeOut == 0) {
+                const double r = (P[kp] - old[4]) / (z - old[4]);
+                const double cur[6] = {b.x[i], b.ux[i], b.y[i], b.uy[i], b.z[i], b.uz[i]};
+                for (int j = 0; j < 6; ++j) S[j] = (cur[j] - old[j]) * r + old[j];
+                S[6] = (r - 1.0) * dt + b.t[i];
+                S[7] = 1.0;
+                b.nextPlane[i] += 1;
+                if (P.size() <= kp + 1) {
+                    if (sg.marks[kp] == -1) se_plane_out(i, S, P[kp], isSync);
+                    if (isSync && maxSec_ < iter) maxSec_ = iter;
+                    return;
+                }
+                if (!compat_ && sg.marks[kp] == -1) se_plane_out(i, S, P[kp], isSync);
+            }
+            // superposeout exit
+            const int si = b.spOutCount[i];
+            if (si < lat_.spOutCount && lat_.elements[static_cast<size_t>(ei)].inSuperposeOut != 0) {
+                const auto& row = lat_.spOut[static_cast<size_t>(si)];
+                const double zs = lat_.elements[static_cast<size_t>(ei)].zStart;
+                const double cur[6] = {b.x[i], b.ux[i], b.y[i], b.uy[i], b.z[i], b.uz[i]};
+                double lc[6], lp[6];
+                sp_local(row, zs, cur, lc);
+                sp_local(row, zs, old, lp);
+                if (0.0 < lc[4]) {
+                    const double r = lp[4] / (lp[4] - lc[4]);
+                    b.x[i] = (lc[0] - lp[0]) * r + lp[0];
+                    b.y[i] = (lc[2] - lp[2]) * r + lp[2];
+                    b.z[i] = row[6];
+                    b.ux[i] = (lc[1] - lp[1]) * r + lp[1];
+                    b.uy[i] = (lc[3] - lp[3]) * r + lp[3];
+                    b.uz[i] = (lc[5] - lp[5]) * r + lp[5];
+                    b.t[i] = (r - 1.0) * dt + b.t[i];
+                    if (row[6] == L) {
+                        S = {b.x[i], b.ux[i], b.y[i], b.uy[i], b.z[i], b.uz[i], b.t[i], 1.0};
+                        if (isSync && maxSec_ < iter) maxSec_ = iter;
+                        return;
+                    }
+                    b.spOutZ1[i] = lat_.spOut[static_cast<size_t>(si) + 1][6];
+                    b.spOutZ0[i] = row[6];
+                    ei += 1;
+                    b.spOutCount[i] = si + 1;
+                }
+            }
+            if (p_.boundary == 1 && lat_.hasBoundary) {
+                const double zz = b.z[i];
+                if (zz < thr || P.back() < zz || b.lost[i] != 0) {
+                    if (L < zz && lat_.spOutCur == static_cast<int>(lat_.spOut.size()) && b.lost[i] == 0) b.lost[i] = 2;
+                } else {
+                    const Boundary& bd = lat_.bnd;
+                    int& gi = b.geomIndex[i];
+                    if (zz < bd.segStart[static_cast<size_t>(gi)]) {
+                        do { --gi; } while (gi > 0 && zz < bd.segStart[static_cast<size_t>(gi)]);
+                    } else {
+                        while (gi + 1 < static_cast<int>(bd.segEnd.size()) && bd.segEnd[static_cast<size_t>(gi)] <= zz) ++gi;
+                    }
+                    oldCoord_.resize(static_cast<size_t>(b.n) + 1);
+                    oldCoord_[static_cast<size_t>(i)] = {old[0], old[1], old[2], old[3], old[4], old[5]};
+                    const double dtSave = dt_;
+                    dt_ = dt;
+                    geometry_hit(bd.geoms[static_cast<size_t>(gi)], b.t[i], i);
+                    dt_ = dtSave;
+                }
+            }
+        }
+    }
+
+    // SeHardEdgeTrans kernels (their operation order differs from the main-beam HardEdgeTrans)
+    static void se_quad(double* S, double qm, double G, double len) {
+        const double uz = S[5], uy = S[3], ux = S[1];
+        const double g2 = (uy * uy + uz * uz) + (ux * ux + 1.0);
+        const double gb = std::sqrt((1.0 - 1.0 / g2) * g2);
+        const double kq = std::sqrt(std::fabs((G * qm) / (gb * k::c)));
+        const double iuz = 1.0 / uz;
+        const double xa = iuz * ux, ya = iuz * uy;
+        const double vz = std::sqrt((k::c2 - k::c2 / g2) / ((ya * ya + xa * xa) + 1.0));
+        const double dt = len / vz;
+        S[6] = dt + S[6];
+        S[4] = dt;
+        const double ph = len * kq, ik = 1.0 / kq;
+        double sn, cs;
+        dll_sincos(ph, sn, cs);
+        S[1] = xa;
+        const double x = S[0], y = S[2];
+        double X, Xp, Y, Yp;
+        if (G * qm <= 0.0) {
+            const double ch = std::cosh(ph), sh = std::sinh(ph);
+            X = sh * xa * ik + x * ch;
+            Xp = kq * x * sh + ch * xa;
+            const double yp = S[3] / S[5];
+            S[3] = yp;
+            Y = yp * sn * ik + cs * y;
+            Yp = cs * yp - kq * y * sn;
+        } else {
+            X = xa * sn * ik + cs * x;
+            Xp = cs * xa - kq * x * sn;
+            const double yp = S[3] / S[5];
+            S[3] = yp;
+            const double ch = std::cosh(ph), sh = std::sinh(ph);
+            Y = sh * yp * ik + ch * y;
+            Yp = kq * y * sh + ch * yp;
+        }
+        S[0] = X;
+        S[1] = S[5] * Xp;
+        S[2] = Y;
+        S[3] = S[5] * Yp;
+    }
+
+    static void se_solenoid(double* S, double qm, double B, double len) {
+        const double uz = S[5], uy = S[3], ux = S[1];
+        const double g2 = (uy * uy + uz * uz) + (ux * ux + 1.0);
+        const double gb = std::sqrt((1.0 - 1.0 / g2) * g2);
+        const double K = (k::half_inv_c / gb) * qm * B;
+        const double iuz = 1.0 / uz;
+        const double xa = iuz * ux, ya = iuz * uy;
+        const double vz = std::sqrt((k::c2 - k::c2 / g2) / ((ya * ya + xa * xa) + 1.0));
+        const double dt = len / vz;
+        S[6] = dt + S[6];
+        S[4] = dt;
+        double sn, cs;
+        dll_sincos(K * len, sn, cs);
+        const double C2 = cs * cs, S2 = sn * sn, SC = cs * sn;
+        S[1] = xa;
+        S[3] = ya;
+        const double iK = 1.0 / K;
+        const double x = S[0], y = S[2];
+        const double X = (S2 * ya + SC * xa) * iK + C2 * x + SC * y;
+        const double Xp = ((C2 * xa - K * x * SC) - K * y * S2) + SC * ya;
+        const double Y = (C2 * y - (S2 * xa * iK + SC * x)) + SC * ya * iK;
+        const double Yp = ((K * x * S2 - SC * xa) - K * y * SC) + C2 * ya;
+        S[0] = X;
+        S[1] = S[5] * Xp;
+        S[2] = Y;
+        S[3] = S[5] * Yp;
+    }
+
+    void se_bend(double* S, const Element& e, double len, double ref) const {
+        double arc = e.arc;
+        if (len < arc * 0.85) arc = arc * 0.5;  // AVAS.dll: a short element is half a bend
+        const double h = e.h, kx = e.kx, ky = e.ky;
+        double sx, cx, sy, cy;
+        dll_sincos(kx * arc, sx, cx);
+        dll_sincos(ky * arc, sy, cy);
+        const double uz = S[5], iuz = 1.0 / uz;
+        const double ig2 = 1.0 / ((uz * uz + S[3] * S[3]) + (S[1] * S[1] + 1.0));
+        const double b2 = 1.0 - ig2;
+        const double xa = iuz * S[1], ya = iuz * S[3];
+        const double vz = std::sqrt((b2 * k::c2) / ((xa * xa + ya * ya) + 1.0));
+        const double dt = arc / vz;
+        const double dl = (uz - ref) / ref;
+        S[6] = dt + S[6];
+        S[4] = dt;
+        S[1] = xa;
+        S[3] = ya;
+        const double omc = 1.0 - cx, ikx = 1.0 / kx, ikx2 = 1.0 / (kx * kx);
+        const double x = S[0], y = S[2];
+        double X, Xp, Y, Yp;
+        if (e.hv == 0) {
+            X = sx * xa * ikx + cx * x + omc * h * dl * ikx2;
+            Xp = (cx * xa - kx * x * sx) + h * dl * sx * ikx;
+            if (ky == 0.0) {
+                Y = ya * arc + y;
+                Yp = ya;
+            } else {
+                Y = (ya * sy) / ky + cy * y;
+                Yp = cy * ya - ky * y * sy;
+            }
+        } else {
+            Y = sx * ya * ikx + cx * y + omc * h * dl * ikx2;
+            Yp = (cx * ya - kx * y * sx) + h * dl * sx * ikx;
+            if (ky == 0.0) {
+                X = arc * xa + x;
+                Xp = xa;
+            } else {
+                X = (xa * sy) / ky + cy * x;
+                Xp = cy * xa - ky * x * sy;
+            }
+        }
+        S[0] = X;
+        S[1] = S[5] * Xp;
+        S[2] = Y;
+        S[3] = S[5] * Yp;
+    }
+
+    // SeZRun / SeHardEdgeTrans: transfer matrices of the hard-edge elements
+    void se_zrun(const Segment& sg, Rec& S, int i, bool isSync) {
+        Beam& b = b_;
+        if (b.lost[i] != 0 || S[7] != 1.0) return;
+        for (size_t j = 0; j < sg.elems.size(); ++j) {
+            const int idx = sg.elems[j];
+            const Element& e = lat_.elements[static_cast<size_t>(idx)];
+            const double z0 = lat_.elemZStart[static_cast<size_t>(idx)], L = lat_.elemLength[static_cast<size_t>(idx)];
+            const double qm = b.qOverM[i];
+            // SeZRun passes the entrance and exit z and SeHardEdgeTrans takes their difference as
+            // the length, which can differ from the element length in the last bit
+            const double len = compat_ ? (z0 + L) - z0 : L;
+            switch (e.kind) {
+                case ElemKind::Quad: se_quad(S.data(), qm, e.strength, len); break;
+                case ElemKind::Solenoid: se_solenoid(S.data(), qm, e.strength, len); break;
+                case ElemKind::Edge: {
+                    double k1, k2;
+                    edge_k(e, k1, k2);
+                    edge_row(S.data(), k1, k2, e.hv == 0 ? 0 : 1);
+                    break;
+                }
+                case ElemKind::Bend: {
+                    if (isSync) bendRef_[static_cast<size_t>(idx)] = S[5];
+                    se_bend(S.data(), e, len, bendRef_[static_cast<size_t>(idx)]);
+                    break;
+                }
+                default: break;
+            }
+            const double r = std::sqrt(S[2] * S[2] + S[0] * S[0]);
+            if (e.radius <= r) {
+                b.lost[i] = 1;
+                return;
+            }
+            if (sg.marks[j] == -2) se_plane_out(i, S, L + z0, isSync);
+        }
+        const int lastIdx = sg.elems.back();
+        const double zEnd = lat_.elemLength[static_cast<size_t>(lastIdx)] + lat_.elemZStart[static_cast<size_t>(lastIdx)];
+        b.nextPlane[i] = 0;
+        if (S[7] == 1.0) {
+            b.t[i] = S[6];
+            b.x[i] = S[0];
+            b.y[i] = S[2];
+            b.z[i] = zEnd;
+            b.ux[i] = S[1];
+            b.uy[i] = S[3];
+            b.uz[i] = S[5];
+        } else {
+            b.lost[i] = 1;
+        }
+        S = Rec{};
+    }
+
     Lattice& lat_;
     Beam& b_;
     Params& p_;
@@ -201,6 +639,99 @@ private:
     // ---- error samples (spec 70 6, 7) ----
     std::vector<char> errUse_;  // t-code: element uses GetErrField
     std::vector<char> hetErr_;  // z-code: entrance / exit transform of the misalignment
+    std::vector<Element> spEff_;  // corrected engine: superpose blocks with the sub-field errors applied
+
+    // Field::GetErrField type 4 of AVAS.dll (spec 70 6.3): the sub-field placement of the block is
+    // not used; an erroneous sub-field is displaced and rotated by its error only.
+    void superpose_err_field_dll(int i, double t, const Element& e) {
+        Beam& b = b_;
+        double E[3] = {0, 0, 0}, B[3] = {0, 0, 0};
+        auto store = [&] {
+            b.ex[i] = E[0]; b.ey[i] = E[1]; b.ez[i] = E[2];
+            b.bx[i] = B[0]; b.by[i] = B[1]; b.bz[i] = B[2];
+        };
+        const double x = b.x[i], y = b.y[i], z = b.z[i];
+        for (size_t q = 0; q < e.subZStart.size(); ++q) {
+            const auto& se = e.subErr.size() > q ? e.subErr[q] : std::array<double, 12>{};
+            double xl = x, yl = y, zl = z - e.subZStart[q];
+            const bool err = se[0] == 1.0;
+            double sx = 0, cx = 1, sy = 0, cy = 1, sz = 0, cz = 1;
+            if (err) {
+                const double X0 = x - se[1], Y0 = y - se[2];
+                dll_sincos(se[6], sz, cz);
+                const double u = sz * Y0 + cz * X0;
+                const double v = cz * Y0 - sz * X0;
+                const double Z0 = (z - se[3]) - e.subZStart[q];
+                dll_sincos(se[5], sy, cy);
+                const double w = cy * Z0 + sy * u;
+                xl = cy * u - sy * Z0;
+                dll_sincos(se[4], sx, cx);
+                yl = sx * w + cx * v;
+                zl = cx * w - sx * v;
+            }
+            if (0.0 < zl && zl < e.subLength[q] && e.subRadius[q] <= std::sqrt(yl * yl + xl * xl)) {
+                b.lost[i] = 1;
+                store();
+                return;
+            }
+            const int st = e.subType[q];
+            if (st != 1 && st != 2 && st != 3) continue;
+            const MapView<double> m = lat_.fm.maps[e.subMap[q]].view();
+            if (!(m.xmin < xl && xl < m.xmax && m.ymin < yl && yl < m.ymax && 0.0 < zl && zl < m.zlen)) continue;
+            double F[3] = {0, 0, 0}, G[3] = {0, 0, 0};
+            if (st == 1) {
+                trilinear(m, xl, yl, zl, [&](double wt, const double* f) {
+                    for (int j = 0; j < 3; ++j) F[j] = f[j] * wt * se[7] + F[j];
+                });
+            } else if (st == 3) {
+                const double ke6 = se[8] * 1000000.0;
+                trilinear(m, xl, yl, zl, [&](double wt, const double* f) {
+                    for (int j = 0; j < 3; ++j) F[j] = f[j] * wt * ke6 + F[j];
+                });
+            } else {
+                const double ke6 = se[8] * 1000000.0;
+                trilinear(m, xl, yl, zl, [&](double wt, const double* f) {
+                    for (int j = 0; j < 3; ++j) {
+                        F[j] = f[j] * wt * ke6 + F[j];
+                        G[j] = f[3 + j] * wt * se[7] + G[j];
+                    }
+                });
+                const int c = e.cavIndex;
+                const double ph = (t - lat_.fm.cavTime[c]) * e.frequency * k::two_pi +
+                                  (lat_.fm.cavPhase[c] + se[9]) * k::deg_to_rad;
+                const double ce = dll_cos(ph), cb = dll_cos(ph - k::half_pi);
+                for (int j = 0; j < 3; ++j) {
+                    F[j] = ce * F[j];
+                    G[j] = cb * G[j];
+                }
+            }
+            auto turn = [&](double* V) {
+                if (!err) return;
+                const double v0 = V[0];
+                const double a = sx * V[1] + cx * V[2];
+                const double bb = sy * a + cy * v0;
+                const double yy = cx * V[1] - sx * V[2];
+                V[0] = cz * bb - sz * yy;
+                V[1] = dll_sin(se[6]) * bb + cz * yy;
+                V[2] = cy * a - sy * v0;
+            };
+            if (st == 1) {
+                turn(F);
+                for (int j = 0; j < 3; ++j) B[j] = (j == 0 ? B[j] + F[j] : F[j] + B[j]);
+            } else if (st == 3) {
+                turn(F);
+                for (int j = 0; j < 3; ++j) E[j] = (j == 0 ? E[j] + F[j] : F[j] + E[j]);
+            } else {
+                turn(F);
+                turn(G);
+                for (int j = 0; j < 3; ++j) {
+                    E[j] = (j == 0 ? E[j] + F[j] : F[j] + E[j]);
+                    B[j] = (j == 0 ? B[j] + G[j] : G[j] + B[j]);
+                }
+            }
+        }
+        store();
+    }
 
     void setup_errors() {
         errUse_.clear();
@@ -217,7 +748,35 @@ private:
         };
         errUse_.assign(ne, 0);
         hetErr_.assign(ne, 0);
+        spEff_.assign(ne, Element{});
         for (size_t k = 0; k < ne; ++k) {
+            const Element& e = lat_.elements[k];
+            if (e.kind == ElemKind::Field && e.fieldType == 4 && !e.subErr.empty()) {
+                // corrected engine: the error of a sub-field moves and scales that sub-field
+                // (displacement added to its placement, angles composed by addition)
+                Element f = e;
+                bool any = false;
+                for (size_t q = 0; q < e.subErr.size(); ++q) {
+                    const auto& se = e.subErr[q];
+                    if (se[0] != 1.0) continue;
+                    any = true;
+                    f.subZStart[q] += se[3];
+                    f.subPlace[q][0] += se[3];
+                    f.subPlace[q][1] += se[1];
+                    f.subPlace[q][2] += se[2];
+                    f.subPlace[q][3] += se[6];
+                    f.subPlace[q][4] += se[4];
+                    f.subPlace[q][5] += se[5];
+                    f.subKb[q] = se[7];
+                    f.subKe[q] = se[8];
+                    if (e.subType[q] == 2) f.phaseErr = se[9];
+                }
+                spEff_[k] = f;
+                if (!compat_ && any) errUse_[k] = 1;
+            }
+        }
+        for (size_t k = 0; k < ne; ++k) {
+            if (!compat_ && lat_.elements[k].fieldType == 4 && lat_.elements[k].kind == ElemKind::Field) continue;
             if (compat_) {
                 // AVAS.dll looks at the static row when static element errors are on (a field map
                 // with only a dynamic error then uses GetField), and the z-code at the dynamic row
@@ -233,6 +792,11 @@ private:
     // field map, the field rotated back to the laboratory.  Other elements: as GetField.
     void element_err_field(int i, double t, const Element& e) {
         Beam& b = b_;
+        if (e.kind == ElemKind::Field && e.fieldType == 4) {
+            if (compat_) superpose_err_field_dll(i, t, e);
+            else superpose_field(i, t, spEff_[static_cast<size_t>(b.elemIndex[i])]);
+            return;
+        }
         if (e.kind != ElemKind::Field || (e.fieldType != 1 && e.fieldType != 2 && e.fieldType != 3)) {
             element_field(i, t, e);
             return;
@@ -521,7 +1085,7 @@ private:
             } else {
                 const int c = e.cavIndex;
                 const double phase =
-                    (t - lat_.fm.cavTime[c]) * e.frequency * k::two_pi + lat_.fm.cavPhase[c] * k::deg_to_rad;
+                    (t - lat_.fm.cavTime[c]) * e.frequency * k::two_pi + (lat_.fm.cavPhase[c] + e.phaseErr) * k::deg_to_rad;
                 const double cE = dll_cos(phase);
                 const double cB = dll_cos(phase - k::half_pi);
                 const double a = cE * S[1] * c4 - cE * S[2] * s4;
@@ -844,7 +1408,8 @@ private:
                     const double syncRow[6] = {planeRec_[n][0], planeRec_[n][1], planeRec_[n][2], planeRec_[n][3], 0.0, planeRec_[n][5]};
                     // recordSCF centre: AVAS.dll keeps the synchronous coordinates of the last
                     // t-code step (only the SpaceChargeMesh.txt line uses them)
-                    sc_->solve(b_, b_.scComp, compat_ ? oldCoord_[n].data() : syncRow);
+                    if (sc_->importing()) sc_->import_scf(b_);
+                    else sc_->solve(b_, b_.scComp, compat_ ? oldCoord_[n].data() : syncRow);
                     mode = 1;
                 }
                 if (mark == -1) {
@@ -864,8 +1429,9 @@ private:
                 het(pool, idx, zMid, L + z0, true, mode, tRef);
             }
             sync_het(e, planeRec_[n].data(), false);
-            step_ += 1;
             zEnd = L + z0;
+            if (p_.dumpPeriodicity != 0) beam_out(1, tRef, zEnd, step_);
+            step_ += 1;
             if (mark == -2) dst_out(zEnd, planeRec_);
         }
         t = ztot(zEnd, tRef);
@@ -1237,10 +1803,18 @@ private:
         out.append(reinterpret_cast<const char*>(&t), 8);
         out.append(reinterpret_cast<const char*>(&zs), 8);
         for (int i = 0; i < b.n; ++i) {
-            for (int j = 0; j < 6; ++j) out.append(reinterpret_cast<const char*>(&b.rel[j][i]), 8);
-            const std::int32_t alive = b.lost[i] == 1 ? 0 : 1, id = i;
-            out.append(reinterpret_cast<const char*>(&alive), 4);
-            out.append(reinterpret_cast<const char*>(&id), 4);
+            if (mode == 0) {
+                for (int j = 0; j < 6; ++j) out.append(reinterpret_cast<const char*>(&b.rel[j][i]), 8);
+                const std::int32_t alive = b.lost[i] == 1 ? 0 : 1, id = i;
+                out.append(reinterpret_cast<const char*>(&alive), 4);
+                out.append(reinterpret_cast<const char*>(&id), 4);
+            } else {
+                const Rec& r = planeRec_[i];
+                for (int j : {0, 1, 2, 3, 6, 5}) out.append(reinterpret_cast<const char*>(&r[j]), 8);
+                const std::int32_t fl = static_cast<std::int32_t>(std::lround(r[7])), id = i;
+                out.append(reinterpret_cast<const char*>(&fl), 4);
+                out.append(reinterpret_cast<const char*>(&id), 4);
+            }
         }
         if (!write_file(paths().output + "BeamSet.plt", out, true, true)) say("BeamSet.plt cannot be output");
     }
@@ -1330,13 +1904,15 @@ private:
             const auto tp0 = std::chrono::steady_clock::now();
             if (sc_) {
                 b.time = t;
-                sc_->solve(b, b.scComp, oldCoord_[n].data());
+                if (sc_->importing()) sc_->import_scf(b);
+                else sc_->solve(b, b.scComp, oldCoord_[n].data());
             }
             pool.run(nBlocks, [&](int k) {
                 trans(bounds[k], bounds[k + 1], zSeg, events, t, gp, sync, acc[k]);
             });
             pushTime_ += std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - tp0).count();
             if (n == 1) single_out(t);
+            if (lat_.hasBoundary && p_.boundary == 1) boundary_check(t);
 
             // block reduction, block order
             b.zMin = 1e10;
@@ -1362,6 +1938,7 @@ private:
                 if (b.zMax < a.zmax) b.zMax = a.zmax;
             }
             if (b.nAlive == 0 || (s2[0] == 0.0 && s2[2] == 0.0 && s2[4] == 0.0 && n != 1)) {
+                full_particle_out();  // AVAS.dll writes FullParticle.txt before it stops
                 throw EngineError("End of simulation, all particles lost.                     ");
             }
             // last event passed by every live particle: final output, no DataSet row
@@ -1392,6 +1969,8 @@ private:
             b.rms = {std::sqrt(qx), std::sqrt(qy), std::sqrt(sg / W)};
             b.gamma = gnew;
             b.betaGammaLambda = (k::c / b.frequency) * b.centroid[5];
+            if (p_.lpBoundary == 1) lp_fold(ig);
+            if (!p_.track.empty()) single_track();
 
             Text row;
             row.g((prev[12] - 1.0) * b.restMass[n]);
@@ -1439,7 +2018,10 @@ private:
                     prev[14] = 1; prev[15] = rot; prev[16] = dT; prev[17] = dZ;
                 }
             }
-            if (b.nAlive == 0) throw EngineError("End of simulation, all particles lost.                     ");
+            if (b.nAlive == 0) {
+                full_particle_out();
+                throw EngineError("End of simulation, all particles lost.                     ");
+            }
 
             // every live particle crossed a superposeout exit: restart in the exit frame
             if (b.nAlive <= lat_.spCrossCount && lat_.spOutCur < lat_.spOutCount) {
@@ -1461,6 +2043,7 @@ private:
                     // same back-propagation as zTotcode (AVAS.dll: gamma from gamma*beta_z only)
                     ztot_row(r.data(), zSeg, tmin, !compat_, b.x[i], b.ux[i], b.y[i], b.uy[i], b.z[i], b.uz[i], true);
                     b.spOutZ1[i] = lat_.spOut[lat_.spOutCur + 1][6];
+                    b.spOutCount[i] += 1;
                     b.spOutZ0[i] = zSeg;
                 }
                 b.rotMode = 0;
@@ -1530,6 +2113,8 @@ private:
             trans(n, n + 1, zSeg, events, t, b.gamma, sync, syncAcc);
             syncAcc.reset();
             rot_mode(sync);
+            if (p_.dumpPeriodicity != 0 && step_ % p_.dumpPeriodicity == 0) beam_out(0, t - dt_, b.z[n], step_);
+            if (p_.pcHistogram[0] == 1.0) ex_output();
             step_ += 1;
             // particles that stop crossing the next plane are declared lost
             int nc = 0;
@@ -1549,7 +2134,235 @@ private:
                 }
                 write_file(paths().output + "LongitudinalBeamLoss.txt", lt.str(), true);
             }
+            if (p_.longLimits[0] != 0.0) longitudinal_loss();
         }
+    }
+
+    // lpboundary 1 (tcodeRun 4.2.7): the beam gamma is that of the synchronous particle and the
+    // particles are folded into one RF period around it.  AVAS.dll folds with lambda * gbz_s / mean
+    // gamma; the corrected engine with the period beta_s * lambda of the synchronous particle.
+    void lp_fold(double igMean) {
+        Beam& b = b_;
+        const int n = b.n;
+        const double gs = std::sqrt(b.uz[n] * b.uz[n] + b.uy[n] * b.uy[n] + b.ux[n] * b.ux[n] + 1.0);
+        b.gamma = gs;
+        const double lam = k::c / b.frequency;
+        b.betaGammaLambda = lam * b.uz[n];
+        const double full = compat_ ? lam * b.uz[n] * igMean : lam * (b.uz[n] / gs);
+        const double half = full * 0.5;
+        for (int i = 0; i < n; ++i) {
+            if (b.lost[i] != 0) continue;
+            while (true) {
+                while (b.z[i] - b.z[n] > half) b.z[i] = b.z[i] - full;
+                if (-half <= b.z[i] - b.z[n]) break;
+                b.z[i] = b.z[i] + full;
+            }
+        }
+    }
+
+    // track: one line per listed particle (SingleTrack -> ParticleTracking.txt)
+    void single_track() {
+        const Beam& b = b_;
+        Text s;
+        for (int id : p_.track) {
+            if (id < 0 || id > b.n) {
+                if (compat_) continue;  // AVAS.dll reads out of range
+                throw EngineError("input.txt track: particle number out of range");
+            }
+            s.i(step_).s(" ").i(id).s(" ").i(b.lost[id]).s(" ").g(b.charge[id]).s(" ").g(b.restMass[id]);
+            for (double v : {b.x[id], b.ux[id], b.y[id], b.uy[id], b.z[id], b.uz[id], b.scx[id], b.scy[id], b.scz[id],
+                             b.ex[id], b.ey[id], b.ez[id], b.bx[id], b.by[id], b.bz[id]})
+                s.s(" ").g(v);
+            s.nl();
+        }
+        write_file(paths().output + "ParticleTracking.txt", s.str(), true);
+    }
+
+    // pchistogram 1: histograms of x, y, r, z of the live particles (exOutput -> PCHistogram.dat)
+    void ex_output() {
+        const Beam& b = b_;
+        const int n = b.n;
+        double xmin = 1e9, xmax = -1e9, ymin = 1e9, ymax = -1e9, zmin = 1e9, zmax = -1e9, rmax = -1e9;
+        const double rmin = 0.0;
+        std::vector<double> r(static_cast<size_t>(n), 0.0);
+        auto upd = [&](double v, double& lo, double& hi) {
+            // AVAS.dll: else-if (a value that lowers the minimum is not compared with the maximum)
+            if (compat_) {
+                if (lo <= v) { if (hi < v) hi = v; }
+                else lo = v;
+            } else {
+                if (v < lo) lo = v;
+                if (hi < v) hi = v;
+            }
+        };
+        for (int i = 0; i < n; ++i) {
+            if (b.lost[i] == 1) continue;
+            upd(b.x[i], xmin, xmax);
+            upd(b.y[i], ymin, ymax);
+            upd(b.z[i], zmin, zmax);
+            r[i] = std::sqrt(b.y[i] * b.y[i] + b.x[i] * b.x[i]);
+            if (rmax < r[i]) rmax = r[i];
+        }
+        const int nb = static_cast<int>(std::round(p_.pcHistogram[1]));
+        const double dn = static_cast<double>(nb);
+        std::vector<std::int32_t> hx(static_cast<size_t>(std::max(nb, 0)), 0), hy = hx, hr = hx, hz = hx;
+        double sx = 0, sy = 0, sr = 0, sz = 0;
+        int cnt = 0;
+        auto bin = [&](double v, double lo, double span) {
+            int k = static_cast<int>(std::floor(((v - lo) * dn) / span));
+            if (k < 0) k = 0;
+            if (nb - 1 < k) k = nb - 1;
+            return k;
+        };
+        for (int i = 0; i < n; ++i) {
+            if (b.lost[i] == 1) continue;
+            if (nb > 0) {
+                hx[bin(b.x[i], xmin, xmax - xmin)] += 1;
+                hy[bin(b.y[i], ymin, ymax - ymin)] += 1;
+                hr[bin(r[i], rmin, rmax - rmin)] += 1;
+                hz[bin(b.z[i], zmin, zmax - zmin)] += 1;
+            }
+            cnt += 1;
+            sx = sx + b.x[i];
+            sy = sy + b.y[i];
+            sr = sr + r[i];
+            sz = sz + b.z[i];
+        }
+        const double ic = 1.0 / static_cast<double>(cnt);
+        const double mxv = sx * ic, myv = sy * ic, mrv = sr * ic, mzv = sz * ic;
+        std::string out;
+        out.push_back(static_cast<char>(0x7D));
+        const std::int32_t st = step_, n32 = nb;
+        out.append(reinterpret_cast<const char*>(&st), 4);
+        out.append(reinterpret_cast<const char*>(&n32), 4);
+        for (const auto* h : {&hx, &hy, &hr, &hz})
+            for (int i = 0; i < nb; ++i) out.append(reinterpret_cast<const char*>(&(*h)[static_cast<size_t>(i)]), 4);
+        for (double v : {xmin, xmax, mxv, ymin, ymax, myv, rmin, rmax, mrv, zmin, zmax, mzv})
+            out.append(reinterpret_cast<const char*>(&v), 8);
+        if (!write_file(paths().output + "PCHistogram.dat", out, true, true)) say("PCHistogram.dat cannot be output");
+    }
+
+    // longlimits: particles outside the energy or phase window are lost (LongitudinalBunchLoss)
+    void longitudinal_loss() {
+        Beam& b = b_;
+        const int n = b.n;
+        const double gs = compat_ ? std::sqrt(b.uz[n] * b.uz[n] + 1.0)
+                                  : std::sqrt(b.ux[n] * b.ux[n] + b.uy[n] * b.uy[n] + b.uz[n] * b.uz[n] + 1.0);
+        const double bs = std::sqrt(1.0 - (1.0 / gs) / gs);
+        const double ws = (gs - 1.0) * b.restMass[n];
+        const double dzMax = (p_.longLimits[1] / 360.0) / b.frequency * bs * k::c;
+        for (int i = 0; i < n; ++i) {
+            const double gi = compat_ ? std::sqrt(b.uz[i] * b.uz[i] + 1.0)
+                                      : std::sqrt(b.ux[i] * b.ux[i] + b.uy[i] * b.uy[i] + b.uz[i] * b.uz[i] + 1.0);
+            if (std::fabs((gi - 1.0) * b.restMass[i] - ws) > p_.longLimits[2]) b.lost[i] = 1;
+            if (std::fabs(b.z[i] - b.z[n]) > dzMax) b.lost[i] = 1;
+        }
+    }
+
+    // ---- boundary.txt (tcodeRun 4.2.4, Geometry::Boundary) ----
+    void boundary_check(double t) {
+        Beam& b = b_;
+        const Boundary& bd = lat_.bnd;
+        for (int i = 0; i < b.n; ++i) {
+            const double z = b.z[i];
+            if (z < 0.0 || b.lost[i] != 0 || z >= bd.segEnd.back() || z < b.spOutZ0[i]) {
+                if (z > lat_.total_length() && lat_.spOutCur == static_cast<int>(lat_.spOut.size()) && b.lost[i] == 0)
+                    b.lost[i] = 2;
+                continue;
+            }
+            const size_t ri = static_cast<size_t>(b.spOutCount[i]);
+            if (ri >= bd.rows.size()) continue;
+            const auto& row = bd.rows[ri];
+            const double zz = row[0] + z;
+            const int r1 = static_cast<int>(std::lround(row[1])), r2 = static_cast<int>(std::lround(row[2]));
+            if (!(bd.segStart[static_cast<size_t>(r1)] <= zz && zz <= bd.segEnd[static_cast<size_t>(r2)])) continue;
+            int gi = b.geomIndex[i];
+            if (compat_ ? (r2 < gi && gi < r1) : (gi < r1 || r2 < gi)) gi = compat_ ? r2 : r1;
+            while (gi > 0 && zz < bd.segStart[static_cast<size_t>(gi)]) --gi;
+            while (gi + 1 < static_cast<int>(bd.segEnd.size()) && bd.segEnd[static_cast<size_t>(gi)] <= zz) ++gi;
+            b.geomIndex[i] = gi;
+            geometry_hit(bd.geoms[static_cast<size_t>(gi)], t, i);
+        }
+    }
+
+    static void geom_local(const Geometry& g, double x, double y, double z, double& u, double& v, double& zl) {
+        const auto& p = g.place;
+        double s3, c3, s4, c4, s5, c5;
+        const double dx = x - p[1], dy = y - p[2];
+        dll_sincos(p[3], s3, c3);
+        const double u0 = s3 * dy + c3 * dx;
+        const double v0 = c3 * dy - s3 * dx;
+        const double dz = (z - g.zStart) - p[0];
+        dll_sincos(p[5], s5, c5);
+        const double w = dz * c5 + u0 * s5;
+        u = u0 * c5 - dz * s5;
+        dll_sincos(p[4], s4, c4);
+        v = w * s4 + v0 * c4;
+        zl = w * c4 - v0 * s4;
+    }
+
+    void geometry_hit(const Geometry& g, double t, int i) {
+        Beam& b = b_;
+        double u, v, zl;
+        geom_local(g, b.x[i], b.y[i], b.z[i], u, v, zl);
+        if (!(0.0 < zl && zl < g.par.at(0))) return;
+        double P[6] = {b.x[i], b.ux[i], b.y[i], b.uy[i], b.z[i], b.uz[i]};
+        double tHit = t;
+        const auto& old = oldCoord_[static_cast<size_t>(i)];
+        if (g.shape == 1) {
+            const double r = std::sqrt(v * v + u * u);
+            const double R = g.par.at(1);
+            if (r < R) return;
+            double u0, v0, zl0;
+            geom_local(g, old[0], old[2], old[4], u0, v0, zl0);
+            const double r0 = std::sqrt(v0 * v0 + u0 * u0);
+            double f = (R - r0) / (r - r0);
+            const double zh = (zl - zl0) * f + zl0;
+            if (zh < 0.0) f = -(zl0 / (zl - zl0));
+            for (int j = 0; j < 6; ++j) P[j] = (P[j] - old[j]) * f + old[j];
+            tHit = t - (1.0 - f) * dt_;
+        } else {
+            const double rho = g.par.at(2);
+            double phi = 0.0, cx = 0.0, cy = 0.0, cz = 0.0;
+            double s, c;
+            const double plane = g.par.size() > 4 ? g.par[4] : 0.0, dir = g.par.size() > 5 ? g.par[5] : 0.0;
+            if (plane == 0.0) {
+                if (dir <= 0.0) {
+                    phi = std::atan(zl / (u + rho));
+                    dll_sincos(phi, s, c);
+                    cx = (c - 1.0) * rho;
+                } else {
+                    phi = std::atan(zl / (rho - u));
+                    dll_sincos(phi, s, c);
+                    cx = (1.0 - c) * rho;
+                }
+                cz = s * rho;
+            } else if (plane == 1.0) {
+                if (dir <= 0.0) {
+                    phi = std::atan(zl / (rho + v));
+                    dll_sincos(phi, s, c);
+                    cy = (c - 1.0) * rho;
+                } else {
+                    phi = std::atan(zl / (rho - v));
+                    dll_sincos(phi, s, c);
+                    cy = (1.0 - c) * rho;
+                }
+                cz = s * rho;
+            }
+            if (!(phi <= std::fabs(g.par.at(3)) * 0.017453292519943295)) return;
+            const double du = u - cx;
+            const double d = std::sqrt((v - cy) * (v - cy) + du * du + (zl - cz) * (zl - cz));
+            if (d < g.par.at(1)) return;
+        }
+        const double gm = g.shape == 1 ? std::sqrt(P[5] * P[5] + P[3] * P[3] + P[1] * P[1] + 1.0)
+                                       : std::sqrt(P[3] * P[3] + P[5] * P[5] + P[1] * P[1] + 1.0);
+        const double ig = 1.0 / gm;
+        Text s;
+        s.g(P[0]).s(" ").g(P[2]).s("  ").g(P[4]).s("  ").g(P[1] * k::c * ig).s("  ").g(P[3] * k::c * ig).s("  ")
+            .g(P[5] * k::c * ig).s("  ").g(b.charge[i] * 6.241509479607718e+18).s("  ").g(b.restMass[i]).s("  ")
+            .g(b.weight[i]).s("  ").g(tHit).s("  ").s(b.kind.empty() ? p_.kind : b.kind[static_cast<size_t>(i)]).nl();
+        write_file(paths().output + "collisionData.txt", s.str(), true);
+        b.lost[i] = 1;
     }
 
     void final_output(double zev, double t) {

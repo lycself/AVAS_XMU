@@ -37,6 +37,21 @@ AVAS_API int path(const wchar_t* input, const wchar_t* output, const wchar_t* fi
 AVAS_API int path(const char* input, const char* output, const char* field);
 #endif
 AVAS_API int main_agent(int* state);
+/* AVAS.dll-only tools (no simulation): weighted compression of .dst distributions and the
+ * preprocessing of paired results; same arguments as the original (spec 80). */
+#if defined(_WIN32)
+AVAS_API int sampling(const wchar_t* in, const wchar_t* out, int total, int segFrom, int segTo, int magFrom, int magTo,
+                      int nodes, double halfWidth, double terminalCoefficient);
+AVAS_API int meshing(const wchar_t* in, const wchar_t* out, int nodes, double halfWidth);
+AVAS_API int dataprocess(const wchar_t* root, int i0, int i1, double nodesFiveCube, double nodesOriginal, double halfWidth,
+                         int useWeights);
+#else
+AVAS_API int sampling(const char* in, const char* out, int total, int segFrom, int segTo, int magFrom, int magTo,
+                      int nodes, double halfWidth, double terminalCoefficient);
+AVAS_API int meshing(const char* in, const char* out, int nodes, double halfWidth);
+AVAS_API int dataprocess(const char* root, int i0, int i1, double nodesFiveCube, double nodesOriginal, double halfWidth,
+                         int useWeights);
+#endif
 AVAS_API int avas_set_option(const char* key, const char* value);
 AVAS_API const char* avas_engine_version(void);
 

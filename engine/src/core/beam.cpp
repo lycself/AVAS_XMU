@@ -22,10 +22,10 @@ void Beam::resize(int nMacro) {
     n = nMacro;
     const size_t m = static_cast<size_t>(nMacro) + 1;
     for (auto* v : {&x, &ux, &y, &uy, &z, &uz, &ex, &ey, &ez, &bx, &by, &bz, &scx, &scy, &scz, &weight, &qOverM, &charge, &mass,
-                    &restMass, &spOutZ0, &spOutZ1})
+                    &restMass, &spOutZ0, &spOutZ1, &t, &dt})
         v->assign(m, 0.0);
     for (auto& r : rel) r.assign(m, 0.0);
-    for (auto* v : {&elemIndex, &lost, &nextPlane, &boundaryMode}) v->assign(m, 0);
+    for (auto* v : {&elemIndex, &lost, &nextPlane, &boundaryMode, &geomIndex, &spOutCount, &id}) v->assign(m, 0);
 }
 
 namespace {
@@ -83,6 +83,8 @@ void init_single(Beam& b, Params& p, const Lattice& lat, double betaGamma0, doub
     // AVAS.dll never initialises the weight of particle 0 (its DataSet.txt then shows
     // garbage); the corrected engine gives it weight 1.
     b.weight[0] = compat_dll() ? 0.0 : 1.0;
+    // AVAS.dll leaves the kind of the single particle empty (collisionData.txt)
+    if (compat_dll()) b.kind.assign(2, std::string());
     b.weight[1] = 1.0;
     b.x[0] = p.displacePos[0];
     b.y[0] = p.displacePos[1];
@@ -235,7 +237,7 @@ bool beam_errors(const Lattice& lat, std::array<double, 26>& e, bool& marked) {
     const ErrorSample* es = lat.sample;
     if (!es || es->flags[0] + es->flags[1] == 0) return false;
     if (compat_dll()) {
-        if (es->dyn.empty()) compat_abort("access violation reading 0x0000000000000000 (err_beam_stat)");
+        if (es->dyn.empty()) compat_crash("err_beam_stat");
         const std::vector<double>& r = es->dyn[0];
         for (size_t c = 0; c < r.size() && c < e.size(); ++c) e[c] = r[c];
         marked = !r.empty() && r[0] == 1.0;
@@ -776,11 +778,206 @@ void init_from_edst(Beam& b, Params& p, const Lattice& lat) {
     finish_sp_out(b, lat);
 }
 
+// ---- secondary particles (secondarybeam 1, spec 70 8) ----
+
+void init_secondary(Beam& b, Params& p, const Lattice& lat) {
+    const bool compat = compat_dll();
+    std::string file = p.distFile;
+    if (file == "unknown" && !compat) {
+        // corrected: without a file in beam.txt the GUI's SeParticle.txt is read
+        file = "SeParticle.txt";
+    }
+    bool hasDot = false;
+    const std::string ext = extension(file, hasDot);
+    if (!hasDot) throw EngineError(kDistOpenError);
+    b.frequency = 0.0;
+    b.current = 0.0;
+    b.tMin = b.bunchTime = 0.0;
+    p.numOfGrid = {3, 3, 3};
+    if (ext == "dst") {
+        say("Start reading initial beam distribution...");
+        std::string raw;
+        if (!read_file(paths().input + file, raw) || raw.size() < 23) throw EngineError(kDistOpenError);
+        std::int32_t n32;
+        double ib, fMHz, mc2;
+        std::memcpy(&n32, raw.data() + 2, 4);
+        std::memcpy(&ib, raw.data() + 6, 8);
+        std::memcpy(&fMHz, raw.data() + 14, 8);
+        const int n = n32;
+        if (n < 1 || raw.size() < 23 + 48 * static_cast<size_t>(n) + 8) throw EngineError(kDistOpenError);
+        std::vector<double> rows(static_cast<size_t>(n) * 6);
+        std::memcpy(rows.data(), raw.data() + 23, rows.size() * 8);
+        std::memcpy(&mc2, raw.data() + 23 + rows.size() * 8, 8);
+        say(Text().s("Particle rest mass ").g(mc2).s("(MeV)").str());
+        std::array<double, 26> berr{};
+        bool bmark = false;
+        if (beam_errors(lat, berr, bmark)) {
+            ib = ib + berr[13];
+            for (int i = 0; i < n; ++i) {
+                double* r = &rows[6 * static_cast<size_t>(i)];
+                // AVAS.dll shifts the positions (cm) by dx * 0.001 here instead of dx * 0.1
+                const double f = compat ? 0.001 : 0.1;
+                r[0] = berr[1] * f + r[0];
+                r[1] = berr[4] * 0.001 + r[1];
+                r[2] = berr[2] * f + r[2];
+                r[3] = berr[5] * 0.001 + r[3];
+                r[4] = berr[3] * 0.017453292519943295 + r[4];
+                r[5] = r[5] + berr[6];
+            }
+        }
+        std::string dst = raw.substr(0, 23);
+        std::memcpy(&dst[6], &ib, 8);
+        dst.append(reinterpret_cast<const char*>(rows.data()), rows.size() * 8);
+        dst.append(reinterpret_cast<const char*>(&mc2), 8);
+        if (!write_file(paths().output + "inData.dst", dst, false, true)) say("Initial Particle Distribution Not Open");
+        const double atomicMass = mc2 * k::inv_proton_mc2;
+        p.atomicMass = atomicMass;
+        say(Text().s("atomic mass ").g(atomicMass).s(" electric charge of particles ").g(p.charge).str());
+        b.frequency = p.frequency = fMHz * 1000000.0;
+        p.current = b.current = ib * 0.001;
+        if (ib == 0.0) {
+            p.spaceCharge = 0;
+            say("0 current, ignoring space charge effects");
+        }
+        say(Text().s("Synchronous particle energy ").g(p.kineticEnergy).s("(MeV)").str());
+        b.resize(n);
+        double rpm = 1.0;
+        if (b.current != 0.0) {
+            rpm = std::fabs(((b.current / (static_cast<double>(n) * b.frequency)) * 6.241509479607718e+18) / p.charge);
+            say(Text().s("The number of macroparticle representative particles is ").g(rpm).str());
+        }
+        double pmin = 0.0, pmax = 0.0, psum = 0.0;
+        for (int i = 0; i < n; ++i) {
+            const double* r = &rows[6 * static_cast<size_t>(i)];
+            b.x[i] = r[0]; b.ux[i] = r[1]; b.y[i] = r[2]; b.uy[i] = r[3]; b.z[i] = r[4]; b.uz[i] = r[5];
+            b.charge[i] = rpm * p.charge * k::e_charge;
+            b.mass[i] = rpm * atomicMass * k::m_proton;
+            b.qOverM[i] = b.charge[i] / b.mass[i];
+            b.restMass[i] = mc2;
+            b.weight[i] = rpm;
+            b.boundaryMode[i] = p.boundary;
+            if (r[4] < pmin) pmin = r[4];
+            if (pmax < r[4]) pmax = r[4];
+            psum = psum + r[4];
+        }
+        const int s = n;
+        b.charge[s] = rpm * p.charge * k::e_charge;
+        b.mass[s] = rpm * atomicMass * k::m_proton;
+        b.qOverM[s] = b.charge[s] / b.mass[s];
+        b.restMass[s] = mc2;
+        b.weight[s] = rpm;
+        b.boundaryMode[s] = p.boundary;
+        const double kw = k::inv_two_pi / b.frequency;
+        b.bunchTime = (pmax - pmin) * kw;
+        b.tMin = (psum / static_cast<double>(n)) * kw;
+        for (int i = 0; i < n; ++i) {
+            const double g = b.uz[i] / mc2 + 1.0;
+            const double ig = 1.0 / g;
+            const double beta = std::sqrt(1.0 - ig * ig);
+            const double gb = g * beta;
+            b.uz[i] = gb;
+            b.x[i] = b.x[i] * 0.01;
+            b.y[i] = b.y[i] * 0.01;
+            b.ux[i] = gb * b.ux[i];
+            b.uy[i] = gb * b.uy[i];
+            b.t[i] = (k::inv_two_pi / b.frequency) * b.z[i] - b.tMin;
+            // every particle starts at z = 0 at its own time (measured with AVAS.dll)
+            b.z[i] = 0.0;
+            b.dt[i] = (k::inv_c / beta) * p.seStep;
+            b.id[i] = i;
+        }
+        const double g = p.kineticEnergy / mc2 + 1.0;
+        const double ig = 1.0 / g;
+        const double beta = std::sqrt(1.0 - ig * ig);
+        b.uz[s] = beta * g;
+        b.dt[s] = (k::inv_c / beta) * p.seStep;
+        b.id[s] = s;
+    } else {
+        say("Start reading secondary particle distribution...");
+        std::string raw;
+        if (!read_file(paths().input + file, raw)) throw EngineError(kDistOpenError);
+        std::vector<std::vector<double>> rows;
+        std::vector<std::string> kinds;
+        for (const std::string& ln : split_lines(normalize_line_endings(raw))) {
+            const std::vector<std::string> w = split_words(ln);
+            if (w.empty() && !compat) continue;
+            if (w.size() < 11) {
+                if (compat) compat_abort("vector subscript out of range");
+                throw EngineError(file + ": every line needs 11 values (x y z vx vy vz charge mass weight time kind)");
+            }
+            std::vector<double> r(10);
+            for (int j = 0; j < 10; ++j) r[j] = parse_double(w[j]);
+            rows.push_back(r);
+            kinds.push_back(w[10]);
+        }
+        const int n = static_cast<int>(rows.size());
+        if (n < 1) throw EngineError(kDistOpenError);
+        say(Text().s("Synchronous particle energy ").g(p.kineticEnergy).s("(MeV)").str());
+        b.resize(n);
+        b.kind = kinds;
+        b.kind.push_back(p.kind);
+        for (int i = 0; i < n; ++i) {
+            const auto& r = rows[static_cast<size_t>(i)];
+            double g, bz;
+            if (compat) {
+                // AVAS.dll: gamma and the time step from v_z alone
+                const double vzc = r[5] * k::inv_c;
+                g = 1.0 / std::sqrt(1.0 - vzc * vzc);
+                bz = r[5] * k::inv_c;
+            } else {
+                const double v2 = r[3] * r[3] + r[4] * r[4] + r[5] * r[5];
+                const double beta = std::sqrt(v2) / k::c;
+                g = 1.0 / std::sqrt(1.0 - beta * beta);
+                bz = beta;
+            }
+            b.x[i] = r[0];
+            b.y[i] = r[1];
+            b.z[i] = r[2];
+            b.ux[i] = g * r[3] * k::inv_c;
+            b.uy[i] = g * r[4] * k::inv_c;
+            b.uz[i] = g * r[5] * k::inv_c;
+            b.t[i] = r[9];
+            b.dt[i] = (p.seStep / bz) * k::inv_c;
+            b.id[i] = i;
+            b.weight[i] = r[8];
+            b.charge[i] = r[8] * r[6] * k::e_charge;
+            b.mass[i] = r[8] * r[7] * 1.7826620988719287e-30;
+            b.qOverM[i] = b.charge[i] / b.mass[i];
+            b.restMass[i] = r[7];
+            b.boundaryMode[i] = p.boundary;
+        }
+        const int s = n;
+        const double g = p.kineticEnergy / p.restMass + 1.0;
+        const double ig = 1.0 / g;
+        const double beta = std::sqrt(1.0 - ig * ig);
+        b.uz[s] = beta * g;
+        b.dt[s] = (k::inv_c / beta) * p.seStep;
+        b.id[s] = s;
+        b.charge[s] = p.charge * k::e_charge;
+        b.mass[s] = p.restMass * 1.7826620988719287e-30;
+        b.qOverM[s] = b.charge[s] / b.mass[s];
+        b.restMass[s] = p.restMass;
+        b.weight[s] = 1.0;
+        b.boundaryMode[s] = p.boundary;
+    }
+    b.secondary = 1;
+    b.totalWeight = 0.0;
+    say("Synchronised particles have been added");
+    say("Beam initialisation complete");
+    say("  ");
+    // AVAS.dll never sets the superposeout planes of secondary particles (zero memory: no
+    // aperture loss inside field maps); corrected: as for the main beam
+    if (!compat) finish_sp_out(b, lat);
+}
+
 }  // namespace
 
 void init_particles(Beam& b, Params& p, const Lattice& lat) {
     read_beam(p);
-    if (p.secondaryBeam != 0) throw EngineError("secondarybeam 1 is not implemented in the new engine yet");
+    if (p.secondaryBeam != 0) {
+        init_secondary(b, p, lat);
+        return;
+    }
     if (p.distFile == "unknown") {
         init_generated(b, p, lat);
         return;

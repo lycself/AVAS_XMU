@@ -1,4 +1,10 @@
 #include "core/spacecharge.h"
+#include "core/text.h"
+
+#include <cstdio>
+
+#include <cstring>
+#include <cstdint>
 
 #include <algorithm>
 #include <cmath>
@@ -82,6 +88,17 @@ void space_charge_defaults(Params& p, long long n) {
     s[9] = static_cast<double>(p.multithreading);
 }
 
+// FFT normalisation 1/((4 Nx + 4)(Ny + 1) Nz).  AVAS.dll multiplies the denominator in 32-bit int
+// (wraps for meshes of about 1024^3); the corrected engine in 64 bits.
+double fft_norm(int nx, int ny, int nz, bool compat) {
+    if (compat) {
+        const std::uint32_t a = static_cast<std::uint32_t>(4 * nx + 4) * static_cast<std::uint32_t>(ny + 1) *
+                                static_cast<std::uint32_t>(nz);
+        return 1.0 / static_cast<double>(static_cast<std::int32_t>(a));
+    }
+    return 1.0 / (static_cast<double>(4LL * nx + 4) * (ny + 1) * nz);
+}
+
 SpaceCharge::SpaceCharge(const Params& p, int nParticles) : compat_(compat_dll()) {
     method_ = static_cast<int>(p.scPar[0]);
     nx_ = p.numOfGrid[0];
@@ -91,6 +108,27 @@ SpaceCharge::SpaceCharge(const Params& p, int nParticles) : compat_(compat_dll()
     negligible_ = p.scPar[8];
     lp_ = p.lpBoundary;
     rec_ = p.recScField;
+    imp_ = p.impScField == 1;
+    if (imp_) {
+        // PIC::Initial: index of the recorded solves (SpaceChargeMesh.txt of the input folder)
+        std::string txt;
+        if (!read_file(paths().input + "SpaceChargeMesh.txt", txt))
+            throw EngineError("impscfield 1: SpaceChargeMesh.txt cannot be opened in the input folder");
+        for (const std::string& ln : split_lines(normalize_line_endings(txt))) {
+            const std::vector<std::string> w = split_words(ln);
+            if (w.size() < 12) continue;
+            itime_.push_back(parse_double(w[0]));
+            izc_.push_back(parse_double(w[1]));
+            ixy_.push_back({parse_double(w[2]), parse_double(w[3])});
+            inx_ = parse_int(w[4]);
+            iny_ = parse_int(w[5]);
+            inz_ = parse_int(w[6]);
+            id_.push_back({parse_double(w[7]), parse_double(w[8]), parse_double(w[9])});
+            iQ_.push_back(parse_double(w[10]));
+            igam_.push_back(parse_double(w[11]));
+        }
+        if (itime_.empty()) throw EngineError("impscfield 1: SpaceChargeMesh.txt has no record");
+    }
     // AVAS.dll: lpboundary 1 asks for FFT, but scmethod overwrites it right after (no effect);
     // the corrected engine honours it
     if (lp_ == 1 && !compat_) method_ = 0;
@@ -196,11 +234,16 @@ void SpaceCharge::weight(Beam& b, double factor) {
     vol_ = dy_ * dx_ * dz_;
     igamma_ = 1.0 / gamma_;
     const int n = b.n;
+    const bool lpRel = lp_ == 1 && (!compat_ || (pool_ && cores_[4] != 1));
     auto deposit = [&](int i0, int i1, std::vector<double>& g) {
         for (int p = i0; p < i1; ++p) {
             if (b.lost[p] == 1) continue;
             const double x = b.rel[0][p], y = b.rel[2][p];
-            const double zr = lp_ == 1 ? b.rel[4][p] * gamma_ + c[4] : (b.rel[4][p] - c[4]) * gamma_ + c[4];
+            // lpboundary 1: AVAS.dll stretches about the synchronous particle only in the threaded
+            // deposit (Calculate_Weight, cores[4] > 1), the serial one stretches about the centroid;
+            // the corrected engine always stretches about the synchronous particle (mesh centre)
+            const double zr = lpRel ? (compat_ ? b.rel[4][p] * gamma_ + c[4] : b.rel[4][p] * gamma_)
+                                    : (b.rel[4][p] - c[4]) * gamma_ + c[4];
             const int i = static_cast<int>(std::floor((x - xs_[0]) / dx_));
             const int j = static_cast<int>(std::floor((y - ys_[0]) / dy_));
             const int k = static_cast<int>(std::floor((zr - zs_[0]) / dz_));
@@ -300,7 +343,7 @@ void SpaceCharge::fft() {
     pocketfft::c2c<double>(shape, sc, sc, {2}, false, c2.data(), c1.data(), 1.0, 1);
     for (size_t e = 0; e < n3; ++e) a[e] = c1[e].real();
     pocketfft::dst<double>(shape, sd, sd, {0, 1}, 1, a.data(), bbuf.data(), 1.0, false, 1);
-    const double norm = 1.0 / (static_cast<double>(4LL * nx_ + 4) * (ny_ + 1) * nz_);
+    const double norm = fft_norm(nx_, ny_, nz_, compat_);
     for (size_t e = 0; e < n3; ++e) phi_[e] = bbuf[e] * norm;
     const double hx = 1.0 / (dx_ + dx_), hy = 1.0 / (dy_ + dy_), hz = 1.0 / (dz_ + dz_);
     for (int i = 0; i < nx_; ++i)
@@ -535,7 +578,11 @@ void SpaceCharge::allocate(Beam& b) {
             b.scy[p] = sy;
             b.scz[p] = sz;
         } else {
-            const double ddx = b.rel[0][p] - c[0], ddy = b.rel[2][p] - c[2], ddz = b.rel[4][p] - c[4];
+            // lpboundary 1 (AVAS.dll threaded Allocate, corrected always): distance from the mesh centre
+            const bool lpc = lp_ == 1 && (!compat_ || (pool_ && cores_[9] != 1));
+            const double ddx = lpc ? b.rel[0][p] : b.rel[0][p] - c[0];
+            const double ddy = lpc ? b.rel[2][p] : b.rel[2][p] - c[2];
+            const double ddz = lpc ? b.rel[4][p] : b.rel[4][p] - c[4];
             const double r = std::sqrt(ddx * ddx + ddy * ddy + ddz * ddz);
             const double f = (((Q * kE) / r) / r) / r * igamma_;
             b.scx[p] = ddx * f;
@@ -544,6 +591,131 @@ void SpaceCharge::allocate(Beam& b) {
         }
     }
     if (rec_ == 1) record(b, Q);
+}
+
+// importSCF (spec 60 2.9.3): the recorded rest-frame field, shifted by whole RF periods in time
+void SpaceCharge::import_scf(Beam& b) {
+    const int n = b.n;
+    const double T = 1.0 / b.frequency;
+    double t = b.time;
+    auto zero = [&](int p) { b.scx[p] = b.scy[p] = b.scz[p] = 0.0; };
+    if (t < itime_[0]) {
+        for (int p = 0; p < n; ++p) zero(p);
+        return;
+    }
+    while (T < t - itime_[0]) {
+        t = t - T;
+        b.time = t;  // AVAS.dll folds the simulation time back into the first period
+    }
+    std::vector<double> q;
+    for (double v = t; v < itime_.back(); v = v + T) q.push_back(v);
+    if (q.empty()) {
+        if (compat_) compat_abort("Vector is empty!");
+        throw EngineError("impscfield 1: the simulation time is past the last recorded space-charge field");
+    }
+    // monotonicSearch: times[a] < q <= times[a + 1], continued from the previous position
+    std::vector<double> zq;
+    std::vector<int> rr;
+    size_t a = 0;
+    for (double v : q) {
+        int ia = -1, ib = -1;
+        double ta = 0.0, tb = 0.0;
+        while (a + 1 < itime_.size()) {
+            if (itime_[a] < v && v <= itime_[a + 1]) {
+                ia = static_cast<int>(a);
+                ib = ia + 1;
+                ta = itime_[a];
+                tb = itime_[a + 1];
+                break;
+            }
+            ++a;
+        }
+        if (ia < 0) {
+            // AVAS.dll reads index -1 here (t equal to the first record time)
+            if (!compat_) throw EngineError("impscfield 1: no recorded field around the simulation time");
+            ia = ib = 0;
+        }
+        zq.push_back(((v - ta) / (tb - ta)) * (izc_[static_cast<size_t>(ib)] - izc_[static_cast<size_t>(ia)]) +
+                     izc_[static_cast<size_t>(ia)]);
+        rr.push_back(tb - v < v - ta ? ib : ia);
+    }
+    std::string set;
+    if (!read_file(paths().input + "SpaceChargeSet.plt", set))
+        throw EngineError("Unable to open file: " + paths().input + "SpaceChargeSet.plt");
+    const long long nnode = static_cast<long long>(inx_) * iny_ * inz_;
+    for (int p = 0; p < n; ++p) {
+        if (b.lost[p] == 1) {
+            zero(p);
+            continue;
+        }
+        const double z = b.z[p];
+        // findClosest: lower_bound, the previous entry when it is not farther
+        size_t m = static_cast<size_t>(std::lower_bound(zq.begin(), zq.end(), z) - zq.begin());
+        double zc;
+        if (zq.size() == 1 || m == 0) {
+            m = 0;
+            zc = zq[0];
+        } else if (m == zq.size()) {
+            m = zq.size() - 1;
+            zc = zq.back();
+        } else {
+            zc = zq[m];
+            if (std::fabs(zq[m - 1] - z) <= std::fabs(zq[m] - z)) {
+                m -= 1;
+                zc = zq[m];
+            }
+        }
+        const size_t r = static_cast<size_t>(rr[m]);
+        const auto& d = id_[r];
+        const double g = igam_[r];
+        const double x0 = ixy_[r][0] - (inx_ * 0.5 - 0.5) * d[0];
+        const double y0 = ixy_[r][1] - (iny_ * 0.5 - 0.5) * d[1];
+        const double z0 = zc - (inz_ * 0.5 - 0.5) * d[2];
+        const double dzs = (z - zc) * g;
+        const double zr = dzs + zc;
+        const int i = static_cast<int>(std::floor((b.x[p] - x0) / d[0]));
+        const int j = static_cast<int>(std::floor((b.y[p] - y0) / d[1]));
+        const int k = static_cast<int>(std::floor((zr - z0) / d[2]));
+        if (i < inx_ - 1 && j < iny_ - 1 && k < inz_ - 1 && i > -1 && j > -1 && k > -1) {
+            const double iv = 1.0 / (d[1] * d[0] * d[2]);
+            double w[8];
+            for (int mm = 0; mm < 8; ++mm) {
+                const int kk = k == inz_ - 1 ? (mm > 3 ? 0 : -k) : (mm < 4 ? 1 : 0);
+                const int jj = (mm & 3) < 2 ? 1 : 0;
+                const int ii = (~mm) & 1;
+                w[mm] = std::fabs((b.y[p] - (static_cast<double>(jj + j) * d[1] + y0)) *
+                                  (b.x[p] - (static_cast<double>(ii + i) * d[0] + x0)) *
+                                  (zr - (static_cast<double>(k + kk) * d[2] + z0))) * iv;
+            }
+            const int node[8][3] = {{i, j, k}, {i + 1, j, k}, {i, j + 1, k}, {i + 1, j + 1, k},
+                                    {i, j, k + 1}, {i + 1, j, k + 1}, {i, j + 1, k + 1}, {i + 1, j + 1, k + 1}};
+            double ex = 0.0, ey = 0.0, ez = 0.0;
+            for (int mm = 0; mm < 8; ++mm) {
+                const long long off =
+                    ((static_cast<long long>((node[mm][2] * iny_ + node[mm][1]) * inx_ + node[mm][0]) * 3) +
+                     nnode * static_cast<long long>(r) * 3) * 8;
+                double f[3] = {0, 0, 0};
+                if (off >= 0 && off + 24 <= static_cast<long long>(set.size())) {
+                    std::memcpy(f, set.data() + off, 24);
+                } else {
+                    std::fprintf(stderr, "Read failed: Location %lld\n", off);
+                }
+                ex = ex + w[mm] * f[0];
+                ey = ey + w[mm] * f[1];
+                ez = ez + f[2] * w[mm];
+            }
+            b.scx[p] = ex / g;
+            b.scy[p] = ey / g;
+            b.scz[p] = ez;
+        } else {
+            const double dx = b.x[p] - ixy_[r][0], dy = b.y[p] - ixy_[r][1];
+            const double r2 = dy * dy + dx * dx + dzs * dzs;
+            const double f = (kE / (std::sqrt(r2) * r2 * g)) * iQ_[r];
+            b.scx[p] = f * dx;
+            b.scy[p] = f * dy;
+            b.scz[p] = f * dzs * g;
+        }
+    }
 }
 
 // recordSCF: rest-frame mesh field (k, j, i order, binary) and one text line per call (appended)

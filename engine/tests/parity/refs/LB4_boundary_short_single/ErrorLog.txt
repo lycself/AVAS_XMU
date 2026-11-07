@@ -1,0 +1,1 @@
+     Initialisation stage error: Boundary has been enabled, but the total length of the boundary is less than the Lattice. Restart the simulation after completing the boundary file.

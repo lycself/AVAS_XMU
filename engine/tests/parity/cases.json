@@ -2438,7 +2438,7 @@
    "copy": {
     "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
    },
-   "compat_expected_diff": "AVAS.dll crashes: a static beam error alone leaves the dynamic beam row out of the sample (access violation)"
+   "windows_process_end": "AVAS.dll reads through a null pointer: a static beam error alone leaves the dynamic beam row out of the sample (access violation)"
   },
   {
    "name": "ER13_cpl_ignored_single",
@@ -2641,6 +2641,1135 @@
     "err_beam_stat_on 1 1 0 0 0 0 0 0 0 0 0 0 0",
     "err_quad_dyn_on 1 0 0 0 0 0 0",
     "err_quad_ncpl_dyn 1 0 0.1",
+    "quad 0.1 0.02 0 10",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "LB1_boundary_straight_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "9.6 -0.5 0",
+    "displacedpos": "300 200 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.1 0.02 0",
+    "drift 0.1 0.02 0",
+    "drift 0.1 0.02 0",
+    "end"
+   ],
+   "input": {
+    "boundary": 1
+   },
+   "files": {
+    "boundary.txt": [
+     "start",
+     "1 Copper 0.15 0.01",
+     "1 Copper 0.2 0.008 RLP 0 0.001 0 0 0 0",
+     "end"
+    ]
+   }
+  },
+  {
+   "name": "LB2_boundary_mixed_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "input": {
+    "boundary": 1
+   },
+   "files": {
+    "boundary.txt": [
+     "start",
+     "1 Copper 0.1 0.006",
+     "2 Copper 0.12 0.006 5.0 5 0 0 RLP 0 0 0 0 0 0",
+     "1 Copper 0.11 0.0055 RLP 0.001 0.0005 -0.0003 1 0.5 0.3",
+     "2 Copper 0.1 0.006 6.0 3 1 1",
+     "end"
+    ]
+   }
+  },
+  {
+   "name": "LB3_boundary_crlf_end_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "9.6 -0.5 0",
+    "displacedpos": "300 200 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.1 0.02 0",
+    "drift 0.1 0.02 0",
+    "drift 0.1 0.02 0",
+    "end"
+   ],
+   "input": {
+    "boundary": 1
+   },
+   "files": {
+    "boundary.txt": "start\r\n1 Copper 0.35 0.01\r\nend\r\n"
+   },
+   "compat_note": "CRLF: end\\r is an unknown shape in AVAS.dll"
+  },
+  {
+   "name": "LB4_boundary_short_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "9.6 -0.5 0",
+    "displacedpos": "300 200 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.1 0.02 0",
+    "drift 0.1 0.02 0",
+    "drift 0.1 0.02 0",
+    "end"
+   ],
+   "input": {
+    "boundary": 1
+   },
+   "files": {
+    "boundary.txt": [
+     "start",
+     "1 Copper 0.2 0.01",
+     "end"
+    ]
+   }
+  },
+  {
+   "name": "LT1_track_pchist_dump_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 10",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 -10",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "input": {
+    "track": "0 5 100",
+    "pchistogram": "1 50",
+    "dumpperiodicity": 10
+   }
+  },
+  {
+   "name": "LT2_dump_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "9.6 -0.5 0",
+    "displacedpos": "300 200 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 10",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "input": {
+    "dumpperiodicity": 7,
+    "track": "0"
+   }
+  },
+  {
+   "name": "LL1_longlimits_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "input": {
+    "longlimits": "1 60 0.02"
+   }
+  },
+  {
+   "name": "LP1_lpboundary_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "input": {
+    "lpboundary": 1
+   }
+  },
+  {
+   "name": "LP2_lpboundary_fft_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "input": {
+    "lpboundary": 1,
+    "spacecharge": 1,
+    "scmethod": "FFT",
+    "numofgrid": "32 32 32"
+   },
+   "space_charge": true,
+   "compat_tolerance": 1e-10
+  },
+  {
+   "name": "LP3_lpboundary_spicnic_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "input": {
+    "lpboundary": 1,
+    "spacecharge": 1,
+    "scmethod": "SPICNIC"
+   },
+   "space_charge": true,
+   "compat_tolerance": 1e-10
+  },
+  {
+   "name": "SE1_superpose_err_sub0_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "300 200 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 1",
+    "err_quad_dyn_on 1 1 1 1 1 1 1",
+    "superpose 0 0 0 0 0 0",
+    "err_quad_ncpl_dyn 1 0 0.3 -0.2 0.2 0.1 1 5 0.2",
+    "field 0.35 0.02 0 3 0 0 1 1 sol",
+    "superpose 0.05 0.001 0 0 0 0",
+    "field 0.2 0.02 0 3 0 0 0.5 0.5 sol",
+    "superposeend",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "SE1_superpose_err_sub0_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 1",
+    "err_quad_dyn_on 1 1 1 1 1 1 1",
+    "superpose 0 0 0 0 0 0",
+    "err_quad_ncpl_dyn 1 0 0.3 -0.2 0.2 0.1 1 5 0.2",
+    "field 0.35 0.02 0 3 0 0 1 1 sol",
+    "superpose 0.05 0.001 0 0 0 0",
+    "field 0.2 0.02 0 3 0 0 0.5 0.5 sol",
+    "superposeend",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   }
+  },
+  {
+   "name": "SE2_superpose_err_sub1_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 1",
+    "err_quad_dyn_on 1 1 1 1 1 1 1",
+    "superpose 0 0 0 0 0 0",
+    "field 0.35 0.02 0 3 0 0 1 1 sol",
+    "superpose 0.05 0.001 0 0 0 0",
+    "err_quad_ncpl_dyn 1 0 0.3 -0.2 0.2 0.1 1 5 0.2",
+    "field 0.2 0.02 0 3 0 0 0.5 0.5 sol",
+    "superposeend",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   }
+  },
+  {
+   "name": "SE3_superpose_err_r1_step12_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 2",
+    "err_quad_dyn_on 1 1 1 1 1 1 1",
+    "superpose 0 0 0 0 0 0",
+    "err_quad_ncpl_dyn 1 1 0.3 -0.2 0.2 0.1 1 5 0.2",
+    "field 0.35 0.02 0 3 0 0 1 1 sol",
+    "superpose 0.05 0.001 0 0 0 0",
+    "field 0.2 0.02 0 3 0 0 0.5 0.5 sol",
+    "superposeend",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   }
+  },
+  {
+   "name": "SB1_secondary_text",
+   "beam": {
+    "readparticledistribution": "se.txt"
+   },
+   "input": {
+    "secondarybeam": 1
+   },
+   "files": {
+    "se.txt": [
+     "0.001 0 0 0 0 1.712e7 1 938.272 1 0 proton",
+     "0 0.0005 0 1e5 0 1.71e7 1 938.272 1 1e-10 proton",
+     "-0.0008 0.0003 0.001 -5e4 2e4 1.70e7 1 938.272 1 0 proton",
+     "0.002 -0.001 -0.002 0 3e4 1.72e7 1 938.272 0.5 2e-10 proton",
+     "0.0185 0 0 2e5 0 1.71e7 1 938.272 1 0 proton",
+     "0 0 0 0 0 1.5e7 -1 938.272 1 0 hminus"
+    ]
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "outputplane 0.02",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 10",
+    "drift 0.05 0.02 0",
+    "outputplane 0.05",
+    "quad 0.1 0.02 0 -10",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "compat_ignore_lines": {
+    "SeSynParticle.txt": [
+     0
+    ]
+   },
+   "compat_note": "first SeSynParticle line: the synchronous particle's field before the first step is uninitialised memory in AVAS.dll"
+  },
+  {
+   "name": "SB2_secondary_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "input": {
+    "secondarybeam": 1
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 10",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "compat_note": "8 of 5260 particles differ in the 15th decimal after the quadrupole (SeHardEdgeTrans); the operation order matches the disassembly, the cause is not found"
+  },
+  {
+   "name": "SB3_secondary_dst_beam_err",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "input": {
+    "secondarybeam": 1
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 1",
+    "err_beam_dyn_on 1 1 0 1 1 1 0 0 0 0 0 0 1",
+    "err_beam_dyn 0 1 -0.5 0 0.3 -0.2 0.01 0 0 0 0 0 0 2",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "SB4_secondary_text_bend",
+   "beam": {
+    "readparticledistribution": "se.txt"
+   },
+   "input": {
+    "secondarybeam": 1
+   },
+   "files": {
+    "se.txt": [
+     "0.001 0 0 0 0 1.712e7 1 938.272 1 0 proton",
+     "0 0.0005 0 1e5 0 1.71e7 1 938.272 1 1e-10 proton",
+     "-0.0008 0.0003 0.001 -5e4 2e4 1.70e7 1 938.272 1 0 proton",
+     "0.002 -0.001 -0.002 0 3e4 1.72e7 1 938.272 0.5 2e-10 proton"
+    ]
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "edge 0 0.02 0 10 1.0 0.05 0.45 2.8 0",
+    "bend 0 0.02 0 20 1.0 0.3 0",
+    "edge 0 0.02 0 10 1.0 0.05 0.45 2.8 0",
+    "drift 0.05 0.02 0",
+    "solenoid 0.2 0.02 0 0.5",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "LS0_record_small",
+   "reference_only": true,
+   "experiment": true,
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "recscfield": 1
+   },
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "FFT",
+    "numofgrid": "6 6 6"
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.12 0.02 0",
+    "end"
+   ],
+   "export": {
+    "SpaceChargeMesh.txt": "data/scf_mesh.txt",
+    "SpaceChargeSet.plt": "data/scf_set.plt"
+   }
+  },
+  {
+   "name": "LS1_import_scf_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "impscfield": 1
+   },
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "FFT",
+    "numofgrid": "6 6 6"
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst",
+    "SpaceChargeMesh.txt": "data/scf_mesh.txt",
+    "SpaceChargeSet.plt": "data/scf_set.plt"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "space_charge": true,
+   "compat_tolerance": 1e-10
+  },
+  {
+   "name": "SE4_superpose_err_dxdy_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "err_step 1 1",
+    "err_quad_dyn_on 1 1 0 0 0 0 0",
+    "superpose 0 0 0 0 0 0",
+    "err_quad_ncpl_dyn 1 0 0.5 -0.25",
+    "field 0.35 0.02 0 3 0 0 1 1 sol",
+    "superpose 0.05 0.001 0 0 0 0",
+    "field 0.2 0.02 0 3 0 0 0.5 0.5 sol",
+    "superposeend",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "new_engine_only": true
+  },
+  {
+   "name": "SE4m_superpose_placed_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "superpose 0 0.0005 -0.00025 0 0 0",
+    "field 0.35 0.02 0 3 0 0 1 1 sol",
+    "superpose 0.05 0.001 0 0 0 0",
+    "field 0.2 0.02 0 3 0 0 0.5 0.5 sol",
+    "superposeend",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "new_engine_only": true,
+   "default_manual_of": {
+    "case": "SE4_superpose_err_dxdy_dst",
+    "sample": 0,
+    "only": "dst_transverse"
+   }
+  },
+  {
+   "name": "SB5_secondary_separticle_default",
+   "new_engine_only": true,
+   "beam": {},
+   "input": {
+    "secondarybeam": 1
+   },
+   "files": {
+    "SeParticle.txt": [
+     "0.001 0 0 0 0 1.712e7 1 938.272 1 0 proton",
+     "0 0.0005 0 1e5 0 1.71e7 1 938.272 1 1e-10 proton",
+     "-0.0008 0.0003 0.001 -5e4 2e4 1.70e7 1 938.272 1 0 proton"
+    ]
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "outputplane 0.02",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "default_secondary_planes": 2
+  },
+  {
+   "name": "EP_A10_dimension",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "300 200 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "input": {
+    "dimension": 3
+   }
+  },
+  {
+   "name": "EP_A13_cores_short",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "input": {
+    "setnumberofcores": "64 54 1"
+   }
+  },
+  {
+   "name": "EP_A28_rf_freq0",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "300 200 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 0 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "EP_A33_plane_beyond_end",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "300 200 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "outputplane 0.1",
+    "end"
+   ]
+  },
+  {
+   "name": "EP_A33b_plane_descending",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "300 200 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "outputplane 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "outputplane -0.3",
+    "end"
+   ]
+  },
+  {
+   "name": "EP_D18_plane_interval",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "outputplane -0.005",
+    "end"
+   ],
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   }
+  },
+  {
+   "name": "EP_D36_tcode_wont_start",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "0 0 1",
+    "displacedpos": "300 200 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "outputplane -0.0499",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "EP_F01_scmethod_picnic",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "PICNIC"
+   }
+  },
+  {
+   "name": "EX_A22_no_end",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "300 200 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0"
+   ],
+   "console_check": [
+    "Contains unknown keywords",
+    "can't reach",
+    "reverse motion",
+    "Magnification",
+    "Error!",
+    "error",
+    "Error"
+   ],
+   "windows_process_end": "AVAS.dll reads through a null pointer at the start of the phase scan (access violation)"
+  },
+  {
+   "name": "EX_A27_steerer_7_words",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "300 200 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "steerer 0 0.02 0 0 0.002 0",
+    "quad 0.1 0.02 0 10",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "console_check": [
+    "Contains unknown keywords",
+    "can't reach",
+    "reverse motion",
+    "Magnification",
+    "Error!",
+    "error",
+    "Error"
+   ],
+   "windows_process_end": "the stoi exception of the 7-word steerer leaves AVAS.dll uncaught (C++ exception 0xe06d7363)"
+  },
+  {
+   "name": "EX_D32_multithreading0",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "input": {
+    "multithreading": 0
+   }
+  },
+  {
+   "name": "CK_A09_method_line",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "300 200 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "input": {
+    "method": 1
+   },
+   "console_check": [
+    "Contains unknown keywords"
+   ]
+  },
+  {
+   "name": "CK_F29_spacechargelong",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "300 200 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "input": {
+    "spacechargelong": 1,
+    "spacechargetype": 1
+   },
+   "console_check": [
+    "Contains unknown keywords"
+   ]
+  },
+  {
+   "name": "CK_A29_field_type5",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "300 200 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 5 0 0 1 1 sol",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "console_check": [
+    "Contains unknown keywords",
+    "Field type",
+    "Error",
+    "error",
+    "Boundary"
+   ]
+  },
+  {
+   "name": "EX_A47_boundary_sp_out",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "300 200 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "superpose 0 0 0 0 0 0",
+    "field 0.35 0.02 0 3 0 0 1 1 sol",
+    "superposeout 0.35 0 0 0 0 0",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "input": {
+    "boundary": 1
+   },
+   "files": {
+    "boundary.txt": [
+     "start",
+     "1 Copper 0.05 0.02",
+     "superpose 0",
+     "1 Copper 0.35 0.02",
+     "superposeout",
+     "1 Copper 0.05 0.02",
+     "end"
+    ]
+   },
+   "console_check": [
+    "Contains unknown keywords",
+    "Field type",
+    "Error",
+    "error",
+    "Boundary"
+   ],
+   "windows_process_end": "the superposeout line that ends the boundary superpose block goes to stoi: the exception leaves AVAS.dll (C++ exception 0xe06d7363)"
+  },
+  {
+   "name": "EX_A47b_boundary_sp_shape_end",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "300 200 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "drift 0.35 0.02 0",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "input": {
+    "boundary": 1
+   },
+   "files": {
+    "boundary.txt": [
+     "start",
+     "1 Copper 0.05 0.02",
+     "superpose 0",
+     "1 Copper 0.35 0.02",
+     "1 Copper 0.35 0.015",
+     "1 Copper 0.05 0.02",
+     "end"
+    ]
+   },
+   "console_check": [
+    "Contains unknown keywords",
+    "Field type",
+    "Error",
+    "error",
+    "Boundary"
+   ],
+   "windows_process_end": "a boundary superpose block ended by a shape line also ends AVAS.dll with the stoi exception (C++ exception 0xe06d7363), before any output"
+  },
+  {
+   "name": "SI_B20_sync_reverse",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "300 200 0",
+    "randomseed": 12345,
+    "kneticenergy": 0.5
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 1 1 162.5e6 180 16 -16 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "console_check": [
+    "Contains unknown keywords",
+    "can't reach",
+    "reverse motion",
+    "Magnification",
+    "Error!",
+    "error",
+    "Error",
+    "Í¬²½"
+   ]
+  },
+  {
+   "name": "SI_B20s_static_reverse",
+   "comment": "static decelerating field (the hwr010 RF map read as a static electric map) reflects the synchronous particle; AVAS.dll checks reverse motion only in RF cavities, so the synchronous pass never ends (rc timeout in both AVAS.dll and compat; the default mode stops with the reverse-motion error)",
+   "timeout": 20,
+   "beam": {
+    "particlenumber": 1,
+    "kneticenergy": 0.3,
+    "randomseed": 12345
+   },
+   "field_dir": "inputs",
+   "rename_maps": {
+    "efs.esx": "hwr010.edx",
+    "efs.esy": "hwr010.edy",
+    "efs.esz": "hwr010.edz"
+   },
+   "lattice": [
+    "start",
+    "drift 0.01 0.04 0",
+    "field 0.21 0.04 0 2 0 0 -1 0 efs",
+    "drift 0.05 0.04 0",
+    "end"
+   ],
+   "console_check": [
+    "reverse motion",
+    "can't reach",
+    "Í¬²½"
+   ]
+  },
+  {
+   "name": "SI_B26_sync_drift_aperture",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "300 200 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "superpose 0 0 0 0 0 0",
+    "field 0.35 0.02 0 3 0 0 1 1 sol",
+    "superposeout 0.35 0.03 0 0 0 0",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "console_check": [
+    "Contains unknown keywords",
+    "can't reach",
+    "reverse motion",
+    "Magnification",
+    "Error!",
+    "error",
+    "Error",
+    "Í¬²½"
+   ]
+  },
+  {
+   "name": "SI_C16_sync_field_aperture",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "300 200 0",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "superpose 0 0 0 0 0 0",
+    "field 0.35 0.02 0 3 0 0 1 1 sol",
+    "superposeout 0.35 0.005 0 0 0 0",
+    "field 0.35 0.004 0 3 0 0 1 1 sol",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "console_check": [
+    "Contains unknown keywords",
+    "can't reach",
+    "reverse motion",
+    "Magnification",
+    "Error!",
+    "error",
+    "Error",
+    "Í¬²½"
+   ]
+  },
+  {
+   "name": "SI_C19_binary_map_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.35 0.02 0 3 0 0 1 1 solb",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "field_dir": "inputs",
+   "binary_maps": {
+    "solb": [
+     "sol",
+     [
+      ".bsx",
+      ".bsy",
+      ".bsz"
+     ]
+    ]
+   }
+  },
+  {
+   "name": "SB6_secondary_steerer",
+   "beam": {
+    "readparticledistribution": "se.txt"
+   },
+   "input": {
+    "secondarybeam": 1
+   },
+   "files": {
+    "se.txt": [
+     "0.001 0 0 0 0 1.712e7 1 938.272 1 0 proton",
+     "0 0.0005 0 1e5 0 1.71e7 1 938.272 1 1e-10 proton",
+     "-0.0008 0.0003 0.001 -5e4 2e4 1.70e7 1 938.272 1 0 proton"
+    ]
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "steerer 0 0.02 0 0 0.002 0 0.01",
+    "quad 0.1 0.02 0 10",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "SB6n_secondary_no_steerer",
+   "beam": {
+    "readparticledistribution": "se.txt"
+   },
+   "input": {
+    "secondarybeam": 1
+   },
+   "files": {
+    "se.txt": [
+     "0.001 0 0 0 0 1.712e7 1 938.272 1 0 proton",
+     "0 0.0005 0 1e5 0 1.71e7 1 938.272 1 1e-10 proton",
+     "-0.0008 0.0003 0.001 -5e4 2e4 1.70e7 1 938.272 1 0 proton"
+    ]
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
     "quad 0.1 0.02 0 10",
     "drift 0.05 0.02 0",
     "end"

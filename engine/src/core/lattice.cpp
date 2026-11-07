@@ -84,9 +84,12 @@ public:
             dispatch(w);
         }
         if (!ended) {
-            // The original stops without finishing the lattice (undefined behaviour later on).
-            say("Warning: lattice.txt has no end line; the lattice is closed at its last element");
-            finish();
+            // AVAS.dll stops without finishing the lattice and later reads through a null pointer at
+            // the start of the phase scan (compat: set_synchronous_phase).  The lattice is finished
+            // here anyway, silently in compat mode.
+            lat_.noEnd = true;
+            if (!compat_dll()) say("Warning: lattice.txt has no end line; the lattice is closed at its last element");
+            finish(compat_dll());
         }
     }
 
@@ -536,6 +539,7 @@ private:
             std::array<double, 6> sp;
         };
         std::vector<Sub> subs;
+        std::vector<double> spErr;  // error records of the block (pushed to elemDefs at the end)
         int mode = 0;
         std::array<double, 7> out{};
         double rmin = 1.0;
@@ -557,7 +561,22 @@ private:
             w = block_line();
             if (w[0] == "err_cav_ncpl_stat" || w[0] == "err_cav_ncpl_dyn" || w[0] == "err_quad_ncpl_stat" ||
                 w[0] == "err_quad_ncpl_dyn") {
-                throw EngineError("Error lines inside a superpose block are not implemented in the new engine yet");
+                // spec 70 2.4: {2, mode, E, values..} padded to 18, then class and sub-field index
+                const bool cav = w[0].rfind("err_cav", 0) == 0;
+                const bool dyn = w[0].compare(w[0].size() - 4, 4, "_dyn") == 0;
+                const size_t base = spErr.size();
+                spErr.push_back(2.0);
+                spErr.push_back(dyn ? 1.0 : 0.0);
+                spErr.push_back(static_cast<double>(lat_.elements.size()));
+                for (size_t i = 1; i < w.size(); ++i) spErr.push_back(parse_double(w[i]));
+                while (spErr.size() - base < 18) spErr.push_back(0.0);
+                if (spErr.size() - base > 18) {
+                    // AVAS.dll appends class and index after the extra values (the record is longer)
+                    if (!compat_dll()) throw EngineError("Too many values in an error line inside a superpose block");
+                }
+                spErr.push_back(cav ? 1.0 : 0.0);
+                spErr.push_back(static_cast<double>(subs.size()));
+                w = block_line();
             }
             if (w[0] == "multipole") multipole_to_field(w);
             if (w.size() < 3) throw EngineError("Error! parameter not enough in element : " + w[0]);
@@ -656,6 +675,7 @@ private:
                       [&](const Sub& s) { return zEk < s.zEnd; });
             }
         }
+        if (!spErr.empty()) lat_.err.elemDefs.push_back(spErr);
         // AVAS.dll drops the line that ended the block, so an element written right after a block
         // without superposeend disappears; the corrected engine keeps it.
         if (!terminator.empty() && terminator[0] != "superposeend" && !compat_dll()) {
@@ -668,7 +688,7 @@ private:
         }
     }
 
-    void finish() {
+    void finish(bool quiet = false) {
         if (lat_.elements.empty()) throw EngineError("The lattice contains no element");
         const double L = current_end();
         auto& planes = p_.outputPlanes;
@@ -690,6 +710,7 @@ private:
             lat_.spOutCount = static_cast<int>(lat_.spOut.size());
             if (L > lat_.spOut.back()[6]) lat_.spOut.push_back({0, 0, 0, 0, 0, 0, L});
         }
+        if (quiet) return;
         Text t;
         t.s("Lattice initialisation complete, total length ").g(L).s(" m");
         say(t.str());
@@ -698,10 +719,135 @@ private:
     }
 };
 
+// ---- boundary.txt (spec 10 2.9) ----
+
+// Geometry::SetParameter: shape, name, shape parameters up to "RLP", placement after it.
+void set_geometry(Geometry& g, int index, double zStart, const std::vector<std::string>& w) {
+    g.index = index;
+    g.shape = parse_int(w.at(0));
+    if (w.size() >= 2) {
+        g.name = w[1];
+        g.zStart = zStart;
+    }
+    if (g.shape != 1 && g.shape != 2) {
+        say("Unknown geometric shapes have been set");
+        compat_exit(1);
+    }
+    size_t k = 2;
+    for (; k < w.size() && w[k] != "RLP"; ++k) g.par.push_back(parse_double(w[k]));
+    if (k >= w.size()) return;
+    // AVAS.dll writes past the 6 placement values when more are given; the extra ones are ignored
+    for (size_t j = 0; j < 6 && k + 1 + j < w.size(); ++j) g.place[j] = parse_double(w[k + 1 + j]);
+    for (int j = 3; j < 6; ++j) g.place[j] = g.place[j] * 0.017453292519943295;
+}
+
+// Boundary::SetElement: the segment length is word 2.
+void add_geometry(Boundary& b, const std::vector<std::string>& w) {
+    const double zStart = b.segStart.empty() ? 0.0 : b.segStart.back() + b.segLen.back();
+    b.segStart.push_back(zStart);
+    b.segLen.push_back(parse_double(w.at(2)));
+    b.segEnd.push_back(b.segStart.back() + b.segLen.back());
+    Geometry g;
+    set_geometry(g, static_cast<int>(b.geoms.size()), b.segStart.back(), w);
+    b.geoms.push_back(g);
+}
+
+void read_boundary(Lattice& lat) {
+    const bool compat = compat_dll();
+    std::string raw;
+    if (!read_file(paths().input + "boundary.txt", raw)) {
+        throw EngineError("File \"boundary.txt\" cannot be opened, Check the inputFile routing and boundary.txt.");
+    }
+    say("Initialising boundary...");
+    // AVAS.dll reads without NormalizeLineEndings, but a text-mode stream on Windows drops the CR
+    const std::vector<std::string> lines = split_lines(normalize_line_endings(raw));
+    Boundary& b = lat.bnd;
+    std::vector<double> offsets{0.0};
+    std::vector<int> first{0}, last;
+    bool skip = true;
+    size_t pos = 0;
+    auto next = [&](std::vector<std::string>& w) {
+        while (pos < lines.size()) {
+            w = split_words(lines[pos++]);
+            if (!w.empty()) return true;
+        }
+        return false;
+    };
+    std::vector<std::string> w;
+    bool pending = false;  // w already holds the line that ended a superpose block
+    while (pending || next(w)) {
+        pending = false;
+        if (skip && w[0] != "start") continue;
+        skip = false;
+        const std::string& k = w[0];
+        if (k == "start") continue;
+        if (k == "1" || k == "2") {
+            add_geometry(b, w);
+        } else if (k == "superpose") {
+            double sp[6] = {0, 0, 0, 0, 0, 0};
+            if (w.size() < 3) {
+                sp[0] = w.size() > 1 ? parse_double(w[1]) : 0.0;
+            } else if (w.size() < 7) {
+                throw EngineError("Abnormal number of parameters for keyword superpose in boundary.txt");
+            } else {
+                for (int j = 0; j < 6; ++j) sp[j] = parse_double(w[1 + j]);
+            }
+            std::vector<std::string> sub;
+            if (!next(sub)) throw EngineError("A superpose block is not closed before the end of boundary.txt");
+            std::vector<std::string> endw;
+            if (!next(endw)) throw EngineError("A superpose block is not closed before the end of boundary.txt");
+            const bool out = endw[0] == "superposeout";
+            if (compat) {
+                // AVAS.dll does not pass the composed word list to SetElement (spec 10 2.9.2); measured
+                // on Windows, a block ended by superposeout and one ended by a shape line both end with
+                // the stoi exception before any output (EX_A47_boundary_sp_out, LB5_boundary_sp_shape_end)
+                compat_abort("stoi");
+            } else {
+                // corrected: the sub-geometry, displaced by the superpose placement
+                add_geometry(b, sub);
+                Geometry& g = b.geoms.back();
+                g.place[0] += sp[0];
+                g.place[1] += sp[1] * 0.001;
+                g.place[2] += sp[2] * 0.001;
+                for (int j = 3; j < 6; ++j) g.place[j] += sp[j] * 0.017453292519943295;
+                if (!out) {
+                    w = endw;
+                    pending = true;
+                }
+            }
+            if (out) {
+                const int kk = lat.bndSpOut++;
+                if (kk >= static_cast<int>(lat.spOut.size())) throw EngineError("superposeout in boundary.txt without a lattice superposeout");
+                offsets.push_back(lat.spOut[static_cast<size_t>(kk)][6] - b.segEnd.back());
+                first.push_back(static_cast<int>(b.geoms.size()));
+                last.push_back(static_cast<int>(b.geoms.size()) - 1);
+            }
+        } else if (k == "end") {
+            Text t;
+            t.s("Boundary loaded, total length: ").g(b.segEnd.empty() ? 0.0 : b.segEnd.back()).s(" m,  Lattice length: ")
+                .g(lat.total_length()).s(" m.");
+            say(t.str());
+            last.push_back(static_cast<int>(b.geoms.size()) - 1);
+            for (size_t i = 0; i < offsets.size() && i < first.size() && i < last.size(); ++i)
+                b.rows.push_back({offsets[i], static_cast<double>(first[i]), static_cast<double>(last[i])});
+            if (!compat) break;  // AVAS.dll keeps reading after "end"
+        } else {
+            throw EngineError("Undefined shape exists, check boundary.txt");
+        }
+    }
+    if (b.segEnd.empty() || b.segEnd.back() < lat.total_length()) {
+        throw EngineError("Boundary has been enabled, but the total length of the boundary is less than the Lattice. "
+                          "Restart the simulation after completing the boundary file.");
+    }
+    if (b.rows.empty()) throw EngineError("boundary.txt has no end line");
+    lat.hasBoundary = true;
+}
+
 }  // namespace
 
 void init_lattice(Lattice& lat, Params& p) {
     LatticeReader(lat, p).run();
+    if (p.boundary == 1) read_boundary(lat);
 }
 
 }  // namespace avas

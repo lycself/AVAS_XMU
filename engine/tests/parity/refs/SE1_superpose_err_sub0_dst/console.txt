@@ -1,0 +1,11 @@
+The input path has been set to C:\Users\lycself\tmp_avas_m5b\dllref\SE1_superpose_err_sub0_dst\inputs\
+The fieldMap path has been set to C:\Users\lycself\tmp_avas_m5b\repo\examples\hwr010\InputFile\
+The output path has been set to C:\Users\lycself\tmp_avas_m5b\dllref\SE1_superpose_err_sub0_dst\OutputFile\
+The programme is running.
+Lattice initialisation complete, total length 0.45 m
+A total of 1 output planes
+Average beam energy: 1.52694 (MeV)
+The number of macroparticle representative particles is 1344.33
+Exit bunch energy: 1.52694
+The total distance simulated is 0.45 (m)
+[parity] main_agent -> 0

@@ -1,0 +1,5 @@
+The input path has been set to C:\Users\lycself\tmp_avas_m5b\dllref\EP_F01_scmethod_picnic\inputs\
+The fieldMap path has been set to C:\Users\lycself\tmp_avas_m5b\repo\examples\hwr010\InputFile\
+The output path has been set to C:\Users\lycself\tmp_avas_m5b\dllref\EP_F01_scmethod_picnic\OutputFile\
+The programme is running.
+[parity] main_agent -> 1

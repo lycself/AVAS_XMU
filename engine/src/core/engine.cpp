@@ -1,6 +1,7 @@
 #include "core/engine.h"
 
 #include <atomic>
+#include <csignal>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -17,6 +18,12 @@
 #include "core/params.h"
 #include "core/synchronous.h"
 #include "core/tracker.h"
+
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#endif
 
 namespace avas {
 
@@ -35,17 +42,6 @@ void error_out(const std::string& msg, int stage) {
     write_file(paths().output + "ErrorLog.txt", line, true);
 }
 
-void reject_unimplemented(const Params& p) {
-    auto no = [](const std::string& what) {
-        throw EngineError(what + " is not implemented in the new engine yet");
-    };
-    if (p.boundary == 1) no("boundary.txt (input.txt boundary 1)");
-    if (p.lpBoundary == 1) no("input.txt lpboundary 1");
-    if (p.dumpPeriodicity != 0) no("input.txt dumpperiodicity");
-    if (p.pcHistogram[0] == 1.0) no("input.txt pchistogram 1");
-    if (p.longLimits[0] != 0.0) no("input.txt longlimits");
-    if (!p.track.empty()) no("input.txt track");
-}
 
 std::string seconds(std::chrono::steady_clock::time_point t0) {
     return fmt_g(std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count());
@@ -59,9 +55,28 @@ std::string seconds(std::chrono::steady_clock::time_point t0) {
 }
 
 [[noreturn]] void compat_abort(const std::string& what) {
+    std::fflush(stdout);
+#if defined(_WIN32)
+    (void)what;
+    RaiseException(0xE06D7363u, EXCEPTION_NONCONTINUABLE, 0, nullptr);
+#else
     std::fprintf(stderr, "terminate called after throwing an instance of 'std::invalid_argument'\n  what():  %s\n",
                  what.c_str());
+#endif
+    std::abort();
+}
+
+[[noreturn]] void compat_crash(const std::string& what) {
     std::fflush(stdout);
+#if defined(_WIN32)
+    (void)what;
+    const ULONG_PTR info[2] = {0, 0};  // read access at address 0
+    RaiseException(EXCEPTION_ACCESS_VIOLATION, EXCEPTION_NONCONTINUABLE, 2, info);
+#else
+    std::fprintf(stderr, "Segmentation fault (%s)\n", what.c_str());
+    std::signal(SIGSEGV, SIG_DFL);
+    std::raise(SIGSEGV);
+#endif
     std::abort();
 }
 
@@ -114,7 +129,6 @@ void run_error_samples(Lattice& lat, Params& p, int* state, int& stage,
         L.sample = &samples[k];
         Beam beam;
         init_particles(beam, P, L);
-        reject_unimplemented(P);
         set_synchronous_phase(L, P, beam.uz[beam.n], false);
         say("Initialization time: " + seconds(t0) + " s");
         if (state && compat) *state = 2;
@@ -171,7 +185,6 @@ int run_main_agent(int* state) {
             return 0;
         }
         init_particles(beam, p, lat);
-        reject_unimplemented(p);
         set_synchronous_phase(lat, p, beam.uz[beam.n], false);
         say("Initialization time: " + seconds(t0) + " s");
         if (state && compat) *state = 2;

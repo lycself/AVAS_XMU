@@ -1,0 +1,1 @@
+     simulation stage error: The output plane interval is less than the bunch length. Increase the output plane interval and restart the program

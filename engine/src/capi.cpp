@@ -5,6 +5,7 @@
 
 #include "core/engine.h"
 #include "core/options.h"
+#include "core/tools.h"
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -52,12 +53,38 @@ AVAS_API int path(const char* input, const char* output, const char* field) {
 
 AVAS_API int main_agent(int* state) { return avas::run_main_agent(state); }
 
+#if defined(_WIN32)
+#define AVAS_STR(s) narrow(s)
+#define AVAS_CH wchar_t
+#else
+#define AVAS_STR(s) std::string((s) ? (s) : "")
+#define AVAS_CH char
+#endif
+
+AVAS_API int sampling(const AVAS_CH* in, const AVAS_CH* out, int total, int segFrom, int segTo, int magFrom, int magTo,
+                      int nodes, double halfWidth, double terminalCoefficient) {
+    avas::init_options_from_env();
+    return avas::tool_sampling(AVAS_STR(in), AVAS_STR(out), total, segFrom, segTo, magFrom, magTo, nodes, halfWidth,
+                               terminalCoefficient);
+}
+
+AVAS_API int meshing(const AVAS_CH* in, const AVAS_CH* out, int nodes, double halfWidth) {
+    avas::init_options_from_env();
+    return avas::tool_meshing(AVAS_STR(in), AVAS_STR(out), nodes, halfWidth);
+}
+
+AVAS_API int dataprocess(const AVAS_CH* root, int i0, int i1, double nodesFiveCube, double nodesOriginal, double halfWidth,
+                         int useWeights) {
+    avas::init_options_from_env();
+    return avas::tool_dataprocess(AVAS_STR(root), i0, i1, nodesFiveCube, nodesOriginal, halfWidth, useWeights);
+}
+
 AVAS_API int avas_set_option(const char* key, const char* value) {
     avas::init_options_from_env();
     if (!key) return -1;
     return avas::set_option(key, value ? value : "");
 }
 
-AVAS_API const char* avas_engine_version(void) { return "avas-engine M1"; }
+AVAS_API const char* avas_engine_version(void) { return "avas-engine M5"; }
 
 }  // extern "C"

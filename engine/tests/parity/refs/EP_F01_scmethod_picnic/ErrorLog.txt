@@ -1,0 +1,1 @@
+     Initialisation stage error: SCMethod Contains unknown item, available options include FFT / SPICNIC

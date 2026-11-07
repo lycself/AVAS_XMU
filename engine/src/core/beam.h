@@ -21,6 +21,10 @@ struct Beam {
     std::vector<double> weight, qOverM, charge, mass, restMass;
     std::vector<double> spOutZ0, spOutZ1;
     std::vector<int> boundaryMode;
+    std::vector<int> geomIndex, spOutCount;  // boundary.txt geometry, superposeout sections passed
+    std::vector<double> t, dt;               // own time and time step (secondary particles)
+    std::vector<int> id;                     // particle number (secondary particles)
+    std::vector<std::string> kind;           // particle kind (secondary text input; empty: beam.txt kind)
 
     double frequency = 0.0;     // Hz
     double current = 0.0;       // A
@@ -39,6 +43,7 @@ struct Beam {
     int useWeightFile = 0;  // .dstb weights (indweight 1) or .edst
     double rotAngle = 0.0;
     double time = 0.0;
+    int secondary = 0;      // secondarybeam 1: particles tracked one by one (SeRun)
 
     void resize(int nMacro);
 };

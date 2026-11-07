@@ -121,3 +121,136 @@ M1–M3 见 [M3-notes.md](M3-notes.md) 第 5 节，M4 见 [M4-notes.md](M4-notes
 3. 默认模式静态与动态束流误差相加施加；单粒子与 `.edst` 也施加束流误差。
 4. 误差抽样的种子取 randomseed（0 时取时间并写 `errorData.seed.txt`），同一次调用的所有样本共用初始分布种子。
 5. superpose 组内的误差行在 M5b 实现。
+
+## M5b：其余 CPU 功能与对齐覆盖审计
+
+在 M5a（2532dfd）与用户决定（3c5e5b2）之上，实现规格中其余仍报 not implemented 的 CPU 功能，补齐输出文件与 DLL 独有工具，
+并完成 280 个对齐项与全部函数的覆盖审计（[coverage.md](coverage.md)）。做完后除 RFQ（缺输入样例）外，原内核的每一项 CPU 功能都已实现。
+
+### 1. 代码
+
+| 文件 | 内容 |
+|---|---|
+| `lattice.{h,cpp}` | boundary.txt（`read_boundary`、`set_geometry`、`add_geometry`，含 superpose 块）；superpose 组内误差行（记录 `{2, mode, E, …, 类别, 子场号}`）；`Element.subErr` |
+| `errorset.cpp` | superpose 记录的抽样（动态；默认也抽静态）与 SetErrPara 类型 4 |
+| `tracker.cpp` | boundary.txt 几何损失与 collisionData.txt；lpboundary 折返；longlimits；track（ParticleTracking.txt）；pchistogram（PCHistogram.dat）；dumpperiodicity（BeamSet.plt 头、t 段与 z 段记录）；superpose 误差场；importSCF 调度；“粒子全部丢失”前写 FullParticle.txt；二次粒子 SeRun（`run_secondary`、`se_trun`、`se_zrun`、SeHardEdgeTrans 的四个核、SePlaneOut、SeSynPout） |
+| `beam.{h,cpp}` | 二次粒子读入（文本与 .dst）；每粒子自身时间、步长、编号、种类、几何段号、superposeout 计数 |
+| `spacecharge.{h,cpp}` | importSCF（读 SpaceChargeMesh.txt 索引、按 RF 周期折叠时间、CIC 读 SpaceChargeSet.plt）；lpboundary 的电荷分配与网格外点电荷 |
+| `synchronous.cpp` | superposeout 出口正好是 lattice 末端时结束相位扫描 |
+| `tools.{h,cpp}`（新）、`capi.cpp`、`avas_engine.h` | 导出 `sampling`、`meshing`、`dataprocess`（与 DLL 相同的参数；Windows 为宽字符路径） |
+| `engine.cpp` | 删除剩余的 not implemented 检查（boundary、lpboundary、dumpperiodicity、pchistogram、longlimits、track） |
+| `tests/parity/` | 22 个新算例（LB 边界、LT 输出、LL、LP、LS importSCF、SE superpose 误差、SB 二次粒子）；`tools_check.py`；run_engine 汇总 outData_*.txt、SeSynParticle、ParticleTracking、collisionData 与二进制文件指纹；compare 支持 `compat_ignore_lines`；run_all 新增默认模式检查 |
+
+### 2. 原内核行为（DLL 实测或反汇编，与规格不同或规格未写的）
+
+- boundary.txt：Windows 文本流去掉 CR，CRLF 的 `end` 正常结束；superpose 块不论以 superposeout 还是形状行结束，都在任何输出之前因 stoi 异常结束进程（规格 10 2.9.2 说“以形状行结束时被该行代替”，实测不对，见第 8 节）。
+  Geometry::Boundary 的碰撞行最后一列是粒子种类字符串（beam.txt `kindofparticle`；单粒子模式为空），不是整数。
+- 任何“粒子全部丢失”退出之前都先写 FullParticle.txt。
+- pchistogram：bin = floor((v − v_min)·n/(v_max − v_min))；均值为和乘以 1/计数。
+- lpboundary：折返周期 λ·γβz_s/γ̄，半周期判断，先减后加；空间电荷分配只在多线程分区（cores[4] > 1）时以同步粒子为中心拉伸，串行时以质心为中心。
+- importSCF：与规格 2.9.3 一致；网格外点电荷的纵向距离用拉伸后的值。
+- superpose 误差：InitLattice 每个子块之前只认一条误差行；GenerateErrorSet 写子场槽的同时把元件行第 0 列置 1，所以只有第 1 个以后子场有误差时 t-code 仍用误差场；
+  GetErrField 类型 4 不用子场在块内的放置，只用误差变换，转回时有一处调用 `sin()` 而不是静态 sincos。
+- 二次粒子：文本读入时 γ 只用 v_z（dt 也是）；.dst 读入时粒子从 z = 0 出发、t = φ/(2πf) − ⟨t⟩、权重为每个宏粒子代表的粒子数；
+  .dst 的束流误差平移为 `dx·0.001`（cm，应为 0.1，已确认）；SeTRun 的“z ≥ 0”比较寄存器只在第一步为 0，之后是粒子自己的新 z；
+  中间输出面只插值不输出；粒子在场图内不判孔径（superposeout 面未设置）；同步粒子第一行 SeSynParticle 的场是未初始化内存。
+  SeHardEdgeTrans 的求和次序与主束 HardEdgeTrans 不同（γ² = (u_y² + u_z²) + (u_x² + 1)，x′ 用乘倒数），新内核单独实现；元件长度取 SeZRun 传入的 (z_入 + L) − z_入（第 8 节）。
+- DLL 工具：SPTest.txt 中偏移按 12 位小数写，末行 `offset:` 与 `terminalCoefficient:` 之间没有空格。
+
+### 3. compat=dll 比对（Windows MSVC，`run_all.py --strict`）
+
+- M5b 新算例 19 个（参考由 DLL 生成）全部一致；其中 LP2、LP3、LS1（空间电荷）按已有 1e-10 容差，二进制 BeamSet.plt 在容差算例中只比较长度；
+  SB2（二次粒子 .dst 经过四极）在补充中查明原因后逐字符一致（第 8 节）；
+  SB1 的 SeSynParticle 第一行（未初始化内存）不比较。
+- DLL 工具：meshing（.dst、.dstb）、sampling（.dst、.dstb、SPTest.txt）、dataprocess（.ppj）逐字节一致（.ppj 在补充中改正运算次序后一致，第 8 节）。
+- M1–M5a 全部算例继续逐字符一致；macOS 最大相对差 3.4e-11。
+
+### 4. 默认模式
+
+| 项目 | compat=dll（AVAS.dll） | 默认（修正） |
+|---|---|---|
+| boundary.txt 读到 end | 继续读，第二个 end 再追加一遍段表 | 在第一个 end 停止 |
+| boundary superpose 块 | stoi 异常结束进程 | 子几何加 superpose 放置（偏移相加、角度相加） |
+| 几何段号夹取 | `r2 < gi < r1` 才夹到 r2（笔误，几乎不成立） | 夹到 [r1, r2] |
+| pchistogram 范围 | else-if（刷新最小值后不再比较最大值） | 最小、最大分别比较 |
+| track 越界序号 | 越界读 | 报错 |
+| lpboundary 周期 | 折返 λ·γβz_s/γ̄，网格 βγλ·Nz/(Nz−1)，不强制 FFT | 折返 β_sλ，网格周期 βγλ，使用 FFT；拉伸总以同步粒子为中心 |
+| importSCF 时间等于第一条记录 / 晚于最后一条 | 下标 −1 越界 / abort | 报错 |
+| superpose 误差 | 只认动态；不用子场放置；子场 0 以外的误差靠元件行第 0 列 | 静态与动态都认；误差加到子场放置上，幅度、相位同样作用 |
+| 二次粒子文件 | 只读 beam.txt `readparticledistribution` | 同上；beam.txt 没写时读 SeParticle.txt（界面写的文件） |
+| 二次粒子 γ、dt | 只用 v_z | 用总速度 |
+| 二次粒子 .dst 束流误差 | 平移 dx·0.001 cm | dx·0.1 cm |
+| 二次粒子孔径与输出面 | 场图内不判孔径；只在段末输出面写 | superposeout 面按 lattice 设置（场图孔径生效）；每个输出面都写 |
+| SeTRun 的 z 比较 | 第一步后与自身 z 比较 | 与 0 比较 |
+| 工具出错 | exit(1) / exit(0) 结束宿主进程 | 返回错误码 |
+| 静场（场图类型 2、3）中同步粒子反向 | 只在射频腔内检查反向，同步粒子退回起点之前后无限循环 | 报 “Synchronous particle reverse motion” |
+
+检验（run_all 默认部分，macOS 与 Windows）：LB1 碰撞点半径等于管半径（1e-6 内）；LP1–LP3 全部粒子在半个 RF 周期内；LL1 全部粒子在相位窗口内；
+SB5 读 SeParticle.txt 并在两个输出面各写 3 个粒子；SE4 默认模式“子场误差 dx、dy”与“同样偏移写在 superpose 行”的 outData 横向坐标逐位相同；
+LB2、LP2 一线程与多线程逐字节相同；M5a 的全部默认检查继续通过。
+
+### 5. Python 侧导出符号
+
+| 符号 | 调用者 | 新库 |
+|---|---|---|
+| `path`、`main_agent` | `avas/core/MultiParticleEngine.py`（研究层经 `avas run` 子进程） | 提供（M1） |
+| `sampling`、`meshing`、`dataprocess` | 仓库中没有调用者 | 提供（M5b），与 DLL 同签名 |
+| `avas_set_option`、`avas_engine_version` | 新内核扩展（parity 工具、`AVAS_ENGINE_COMPAT`） | 提供 |
+
+`avas/gpu/` 经 ctypes 调用的是另一个库 libPIC.so（M6），不属于 AVAS.dll / libAVAS.so。
+
+### 6. 待用户决定
+
+1. **二次粒子文件**：推荐默认模式在 beam.txt 没写 `readparticledistribution` 时读 SeParticle.txt（界面束流页写的就是它），写了时与原内核一样读该文件。
+2. **二次粒子输出面**：默认每个输出面都写（原内核只写段末的面）。请确认。
+3. **lpboundary 周期**：默认折返周期取同步粒子的 βλ、空间电荷网格周期 βγλ。请确认。
+4. **superpose 组内误差**：默认把子场误差加到它在块内的放置上（角度直接相加，小角度近似）。请确认。
+5. **DLL 工具**：三个工具在仓库中没有调用者，是否保留在新内核中（.ppj 已逐字节一致）。
+
+### 7. 兼容开关累积清单（M1 + M2 + M3 + M4 + M5a + M5b）
+
+M1–M3 见 [M3-notes.md](M3-notes.md) 第 5 节，M4 见 [M4-notes.md](M4-notes.md) 第 6 节，M5a 见本文件 M5a 第 4、8 节；M5b 新增的就是上面第 4 节的表格各行。
+
+### 8. 补充：覆盖审计中“无算例”条目的算例与两处末位差
+
+审计时 35 个无算例的条目补上 22 个（23 个新算例，参考由 AVAS.dll 在 Windows 上生成），剩下 13 个：按协调意见保留的 RFQ 7 个与 E-01、D-13、D-14、E-05、H-24，
+以及 D-28（见下）。覆盖表见 [coverage.md](coverage.md)（267 / 280）。
+
+| 类别 | 算例 | 比较内容 |
+|---|---|---|
+| 报错路径 | EP_A10_dimension、EP_A13_cores_short、EP_A28_rf_freq0、EP_A33_plane_beyond_end、EP_A33b_plane_descending、EP_D18_plane_interval、EP_D36_tcode_wont_start、EP_F01_scmethod_picnic | rc、ErrorLog.txt（时间戳屏蔽）、出错前写出的全部文件 |
+| 退出 / 崩溃 | EX_A22_no_end、EX_A27_steerer_7_words、EX_A47_boundary_sp_out、EX_A47b_boundary_sp_shape_end、EX_D32_multithreading0 | rc、控制台中的消息行（`console_check.txt`）、退出前的文件 |
+| 控制台消息 | CK_A09_method_line、CK_F29_spacechargelong、CK_A29_field_type5 | `console_check.txt`（按关键字取出的控制台行） |
+| 特殊输入 | SI_B20_sync_reverse、SI_B20s_static_reverse、SI_B26_sync_drift_aperture、SI_C16_sync_field_aperture、SI_C19_binary_map_dst | 同上；C-19 把 sol 场图转成二进制 `solb`（`binary_maps`） |
+| G-31 | SB6_secondary_steerer、SB6n_secondary_no_steerer | 与 DLL 逐字符一致；另在 run_all 中检查 DLL、compat、默认三方 SB6 与 SB6n 的二次粒子输出相同 |
+| H-14 | tools_check.py `sampling_too_large` | rc（exit(0)）与控制台行；`tools_check.py` 现在比较每次调用的 rc 与控制台 |
+| F-30 | 单元测试 `test_fft_norm` | compat 下 1024³ 网格的归一化分母按 32 位 int 溢出（1/8392704），默认 64 位 |
+
+实测得到、并已在 compat 中照做的原内核行为：
+
+- **缺 `end`**（A-22）：不打印“Lattice initialisation complete”与输出面数，相扫描一开始（Phase.txt、scanPhaseData.txt 已截断）读空指针，Windows 上是 access violation。
+  compat 用 `compat_crash` 在同一位置结束：Windows 上 `RaiseException(EXCEPTION_ACCESS_VIOLATION)`，ctypes 给出与 DLL 相同的报错与返回码；其他平台 SIGSEGV。
+- **未捕获的 C++ 异常**（A-27、A-47）：异常穿出 DLL，Windows 上是 0xE06D7363。compat_abort 在 Windows 上改为抛出同一个 SEH 异常（原先是 abort()，返回码不同）；
+  其他平台保持 libstdc++ 的 terminate 文字与 abort()。ER12（只有静态束流误差，空指针读）也改用 compat_crash，原先标 expected，现在逐字符一致。
+  这些算例在 run_all 的跨平台比较中跳过 rc.txt 与 console_check.txt（`windows_process_end`）。
+- **boundary superpose 块**：以 superposeout 结束和以形状行结束的块都在任何输出之前异常结束（EX_A47、EX_A47b），compat 对任何块都照此处理。
+- **同步粒子越过场图元件孔径**（C-16）：打印 GBK 文字“同步粒子无法抵达出口平面，束线存在问题,模拟结束”后 exit(1)；漂移段仍是英文（B-26、C-05）。
+- **synData.txt**：每行以 endl 结束，exit(1)、异常与挂起之前已写的行都在磁盘上（未写完的行在 exit 与异常时也写出）。compat 在主阶段逐行写出，退出前写出未完成的行。
+- **静场反射同步粒子**（B-20s）：hwr010 的射频场图当作静电场（Ke = −1、0.3 MeV）时同步粒子被反射。原内核只在射频腔里检查反向，同步粒子退回 z < 0 后一直漂移，
+  DLL 与 compat 都不结束（算例 20 s 超时，rc 都是 timeout，synData.txt 都只有第一行）。默认模式在同步粒子退回 lattice 起点之前时报反向错误。
+- B-20 本身用 0.5 MeV、hwr010 Ke = 16、V3 = 1、相位 180°（射频腔中减速反向）。
+
+两处末位差的原因（都已逐字节一致）：
+
+- **SB2**：SeZRun 调用 SeHardEdgeTrans 时传入元件的入口 z 与 z_入 + L，SeHardEdgeTrans 用两者之差作长度（四极、螺线管、弯铁都是），与元件长度 L 差一个末位；
+  原先用 L，5260 个粒子中 8 个在第 15 位不同。compat 改用 (z_入 + L) − z_入 后 SB1–SB5 逐字符一致，SB2 去掉 1e-10 容差。
+- **dataprocess .ppj**：按反汇编改正运算次序：二阶矩 `d·d·w`、`d′·d·w`；ε 写成 `β·ε·γ`、α 写成 `(−1/ε)·σ_xx′`；网格分配 `|…|·(1/(h_u h_v))·w·s`；
+  网格矩以 `(i − (n/2 − 0.5))·h` 为偏移（不含均值）、乘 `1/(sW)`；纵向 `K = γ̄·(Σw v_z · (1/W))`（Ghidra 把它显示成 `γ̄·Σ·(1/W)`，只有看反汇编才看出先乘 1/W）。
+  改完 .ppj 27476 字节逐字节一致。
+
+仍无算例：**D-28**（停滞判丢与 LongitudinalBeamLoss.txt）。判丢要求有粒子在 t-code 区里 80 % 以上的累计步数不越过下一平面。在 hwr010 强减速场中试了
+0.3 / 0.5 MeV、Ke 11.5–16、相位 0–330°、前后漂移段 0.01–2 m、加零场腔延长 t-code 区、2000–20000 个粒子：被反射的粒子退到 z < 0 立即判丢，
+在腔内往复的粒子最长约 2800 步（需要 4000 步以上）；把场放进 superposeout 块（反射粒子在 z < 0 不判丢）时射频腔不允许，静电场下两个内核都不结束。
+没有找到能让 DLL 正常结束又触发停滞判丢的输入。
+
+检查（Windows MSVC）：`run_all.py --strict`（含新算例）、单元测试、`run_physics.py`、`tests/test_error_study.py`（默认与 compat）；macOS `run_all.py`；ruff。

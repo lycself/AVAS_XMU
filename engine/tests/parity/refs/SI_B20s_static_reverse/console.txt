@@ -1,0 +1,7 @@
+The input path has been set to C:\Users\lycself\tmp_avas_m5b\dllref\SI_B20s_static_reverse\inputs\
+The fieldMap path has been set to C:\Users\lycself\tmp_avas_m5b\dllref\SI_B20s_static_reverse\inputs\
+The output path has been set to C:\Users\lycself\tmp_avas_m5b\dllref\SI_B20s_static_reverse\OutputFile\
+The programme is running.
+Lattice initialisation complete, total length 0.27 m
+A total of 1 output planes
+The intensity is set to 0

@@ -1,0 +1,3 @@
+dx:0mm  dy:0mm  dz:1mm
+dpx:3mrad  dpy:2mrad  dpz:--
+Energy:1.52703MeV

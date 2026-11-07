@@ -1,0 +1,10 @@
+DataSet.txt 0
+Phase.txt 108
+SeSynParticle.txt 5245
+collisionData.txt 0
+inData.dst 252511
+outData_0.460000.txt 635476
+scanPhaseData.txt 1539
+synData.txt 612
+synParticle.txt 0
+testP.txt 0

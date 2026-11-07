@@ -9,6 +9,8 @@
 
 namespace avas {
 
+double fft_norm(int nx, int ny, int nz, bool compat);
+
 class SpaceCharge {
 public:
     SpaceCharge(const Params& p, int nParticles);
@@ -17,6 +19,9 @@ public:
     // step (autoPIC), in which case the particles keep their previous field.
     bool solve(Beam& b, double factor, const double* sync = nullptr);
     int nx() const { return nx_; }
+    // impscfield 1: fields from a recorded run (importSCF) instead of a solve
+    bool importing() const { return imp_; }
+    void import_scf(Beam& b);
 
 private:
     bool compat_;
@@ -53,6 +58,12 @@ private:
     void allocate(Beam& b);
     void record(const Beam& b, double Q);
     double sync_[6] = {0, 0, 0, 0, 0, 0};
+    bool imp_ = false;
+    int inx_ = 0, iny_ = 0, inz_ = 0;
+    std::vector<double> itime_, izc_, iQ_, igam_;
+    std::vector<std::array<double, 2>> ixy_;
+    std::vector<std::array<double, 3>> id_;
+    std::string iset_;  // SpaceChargeSet.plt of the input folder
 };
 
 // z-code: rows {x, ux, y, uy, dt, uz, t, flag} at one z -> rel coordinates at time tRef, centroid

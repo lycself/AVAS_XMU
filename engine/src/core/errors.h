@@ -25,7 +25,13 @@ public:
 
 // Ends the process like the original kernel's exit(code).  Flushes stdout first.
 [[noreturn]] void compat_exit(int code);
-// Ends the process like an uncaught non-string exception in the original kernel.
+// Ends the process like an uncaught non-string exception in the original kernel.  On Windows the
+// exception leaves the DLL as the MSVC C++ exception 0xE06D7363 (ctypes: OSError "Windows Error
+// 0xe06d7363"); elsewhere the libstdc++ terminate message and abort().
 [[noreturn]] void compat_abort(const std::string& what);
+// Ends the process like the original kernel's read through a null pointer (Windows: access
+// violation exception, ctypes: OSError "access violation reading 0x0000000000000000"; elsewhere
+// SIGSEGV).
+[[noreturn]] void compat_crash(const std::string& what);
 
 }  // namespace avas

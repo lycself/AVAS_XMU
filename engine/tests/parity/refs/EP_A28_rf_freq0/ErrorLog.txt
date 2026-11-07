@@ -1,0 +1,1 @@
+     Initialisation stage error: RF cavity frequency cannot be set to 0, Check the parameters of the RF cavity elements

@@ -210,6 +210,16 @@ static Lattice error_lattice(int a, double r, int mode) {
     return lat;
 }
 
+// F-30: the FFT normalisation denominator overflows 32-bit int in AVAS.dll for large meshes
+static void test_fft_norm() {
+    CHECK(fft_norm(64, 64, 64, false) == 1.0 / (260.0 * 65.0 * 64.0));
+    CHECK(fft_norm(64, 64, 64, true) == fft_norm(64, 64, 64, false));
+    const double big = fft_norm(1024, 1024, 1024, false);
+    CHECK(big == 1.0 / (4100.0 * 1025.0 * 1024.0) && big > 0.0);
+    // (4*1024+4)*1025*1024 = 4303360000 wraps to 8392704 in 32-bit int
+    CHECK(fft_norm(1024, 1024, 1024, true) == 1.0 / 8392704.0);
+}
+
 static void test_error_sampling() {
     const Compat saved = options().compat;
     options().compat = Compat::None;
@@ -274,6 +284,7 @@ int main() {
     test_random();
     test_space_charge_ellipsoid();
     test_error_sampling();
+    test_fft_norm();
     std::printf("%s (%d failures)\n", failures ? "FAILED" : "OK", failures);
     return failures;
 }

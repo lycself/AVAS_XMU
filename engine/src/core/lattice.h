@@ -45,6 +45,8 @@ struct Element {
     // element errors (SetErrPara): displacement (m), rotations (rad), scaled amplitudes
     double errDx = 0, errDy = 0, errDz = 0, errRotX = 0, errRotY = 0, errRotZ = 0;
     double keErr = 0, kbErr = 0, phaseErr = 0, fieldErr = 0;
+    // superpose block: per sub-field {flag, dx, dy, dz, thx, thy, thz, kb, ke, phase, 0, 0} (SetErrPara)
+    std::vector<std::array<double, 12>> subErr;
 
     bool is_matrix() const {
         return kind == ElemKind::Quad || kind == ElemKind::Solenoid || kind == ElemKind::Bend || kind == ElemKind::Edge;
@@ -71,8 +73,28 @@ struct ErrorSample {
     int flags[4] = {0, 0, 0, 0};
 };
 
+// boundary.txt (spec 10 2.9, spec 40 6.12): pipe geometries along z.
+struct Geometry {
+    int shape = 0;  // 1 straight pipe, 2 bent pipe
+    int index = 0;
+    std::string name;
+    double zStart = 0.0;
+    std::vector<double> par;            // par[0] length, par[1] radius, bent: par[2] rho, par[3] angle (deg),
+                                        // par[4] plane (0 x-z, 1 y-z), par[5] direction
+    std::array<double, 6> place{};      // z0, x0, y0 (m), thz, thx, thy (rad) after "RLP"
+};
+struct Boundary {
+    std::vector<Geometry> geoms;
+    std::vector<double> segStart, segLen, segEnd;
+    std::vector<std::array<double, 3>> rows;  // per superposeout section: {z offset, first, last geometry}
+};
+
 struct Lattice {
     ErrorParameter err;
+    Boundary bnd;
+    bool hasBoundary = false;
+    bool noEnd = false;  // lattice.txt without an end line (AVAS.dll leaves the lattice unfinished)
+    int bndSpOut = 0;  // superposeout sections consumed by boundary.txt
     const ErrorSample* sample = nullptr;  // current error sample (null: no errors)
     std::vector<Element> elements;
     std::vector<double> elemZStart, elemLength, elemZEnd;

@@ -711,6 +711,8 @@ Bz = 0
 即当前行单词向量；合成表在 `*(40(%rsp))`）。后果：
 - 块以形状行（`1`/`2`）结束 → 整个 superpose 块被这一行代替（该行也不会再单独处理）；
 - 块以 `superposeout …` 或 `end` 结束 → `Geometry::SetParameter` 对 `word[0]` 做 stoi → `invalid_argument` → 进程 abort。
+- **实测更正（M5b 补充，Windows AVAS.dll）**：以形状行结束的块同样在任何输出之前因 stoi 异常结束进程（算例 EX_A47b），并不是被该行代替；
+  以 superposeout 结束的块见 EX_A47。
 iVar8 == 1 时随后还会：`k = Initial+0x1a0`，`Initial+0x1a0 += 1`；`offsets.push(Lattice.spOut[k][6] − Bnd.zEnd.back())`；
 `first.push(geoms.size())`；`last.push(geoms.size() − 1)`。
 

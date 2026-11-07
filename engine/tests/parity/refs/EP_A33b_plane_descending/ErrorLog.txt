@@ -1,0 +1,1 @@
+     Initialisation stage error: Output plane anomaly, check automaticoutput

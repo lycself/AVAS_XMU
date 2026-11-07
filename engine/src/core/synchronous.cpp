@@ -20,6 +20,11 @@ namespace {
 
 const char* kReverse = "Synchronous particle reverse motion, program stopped";
 const char* kNoExit = "Synchronised particles can't reach the exit plane, problems with the beamline";
+// AVAS.dll prints this GBK text (no translation) when the synchronous particle leaves the aperture of
+// a field-map element: "同步粒子无法抵达出口平面，束线存在问题,模拟结束"
+const char* kNoExitGbk =
+    "\xcd\xac\xb2\xbd\xc1\xa3\xd7\xd3\xce\xde\xb7\xa8\xb5\xd6\xb4\xef\xb3\xf6\xbf\xda\xc6\xbd\xc3\xe6\xa3\xac"
+    "\xca\xf8\xcf\xdf\xb4\xe6\xd4\xda\xce\xca\xcc\xe2\x2c\xc4\xa3\xc4\xe2\xbd\xe1\xca\xf8";
 
 double kinetic(double gbz, double mc2) { return (std::sqrt(std::pow(gbz, 2.0) + 1.0) - 1.0) * mc2; }
 
@@ -167,7 +172,10 @@ private:
         if (e.kind == ElemKind::Drift) {
             if (e.radius <= r) {
                 say(kNoExit);
-                if (compat_) compat_exit(1);
+                if (compat_) {
+                    flush_rows(true);
+                    compat_exit(1);
+                }
                 throw EngineError(kNoExit);
             }
             for (int k = 0; k < 3; ++k) s.E[k] = s.B[k] = 0.0;
@@ -184,8 +192,12 @@ private:
         }
         if (type != 1 && type != 2 && type != 3) return;  // type 0 and others: nothing written
         if (e.radius <= r) {
+            if (compat_) {
+                say(kNoExitGbk);
+                flush_rows(true);
+                compat_exit(1);
+            }
             say(kNoExit);
-            if (compat_) compat_exit(1);
             throw EngineError(kNoExit);
         }
         for (int k = 0; k < 3; ++k) s.E[k] = s.B[k] = 0.0;
@@ -240,7 +252,10 @@ private:
             if (0.0 < zl && zl < e.subLength[j] && e.inSuperposeOut == 0 &&
                 e.subRadius[j] <= std::sqrt(xl * xl + yl * yl)) {
                 say(kNoExit);
-                if (compat_) compat_exit(1);
+                if (compat_) {
+                    flush_rows(true);
+                    compat_exit(1);
+                }
                 throw EngineError(kNoExit);
             }
             const int st = e.subType[j];
@@ -333,11 +348,13 @@ private:
         AppendFile spd, ph;
         spd.open(paths().output + "scanPhaseData.txt");
         ph.open(paths().output + "Phase.txt");
+        if (compat_ && lat_.noEnd) compat_crash("lattice without end");  // spec 10 A-22
         const double dt = scan_dt(s);
         const double nMax = static_cast<double>(p_.runPeriod) * p_.stepPerCycle;
         double t = 0.0;
         double prev[6] = {s.z(), s.uz(), 0, 0, 0, 0};
         int cnt = 0;
+        scanning_ = true;
         if (0.0 < nMax / p_.scanTStep) {
             nextBend_ = 0;
             while (true) {
@@ -363,6 +380,7 @@ private:
                     const double f = parse_double(e.words.at(5));
                     if (f == 0.0) {
                         static_step(s, e, prev, t, dt);
+                        if (scanEnded_) break;
                     } else if (parse_double(e.words.at(3)) <= 0.5) {
                         scan_cavity(s, e, prev, t, dt, spd, ph);
                     } else {
@@ -374,6 +392,7 @@ private:
                 if (nMax / p_.scanTStep <= static_cast<double>(cnt)) break;
             }
         }
+        scanning_ = false;
         spd.close();
         ph.close();
         lat_.spOutCur = 0;
@@ -382,6 +401,9 @@ private:
             lat_.fm.cavTime.push_back(s.cavTime[i]);
         }
     }
+
+    bool scanEnded_ = false;
+    bool scanning_ = false;
 
     double scan_dt(const SynParticle& s) const {
         if (compat_) return (p_.scanTStep / s.frequency) / p_.stepPerCycle;
@@ -423,8 +445,9 @@ private:
                 }
                 s.coord[4] = row[6];
                 t = (r * dt + t) - dt;
-                if (row[6] == L()) {
-                    throw EngineError("A superposeout block that ends the lattice is not implemented in the new engine yet");
+                if (row[6] == L() && scanning_) {
+                    scanEnded_ = true;  // the block exit is the lattice end: the scan ends here
+                    return;
                 }
                 lat_.spOutCur = j + 1;
                 s.fullPush = false;
@@ -664,6 +687,22 @@ private:
     }
 
     // ---- main stage --------------------------------------------------------------------
+    // synData.txt rows of the main pass. AVAS.dll ends every row with std::endl, so the rows written
+    // before an exit, an exception or a hang are on disk; the partial row is flushed by exit() and
+    // by the stream destructor during unwinding.
+    Text* rowOut_ = nullptr;
+    AppendFile* sdOut_ = nullptr;
+    void flush_rows(bool partial) {
+        if (!rowOut_ || !sdOut_) return;
+        const std::string& str = rowOut_->str();
+        const size_t n = partial ? str.size() : str.rfind('\n') + 1;  // npos + 1 == 0
+        if (n == 0) return;
+        sdOut_->write(str.substr(0, n));
+        const std::string rest = str.substr(n);
+        rowOut_->clear();
+        rowOut_->s(rest);
+    }
+
     void main_stage() {
         SynParticle s;
         setup(s, p_, gbzIn_);
@@ -684,9 +723,20 @@ private:
         s.cavTime.clear();
         bool done = false;
         nextBend_ = 0;
+        rowOut_ = &row;
+        sdOut_ = &sd;
+        struct Reset {
+            PhaseFinder* f;
+            ~Reset() { f->rowOut_ = nullptr; f->sdOut_ = nullptr; }
+        } reset{this};
+        try {
         while (!done) {
+            if (compat_) flush_rows(false);
             bend_time(s, t);
             const double z = s.z();
+            // AVAS.dll checks reverse motion only inside RF cavities: a synchronous particle reflected
+            // by a static field drifts back past the lattice start forever (defect B-20s)
+            if (!compat_ && z < 0.0) throw EngineError(kReverse);
             if (0.0 <= z && z <= lat_.sp_exit() && z < L()) {
                 int i = s.elemIndex;
                 if (z < zStartOf(i)) {
@@ -734,6 +784,10 @@ private:
                 sd.write(row.str());
                 row.clear();
             }
+        }
+        } catch (...) {
+            if (compat_) flush_rows(true);
+            throw;
         }
         sd.write(row.str());
         sd.close();

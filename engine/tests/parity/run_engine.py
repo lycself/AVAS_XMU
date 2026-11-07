@@ -47,7 +47,9 @@ sys.exit(100 + r)
 '''
 
 TEXT_FILES = ["synData.txt", "scanPhaseData.txt", "Phase.txt", "SingleParticle.txt", "DataSet.txt",
-              "LongitudinalBeamLoss.txt", "SpaceChargeMesh.txt", "StaticErrorData.txt", "DynamicErrorData.txt"]
+              "LongitudinalBeamLoss.txt", "SpaceChargeMesh.txt", "StaticErrorData.txt", "DynamicErrorData.txt",
+              "SeSynParticle.txt", "ParticleTracking.txt", "collisionData.txt"]
+BINARY_FILES = ["BeamSet.plt", "PCHistogram.dat", "SpaceChargeSet.plt"]
 
 
 def set_keys(path, changes):
@@ -115,7 +117,22 @@ def summarise_edst(path):
     return "\n".join(out) + "\n"
 
 
-def summarise(out_dir, summary_dir, rc, log, top=True):
+def make_binary_maps(field_src, inp, maps):
+    """Field maps in the binary format (name ending in b): int32 nz, double zlen, int32 nx, double xmin,
+    xmax, int32 ny, double ymin, ymax, double norm, then float32 values (spec 30 C-19)."""
+    for new, (old, exts) in maps.items():
+        for ext in exts:
+            words = open(os.path.join(field_src, old + ext)).read().split()
+            nz, zlen, nx, xmin, xmax, ny, ymin, ymax, norm = (int(words[0]), float(words[1]), int(words[2]), float(words[3]),
+                                                              float(words[4]), int(words[5]), float(words[6]),
+                                                              float(words[7]), float(words[8]))
+            vals = [float(v) for v in words[9:9 + (nx + 1) * (ny + 1) * (nz + 1)]]
+            with open(os.path.join(inp, new + ext), "wb") as f:
+                f.write(struct.pack("<ididdiddd", nz, zlen, nx, xmin, xmax, ny, ymin, ymax, norm))
+                f.write(struct.pack("<%df" % len(vals), *vals))
+
+
+def summarise(out_dir, summary_dir, rc, log, top=True, checks=()):
     os.makedirs(summary_dir, exist_ok=True)
     if top:
         open(os.path.join(summary_dir, "rc.txt"), "w").write(f"{rc}\n")
@@ -153,6 +170,15 @@ def summarise(out_dir, summary_dir, rc, log, top=True):
         open(os.path.join(summary_dir, "ErrorLog.txt"), "w", newline="\n").write(
             "".join(ln[19:] + "\n" for ln in lines))
     for f in files:
+        if f.startswith("outData_") and f.endswith(".txt"):
+            shutil.copy(os.path.join(out_dir, f), os.path.join(summary_dir, f))   # secondary particles
+    for f in BINARY_FILES:
+        p = os.path.join(out_dir, f)
+        if os.path.exists(p):
+            raw = open(p, "rb").read()
+            open(os.path.join(summary_dir, f + ".sha.txt"), "w").write(
+                "bytes %d\nsha256 %s\n" % (len(raw), hashlib.sha256(raw).hexdigest()))
+    for f in files:
         if f.endswith(".dst"):
             open(os.path.join(summary_dir, f + ".txt"), "w").write(summarise_dst(os.path.join(out_dir, f)))
         elif f.endswith(".edst"):
@@ -170,7 +196,11 @@ def summarise(out_dir, summary_dir, rc, log, top=True):
                                          "Lattice initialisation", "A total of", "Note that",
                                          "Error!", "Average beam", "[parity]")):
             keep.append(s)
-    open(os.path.join(summary_dir, "console.txt"), "w", newline="\n").write("\n".join(keep) + "\n")
+    open(os.path.join(summary_dir, "console.txt"), "w", newline="\n", encoding="utf-8").write("\n".join(keep) + "\n")
+    if checks:
+        # console messages of a case (exit paths, warnings): the matching lines in order
+        hit = [ln.strip() for ln in log.replace("\r", "\n").splitlines() if any(c in ln for c in checks)]
+        open(os.path.join(summary_dir, "console_check.txt"), "w", newline="\n", encoding="utf-8").write("\n".join(hit) + "\n")
 
 
 def main():
@@ -222,6 +252,13 @@ def main():
         # field maps are read from the example (read only); cases that generate maps (multipole)
         # use their own input folder
         field = inp if case.get("field_dir") == "inputs" else base
+        if case.get("binary_maps"):
+            make_binary_maps(base, inp, case["binary_maps"])
+            for f in case.get("copy_maps", []):
+                shutil.copy(os.path.join(base, f), inp)
+        # renamed copies of example maps (e.g. the RF map of hwr010 used as a static electric field)
+        for new_name, old_name in case.get("rename_maps", {}).items():
+            shutil.copy(os.path.join(base, old_name), os.path.join(inp, new_name))
         t0 = time.time()
         try:
             proc = subprocess.run([sys.executable, "-c", CHILD, a.lib, inp + os.sep, out + os.sep, field + os.sep,
@@ -232,7 +269,7 @@ def main():
         except subprocess.TimeoutExpired as e:
             rc, log = "timeout", (e.stdout or b"").decode("latin-1")
         open(os.path.join(d, "log.txt"), "w", encoding="utf-8").write(log)
-        summarise(out, os.path.join(d, "summary"), rc, log)
+        summarise(out, os.path.join(d, "summary"), rc, log, checks=case.get("console_check", ()))
         for f, target in case.get("export", {}).items():
             if os.path.exists(os.path.join(out, f)):
                 shutil.copy(os.path.join(out, f), os.path.join(d, os.path.basename(target)))
