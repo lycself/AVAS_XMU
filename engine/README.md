@@ -10,6 +10,7 @@
 
 - `docker/manylinux2014-cuda12.4.Dockerfile`：Linux 构建环境（glibc 2.17、devtoolset-10、CUDA 12.4）。服务器连不上 CentOS vault 源，CUDA rpm 从 NVIDIA 的 `.cn` 镜像下载后用 `--nodeps` 安装（`cuda-nvcc` 声明依赖系统 `gcc-c++`，实际使用 devtoolset 的编译器）。
 - `tools/cu_probe.cu`、`build_probe_linux.sh`、`build_probe_windows.bat`：工具链检查程序，验证多架构机器码的选择、静态 CUDA 运行库在各版本驱动上的兼容性、fp32／fp64 吞吐量，以及同一份 `__host__ __device__` 代码在 CPU 与 GPU 上的结果。
+- `tools/oracle/`：原内核比对实验工具。`runner.py cases.json WORKDIR REPO` 经 `avas run --mode basic` 运行各算例（在示例 hwr010 上改 beam / input / lattice、加文件，带超时）；`direct.py` 绕过 Python 的 lattice 处理直接调用 `path()` / `main_agent()`（测试内核自己的误差处理等）。`batch1_*.json` 是第一批实验的算例，`batch1_platform_cases.json` 用到的 `win_in.dst` 取自 Windows 上 `g1_base` 算例的 inData.dst。结果见 docs/engine/90-experiments.md。
 - `tools/ExportDecomp.java`：Ghidra headless 脚本，导出非库函数的伪代码和调用关系（`index.tsv`）。导出的伪代码不放进仓库。
 
 ## 工具链检查结果（2026-11-07）

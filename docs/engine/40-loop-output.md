@@ -591,3 +591,8 @@ T ≤ 60 用 `%.0fs`，60<T≤3600 用 `%.2fmin`（T/60），T>3600 用 `%.2fh`�
 | Beam+0x18 rms[2] | rms(z)·γ | tcodeRun 中 = sqrt(Σw(γp·Δz)²/W)，γp 为上一步平均 γ | tcodeRun |
 | Beam+0x90/0x98 zMin/zMax | 存活粒子最小/最大 z | tcodeRun 中取推进**前**的 z（`lost != 1`）；UpdateBeamParameters 中包括丢失粒子 | TcodeTrans、UpdateBeamParameters |
 | Initial+0x088 cores 默认 | 未列默认值 | `{-1,1,1,1,1,1,1,1,1,1}`；按 N 的取值表见 §7 | Initial::Initial、InitParticle |
+
+## 实测更正（2026-11-07）
+
+- **D-07 不成立**：DataSet.txt 第一行第 0 列为 1.52694，inData.dst 各粒子动能的平均为 1.5269415（四舍五入一致），由平均动量算的 (γ̄−1)mc² 为 1.5269223（不一致）。第 0 列是平均动能，与 AGENTS.md 第 6 节一致；2.x 节对第 0 列的推导需按此修正后再实现。详见 [90-experiments.md](90-experiments.md)。
+- 同一输入重复运行、`multithreading 1` 与不写该行，DataSet.txt 都逐字节相同。

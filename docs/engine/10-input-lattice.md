@@ -953,3 +953,8 @@ geoms(+0x00).push(g)
 10. **Boundary+0x60** 每行 `{z 偏移, 首几何段, 末几何段}` 已确认（来自 `end` 时的构造），且每遇到一次 `end` 追加一遍。
 11. Quadrupole 构造常数确认为 `+0x90 = −4e-05`、`+0x98 = 4.518219`（仍未找到读取处）；RFQ `+0x170 = 1e-16`。
 12. AVAS.dll 中粒子步长是 0x1a8（main_agent 中 `local_b20 * 0x1a8 + 0x28`），与 .so 的 0x190 不同，提醒 DLL 结构需单独核对。
+
+## 实测更正（2026-11-07）
+
+- superpose 含 RF 腔：腔在块首**和块尾**（与一段同长 drift 叠加）两种写法，synData 的 φs、φRF 都是 NaN，束流不加速。文中"情形 B（腔在块尾）正常"的推断与实测不符，需重新读 2.6.5 节的合成规则。
+- `scanphase` 1/2 与 scanData.txt 确认无效（DataSet.txt 与不写时逐字节相同）；`secondarybeam 1` 时内核不读 SeParticle.txt；`main_agent(2)` 确认会完整重跑一次。详见 [90-experiments.md](90-experiments.md)。
