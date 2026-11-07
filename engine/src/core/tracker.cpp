@@ -21,6 +21,7 @@
 #include "core/format.h"
 #include "core/options.h"
 #include "core/physics.h"
+#include "core/spacecharge.h"
 
 namespace avas {
 
@@ -102,7 +103,11 @@ using Rec = std::array<double, 8>;  // crossing record: x, ux, y, uy, z, uz, t, 
 
 class Tracker {
 public:
-    Tracker(Lattice& lat, Beam& b, Params& p) : lat_(lat), b_(b), p_(p), compat_(compat_dll()) {}
+    Tracker(Lattice& lat, Beam& b, Params& p) : lat_(lat), b_(b), p_(p), compat_(compat_dll()) {
+        if (p.spaceCharge == 1 && p.impScField == 1)
+            throw EngineError("beam.txt impscfield 1 (importSCF) is not implemented in the new engine yet");
+        if (p.spaceCharge == 1) sc_ = std::make_unique<SpaceCharge>(p, b.n);
+    }
 
     void run() {
         const auto t0 = std::chrono::steady_clock::now();
@@ -118,6 +123,8 @@ public:
                               "LongitudinalBeamLoss.txt", "BeamSet.plt", "ExData.edt", "FullParticle.txt",
                               "ParticleTracking.txt"})
             write_file(out + f, "", false);
+        if (p_.recScField == 1)
+            for (const char* f : {"SpaceChargeMesh.txt", "SpaceChargeSet.plt"}) write_file(out + f, "", false);
         dataSet_.open(out + "DataSet.txt");
         synFile_.open(out + "synParticle.txt");
 
@@ -156,6 +163,7 @@ private:
     std::vector<Rec> planeRec_;
     std::vector<Rec> spRec_;  // superposeout exit crossings
     double segEnd_ = 1e300;   // end of the current time-step segment
+    std::unique_ptr<SpaceCharge> sc_;
     std::vector<std::array<double, 6>> oldCoord_;
     AppendFile dataSet_, synFile_;
 
@@ -510,6 +518,19 @@ private:
         } else {
             return;
         }
+        if (mode == 1) {
+            // space-charge kick of both half steps (dt of the first half twice), lab frame
+            const auto inner = one;
+            one = [&, inner](int i) {
+                double* r = rec[i].data();
+                double a = (b_.qOverM[i] / k::c) * r[4];
+                a = a + a;
+                r[1] = b_.scx[i] * a + r[1];
+                r[3] = b_.scy[i] * a + r[3];
+                r[5] = a * b_.scz[i] + r[5];
+                inner(i);
+            };
+        }
         const bool average = mode == 2;
         mode = 0;
         if (compat_) {
@@ -608,7 +629,6 @@ private:
     // ---- a hard-edge segment (MethodMP::zcodeRun) ----
     void zcode(const Segment& sg, double& t, double& zSeg) {
         const int n = b_.n;
-        if (p_.spaceCharge == 1) throw EngineError("Space charge in hard-edge elements is not implemented in the new engine yet");
         int threads = options().threads > 0 ? options().threads : static_cast<int>(std::thread::hardware_concurrency());
         threads = std::max(1, std::min(threads, 64));
         WorkerPool pool(threads > 1 ? threads : 0);
@@ -629,6 +649,14 @@ private:
                 const double zMid = L * 0.5 + z0;
                 het(pool, idx, z0, zMid, true, mode, tRef);
                 step_ += 1;
+                if (sc_) {
+                    hesc_field_pre(b_, planeRec_, tRef, p_.cores[2]);
+                    const double syncRow[6] = {planeRec_[n][0], planeRec_[n][1], planeRec_[n][2], planeRec_[n][3], 0.0, planeRec_[n][5]};
+                    // recordSCF centre: AVAS.dll keeps the synchronous coordinates of the last
+                    // t-code step (only the SpaceChargeMesh.txt line uses them)
+                    sc_->solve(b_, b_.scComp, compat_ ? oldCoord_[n].data() : syncRow);
+                    mode = 1;
+                }
                 if (mark == -1) {
                     if (compat_) {
                         dst_out(zMid, planeRec_);
@@ -720,7 +748,7 @@ private:
             if (b.zMin <= zField && !(zField < b.z[i])) {
                 for (double& v : tot) v = 0.0;
             } else {
-                tot[0] = b.ex[i] + 0.0; tot[1] = b.ey[i] + 0.0; tot[2] = b.ez[i] + 0.0;
+                tot[0] = b.ex[i] + b.scx[i]; tot[1] = b.ey[i] + b.scy[i]; tot[2] = b.ez[i] + b.scz[i];
                 tot[3] = b.bx[i] + 0.0; tot[4] = b.by[i] + 0.0; tot[5] = b.bz[i] + 0.0;
             }
             auto& old = oldCoord_[i];
@@ -842,10 +870,23 @@ private:
         b.gamma = gsum / b.totalWeight;
         const double bz = b.centroid[5] / b.gamma;
         b.betaGammaLambda = (k::c / b.frequency) * bz * (1.0 / std::sqrt(1.0 - bz * bz));
+        double q[3] = {0, 0, 0};
+        const double igz = 1.0 / std::sqrt(1.0 - bz * bz);
         for (int i = 0; i < n; ++i) {
             if (b.z[i] < b.zMin) b.zMin = b.z[i];
             if (b.zMax < b.z[i]) b.zMax = b.z[i];
+            // rms for the first space-charge mesh.  AVAS.dll subtracts the relative centroid from
+            // the absolute coordinates (and counts lost particles); corrected: relative ones
+            if (!compat_ && b.lost[i] == 1) continue;
+            const double w = b.weight[i];
+            const double ax = (compat_ ? b.x[i] : b.rel[0][i]) - b.centroid[0];
+            const double ay = (compat_ ? b.y[i] : b.rel[2][i]) - b.centroid[2];
+            const double az = ((compat_ ? b.z[i] : b.rel[4][i]) - b.centroid[4]) * igz;
+            q[0] = w * ax * ax + q[0];
+            q[1] = w * ay * ay + q[1];
+            q[2] = w * az * az + q[2];
         }
+        for (int j = 0; j < 3; ++j) b.rms[j] = std::sqrt(q[j] / b.totalWeight);
     }
 
     // Beam frame inside a superposeout block (tcodeRun 4.2.15): turned to the synchronous momentum.
@@ -1097,6 +1138,10 @@ private:
             if (stop_requested()) throw EngineError("Programs terminated by users.                       ");
             b.time = t;
             const auto tp0 = std::chrono::steady_clock::now();
+            if (sc_) {
+                b.time = t;
+                sc_->solve(b, b.scComp, oldCoord_[n].data());
+            }
             pool.run(nBlocks, [&](int k) {
                 trans(bounds[k], bounds[k + 1], zSeg, events, t, gp, sync, acc[k]);
             });
@@ -1250,15 +1295,25 @@ private:
                     }
                     iEv += 1;
                     const int m = marks[iEv - 1];
-                    if (m > 0) {
+                    if (m == -4) {
+                        // spacechargecomp: the record at this element entrance
+                        for (const auto& row : lat_.spaceChargeComp)
+                            if (std::fabs(row[0] - zev) < 1e-9 && std::fabs(row[1] - 1.0) < 1e-9)
+                                b.scComp = compat_ ? row[2] : 1.0 - row[2];
+                    }
+                    // AVAS.dll restarts the time-step loop at a spacechargecomp event as at a
+                    // steerer (particles moved back along straight lines); corrected: no restart
+                    if (m > 0 || (m == -4 && compat_)) {
                         // steerer: kick at the middle of the following element, then restart the
                         // time-step loop from the crossing records (MethodMP::tcodeRun)
-                        const double lq = lat_.elements[m + 1].length;
-                        for (int i = 0; i < n; ++i) {
-                            Rec& r = planeRec_[i];
-                            if (r[7] != 1.0) continue;
-                            r[4] = 0.0;
-                            kick(r.data(), lat_.elements[m], lq, i);
+                        if (m > 0) {
+                            const double lq = lat_.elements[m + 1].length;
+                            for (int i = 0; i < n; ++i) {
+                                Rec& r = planeRec_[i];
+                                if (r[7] != 1.0) continue;
+                                r[4] = 0.0;
+                                kick(r.data(), lat_.elements[m], lq, i);
+                            }
                         }
                         double tmin = 1e10;
                         for (int i = 0; i < n; ++i)

@@ -47,7 +47,7 @@ sys.exit(100 + r)
 '''
 
 TEXT_FILES = ["synData.txt", "scanPhaseData.txt", "Phase.txt", "SingleParticle.txt", "DataSet.txt",
-              "LongitudinalBeamLoss.txt"]
+              "LongitudinalBeamLoss.txt", "SpaceChargeMesh.txt"]
 
 
 def set_keys(path, changes):

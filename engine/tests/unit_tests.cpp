@@ -1,6 +1,7 @@
 #include <algorithm>
 // Unit tests of the text, format and physics helpers (no framework; exit code = failures).
 #include "core/rng.h"
+#include "core/spacecharge.h"
 #include <cmath>
 #include <cstdio>
 #include <limits>
@@ -120,12 +121,78 @@ static void test_random() {
     CHECK(u[0] > 0.0 && u[0] < 1.0 && u[1] > 0.0 && u[1] < 1.0);
 }
 
+// Uniformly charged ellipsoid: the field inside is linear, E_i = kappa_i x_i with
+// kappa_i = Q/(4 pi eps0) * 3/2 * Int_0^inf ds / ((a_i^2+s) sqrt((a^2+s)(b^2+s)(c^2+s))).
+static double ellipsoid_kappa(double Q, const double ax[3], int i) {
+    // s = t/(1-t), t in [0, 1): midpoint rule on a fine grid
+    double sum = 0.0;
+    const int n = 400000;
+    for (int m = 0; m < n; ++m) {
+        const double L2 = ax[0] * ax[0];  // scale of s
+        const double t = (m + 0.5) / n, sv = L2 * t / (1.0 - t), ds = L2 / ((1.0 - t) * (1.0 - t)) / n;
+        sum += ds / ((ax[i] * ax[i] + sv) * std::sqrt((ax[0] * ax[0] + sv) * (ax[1] * ax[1] + sv) * (ax[2] * ax[2] + sv)));
+    }
+    return Q * 8987551787.368176 * 1.5 * sum;
+}
+
+static void test_space_charge_ellipsoid() {
+    const double ax[3] = {1.0e-3, 1.5e-3, 3.0e-3};
+    const double Q = 1e-11;
+    const int n = 200000;
+    for (int method = 0; method < 2; ++method) {
+        Params p;
+        p.spaceCharge = 1;
+        p.scPar[0] = method;
+        p.multithreading = 1;
+        space_charge_defaults(p, n);
+        if (method == 0) p.numOfGrid = {64, 64, 64};
+        Beam b;
+        b.resize(n);
+        Philox4x32 ph{{7u, 0u}};
+        int k = 0;
+        for (std::uint32_t i = 0; k < n; ++i) {
+            double u[4];
+            ph.uniform2(i, 9, 0, u);
+            ph.uniform2(i, 9, 1, u + 2);
+            const double x = 2 * u[0] - 1, y = 2 * u[1] - 1, z = 2 * u[2] - 1;
+            if (x * x + y * y + z * z > 1.0) continue;
+            b.rel[0][k] = x * ax[0];
+            b.rel[2][k] = y * ax[1];
+            b.rel[4][k] = z * ax[2];
+            b.charge[k] = Q / n;
+            ++k;
+        }
+        b.gamma = 1.0;
+        b.centroid = {0, 0, 0, 0, 0, 0};
+        b.rms = {ax[0] / std::sqrt(5.0), ax[1] / std::sqrt(5.0), ax[2] / std::sqrt(5.0)};
+        SpaceCharge sc(p, n);
+        sc.solve(b, 1.0);
+        const std::vector<double>* f[3] = {&b.scx, &b.scy, &b.scz};
+        const std::vector<double>* q[3] = {&b.rel[0], &b.rel[2], &b.rel[4]};
+        for (int a = 0; a < 3; ++a) {
+            double sxy = 0, sxx = 0;
+            for (int i = 0; i < n; ++i) {
+                const double r2 = std::pow(b.rel[0][i] / ax[0], 2) + std::pow(b.rel[2][i] / ax[1], 2) + std::pow(b.rel[4][i] / ax[2], 2);
+                if (r2 > 0.5) continue;
+                sxy += (*f[a])[i] * (*q[a])[i];
+                sxx += (*q[a])[i] * (*q[a])[i];
+            }
+            const double slope = sxy / sxx, exact = ellipsoid_kappa(Q, ax, a);
+            std::printf("ellipsoid %s axis %d: slope/analytic = %.4f\n", method ? "SPICNIC" : "FFT", a, slope / exact);
+            // FFT: grounded walls in x, y and periodic images in z (period 2 meshrms rms_z) bias the
+            // field by a few percent; SPICNIC is an open-boundary solver
+            CHECK(std::fabs(slope / exact - 1.0) < (method == 0 ? 0.10 : 0.03));
+        }
+    }
+}
+
 int main() {
     test_split();
     test_numbers();
     test_format();
     test_physics();
     test_random();
+    test_space_charge_ellipsoid();
     std::printf("%s (%d failures)\n", failures ? "FAILED" : "OK", failures);
     return failures;
 }

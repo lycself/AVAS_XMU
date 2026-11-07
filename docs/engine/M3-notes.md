@@ -103,3 +103,14 @@ M3 在 M2（engine-rebuild 8e1e6c6）之上实现规格 50 的初始分布生成
 - 束流误差（err_beam_*）、二次粒子（secondarybeam 1 的 .dst 与文本）留给 M5，遇到时报 not implemented；空间电荷留给 M4（算例都用 spacecharge 0，
   `spacecharge 1` 的生成路径报 not implemented，空间电荷网格默认值表在 M4 落实）。
 - GenerateGaussian（误差研究用的 Box–Muller 缓存）随误差研究在 M5 实现。
+
+## 用户决定（2026-11-07）
+
+第 4 节各项按推荐处理：
+1. 默认模式的纵向分布沿用原内核的定义（4 维分布投影到纵向平面），不改为二维教科书定义——这是约定而不是缺陷。
+2. DC 束保持相位等间隔；默认模式也支持 `kneticenergy W ΔW` 能量展宽（独立随机流）。
+3. 默认模式 inData.dst 写穿越点坐标（x − x′z），与读回一致；compat=dll 保持原写法。
+4. 不逆向 UCRT 数学库；compat=dll 的逐位比对只在 Windows 上进行，其他平台报告差异。
+5. randomseed 0 时实际种子写入 `OutputFile/inData.seed.txt`（以后可同时写入 avas_run.json）。
+
+M4（空间电荷）的实现记录与新增兼容开关见 [M4-notes.md](M4-notes.md)。

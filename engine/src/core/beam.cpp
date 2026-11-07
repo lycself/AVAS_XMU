@@ -8,6 +8,7 @@
 
 #include "core/distribution.h"
 #include "core/errors.h"
+#include "core/spacecharge.h"
 #include "core/files.h"
 #include "core/format.h"
 #include "core/options.h"
@@ -19,7 +20,7 @@ namespace avas {
 void Beam::resize(int nMacro) {
     n = nMacro;
     const size_t m = static_cast<size_t>(nMacro) + 1;
-    for (auto* v : {&x, &ux, &y, &uy, &z, &uz, &ex, &ey, &ez, &bx, &by, &bz, &weight, &qOverM, &charge, &mass,
+    for (auto* v : {&x, &ux, &y, &uy, &z, &uz, &ex, &ey, &ez, &bx, &by, &bz, &scx, &scy, &scz, &weight, &qOverM, &charge, &mass,
                     &restMass, &spOutZ0, &spOutZ1})
         v->assign(m, 0.0);
     for (auto& r : rel) r.assign(m, 0.0);
@@ -45,10 +46,13 @@ void default_cores(Params& p, long long n) {
             if (static_cast<double>(n) <= limits[i]) { row = i; break; }
         for (int i = 0; i < 10; ++i) p.cores[i] = table[row][i];
     }
-    const int maxT = omp_max_threads();
+    // AVAS.dll clips the block counts to the OpenMP thread count, so its summation order (and
+    // the last bits of every statistic) depends on the machine.  The corrected engine keeps the
+    // table values as fixed partitions; the number of threads only sets how fast they run.
+    const int maxT = compat_dll() ? omp_max_threads() : 1 << 30;
     for (int i = 0; i < 10; ++i) {
         if (p.cores[i] > maxT) p.cores[i] = maxT;
-        if (p.maxThreads > 0 && p.cores[i] > p.maxThreads) p.cores[i] = p.maxThreads;
+        if (compat_dll() && p.maxThreads > 0 && p.cores[i] > p.maxThreads) p.cores[i] = p.maxThreads;
         p.scPar[10 + i] = static_cast<double>(p.cores[i]);
     }
     p.scPar[9] = static_cast<double>(p.multithreading);
@@ -231,7 +235,7 @@ void init_generated(Beam& b, Params& p, const Lattice& lat) {
         b.realPerMacro = rpm;
         say(Text().s("The number of particles represented by a single macro particle: ").g(rpm).str());
     }
-    if (p.spaceCharge == 1) throw EngineError("Space charge is not implemented in the new engine yet");
+    space_charge_defaults(p, N);
     default_cores(p, N);
     if (N == 1) {
         p.cores.fill(1);
@@ -460,6 +464,7 @@ void init_from_dst(Beam& b, Params& p, const Lattice& lat) {
     say("total number of particles " + std::to_string(n));
     say(Text().s("current intensity ").g(ib).s("(mA)").str());
     say(Text().s("beam frequency ").g(fMHz).s("(MHz)").str());
+    space_charge_defaults(p, n);
     default_cores(p, n);
     std::vector<double> rows(static_cast<size_t>(n) * 6);
     std::memcpy(rows.data(), raw.data() + 23, rows.size() * 8);
@@ -609,6 +614,7 @@ void init_from_edst(Beam& b, Params& p, const Lattice& lat) {
     say("total number of particles " + std::to_string(n));
     say(Text().s("current intensity ").g(ib).s("(mA)").str());
     say(Text().s("beam frequency ").g(fMHz).s("(MHz)").str());
+    space_charge_defaults(p, n);
     default_cores(p, n);
     std::vector<double> rec(nrec * 9);
     std::memcpy(rec.data(), raw.data() + 23, rec.size() * 8);

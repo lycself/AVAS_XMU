@@ -1,0 +1,16 @@
+BeamSet.plt 294585
+DataSet.txt 7278
+ExData.edt 0
+FullParticle.txt 433899
+LongitudinalBeamLoss.txt 0
+ParticleTracking.txt 0
+SimulationTime.txt -
+SpaceChargeMesh.txt 2575
+SpaceChargeSet.plt 18087936
+collisionData.txt 0
+inData.dst 252511
+outData_0.120000.dst 252511
+synData.txt 327
+synParticle.txt -
+test.txt 0
+testP.txt 0

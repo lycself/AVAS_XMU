@@ -1357,6 +1357,511 @@
     "drift 0.05 0.02 0",
     "end"
    ]
+  },
+  {
+   "name": "SC1_spicnic_S1",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "SPICNIC"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "space_charge": true,
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "compat_tolerance": 1e-10
+  },
+  {
+   "name": "SC2_fft_S1",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "FFT"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "space_charge": true,
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "compat_tolerance": 1e-10
+  },
+  {
+   "name": "SC3_spicnic_KV",
+   "beam": {
+    "distribution": "KV KV",
+    "randomseed": 12345
+   },
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "SPICNIC"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "space_charge": true,
+   "compat_tolerance": 1e-10
+  },
+  {
+   "name": "SC4_spicnic_g20_mr4",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "input": {
+    "spacecharge": 1,
+    "numofgrid": "20 20 20",
+    "meshrms": "4 4 4",
+    "scmethod": "SPICNIC"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "space_charge": true,
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "compat_tolerance": 1e-10
+  },
+  {
+   "name": "SC5_spicnic_Z1",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "SPICNIC",
+    "setnumberofcores": "64 54 1 24 1 48 96 12 48 12"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 10",
+    "drift 0.1 0.02 0",
+    "quad 0.1 0.02 0 -10",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "space_charge": true,
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "compat_tolerance": 1e-10
+  },
+  {
+   "name": "SC6_spicnic_Z5",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "SPICNIC",
+    "setnumberofcores": "64 54 1 24 1 48 96 12 48 12"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 8",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "quad 0.1 0.02 0 -8",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "space_charge": true,
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "compat_tolerance": 1e-10
+  },
+  {
+   "name": "SC7_spicnic_comp",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "SPICNIC"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "spacechargecomp 0.5",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "space_charge": true,
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "compat_tolerance": 1e-10
+  },
+  {
+   "name": "SC8_fft_g32_mr5",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "FFT",
+    "numofgrid": "32 32 32",
+    "meshrms": "5 5 5"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "space_charge": true,
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "compat_tolerance": 1e-10
+  },
+  {
+   "name": "SC9_spicnic_GS20000",
+   "beam": {
+    "particlenumber": 20000,
+    "randomseed": 12345
+   },
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "SPICNIC"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "space_charge": true,
+   "compat_tolerance": 1e-10
+  },
+  {
+   "name": "SC10_spicnic_WB",
+   "beam": {
+    "distribution": "WB WB",
+    "randomseed": 7
+   },
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "SPICNIC"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "space_charge": true,
+   "compat_tolerance": 1e-10
+  },
+  {
+   "name": "SC11_fft_Z1",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "FFT",
+    "numofgrid": "32 32 32",
+    "setnumberofcores": "64 54 1 24 1 48 96 12 48 12"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 10",
+    "drift 0.1 0.02 0",
+    "quad 0.1 0.02 0 -10",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "space_charge": true,
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "compat_tolerance": 1e-10
+  },
+  {
+   "name": "SC12_spicnic_record",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "recscfield": 1
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "SPICNIC"
+   },
+   "lattice": [
+    "start",
+    "drift 0.02 0.02 0",
+    "end"
+   ],
+   "space_charge": true,
+   "compat_tolerance": 1e-10
+  },
+  {
+   "name": "SC13_fft_record",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "recscfield": 1
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "FFT",
+    "numofgrid": "32 32 32"
+   },
+   "lattice": [
+    "start",
+    "drift 0.02 0.02 0",
+    "end"
+   ],
+   "space_charge": true,
+   "compat_tolerance": 1e-10
+  },
+  {
+   "name": "SC14_fft_Z1_record",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "recscfield": 1
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "FFT",
+    "numofgrid": "32 32 32",
+    "setnumberofcores": "64 54 1 24 1 48 96 12 48 12"
+   },
+   "lattice": [
+    "start",
+    "drift 0.01 0.02 0",
+    "quad 0.1 0.02 0 10",
+    "drift 0.01 0.02 0",
+    "end"
+   ],
+   "space_charge": true,
+   "compat_tolerance": 1e-10
+  },
+  {
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "reference_only": true,
+   "experiment": true,
+   "name": "X_odd_grid",
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "SPICNIC",
+    "numofgrid": "15 16 16"
+   }
+  },
+  {
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "reference_only": true,
+   "experiment": true,
+   "name": "X_c7_1",
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "SPICNIC",
+    "setnumberofcores": "12 12 12 12 1 12 12 1 12 12"
+   }
+  },
+  {
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "reference_only": true,
+   "experiment": true,
+   "name": "X_c7_12",
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "SPICNIC",
+    "setnumberofcores": "12 12 12 12 1 12 12 12 12 12"
+   }
+  },
+  {
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "reference_only": true,
+   "experiment": true,
+   "name": "X_ny_nz_a",
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "SPICNIC",
+    "numofgrid": "14 14 20"
+   }
+  },
+  {
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "reference_only": true,
+   "experiment": true,
+   "name": "X_ny_nz_b",
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "SPICNIC",
+    "numofgrid": "14 20 14"
+   }
+  },
+  {
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "reference_only": true,
+   "experiment": true,
+   "name": "X_integral4",
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "SPICNIC",
+    "integralgrid": "4 4 4"
+   }
+  },
+  {
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "reference_only": true,
+   "experiment": true,
+   "name": "X_lp_spicnic",
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "SPICNIC",
+    "lpboundary": 1
+   }
+  },
+  {
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "reference_only": true,
+   "experiment": true,
+   "name": "X_lp_fft",
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "FFT",
+    "lpboundary": 1
+   }
   }
  ]
 }

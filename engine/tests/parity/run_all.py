@@ -311,6 +311,29 @@ def segment_drift_check(doc, work):
     return fails
 
 
+def thread_check(lib, work, names):
+    """Default mode: the same results with 1 thread and with OMP_NUM_THREADS / all cores."""
+    import hashlib
+    one = os.path.join(work, "none_1thread")
+    env = dict(os.environ, OMP_NUM_THREADS="1", AVAS_ENGINE_THREADS="1")
+    subprocess.run([sys.executable, os.path.join(HERE, "run_engine.py"), "--lib", lib, "--work", one,
+                    "--only", ",".join(names)], check=True, env=env, stdout=subprocess.DEVNULL)
+    fails = 0
+    print("\nDefault mode, 1 thread against the multi-threaded run (DataSet.txt and outData_*.dst bytes):")
+    for n in names:
+        def digest(root):
+            out = os.path.join(root, n, "OutputFile")
+            h = hashlib.sha256()
+            for f in sorted(os.listdir(out)):
+                if f == "DataSet.txt" or f.startswith("outData_"):
+                    h.update(open(os.path.join(out, f), "rb").read())
+            return h.hexdigest()
+        same = digest(one) == digest(os.path.join(work, "none"))
+        fails += 0 if same else 1
+        print(f"{n:<24} {'ok  ' if same else 'FAIL'}")
+    return fails
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--lib", default=None)
@@ -332,6 +355,7 @@ def main():
     bad += segment_drift_check(doc, os.path.join(work, "none"))
     bad += distribution_check(doc, os.path.join(work, "none"))
     bad += indata_sha_check(doc, os.path.join(work, "none"))
+    bad += thread_check(lib, work, ["SC1_spicnic_S1", "SC2_fft_S1", "SC5_spicnic_Z1", "D_GS_GS"])
     if bad:
         print(f"DEFAULT-MODE CHECKS FAILED: {bad}")
         return 1

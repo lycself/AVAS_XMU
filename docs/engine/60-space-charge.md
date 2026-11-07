@@ -187,7 +187,8 @@ rel[1] = γβx,  rel[3] = γβy,  rel[5] = γβz
 
 每线程累加 n（个数，**不加权**）和 Σrel[0..5]，`GOMP_atomic` 区里加到共享和（线程合并顺序不定 → 多线程时求和结果有舍入级的非确定性）。
 然后 Beam.centroid[k] = Σrel[k]/n，Beam.rms 清零；γc = 1/sqrt(1 − (c5/sqrt(c1² + 1 + c3² + c5²))²)（c 为 centroid）。
-第二个并行区累加 (rel[0]−c0)²、(rel[2]−c2)²、((rel[4]−c4)·γc)²（每次直接加到共享数组，**没有原子保护**，多线程时存在数据竞争，推测为缺陷）；
+第二个并行区累加 (rel[0]−c0)²、(rel[2]−c2)²、((rel[4]−c4)·γc)²（每次直接加到共享数组，**没有原子保护**，多线程时存在数据竞争；DLL 的 FUN_180090940 同样是普通的读-加-写。
+**已用 DLL 实测证实**（M4-notes 第 2 节）：12 线程时 rms 约小一半、每次运行不同，网格随之缩小、场变强；单线程时与无竞争的实现逐字符相同）；
 最后 rms[k] = sqrt(Σ/n)。
 
 注意：本函数**不更新 Beam.gamma（+0x78）**，而 Weight 用 Beam.gamma 做纵向拉伸，所以 z-code 中拉伸用的是上一次 `UpdateBeamParameters`/`zTotcode` 算的 γ。
@@ -406,6 +407,7 @@ prev = rms[0..2]；PIC+0x168 ++；PIC+0x16c ++；返回 1
    Beam.time  syncCoord[4]+centroid[4]  syncCoord[0]+centroid[0]  syncCoord[2]+centroid[2]  Nx  Ny  Nz  dx  dy  dz  Q  γ
    ```
    （中心的绝对坐标 = 同步粒子坐标 + 相对中心；dz 为静止系格距。）
+   z 段中 syncCoord 不更新，仍是最后一个 t-code 步保存的同步粒子坐标（DLL 实测），而相对中心来自 HESCFieldPre。
    精度只有 6 位，读回时会损失精度。
 
 #### 2.9.2 读入索引（`PIC::Initial`，impScField == 1）
@@ -574,7 +576,7 @@ r_m  = (q − t_a ≤ t_b − q) ? a : a+1                         （取较近�
 2. **奇数网格死循环**（2.7.4）是从循环步长推出来的，需要实际运行确认（F-18）。
 3. **非对称修正的赋值缺陷**（2.7.5）：F-16 改 c7 比较 SpaceChargeSet.plt。若结果与 c7 无关，说明我们对参数映射的理解有误。
 4. **j 起点 Nz/2**（2.7.3）：Ghidra 的双精度参数顺序可能有误，用 F-19 确认。
-5. **Beam.gamma 在 z-code 中的取值**：HESCFieldPre 不更新它，需确认 zcodeRun 调用前是否有别的函数刷新（读 `zTotcode`、`HardEdgeTrans`）。
+5. ~~Beam.gamma 在 z-code 中的取值~~：已核实（M4-notes 第 2 节）：z 段沿用上一次 t-code 的 γ，DLL 的 SpaceChargeMesh.txt 记录与此一致。
 6. **HESCFieldPre 的 coords[6]、tRef 的确切含义**（推测为到达时间与参考时间），以及 z-code 冲量中 coords[4] 的意义，归推进/z-code 文档核实。
 7. **spacechargecomp 的触发位置与 DLL Beam 成员初值**：需细读 DLL tcodeRun（FUN_180070b90）中 `uVar30 + lVar24*8` 所指的 z 列表和 DLL `Beam` 构造。
    实验：Windows 上 V1 = 0.5 放在束线中段，比较前后两段 rms 增长速率。

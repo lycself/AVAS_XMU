@@ -1,0 +1,2 @@
+0 drift 0.02 0 0 0.057074 invalid invalid
+0 exitPlane 0.02 0.02 1.1707847996853937e-09 0.057074013361357187 invalid invalid

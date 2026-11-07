@@ -101,7 +101,9 @@ void read_input(Params& p) {
         } else if (k == "setnumberofcores") {
             if (w.size() < 11) throw EngineError("keyword: setnumberofcores, Insufficient parameters, need 10 parameters");
             for (size_t i = 1; i < w.size() && i <= p.cores.size(); ++i) p.cores[i - 1] = parse_int(w[i]);
-            const int maxT = omp_max_threads();
+            // AVAS.dll clips to the OpenMP thread count here as well; the corrected engine keeps
+            // the given partitions (as for the default table, see default_cores in beam.cpp)
+            const int maxT = compat_dll() ? omp_max_threads() : 1 << 30;
             for (size_t i = 0; i < p.cores.size(); ++i) {
                 if (p.cores[i] > maxT) p.cores[i] = maxT;
                 p.scPar[10 + i] = static_cast<double>(p.cores[i]);

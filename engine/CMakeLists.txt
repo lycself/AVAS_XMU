@@ -40,6 +40,7 @@ set(AVAS_CORE_SOURCES
   src/core/lattice.cpp
   src/core/beam.cpp
   src/core/distribution.cpp
+  src/core/spacecharge.cpp
   src/core/synchronous.cpp
   src/core/tracker.cpp
   src/core/engine.cpp
@@ -47,7 +48,7 @@ set(AVAS_CORE_SOURCES
 )
 
 add_library(avas_engine SHARED ${AVAS_CORE_SOURCES})
-target_include_directories(avas_engine PUBLIC include PRIVATE src)
+target_include_directories(avas_engine PUBLIC include PRIVATE src ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(avas_engine PRIVATE AVAS_ENGINE_BUILD)
 target_compile_options(avas_engine PRIVATE ${AVAS_FP_FLAGS})
 set_target_properties(avas_engine PROPERTIES CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON)
@@ -72,11 +73,11 @@ target_include_directories(avas_engine_run PRIVATE include)
 
 enable_testing()
 add_executable(avas_engine_unit tests/unit_tests.cpp)
-target_include_directories(avas_engine_unit PRIVATE include src)
+target_include_directories(avas_engine_unit PRIVATE include src ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_options(avas_engine_unit PRIVATE ${AVAS_FP_FLAGS})
 target_link_libraries(avas_engine_unit PRIVATE avas_engine_static_for_tests)
 add_library(avas_engine_static_for_tests STATIC ${AVAS_CORE_SOURCES})
-target_include_directories(avas_engine_static_for_tests PUBLIC include PRIVATE src)
+target_include_directories(avas_engine_static_for_tests PUBLIC include PRIVATE src ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(avas_engine_static_for_tests PUBLIC AVAS_ENGINE_STATIC)
 target_compile_options(avas_engine_static_for_tests PRIVATE ${AVAS_FP_FLAGS})
 target_link_libraries(avas_engine_static_for_tests PUBLIC Threads::Threads)
@@ -85,3 +86,9 @@ if(MSVC)
   target_compile_definitions(avas_engine_static_for_tests PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()
 add_test(NAME unit COMMAND avas_engine_unit)
+
+# Physics checks of the space-charge solvers (engine/tests/physics/run_physics.py runs them).
+add_executable(avas_engine_physics tests/physics/sc_ellipsoid.cpp)
+target_include_directories(avas_engine_physics PRIVATE include src ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_options(avas_engine_physics PRIVATE ${AVAS_FP_FLAGS})
+target_link_libraries(avas_engine_physics PRIVATE avas_engine_static_for_tests Threads::Threads)

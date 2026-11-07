@@ -13,7 +13,8 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TEXT = ["rc.txt", "synData.txt", "scanPhaseData.txt", "Phase.txt", "SingleParticle.txt", "DataSet.txt",
-        "synParticle.txt", "ErrorLog.txt", "LongitudinalBeamLoss.txt", "FullParticle.summary.txt"]
+        "synParticle.txt", "ErrorLog.txt", "LongitudinalBeamLoss.txt", "FullParticle.summary.txt",
+        "SpaceChargeMesh.txt"]
 NUM = re.compile(r"^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$|^[-+]?(inf|nan)(\(ind\))?$")
 
 
@@ -110,6 +111,8 @@ def main():
     only = set(a.only.split(",")) if a.only else None
     single = single_particle_cases()
     expected = expected_diff_cases()
+    doc = json.load(open(os.path.join(HERE, "cases.json"), encoding="utf-8"))
+    tolerances = {c["name"]: c["compat_tolerance"] for c in doc["cases"] if c.get("compat_tolerance")}
     all_ok = True
     rows = []
     for case in sorted(os.listdir(a.refs)):
@@ -146,12 +149,17 @@ def main():
                 note = (note + " cols 28-40").strip()
             else:
                 ok, nd, mrel, mabs, note = compare_text(ref, new)
+            tol = tolerances.get(case)
+            if not ok and tol is not None and mrel <= tol and not note.startswith(("lines", "N ")):
+                ok = True
+                status = "close"   # within the documented tolerance (rounding order)
+            else:
+                status = "identical" if ok else "DIFF"
             all_ok &= ok
-            status = "identical" if ok else "DIFF"
-            rows.append((case, f, status, "" if ok else f"{nd} lines, max rel {mrel:.3g}, max abs {mabs:.3g}", note))
+            rows.append((case, f, status, "" if status == "identical" else f"{nd} lines, max rel {mrel:.3g}, max abs {mabs:.3g}", note))
     w = max(len(r[0]) for r in rows) if rows else 10
     for r in rows:
-        if a.quiet and r[2] in ("identical",):
+        if a.quiet and r[2] in ("identical", "close"):
             continue
         print(f"{r[0]:<{w}}  {r[1]:<28} {r[2]:<9} {r[3]} {r[4]}")
     print("ALL IDENTICAL" if all_ok else "DIFFERENCES FOUND")

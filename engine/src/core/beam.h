@@ -15,6 +15,7 @@ struct Beam {
     // per particle, size n + 1
     std::vector<double> x, ux, y, uy, z, uz;     // m and gamma*beta
     std::vector<double> ex, ey, ez, bx, by, bz;  // external field at the particle (V/m, T)
+    std::vector<double> scx, scy, scz;           // space-charge field (lab frame, magnetic part folded in)
     std::vector<double> rel[6];                  // coordinates relative to the synchronous particle
     std::vector<int> elemIndex, lost, nextPlane;
     std::vector<double> weight, qOverM, charge, mass, restMass;
@@ -33,6 +34,7 @@ struct Beam {
     std::array<double, 3> rms{};
     int nAlive = 0;
     int rotMode = 0;
+    double scComp = 1.0;    // spacechargecomp: AVAS.dll value V (1 = none) / corrected factor 1 - V
     int fromDstFile = 0;    // particles read from .edst (per-particle charge, mass, weight)
     int useWeightFile = 0;  // .dstb weights (indweight 1) or .edst
     double rotAngle = 0.0;

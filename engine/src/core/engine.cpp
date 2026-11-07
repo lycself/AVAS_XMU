@@ -37,7 +37,6 @@ void reject_unimplemented(const Params& p) {
     auto no = [](const std::string& what) {
         throw EngineError(what + " is not implemented in the new engine yet");
     };
-    if (p.spaceCharge == 1) no("Space charge (input.txt spacecharge 1)");
     if (p.boundary == 1) no("boundary.txt (input.txt boundary 1)");
     if (p.lpBoundary == 1) no("input.txt lpboundary 1");
     if (p.dumpPeriodicity != 0) no("input.txt dumpperiodicity");
