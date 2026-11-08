@@ -254,3 +254,12 @@ M1–M3 见 [M3-notes.md](M3-notes.md) 第 5 节，M4 见 [M4-notes.md](M4-notes
 没有找到能让 DLL 正常结束又触发停滞判丢的输入。
 
 检查（Windows MSVC）：`run_all.py --strict`（含新算例）、单元测试、`run_physics.py`、`tests/test_error_study.py`（默认与 compat）；macOS `run_all.py`；ruff。
+
+### 9. 用户决定（2026-11-08）
+
+第 6 节“待用户决定”各项按推荐处理：
+1. 默认模式在 beam.txt 没写 `readparticledistribution` 时读 SeParticle.txt（界面束流页写的文件），写了时读该文件（与原内核相同）。
+2. 默认模式在每个输出面都写二次粒子（原内核只写段末的面）。
+3. 默认模式 `lpboundary` 的折返周期取同步粒子的 βλ，空间电荷网格周期取 βγλ。
+4. 默认模式把 superpose 组内子场的误差加到它在块内的放置上（角度直接相加，小角度近似）。
+5. 保留 DLL 独有的三个工具 `sampling`、`meshing`、`dataprocess`（接口与 DLL 相同，输出逐字节一致）。
