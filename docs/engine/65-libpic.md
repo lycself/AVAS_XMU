@@ -418,6 +418,14 @@ FFT / PICNIC 循环在 phase 模式下把元件分成两半（`len·0.5`）：
 第 0 列定义、统计用抽样（7.3）、各 rank 平均不按粒子数加权、行与推进的时间对齐（GPU 在推进之后统计并写同一步的行；CPU 第 k 行描述第 k−1 次推进后的状态）。
 `statOutputInterval = 0` 时不写 DataSet。每次运行开始时删除旧文件。
 
+写行的条件（反汇编 `RunSimulationWithSpaceChargeUsingPICNIC` 0x31bf2 起，FFT 与无空间电荷的循环相同）：迭代计数从 0 开始，每步推进之后若 `迭代数 % N == 0`
+就写一行（列 39 即这个迭代数），然后迭代数加一；所以第一行（迭代 0）总会写，**结尾不补写最后一行**；矩阵元件整段算一次迭代，迭代数是 N 的倍数时同样写一行。
+写过统计的下一步沿用这次的统计，不再重算网格参数（0x319bd）。
+
+**新内核的 `statoutputinterval N`**（默认模式，M6b 决定第 8 项）：只写列 39（步号）是 N 倍数的 DataSet 行，0 不写任何行，第一行总写、不补写最后一行，与 libPIC 相同。
+与 libPIC 的差别：新内核沿用 AVAS.dll 的步号与行的含义——每行描述该步推进**之前**的状态（libPIC 是推进之后），z-code 的硬边元件段不写 DataSet 行
+（一个分割的元件占两个步号），所以行号的间隔在跨过硬边元件时与 libPIC 不同；输出面、outData、BeamSet 不受影响；统计照常每步计算（空间电荷网格要用）。
+
 ### 5.2 PCHistogram.dat（同一函数，`histogramFlag` 非 0 时，rank 0，二进制追加）
 
 `char 0; int32 iteration; int32 numPCHistogram; int32 × (4·numPCHistogram)（Histogram_Device 的 int4 数组，推测每个 bin 存 x、y、z、r 四个计数，按 bin 交错）;`
@@ -788,26 +796,26 @@ libPIC 的 s4picnic 与 picnic 在种子起伏以内一致；libPIC 的 fft 因�
 
 ---
 
-### 11.3 libPIC.so 有、而新内核没有的功能（建议）
+### 11.3 libPIC.so 有、而新内核没有的功能（用户已决定，2026-11-08）
 
-新内核的功能集是 AVAS.dll 的全部功能（含修正）加 M6a 的 GPU / MPI。下表逐项列出 libPIC.so 独有的功能。除 PICNIC 外本段都没有实现，是否实现由用户决定。
+新内核的功能集是 AVAS.dll 的全部功能（含修正）加 M6a 的 GPU / MPI。下表逐项列出 libPIC.so 独有的功能；用户 2026-11-08 决定全部按推荐，“落实”列为新内核默认模式的现状（compat=dll 不受影响）。
 
-| # | 功能 | 建议 | 理由 |
+| # | 功能 | 决定与落实 | 理由 |
 |---|---|---|---|
 | 1 | `scmethod picnic`（直接求和的空间电荷） | **已实现**（M6b） | 用户要求；修正了系数表、截断、边界与精度（8.8） |
-| 2 | `scmethod s2picnic` / `s4picnic`（`spicnic` 在 libPIC 里是 s4picnic 的别名） | 不实现，写这两个值时报错并提示改用 PICNIC | 只是 PICNIC 的加速近似（场差 0.5–0.7 %）；新内核 PICNIC 在 A100 上 1e7 粒子每步只比 SPICNIC 多约 2 ms。`spicnic` 在新内核里继续表示 AVAS.dll 的 SPICNIC |
+| 2 | `scmethod s2picnic` / `s4picnic`（`spicnic` 在 libPIC 里是 s4picnic 的别名） | 不实现；写这两个值时报错 “SCMethod … (S2PICNIC / S4PICNIC of the GPU kernel libPIC.so) is not supported, use PICNIC”（compat=dll 仍是 AVAS.dll 的原文） | 只是 PICNIC 的加速近似（场差 0.5–0.7 %）；新内核 PICNIC 在 A100 上 1e7 粒子每步只比 SPICNIC 多约 2 ms。`spicnic` 在新内核里继续表示 AVAS.dll 的 SPICNIC |
 | 3 | libPIC 的 FFT（三维周期、单精度） | 不实现 | 是缺陷而不是功能（8.7）；新内核保留 AVAS.dll 的 FFT |
 | 4 | GPU + MPI 多卡 | 已有（M6a） | — |
-| 5 | `usingaggregation`、`arrangesequenceinterval`、`blockgroupsize` | 不实现；读到时警告并忽略 | 是原子加电荷分配的调优参数；新内核的定点分配不需要 |
+| 5 | `usingaggregation`、`arrangesequenceinterval`、`blockgroupsize` | 不实现；读到时警告并忽略。新内核原本对任何未知关键字都只警告 “input.txt Contains unknown keywords” 并忽略（与 AVAS.dll 相同），默认模式现对 5、6、7、9、10 项的 libPIC 关键字改为点名的警告 “keyword X of the GPU kernel libPIC.so is not used by this engine, ignored” | 是原子加电荷分配的调优参数；新内核的定点分配不需要 |
 | 6 | `numsamplingcoef`（DataSet 统计抽样）与 PIC 参数固定抽 100000 个 | 不实现 | 抽样使统计和网格依赖抽样方式；新内核在 GPU 上用全部粒子的固定次序归约，代价很小 |
 | 7 | 异步 BeamSet 缓冲池（`numbufferpool`、`bufferpoolsize`，每 rank 多个 `BeamSet_p<r>_t<k>.plt`，含 phase 记录） | 不实现 | 新内核写 AVAS.dll 格式的 BeamSet.plt，GUI 与后处理都按它读 |
-| 8 | `statoutputinterval N`（每 N 步写一行 DataSet） | **待定，推荐实现** | 长 lattice、大步数时减小输出；实现简单，默认 1 保持现状 |
+| 8 | `statoutputinterval N`（每 N 步写一行 DataSet） | **已实现**（默认模式，CPU / emu / CUDA；含义见 5.1 末尾）；compat=dll 按 AVAS.dll 当作未知关键字（警告、无作用） | 长 lattice、大步数时减小输出；默认 1 与原来逐字节相同 |
 | 9 | `fieldpath` / `outputpath` / `beampath` 写在 input 文件里 | 不实现 | 新内核由 `path()` 接口给出路径，GUI 已管理 |
 | 10 | `scananglestep` 与多线程扫相（收敛到 1e-6°） | 不实现 | 新内核按 20-synchronous-phase.md 定相（atan2、180° 解与拒绝运行的判据），比 libPIC 的 atan 正确 |
 | 11 | 输出面写成 `outputPlane_<z>.dst`、相位参考取平均穿越时刻 | 不实现 | 新内核沿用 AVAS.dll 的 `outData_<z>.dst`（参考为同步粒子） |
-| 12 | panel 显存检查、BeamSet 预计超过 50 GB 时拒绝运行 | 待定，推荐只实现 BeamSet 大小的预估与警告 | 新内核已按粒子数检查显存（M6a）；输出过大是常见误操作 |
-| 13 | 场图文件名大小写不敏感查找；名字以 `B` 结尾也按二进制读 | 待定，推荐不实现 | 会改变 AVAS.dll 在 Linux 上的行为；Windows 文件系统本来就不区分大小写 |
-| 14 | `scmethod` 的值不区分大小写 | 待定，推荐默认模式下 FFT / SPICNIC 也不区分 | 无害；PICNIC 已按 libPIC 不区分 |
+| 12 | panel 显存检查、BeamSet 预计超过 50 GB 时拒绝运行 | **只实现 BeamSet 大小的预估与警告**（默认模式，不拒绝运行）：大小 = 34 + (⌊步数 / dumpperiodicity⌋ + 1)·(25 + 56 N) 字节，步数 = lattice 长度 / (β c dt) + 束团时长 / dt（β 取同步粒子入口值），超过 50 GB（50·2^30 字节，选项 `beamset_warn_gb` / 环境变量 `AVAS_ENGINE_BEAMSET_WARN_GB`）时警告；parity 算例上估计 / 实际 = 0.94 | 新内核已按粒子数检查显存（M6a）；输出过大是常见误操作 |
+| 13 | 场图文件名大小写不敏感查找；名字以 `B` 结尾也按二进制读 | 不实现 | 会改变 AVAS.dll 在 Linux 上的行为；Windows 文件系统本来就不区分大小写 |
+| 14 | `scmethod` 的值不区分大小写 | **已实现**：默认模式下 FFT / SPICNIC / PICNIC 都不区分大小写；compat=dll 仍只认 `FFT`、`SPICNIC`（F-01 不变） | 无害 |
 | 15 | 命令行 `gpu=N` | 已有等价功能 | 选项 `gpus` / 环境变量 `AVAS_ENGINE_GPUS`（M6a） |
 | 16 | `pchistogram F N` 的 bin 数默认 300 | 不需要 | AVAS.dll 的 pchistogram 已有 bin 数参数 |
 

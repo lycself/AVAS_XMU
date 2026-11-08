@@ -330,3 +330,43 @@ SPICNIC、FFT 的检验结果不变（SPICNIC 40³ 0.34 %，FFT meshrms 13 为 0
 6. **多 MPI 进程的 PICNIC**：现在每个进程都求整个网格（同一进程的多卡已分摊网格点）。推荐暂不改；多节点需要时再按 MPI 进程分摊网格点并用 Allgatherv 汇总电势。
 7. **默认模式下 `scmethod` 的值是否不区分大小写**：PICNIC 已不区分；推荐 FFT / SPICNIC 也不区分（无害），compat=dll 仍区分。
 8. **libPIC.so 其余的独有功能**（65 §11.3 的表）：推荐只实现 `statoutputinterval`（每 N 步写一行 DataSet）与 BeamSet 大小预估警告，其余不实现。
+
+### 10. 用户决定（2026-11-08）
+
+第 9 节的 8 个待定点全部按推荐。落实情况（compat=dll 都不受影响）：
+
+1. **`numofgrid` 按输入**，不取到 8 的倍数（原已如此）。
+2. **PICNIC 不写网格时用 SPICNIC 的默认网格**（原已如此）。
+3. **`s2picnic` / `s4picnic` 不实现**：默认模式报错 “SCMethod s2picnic (S2PICNIC / S4PICNIC of the GPU kernel libPIC.so) is not supported, use PICNIC”；
+   compat=dll 仍是 AVAS.dll 的 “SCMethod Contains unknown item, available options include FFT / SPICNIC”。默认模式其他未知值的报错列出 FFT / SPICNIC / PICNIC。
+4. **不提供复现 libPIC 缺陷的开关**。
+5. **束团进入 lattice 时沿用 AVAS.dll 的约定**（不改动）。
+6. **多 MPI 进程的 PICNIC 暂不分摊网格点**（不改动）。
+7. **默认模式下 `scmethod` 不区分大小写**（`fft`、`Spicnic`、`picnic` 都可以）；compat=dll 仍只认 `FFT`、`SPICNIC`，F-01 等算例不变。
+8. **libPIC 的其余功能**（65 §11.3 已改为已定）：
+   - `statoutputinterval N`（`params.cpp` / `tracker.cpp`，只在默认模式识别）：只写步号（DataSet 列 39）是 N 倍数的行，0 不写，第一行总写、不补最后一行，与 libPIC 相同；
+     新内核每行描述推进前的状态、z-code 硬边元件段没有行，与 libPIC 的差别写在 65 §5.1。统计照常每步计算，所以 CPU、emu、CUDA 自动一致；默认 1 时输出逐字节不变。
+     compat=dll 当作未知关键字（警告 “input.txt Contains unknown keywords”，无作用），与 AVAS.dll 相同。
+   - **BeamSet.plt 大小预估警告**（`tracker.cpp` 的 `beamset_estimate`，只警告、不拒绝运行）：大小 = 34 + (⌊步数 / dumpperiodicity⌋ + 1)·(25 + 56 N) 字节，
+     步数 = lattice 长度 / (β c dt) + 束团时长 / dt（β 取同步粒子入口值，加速线上偏多）；超过 50 GB（50·2^30 字节）时在日志写
+     “Warning: BeamSet.plt is estimated at … GB …”。阈值可用选项 `beamset_warn_gb`（环境变量 `AVAS_ENGINE_BEAMSET_WARN_GB`）改，测试用 0。parity 算例上估计 / 实际 = 0.94。
+   - **libPIC 调优关键字**（`usingaggregation`、`arrangesequenceinterval`、`blockgroupsize`、`numsamplingcoef`、`numbufferpool`、`bufferpoolsize`、`fieldpath`、`outputpath`、`beampath`、`scananglestep`）：
+     新内核原本对任何未知关键字都警告 “input.txt Contains unknown keywords” 并忽略，已与表中“警告并忽略”一致；默认模式现改为点名的警告
+     “input.txt: keyword X of the GPU kernel libPIC.so is not used by this engine, ignored”，compat=dll 不变。
+   - 其余各项不实现。
+
+**测试**：
+- parity 新增 PX1–PX8（新内核算例）：PX1 写 `s2picnic` 时报错；PX2 `fft`、PX3 `Spicnic` 与 SC2 / SC1 逐字节相同；PX4 `statoutputinterval 1` 加 `usingaggregation` 时与 SC1 逐字节相同，并有点名警告；
+  PX5（N = 7）、PX6（N = 0）、PX7（N = 3，z-code 四极）的 DataSet 行恰为参考算例中步号是 N 倍数的行，outData 逐字节相同；PX5 在 compat=dll 下与 SC1 相同并有未知关键字警告；
+  PX8 的 BeamSet 警告与估计 / 实际之比。这些都由 `run_all.py` 的 `libpic_keyword_check` 检查。
+- `run_engine.py` 支持算例的 `env`（每个算例的引擎选项）。
+- `run_all.py` 不给 `--work` 时，临时目录（约 0.5 GB）在结束时自动删除（`--keep` 保留）；`run_gpu.py` 同样；`dc_kv_envelope.py` 在内核失败时也删除临时目录。
+  此前 `$TMPDIR` 里残留的 `avas_parity_*` / `avas_dckv_*` 来自这两处。
+
+**结果**：
+- Mac：构建无新警告；单元测试、`run_all.py`（libPIC 关键字检查 10 项全部通过；compat=dll 与 AVAS.dll 最大相对差 3.44e-11 不变，inData 记录值 23/23 不变）、
+  `run_physics.py`、`tools_check.py`、`uvx ruff@0.6.9 check avas engine/tests engine/tools` 通过；emu 设备上 PX 算例与 CPU 逐位相同。
+- A100（按正常 Slurm 申请 2 块空闲 GPU，未动用户的 7888_* 作业）：`run_gpu.py --gpus2 0,1 --mpi "mpirun -np 2"` 全部通过，184 个算例中无空间电荷的 154 个与 CPU 逐字节相同，
+  30 个空间电荷算例（含 PX1–PX8）重跑、双卡、MPI 2 进程逐字节相同，PICNIC / SPICNIC 与 CPU 逐字节相同；GCC 无新警告，`nm -D` 7 个接口、GLIBC_2.14。
+- L40S、lyc-pc、XPS 仍无法连接，M6a 的欠账（第 8 节）未能补做。
+- 临时数据：A100 的 `~/avas_engine_work/tmp_m6c` 与 Mac 的构建 / 运行目录已删除，工具链保留。

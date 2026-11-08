@@ -15,6 +15,7 @@ struct Options {
     Precision precision = Precision::Auto;
     std::string gpus;              // "" = first visible GPU, "all", or a list "0,1"
     bool gpuAtomic = false;        // measurement only: non-deterministic atomic sums on the GPU
+    double beamSetWarnGB = 50.0;   // corrected engine: warn when BeamSet.plt is estimated above this (GB = 2^30 B)
 };
 
 Options& options();
@@ -23,7 +24,7 @@ inline bool compat_dll() { return options().compat == Compat::Dll; }
 // Returns 0 on success, -1 for an unknown key, -2 for an invalid value.
 int set_option(const std::string& key, const std::string& value);
 // Reads AVAS_ENGINE_COMPAT / AVAS_ENGINE_THREADS / AVAS_ENGINE_DEVICE / AVAS_ENGINE_PRECISION /
-// AVAS_ENGINE_GPUS once (called by the C API entry points).
+// AVAS_ENGINE_GPUS / AVAS_ENGINE_BEAMSET_WARN_GB once (called by the C API entry points).
 void init_options_from_env();
 
 // Value OpenMP would report as omp_get_max_threads() (OMP_NUM_THREADS or logical cores).

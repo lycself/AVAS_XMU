@@ -14,6 +14,7 @@ import argparse
 import json
 import math
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -446,6 +447,63 @@ def secondary_steerer_check(work):
     return fails
 
 
+def libpic_keyword_check(work):
+    """Default mode, keywords from libPIC.so (M6b decisions): s2picnic error, scmethod in any case,
+    statoutputinterval (rows whose step number is a multiple of N), BeamSet.plt size warning; in
+    compat=dll statoutputinterval is an unknown keyword (no effect)."""
+    import re
+    none, dll = os.path.join(work, "none"), os.path.join(work, "dll")
+    fails = 0
+    print("\nlibPIC.so keywords in the default mode (scmethod, statoutputinterval, BeamSet.plt estimate):")
+
+    def log(case, root=none):
+        p = os.path.join(root, case, "log.txt")
+        return open(p, encoding="utf-8", errors="replace").read() if os.path.exists(p) else ""
+
+    def rows(case, root=none):
+        p = os.path.join(root, case, "OutputFile", "DataSet.txt")
+        return open(p, "rb").read().splitlines() if os.path.exists(p) else None
+
+    def dsts(case, root=none):
+        out = os.path.join(root, case, "OutputFile")
+        if not os.path.isdir(out):
+            return None
+        return {f: open(os.path.join(out, f), "rb").read() for f in sorted(os.listdir(out)) if f.startswith("outData_")}
+
+    def report(label, ok, detail=""):
+        nonlocal fails
+        fails += 0 if ok else 1
+        print(f"{label:<34} {'ok  ' if ok else 'FAIL'} {detail}")
+
+    lg = log("PX1_scmethod_s2picnic")
+    report("PX1 s2picnic -> error", "use PICNIC" in lg and not dsts("PX1_scmethod_s2picnic"),
+           next((ln.strip() for ln in lg.splitlines() if "use PICNIC" in ln), "no message"))
+    for case, ref in (("PX2_scmethod_fft_lower", "SC2_fft_S1"), ("PX3_scmethod_spicnic_mixed", "SC1_spicnic_S1"),
+                      ("PX4_stat1", "SC1_spicnic_S1")):
+        same = output_digest(os.path.join(none, case, "OutputFile")) == output_digest(os.path.join(none, ref, "OutputFile"))
+        report(f"{case.split('_')[0]} = {ref}", same, "DataSet.txt and outData_*.dst bytes")
+    report("PX4 usingaggregation warned", "usingaggregation of the GPU kernel libPIC.so" in log("PX4_stat1"))
+    for case, ref, every in (("PX5_stat7", "SC1_spicnic_S1", 7), ("PX6_stat0", "SC1_spicnic_S1", 0),
+                             ("PX7_stat3_Z1", "SC5_spicnic_Z1", 3)):
+        mine, full = rows(case), rows(ref)
+        want = [r for r in (full or []) if every and int(r.split()[39]) % every == 0]
+        ok = mine is not None and full is not None and mine == want and dsts(case) == dsts(ref)
+        report(f"{case.split('_')[0]} statoutputinterval {every}", ok, f"{len(mine or [])} of {len(full or [])} rows, dst identical")
+    # compat=dll: statoutputinterval is unknown to AVAS.dll (warning only, every row written)
+    ok = rows("PX5_stat7", dll) is not None and rows("PX5_stat7", dll) == rows("SC1_spicnic_S1", dll) and \
+        "Contains unknown keywords" in log("PX5_stat7", dll)
+    report("PX5 compat=dll: keyword unknown", ok)
+    lg = log("PX8_beamset_warning")
+    m = re.search(r"BeamSet.plt is estimated at ([0-9.eE+-]+) GB", lg)
+    bs = os.path.join(none, "PX8_beamset_warning", "OutputFile", "BeamSet.plt")
+    if m and os.path.exists(bs):
+        ratio = float(m.group(1)) * 1073741824.0 / os.path.getsize(bs)
+        report("PX8 BeamSet.plt warning", 0.8 <= ratio <= 1.5, f"estimate / actual size = {ratio:.3f}")
+    else:
+        report("PX8 BeamSet.plt warning", False, "no warning or no BeamSet.plt")
+    return fails
+
+
 def thread_check(lib, work, names):
     """Default mode: the same results with 1 thread and with OMP_NUM_THREADS / all cores."""
     one = os.path.join(work, "none_1thread")
@@ -467,9 +525,14 @@ def main():
     ap.add_argument("--lib", default=None)
     ap.add_argument("--work", default=None)
     ap.add_argument("--strict", action="store_true")
+    ap.add_argument("--keep", action="store_true", help="keep the temporary work folder (without --work)")
     a = ap.parse_args()
     lib = os.path.abspath(a.lib or default_lib())
     work = a.work or tempfile.mkdtemp(prefix="avas_parity_")
+    if not a.work and not a.keep:
+        # a temporary work folder (about 0.5 GB) is removed at the end; --work DIR keeps the outputs
+        import atexit
+        atexit.register(shutil.rmtree, work, True)
     doc = json.load(open(os.path.join(HERE, "cases.json"), encoding="utf-8"))
     threads = doc.get("reference_omp_threads", 12)
     print(f"library: {lib}\nwork:    {work}")
@@ -486,6 +549,7 @@ def main():
     bad += error_study_check(doc, os.path.join(work, "none"))
     bad += loop_feature_check(doc, os.path.join(work, "none"))
     bad += secondary_steerer_check(work)
+    bad += libpic_keyword_check(work)
     bad += thread_check(lib, work, ["SC1_spicnic_S1", "SC2_fft_S1", "SC5_spicnic_Z1", "PN1_picnic_S1", "PN2_picnic_Z1", "D_GS_GS",
                                     "ER3_quad_dyn_r2_step31_dst", "ER16_quad_dyn_spicnic_dst",
                                     "LP2_lpboundary_fft_dst", "LB2_boundary_mixed_dst"])

@@ -65,16 +65,18 @@ def run_case(lib, current, scmethod, grid, particles, frequency, negligible=None
     run_engine.set_keys(os.path.join(inp, "input.txt"), keys)
     with open(os.path.join(inp, "lattice.txt"), "w") as fl:
         fl.write("\n".join(["start", f"drift {LENGTH} 0.05 0", "end", ""]))
-    subprocess.run([sys.executable, "-c", run_engine.CHILD, lib, inp + os.sep, out + os.sep, base + os.sep, "-"],
-                   check=False, stdout=subprocess.DEVNULL)
-    beam = {}
-    for ln in open(os.path.join(inp, "beam.txt")):
-        w = ln.split("!")[0].split()
-        if w:
-            beam[w[0].lower()] = w[1:]
-    ent = read_dst(os.path.join(out, "inData.dst"))
-    ext = read_dst(os.path.join(out, [f for f in os.listdir(out) if f.startswith("outData_")][0]))
-    shutil.rmtree(work, ignore_errors=True)
+    try:
+        subprocess.run([sys.executable, "-c", run_engine.CHILD, lib, inp + os.sep, out + os.sep, base + os.sep, "-"],
+                       check=False, stdout=subprocess.DEVNULL)
+        beam = {}
+        for ln in open(os.path.join(inp, "beam.txt")):
+            w = ln.split("!")[0].split()
+            if w:
+                beam[w[0].lower()] = w[1:]
+        ent = read_dst(os.path.join(out, "inData.dst"))
+        ext = read_dst(os.path.join(out, [f for f in os.listdir(out) if f.startswith("outData_")][0]))
+    finally:
+        shutil.rmtree(work, ignore_errors=True)  # also when the engine failed
     if len(ext) != len(ent):
         raise SystemExit(f"particles lost: {len(ent)} -> {len(ext)}")
     phis = sorted(r[4] for r in ent)

@@ -23,6 +23,7 @@ struct Params {
     int singleParticleMode = 0;
     int scSolverRecord = 0;
     int dumpPeriodicity = 0;
+    int statOutputInterval = 1;  // statoutputinterval (libPIC.so, corrected engine only): DataSet row every N steps
     int runPeriod = 100000;
     int multithreading = 1;
     int maxThreads = -1;

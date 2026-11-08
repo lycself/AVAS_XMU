@@ -56,6 +56,13 @@ int set_option(const std::string& key, const std::string& value) {
         options().gpuAtomic = value == "1";
         return 0;
     }
+    if (key == "beamset_warn_gb") {
+        char* end = nullptr;
+        const double v = std::strtod(value.c_str(), &end);
+        if (value.empty() || end == value.c_str() || *end != '\0' || !(v >= 0.0)) return -2;
+        options().beamSetWarnGB = v;
+        return 0;
+    }
     return -1;
 }
 
@@ -68,6 +75,7 @@ void init_options_from_env() {
         if (const char* q = std::getenv("AVAS_ENGINE_PRECISION")) set_option("precision", q);
         if (const char* g = std::getenv("AVAS_ENGINE_GPUS")) set_option("gpus", g);
         if (const char* a = std::getenv("AVAS_ENGINE_GPU_ATOMIC")) set_option("gpu_atomic", a);
+        if (const char* w = std::getenv("AVAS_ENGINE_BEAMSET_WARN_GB")) set_option("beamset_warn_gb", w);
     });
 }
 

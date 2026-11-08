@@ -1753,6 +1753,202 @@
    }
   },
   {
+   "name": "PX1_scmethod_s2picnic",
+   "new_engine_only": true,
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "s2picnic"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "space_charge": true,
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "comment": "S2PICNIC of libPIC.so: error that points to PICNIC (M6b decision 3)"
+  },
+  {
+   "name": "PX2_scmethod_fft_lower",
+   "new_engine_only": true,
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "fft"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "space_charge": true,
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "comment": "default mode: scmethod in any case (M6b decision 7); same as SC2_fft_S1"
+  },
+  {
+   "name": "PX3_scmethod_spicnic_mixed",
+   "new_engine_only": true,
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "Spicnic"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "space_charge": true,
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "comment": "same as SC1_spicnic_S1"
+  },
+  {
+   "name": "PX4_stat1",
+   "new_engine_only": true,
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "SPICNIC",
+    "statoutputinterval": 1,
+    "usingaggregation": 1
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "space_charge": true,
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "comment": "statoutputinterval 1 = SC1_spicnic_S1 byte for byte; libPIC keyword usingaggregation warned and ignored"
+  },
+  {
+   "name": "PX5_stat7",
+   "new_engine_only": true,
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "SPICNIC",
+    "statoutputinterval": 7
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "space_charge": true,
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "comment": "DataSet rows of SC1 whose step number is a multiple of 7"
+  },
+  {
+   "name": "PX6_stat0",
+   "new_engine_only": true,
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "SPICNIC",
+    "statoutputinterval": 0
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "space_charge": true,
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "comment": "no DataSet rows"
+  },
+  {
+   "name": "PX7_stat3_Z1",
+   "new_engine_only": true,
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "SPICNIC",
+    "statoutputinterval": 3,
+    "setnumberofcores": "64 54 1 24 1 48 96 12 48 12"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 10",
+    "drift 0.1 0.02 0",
+    "quad 0.1 0.02 0 -10",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "space_charge": true,
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "comment": "z-code (no rows inside hard-edge elements), rows of SC5_spicnic_Z1 with step multiple of 3"
+  },
+  {
+   "name": "PX8_beamset_warning",
+   "new_engine_only": true,
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "SPICNIC",
+    "dumpperiodicity": 10
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "space_charge": true,
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "env": {
+    "AVAS_ENGINE_BEAMSET_WARN_GB": "0"
+   },
+   "comment": "BeamSet.plt size estimate warning (threshold 0 GB for the test)"
+  },
+  {
    "beam": {
     "readparticledistribution": "hwr010_seed12345.dst"
    },

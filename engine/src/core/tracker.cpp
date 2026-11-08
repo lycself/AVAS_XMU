@@ -150,6 +150,7 @@ public:
             h.append(reinterpret_cast<const char*>(&mc2), 8);
             if (!write_file(out + "BeamSet.plt", h, false, true))
                 throw EngineError("BeamSet.plt open failed, Check permissions");
+            if (!compat_) beamset_estimate();
         }
 
         const std::vector<Segment> segs = segment_lattice();
@@ -1298,6 +1299,23 @@ private:
         }
     }
 
+    // Corrected engine: estimated size of BeamSet.plt (header 34 B, a record 25 + 56 n B every
+    // dumpperiodicity steps; steps = lattice length / (beta c dt) + bunch duration / dt, with the
+    // entrance beta of the synchronous particle -- too many steps for accelerating lines).  Only a
+    // warning (libPIC.so refuses to run above 50 GB, spec 65 1.2).
+    void beamset_estimate() {
+        const int n = b_.n;
+        const double u = b_.uz[n], beta = u / std::sqrt(1.0 + u * u);
+        if (!(beta > 0.0) || !(dt_ > 0.0)) return;
+        const double steps = std::ceil(lat_.total_length() / (beta * k::c * dt_) + b_.bunchTime / dt_);
+        const double records = std::floor(steps / p_.dumpPeriodicity) + 1.0;
+        const double bytes = 34.0 + records * (25.0 + 56.0 * static_cast<double>(n));
+        const double gb = bytes / 1073741824.0;
+        if (gb > options().beamSetWarnGB)
+            say(Text().s("Warning: BeamSet.plt is estimated at ").g(gb).s(" GB (dumpperiodicity ").i(p_.dumpPeriodicity)
+                    .s(", about ").g(steps).s(" steps, ").i(n).s(" particles); check the free disk space").str());
+    }
+
     void beam_out(int mode, double t, double zs, int step) {
         const Beam& b = b_;
         std::string out;
@@ -1516,7 +1534,10 @@ private:
             for (int j = 6; j < 12; ++j) row.s(" ").g(prev[j]);
             for (int j = 14; j < 18; ++j) row.s(" ").g(prev[j]);
             row.s(" ").i(step_ - 1).s(" ").g(t).nl();
-            dataSet_.write(row.str());
+            // statoutputinterval N (libPIC.so, spec 65 5.1): only the rows whose step number is a
+            // multiple of N (the first row always, no extra last row); 0: no rows
+            const int every = p_.statOutputInterval;
+            if (every == 1 || (every > 1 && (step_ - 1) % every == 0)) dataSet_.write(row.str());
             gp = gnew;
             bp = bpNew;
 

@@ -40,6 +40,11 @@
 不写 `numofgrid` / `meshrms` 时用 SPICNIC 的默认网格。libPIC.so 的系数表、截断、边界节点与 float 精度的缺陷已修正（不提供复现开关）；`compat=dll` 下仍按 AVAS.dll 报错（F-01）。
 GPU 上 SPICNIC / PICNIC 的格林函数表和 SPICNIC 的非对称修正表在设备上计算（与 CPU 逐位相同，可移植的 `p_log` / `p_atan`）。
 
+M6b 决定（默认模式，compat=dll 不变）：`scmethod` 不区分大小写；`s2picnic` / `s4picnic` 报错并提示改用 PICNIC；`statoutputinterval N` 每 N 步写一行 DataSet（0 不写，默认 1）；
+`dumpperiodicity` 非 0 时估计 BeamSet.plt 大小，超过 `beamset_warn_gb`（`AVAS_ENGINE_BEAMSET_WARN_GB`，默认 50 GB）只警告；libPIC.so 的调优关键字点名警告后忽略。
+
+测试脚本的临时目录：`run_all.py`、`run_gpu.py` 不给 `--work` 时在 `$TMPDIR` 建临时目录并在结束时删除（`run_all.py --keep` 保留），给了 `--work` 的目录由使用者删除。
+
 ## 工具链检查结果（2026-11-07）
 
 用 CUDA 12.4 编译 sm_61/75/80/86/89/90 的机器码并附 compute_90 的 PTX，CUDA 运行库静态链接；Linux 版只依赖 GLIBC_2.14 和系统 libgomp。

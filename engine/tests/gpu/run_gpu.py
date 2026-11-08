@@ -200,6 +200,11 @@ def main():
     a = ap.parse_args()
     lib = os.path.abspath(a.lib)
     work = os.path.abspath(a.work or tempfile.mkdtemp(prefix="avas_gpu_"))
+    if not a.work:
+        # a temporary work folder is removed at the end; --work DIR keeps the outputs
+        import atexit
+        import shutil
+        atexit.register(shutil.rmtree, work, True)
     doc = json.load(open(os.path.join(PARITY, "cases.json"), encoding="utf-8"))
     names = default_cases(doc)
     if a.only:

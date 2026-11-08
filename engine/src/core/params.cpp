@@ -52,12 +52,22 @@ void read_input(Params& p) {
             throw EngineError("input.txt Contains unknown keywords: Dimension");
         } else if (k == "scmethod") {
             const std::string& v = word(w, 1);
-            if (v == "FFT") p.scPar[0] = 0.0;
-            else if (v == "SPICNIC") p.scPar[0] = 1.0;
-            // PICNIC of libPIC.so (spec 65; the GPU kernel reads the value case-insensitively);
-            // AVAS.dll does not know it, compat=dll keeps its error
-            else if (!compat_dll() && to_lower(v) == "picnic") p.scPar[0] = 2.0;
-            else throw EngineError("SCMethod Contains unknown item, available options include FFT / SPICNIC");
+            if (compat_dll()) {
+                // AVAS.dll: case-sensitive, FFT / SPICNIC only (F-01)
+                if (v == "FFT") p.scPar[0] = 0.0;
+                else if (v == "SPICNIC") p.scPar[0] = 1.0;
+                else throw EngineError("SCMethod Contains unknown item, available options include FFT / SPICNIC");
+            } else {
+                // corrected engine: any case (libPIC.so lower-cases the value); PICNIC of libPIC.so
+                // (spec 65); its S2 / S4 variants are approximations of PICNIC and not provided
+                const std::string lv = to_lower(v);
+                if (lv == "fft") p.scPar[0] = 0.0;
+                else if (lv == "spicnic") p.scPar[0] = 1.0;
+                else if (lv == "picnic") p.scPar[0] = 2.0;
+                else if (lv == "s2picnic" || lv == "s4picnic")
+                    throw EngineError("SCMethod " + v + " (S2PICNIC / S4PICNIC of the GPU kernel libPIC.so) is not supported, use PICNIC");
+                else throw EngineError("SCMethod Contains unknown item, available options include FFT / SPICNIC / PICNIC");
+            }
         } else if (k == "negligibleratio") {
             p.scPar[8] = parse_double(word(w, 1));
         } else if (k == "lpboundary") {
@@ -78,6 +88,15 @@ void read_input(Params& p) {
             p.scanTStep = parse_double(word(w, 1));
         } else if (k == "dumpperiodicity") {
             p.dumpPeriodicity = static_cast<int>(parse_double(word(w, 1)));
+        } else if (k == "statoutputinterval" && !compat_dll()) {
+            // libPIC.so: one DataSet row every N steps (0: none); AVAS.dll does not know it
+            p.statOutputInterval = parse_int(word(w, 1));
+            if (p.statOutputInterval < 0) throw EngineError("statoutputinterval must be 0 or positive");
+        } else if (!compat_dll() && (k == "usingaggregation" || k == "arrangesequenceinterval" || k == "blockgroupsize" ||
+                                     k == "numsamplingcoef" || k == "numbufferpool" || k == "bufferpoolsize" ||
+                                     k == "fieldpath" || k == "outputpath" || k == "beampath" || k == "scananglestep")) {
+            // keywords of the GPU kernel libPIC.so that this engine does not use (spec 65 11.3)
+            say("input.txt: keyword " + k + " of the GPU kernel libPIC.so is not used by this engine, ignored");
         } else if (k == "spacecharge") {
             p.spaceCharge = parse_int(word(w, 1));
             if (p.spaceCharge == 0) say("Simulation ignores space charge effects");

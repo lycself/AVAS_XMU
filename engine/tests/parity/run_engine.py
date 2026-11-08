@@ -263,9 +263,10 @@ def main():
         try:
             # AVAS_PARITY_LAUNCHER: optional command prefix, e.g. "mpirun -np 2" (MPI GPU runs)
             launcher = os.environ.get("AVAS_PARITY_LAUNCHER", "").split()
+            env = dict(os.environ, **case.get("env", {}))  # per-case engine options (environment variables)
             proc = subprocess.run(launcher + [sys.executable, "-c", CHILD, a.lib, inp + os.sep, out + os.sep, field + os.sep,
                                               a.compat], cwd=d, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                  timeout=case.get("timeout", a.timeout))
+                                  timeout=case.get("timeout", a.timeout), env=env)
             rc = proc.returncode - 100 if proc.returncode >= 100 else f"exit {proc.returncode}"
             log = proc.stdout.decode("latin-1")
         except subprocess.TimeoutExpired as e:
