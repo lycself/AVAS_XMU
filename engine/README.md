@@ -31,7 +31,14 @@
 `AVAS_ENGINE_GPUS=0|0,1|all`。`compat=dll` 只在 CPU 上提供。MPI：`mpirun -np 2 avas_engine_run IN OUT FIELD`（每个进程一块 GPU）。
 
 检查：`python3 engine/tests/gpu/run_gpu.py --lib 库 [--gpus2 0,1] [--mpi "mpirun -np 2"] [--fp32 --stats 8]`（CPU 与 GPU 比对；没有 GPU 时可用 `--device emu` 检查设备通路），
-性能 `engine/tests/gpu/perf_gpu.py`。实现记录、结果和限制见 [docs/engine/M6-notes.md](../docs/engine/M6-notes.md)。
+性能 `engine/tests/gpu/perf_gpu.py`（`--scmethod PICNIC` 测 PICNIC）。实现记录、结果和限制见 [docs/engine/M6-notes.md](../docs/engine/M6-notes.md)。
+
+## PICNIC（M6b）
+
+默认模式新增 `scmethod PICNIC`（旧 GPU 内核 libPIC.so 的直接求和空间电荷，规格见 [docs/engine/65-libpic.md](../docs/engine/65-libpic.md)），CPU、emu 与 CUDA 都能用：
+网格、电荷分配与 SPICNIC 相同，求解是整个网格电荷与格林函数表的直接求和（`src/core/sc_kernels.h` 的 `picnic_node`，CPU 与 GPU 共用，fp64 逐位相同）；
+不写 `numofgrid` / `meshrms` 时用 SPICNIC 的默认网格。libPIC.so 的系数表、截断、边界节点与 float 精度的缺陷已修正（不提供复现开关）；`compat=dll` 下仍按 AVAS.dll 报错（F-01）。
+GPU 上 SPICNIC / PICNIC 的格林函数表和 SPICNIC 的非对称修正表在设备上计算（与 CPU 逐位相同，可移植的 `p_log` / `p_atan`）。
 
 ## 工具链检查结果（2026-11-07）
 

@@ -19,6 +19,7 @@
 #include "core/format.h"
 #include "core/latview.h"
 #include "core/reduce.h"
+#include "core/sc_kernels.h"
 #include "core/options.h"
 #include "core/physics.h"
 #include "third_party/pocketfft/pocketfft_hdronly.h"
@@ -74,7 +75,9 @@ void space_charge_defaults(Params& p, long long n) {
     if (s[0] == 0.0) {
         if (s[1] == -1.0) s[1] = s[2] = s[3] = 6.5;
         if (p.numOfGrid[0] == -1) p.numOfGrid = {64, 64, 64};
-    } else if (s[0] == 1.0) {
+    } else if (s[0] == 1.0 || s[0] == 2.0) {
+        // PICNIC (libPIC.so has no defaults: unset values are uninitialised there) takes the mesh
+        // defaults of SPICNIC -- the mesh means the same in both (mean +- meshrms * rms)
         if (s[1] == -1.0) {
             const double v = N <= 8e4 ? 3.5 : N <= 8e5 ? 4.0 : N <= 8e6 ? 5.0 : N <= 8e7 ? 6.0 : 7.0;
             s[1] = s[2] = s[3] = v;
@@ -142,7 +145,7 @@ SpaceCharge::SpaceCharge(const Params& p, int nParticles) : compat_(compat_dll()
         throw EngineError("SPICNIC needs an even numofgrid in every direction");
     }
     mx_ = my_ = mz_ = static_cast<int>(std::round(nx_ * 3 * 0.25));
-    if (!compat_) {
+    if (!compat_ || method_ == 2) {
         // corrected: the kernel covers the whole mesh in every direction (AVAS.dll truncates it at
         // 0.75 Nx cells in all three directions, which cuts off the far part of long bunches)
         mx_ = nx_;
@@ -189,7 +192,7 @@ SpaceCharge::SpaceCharge(const Params& p, int nParticles) : compat_(compat_dll()
     ex_.assign(n3, 0.0);
     ey_.assign(n3, 0.0);
     ez_.assign(n3, 0.0);
-    if (method_ == 1) G_.assign(static_cast<size_t>(2 * nx_ + 1) * (2 * ny_ + 1) * (2 * nz_ + 1), 0.0);
+    if (method_ == 1 || method_ == 2) G_.assign(static_cast<size_t>(2 * nx_ + 1) * (2 * ny_ + 1) * (2 * nz_ + 1), 0.0);
 }
 
 bool SpaceCharge::begin(const Beam& b, const double* sync) {
@@ -211,6 +214,7 @@ bool SpaceCharge::solve(Beam& b, double factor, const double* sync) {
     if (!begin(b, sync)) return false;
     weight(b, factor);
     if (method_ == 0) fft();
+    else if (method_ == 2) picnic();
     else spicnic();
     allocate(b);
     return true;
@@ -432,16 +436,7 @@ void SpaceCharge::fft() {
 // ---- SPICNIC ----
 // Integral of 1/r over the box [x0,x1]x[y0,y1]x[z0,z1] (closed form, inclusion-exclusion over the
 // corners of the antiderivative F = yz ln(x+r) + zx ln(y+r) + xy ln(z+r)
-//   - x^2/2 atan(yz/(xr)) - y^2/2 atan(zx/(yr)) - z^2/2 atan(xy/(zr))).
-static double box_F(double x, double y, double z) {
-    const double r = std::sqrt(x * x + y * y + z * z);
-    if (r == 0.0) return 0.0;
-    auto lg = [](double u, double v, double w) { return (u == 0.0 || v + w <= 0.0) ? 0.0 : u * std::log(v + w); };
-    auto at = [](double u, double num, double den) { return (u == 0.0 || den == 0.0) ? 0.0 : u * u * std::atan(num / den); };
-    return lg(y * z, x, r) + lg(z * x, y, r) + lg(x * y, z, r) -
-           0.5 * (at(x, y * z, x * r) + at(y, z * x, y * r) + at(z, x * y, z * r));
-}
-
+//   - x^2/2 atan(yz/(xr)) - y^2/2 atan(zx/(yr)) - z^2/2 atan(xy/(zr)), sck::box_F).
 void SpaceCharge::tabulate() {
     if (!compat_) {
         // corrected: exact cell average of 1/r for every entry (AVAS.dll: 10^3 midpoints inside a
@@ -449,29 +444,16 @@ void SpaceCharge::tabulate() {
         // elongated cells, e.g. long or dc bunches).  The antiderivative is evaluated once at the
         // (mx+1)(my+1)(mz+1) cell corners (q - 1/2) h and shared by the neighbouring cells.
         const int ax = mx_ + 1, ay = my_ + 1, az = mz_ + 1;
+        const sck::SpGrid g{nx_, ny_, nz_, mx_, my_, mz_};
         std::vector<double> F(static_cast<size_t>(ax) * ay * az);
         run_tasks(ax, [&](int q) {
-            const double x = (q - 0.5) * dx_;
-            for (int r = 0; r < ay; ++r) {
-                const double y = (r - 0.5) * dy_;
-                for (int t = 0; t < az; ++t) F[(static_cast<size_t>(q) * ay + r) * az + t] = box_F(x, y, (t - 0.5) * dz_);
-            }
+            for (int r = 0; r < ay; ++r)
+                for (int t = 0; t < az; ++t)
+                    F[(static_cast<size_t>(q) * ay + r) * az + t] = sck::green_corner(q, r, t, dx_, dy_, dz_);
         });
         run_tasks(mx_, [&](int a) {
             for (int bb = 0; bb < my_; ++bb)
-                for (int c = 0; c < mz_; ++c) {
-                    double sum = 0.0;
-                    for (int i = 0; i < 2; ++i)
-                        for (int j = 0; j < 2; ++j)
-                            for (int k = 0; k < 2; ++k) {
-                                const double sign = ((i + j + k) % 2 == 0) ? -1.0 : 1.0;  // + at (x1, y1, z1)
-                                sum += sign * F[(static_cast<size_t>(a + i) * ay + (bb + j)) * az + (c + k)];
-                            }
-                    const double g = sum / vol_;
-                    for (int sa : {-1, 1})
-                        for (int sb : {-1, 1})
-                            for (int sc : {-1, 1}) G_[gat(nx_ + sa * a, ny_ + sb * bb, nz_ + sc * c)] = g;
-                }
+                for (int c = 0; c < mz_; ++c) sck::green_cell(g, F.data(), vol_, a, bb, c, G_.data());
         });
         return;
     }
@@ -515,23 +497,36 @@ void SpaceCharge::spicnic_prepare(std::vector<int>& corr, std::vector<double>& d
     thr = negligible_ * rho_[at(nx_ / 2, ny_ / 2, nz_ / 2)];
     corr.clear();
     dval.clear();
-    const int hi = nx_ / 2, hj = ny_ / 2, hk = nz_ / 2;
-    for (int i = hi; i < nx_; ++i)
-        for (int j = hj; j < ny_; ++j)
-            for (int k = hk; k < nz_; ++k) {
-                const double r0 = rho_[at(i, j, k)];
-                for (int I : {nx_ - 1 - i, i})
-                    for (int J : {ny_ - 1 - j, j})
-                        for (int K : {nz_ - 1 - k, k}) {
-                            const double d = rho_[at(I, J, K)] - r0;
-                            if (d != 0.0 && (thr <= d || d <= -thr)) {
-                                corr.push_back(I);
-                                corr.push_back(J);
-                                corr.push_back(K);
-                                dval.push_back(d);
-                            }
-                        }
+    // the targets and mirror points in the order of the device code (sck::corr_value)
+    const sck::SpGrid g{nx_, ny_, nz_, mx_, my_, mz_};
+    const long long nt = g.n_targets();
+    for (long long t = 0; t < nt; ++t)
+        for (int m = 0; m < 8; ++m) {
+            int I, J, K;
+            const double d = sck::corr_value(g, rho_.data(), thr, t, m, I, J, K);
+            if (d != 0.0) {
+                corr.push_back(I);
+                corr.push_back(J);
+                corr.push_back(K);
+                dval.push_back(d);
             }
+        }
+}
+
+// PICNIC (spec 65): the potential of the whole mesh charge by direct summation at every node
+// (sck::picnic_node, shared with the GPU back ends), then the field by central differences.
+void SpaceCharge::picnic() {
+    tabulate();
+    const sck::SpGrid g{nx_, ny_, nz_, mx_, my_, mz_};
+    run_tasks(nx_, [&](int i) {
+        for (int j = 0; j < ny_; ++j)
+            for (int k = 0; k < nz_; ++k) phi_[at(i, j, k)] = sck::picnic_node<double>(g, rho_.data(), G_.data(), i, j, k);
+    });
+    const double hx = 1.0 / (dx_ + dx_), hy = 1.0 / (dy_ + dy_), hz = 1.0 / (dz_ + dz_);
+    for (int i = 0; i < nx_; ++i)
+        for (int j = 0; j < ny_; ++j)
+            for (int k = 0; k < nz_; ++k)
+                sck::grad_spicnic_node(g, phi_.data(), hx, hy, hz, i, j, k, ex_.data(), ey_.data(), ez_.data());
 }
 
 void SpaceCharge::fft_tables(std::vector<double>& lx, std::vector<double>& ly, std::vector<double>& lz, double& scale,

@@ -1,7 +1,7 @@
 // Field of a uniformly charged ellipsoid from the space-charge solvers of the new engine (default
 // mode) against the analytic linear field inside, E_i = kappa_i x_i with
 //   kappa_i = Q/(4 pi eps0) * 3/2 * Int_0^inf ds / ((a_i^2 + s) sqrt((a^2+s)(b^2+s)(c^2+s))).
-// SPICNIC (open boundary): convergence with mesh and particle number.  FFT (grounded walls in x, y,
+// SPICNIC and PICNIC (open boundary): convergence with mesh and particle number.  FFT (grounded walls in x, y,
 // periodic in z): convergence to the free-space result as the box (meshrms) grows at a fixed cell
 // size, which shows that its deviation is the boundary.  Exit code 1 when a threshold fails.
 #include <cmath>
@@ -95,6 +95,20 @@ int main() {
     }
     if (last > 0.015) ++fails;
     std::printf("  threshold: max dev <= 0.015 at 40^3 and non-increasing: %s\n", last <= 0.015 ? "ok" : "FAIL");
+    std::printf("PICNIC (libPIC.so direct sum, open boundary, meshrms 3.5): slope / analytic for x, y, z\n");
+    prev = 1e9;
+    const int pg[3] = {16, 24, 32};
+    const int pp[3] = {250000, 500000, 1000000};
+    for (int g = 0; g < 3; ++g) {
+        double r[3];
+        run(2, pg[g], 3.5, pp[g], rfit, kap, r);
+        last = worst(r);
+        std::printf("  grid %2d^3, %7d particles: %.4f %.4f %.4f  (max dev %.4f)\n", pg[g], pp[g], r[0], r[1], r[2], last);
+        if (last > prev + 0.002) ++fails;
+        prev = last;
+    }
+    if (last > 0.01) ++fails;
+    std::printf("  threshold: max dev <= 0.01 at 32^3 and non-increasing: %s\n", last <= 0.01 ? "ok" : "FAIL");
     std::printf("FFT (grounded walls in x, y; period 2 meshrms rms_z in z), same cell size, growing box:\n");
     const double mrs[3] = {6.5, 9.75, 13.0};
     const int fg[3] = {64, 96, 128};

@@ -4,11 +4,16 @@
 //            call, in the same order -- bit-identical to the CPU engine.
 //   FFT:     direct transforms (DST-I in x, y; complex DFT in z) in a fixed order: deterministic on any
 //            device and any number of GPUs; they differ from pocketfft (CPU) in the last bits.
+//   PICNIC:  the direct sum of libPIC.so (spec 65), one mesh node per call; the CPU engine calls the
+//            same function, so CPU and GPU agree bit for bit.
+//   Green table and SPICNIC correction list: computed per entry here, on the host (CPU engine) and on
+//            the device (GPU back ends) with the same code.
 #pragma once
 #include <cmath>
 #include <vector>
 
 #include "core/hd.h"
+#include "core/pmath.h"
 
 namespace avas {
 namespace sck {
@@ -81,6 +86,74 @@ AVAS_HD inline void corr_node(const SpGrid& g, const T* G, const int* corr, cons
     for (long long q = 0; q < nc; ++q)
         s = G[g.gat(g.nx + corr[3 * q] - a, g.ny + corr[3 * q + 1] - bb, g.nz + corr[3 * q + 2] - c)] * dval[q] + s;
     phi[g.at(a, bb, c)] = static_cast<double>(s) * kE + phi[g.at(a, bb, c)];
+}
+
+// ---- Green table of the corrected SPICNIC and of PICNIC: exact cell average of 1/r ----
+// Antiderivative F(x, y, z) of 1/r (portable log / atan: the same bits on the host and the GPU).
+AVAS_HD inline double box_F(double x, double y, double z) {
+    const double r = hm::sqrt(x * x + y * y + z * z);
+    if (r == 0.0) return 0.0;
+    const double l1 = (y * z == 0.0 || x + r <= 0.0) ? 0.0 : y * z * p_log(x + r);
+    const double l2 = (z * x == 0.0 || y + r <= 0.0) ? 0.0 : z * x * p_log(y + r);
+    const double l3 = (x * y == 0.0 || z + r <= 0.0) ? 0.0 : x * y * p_log(z + r);
+    const double a1 = (x == 0.0 || x * r == 0.0) ? 0.0 : x * x * p_atan((y * z) / (x * r));
+    const double a2 = (y == 0.0 || y * r == 0.0) ? 0.0 : y * y * p_atan((z * x) / (y * r));
+    const double a3 = (z == 0.0 || z * r == 0.0) ? 0.0 : z * z * p_atan((x * y) / (z * r));
+    return l1 + l2 + l3 - 0.5 * (a1 + a2 + a3);
+}
+
+// F at the cell corner (q, r, t) of the table: ((q - 1/2) dx, (r - 1/2) dy, (t - 1/2) dz).
+AVAS_HD inline double green_corner(int q, int r, int t, double dx, double dy, double dz) {
+    return box_F((q - 0.5) * dx, (r - 0.5) * dy, (t - 0.5) * dz);
+}
+
+// Cell average of 1/r for the offset (a, b, c) >= 0 from the corner table F ((mx+1)(my+1)(mz+1)),
+// written to the 8 mirror entries of G.
+AVAS_HD inline void green_cell(const SpGrid& g, const double* F, double vol, int a, int bb, int c, double* G) {
+    const int ay = g.my + 1, az = g.mz + 1;
+    double sum = 0.0;
+    for (int i = 0; i < 2; ++i)
+        for (int j = 0; j < 2; ++j)
+            for (int k = 0; k < 2; ++k) {
+                const double sign = ((i + j + k) % 2 == 0) ? -1.0 : 1.0;  // + at (x1, y1, z1)
+                sum += sign * F[(static_cast<long long>(a + i) * ay + (bb + j)) * az + (c + k)];
+            }
+    const double v = sum / vol;
+    for (int sa = -1; sa <= 1; sa += 2)
+        for (int sb = -1; sb <= 1; sb += 2)
+            for (int sc = -1; sc <= 1; sc += 2) G[g.gat(g.nx + sa * a, g.ny + sb * bb, g.nz + sc * c)] = v;
+}
+
+// SPICNIC asymmetric correction of the upper-octant target t (index of SpGrid::target), mirror m
+// (0..7 in the order I, J, K of spicnic_prepare): the charge difference, or 0 when it is dropped.
+AVAS_HD inline double corr_value(const SpGrid& g, const double* rho, double thr, long long t, int m, int& I, int& J,
+                                 int& K) {
+    int i, j, k;
+    g.target(t, i, j, k);
+    I = (m & 4) ? i : g.nx - 1 - i;
+    J = (m & 2) ? j : g.ny - 1 - j;
+    K = (m & 1) ? k : g.nz - 1 - k;
+    const double d = rho[g.at(I, J, K)] - rho[g.at(i, j, k)];
+    return (d != 0.0 && (thr <= d || d <= -thr)) ? d : 0.0;
+}
+
+// ---- PICNIC (libPIC.so): direct sum of the whole mesh charge with the Green table ----
+// Potential at node (i, j, k) times 1/(4 pi eps0): every source node in the order of the mesh
+// (x, then y, then z innermost); empty nodes add nothing (skipping them keeps the bits).
+template <class T>
+AVAS_HD inline double picnic_node(const SpGrid& g, const T* rho, const T* G, int i, int j, int k) {
+    const int nx = g.nx, ny = g.ny, nz = g.nz;
+    T S = T(0);
+    for (int a = 0; a < nx; ++a)
+        for (int bb = 0; bb < ny; ++bb) {
+            const T* row = rho + g.at(a, bb, 0);
+            const T* grow = G + g.gat(nx - i + a, ny - j + bb, nz - k);
+            for (int c = 0; c < nz; ++c) {
+                const T r = row[c];
+                if (r != T(0)) S = r * grow[c] + S;
+            }
+        }
+    return static_cast<double>(S) * kE;
 }
 
 AVAS_HD inline double sp_grad(int i, int n, double pm, double p0, double pp, double h) {

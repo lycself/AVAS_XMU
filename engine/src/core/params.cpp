@@ -54,6 +54,9 @@ void read_input(Params& p) {
             const std::string& v = word(w, 1);
             if (v == "FFT") p.scPar[0] = 0.0;
             else if (v == "SPICNIC") p.scPar[0] = 1.0;
+            // PICNIC of libPIC.so (spec 65; the GPU kernel reads the value case-insensitively);
+            // AVAS.dll does not know it, compat=dll keeps its error
+            else if (!compat_dll() && to_lower(v) == "picnic") p.scPar[0] = 2.0;
             else throw EngineError("SCMethod Contains unknown item, available options include FFT / SPICNIC");
         } else if (k == "negligibleratio") {
             p.scPar[8] = parse_double(word(w, 1));

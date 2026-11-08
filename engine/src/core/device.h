@@ -55,18 +55,16 @@ struct BoundaryHit {
     double tHit;
 };
 
-// Host data of one space-charge solve on the device.
+// Host data of one space-charge solve on the device.  The Green table of SPICNIC / PICNIC and the
+// SPICNIC correction list are computed on the device (sc_kernels.h, the same bits as the CPU engine).
 struct ScSolveIn {
-    int method;  // 0 FFT, 1 SPICNIC
+    int method;  // 0 FFT, 1 SPICNIC, 2 PICNIC
     int nx, ny, nz, mx, my, mz;
     const double* rho;
     double dx, dy, dz;
-    // SPICNIC
-    const double* G;
+    // SPICNIC / PICNIC: cell volume (dy dx dz, as on the host) and the SPICNIC threshold
+    double vol;
     double thr;
-    const int* corr;  // I, J, K per entry
-    const double* dval;
-    long long ncorr;
     // FFT
     const double* lx;
     const double* ly;

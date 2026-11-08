@@ -15,7 +15,7 @@ public class ExportDecomp extends GhidraScript {
     private static final String[] SKIP = {
         "std::", "__gnu", "Eigen::", "__cxx", "_GLOBAL_", "operator new", "operator delete",
         "__static_initialization", "_init", "_fini", "frame_dummy", "register_tm_clones",
-        "deregister_tm_clones", "__do_global", "progschj::", "__libc", "_ITM_", "__gmon",
+        "deregister_tm_clones", "__do_global", "progschj::", "cub::", "thrust::", "__cudart", "cudart::", "__libc", "_ITM_", "__gmon",
     };
 
     private boolean skip(Function f, String name) {

@@ -295,7 +295,7 @@ static void test_pmath() {
         st ^= st << 17;
         return static_cast<double>(st >> 11) * (1.0 / 9007199254740992.0);
     };
-    double es = 0, ec = 0, ee = 0, esh = 0, ech = 0, ea = 0;
+    double es = 0, ec = 0, ee = 0, esh = 0, ech = 0, ea = 0, el = 0;
     for (int i = 0; i < 400000; ++i) {
         const double sc = i % 4 == 0 ? 1.0 : i % 4 == 1 ? 10.0 : i % 4 == 2 ? 1000.0 : 1e5;
         const double x = (rnd() * 2.0 - 1.0) * sc;
@@ -309,12 +309,65 @@ static void test_pmath() {
         ech = std::max(ech, ulp_err(p_cosh(y), std::cosh(y)));
         const double z = (rnd() * 2.0 - 1.0) * (i % 3 == 0 ? 1.0 : i % 3 == 1 ? 10.0 : 1e6);
         ea = std::max(ea, ulp_err(p_atan(z), std::atan(z)));
+        const double w = std::exp((rnd() * 2.0 - 1.0) * 40.0);
+        el = std::max(el, ulp_err(p_log(w), std::log(w)));
     }
-    std::printf("pmath max error (ulp): sin %.2f cos %.2f exp %.2f sinh %.2f cosh %.2f atan %.2f\n", es, ec, ee, esh,
-                ech, ea);
-    CHECK(es <= 1.0 && ec <= 1.0 && ee <= 1.0 && ea <= 1.0);
+    std::printf("pmath max error (ulp): sin %.2f cos %.2f exp %.2f sinh %.2f cosh %.2f atan %.2f log %.2f\n", es, ec, ee, esh,
+                ech, ea, el);
+    CHECK(es <= 1.0 && ec <= 1.0 && ee <= 1.0 && ea <= 1.0 && el <= 1.0);
+    CHECK(p_log(1.0) == 0.0 && p_log(2.0) == 0.6931471805599453 && p_log(0.0) == 0.0);
     CHECK(esh <= 2.0 && ech <= 2.0);
     CHECK(p_sin(0.0) == 0.0 && p_cos(0.0) == 1.0 && p_exp(0.0) == 1.0 && p_atan(0.0) == 0.0);
+}
+
+// PICNIC (direct sum over the whole mesh) against SPICNIC without threshold (octant sum plus the
+// asymmetric correction): the same Green table, so the fields agree to rounding.
+static void test_picnic() {
+    auto field = [](int method, std::vector<double>& out) {
+        Params p;
+        p.spaceCharge = 1;
+        p.scPar[0] = method;
+        p.scPar[1] = p.scPar[2] = p.scPar[3] = 3.0;
+        p.scPar[8] = 0.0;  // negligibleratio 0: SPICNIC keeps every asymmetric node
+        p.numOfGrid = {12, 10, 14};
+        space_charge_defaults(p, 3000);
+        Beam b;
+        b.resize(3000);
+        std::uint64_t st = 12345;
+        auto rnd = [&]() {
+            st ^= st << 13;
+            st ^= st >> 7;
+            st ^= st << 17;
+            return static_cast<double>(st >> 11) * (1.0 / 9007199254740992.0) - 0.5;
+        };
+        for (int i = 0; i < b.n; ++i) {
+            b.rel[0][i] = 1e-3 * (rnd() + 0.3 * rnd());
+            b.rel[2][i] = 2e-3 * rnd();
+            b.rel[4][i] = 3e-3 * (rnd() + rnd());
+            b.charge[i] = 1e-15;
+        }
+        b.gamma = 1.05;
+        b.centroid = {0, 0, 0, 0, 0, 0};
+        b.rms = {0.35e-3, 0.6e-3, 1.3e-3};
+        SpaceCharge sc(p, b.n);
+        sc.solve(b, 1.0);
+        out.clear();
+        for (int i = 0; i < b.n; ++i) {
+            out.push_back(b.scx[i]);
+            out.push_back(b.scy[i]);
+            out.push_back(b.scz[i]);
+        }
+    };
+    std::vector<double> a, c;
+    field(2, a);
+    field(1, c);
+    double num = 0, den = 0;
+    for (size_t i = 0; i < a.size(); ++i) {
+        num = std::max(num, std::fabs(a[i] - c[i]));
+        den = std::max(den, std::fabs(c[i]));
+    }
+    std::printf("PICNIC against SPICNIC (negligibleratio 0): max |dE| / max |E| = %.2e\n", num / den);
+    CHECK(den > 0 && num / den < 1e-12);
 }
 
 // Fixed-order sums (reduce.h) and the fixed-point deposit: independent of the grouping.
@@ -353,6 +406,7 @@ int main() {
     test_error_sampling();
     test_fft_norm();
     test_pmath();
+    test_picnic();
     test_reduce();
     std::printf("%s (%d failures)\n", failures ? "FAILED" : "OK", failures);
     return failures;

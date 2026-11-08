@@ -209,3 +209,124 @@ A100 上构建的 `.so`（全部架构，glibc 2.14）可直接拿到 L40S / 108
 5. fp32 的适用范围保持：auto 在 HPC 卡（sm 6.0 / 7.0 / 8.0 / 9.0）用 fp64，其他用 fp32；z-code、FFT、二次粒子在 fp32 档也用 fp64。
 6. 主机侧的 SPICNIC 表与修正表在 M6b 实现 PICNIC 时一并移到 GPU。
 7. 测试设备 `emu` 保留，不写进用户文档。
+
+## M6b：PICNIC
+
+用户的决定（2026-11-08）：PICNIC 在新内核的 CPU 和 GPU 上都实现，以原 libPIC.so 的运行结果为参考；M6a 第 6 项（主机侧的 SPICNIC 表与修正表移到 GPU）在本段完成。
+libPIC.so 的规格见 [65-libpic.md](65-libpic.md)。
+
+### 1. libPIC.so 的 PICNIC（要点，详见 65 第 8 节）
+
+网格与 AVAS.dll 的 SPICNIC 相同（束流静止系，均值 ± meshrms·σ，CIC），求解是网格电荷与系数表的直接卷积：系数表的自身单元为 0、近场用 8³ 中点平均、
+半径外用点值，核函数在每个方向截断在约 0.75 N 个单元；电荷用双精度原子加（不可重复），电势中心差分求场、边界节点为 0、场存为 float；网格外的粒子用点电荷场。
+S2PICNIC / S4PICNIC 是只算半个 / 四分之一截面再加非对称修正的加速版本，不对称单元超过 1/50 时退回完整 PICNIC。按这些写的模型重算的场与原库实测相差 1e-4（65 §9.2），
+所以这些结论已经核实。
+
+### 2. 实现
+
+| 文件 | 内容 |
+|---|---|
+| `src/core/params.cpp` | 默认模式接受 `scmethod PICNIC`（不区分大小写，与 libPIC 相同），`scPar[0] = 2`；`compat=dll` 仍报 “SCMethod Contains unknown item”（F-01 不变） |
+| `src/core/spacecharge.{h,cpp}` | method 2：网格、分配、插值与 SPICNIC 相同；`picnic()` 每步制表（与修正后的 SPICNIC 同一张精确单元平均表，核函数覆盖整个网格）后逐点调用 `sck::picnic_node`，再用 SPICNIC 的差分（边界单侧差分）；不做 autoPIC 跳步（libPIC 每步都求）；网格点数不要求偶数；不写网格时用 SPICNIC 的默认网格（`space_charge_defaults`） |
+| `src/core/sc_kernels.h` | 新增 `picnic_node`（整个网格的源按 x、y、z 次序累加，跳过空节点）、`box_F` / `green_corner` / `green_cell`（格林函数表，CPU 的 `tabulate()` 也改用它们）、`corr_value`（SPICNIC 修正表的一项） |
+| `src/core/pmath.h` | 新增可移植的 `p_log`（fdlibm），格林函数表的 log / atan 改用 `p_log` / `p_atan`，使主机与设备得到相同的位 |
+| `src/core/device.h`、`device_emu.cpp`、`src/cuda/cuda_backend.cu` | `ScSolveIn` 不再带主机的格林函数表和修正表，改为带单元体积与阈值；设备上算表（`k_green_corner`、`k_green_cell`）与修正表（`k_corr_val` 后用 CUB `DeviceSelect::Flagged` 稳定压缩，顺序与 CPU 相同）；PICNIC 的网格点在同一进程的几块 GPU 间均分，电势经主机汇总后发给每块卡 |
+| `src/core/tracker.cpp` | 设备求解不再在主机上制表 |
+| `tests/parity/cases.json`、`run_all.py` | 新内核算例 PN1（默认网格，漂移 + 腔）、PN2（z-code 四极，16³，值写成小写 `picnic`）、PN3（奇数网格 15×17×21）；PN1、PN2 加入线程无关性检查 |
+| `tests/unit_tests.cpp` | `p_log` 精度；PICNIC 与阈值为 0 的 SPICNIC（同一张表，八分之一求和加修正）的场相差 1.1e-14 |
+| `tests/physics/` | 椭球与 DC KV 检验加 PICNIC（见第 5 节）；`run_physics.py --build DIR` |
+| `tests/gpu/perf_gpu.py` | `--scmethod` |
+| `tools/ExportDecomp.java` | 跳过 CUB / Thrust / cudart 的内部函数 |
+
+**确定性**：电荷分配沿用 M6a 的定点整数累加；每个网格点的电势是同一个函数按固定次序求和，与在哪个线程、哪块 GPU 上算无关；GPU 编译 `--fmad=false`。
+因此 PICNIC 的结果与线程数、GPU 数、MPI 进程数无关，**CPU 与 GPU fp64 逐位相同**（第 4 节）。fp32 档在 GPU 上按 float 求和（同 SPICNIC）。
+
+**修正的 libPIC 缺陷**（不提供复现开关，见第 6 节第 4 项）：精确的单元平均系数表（含自身单元）、不截断、边界节点单侧差分、双精度场、可重复的分配与全粒子统计、网格点数按输入。
+
+**默认模式 SPICNIC 的变化**：CPU 的格林函数表改用 `p_log` / `p_atan`（原为 C 库 log / atan），SPICNIC 的默认结果只在末位变化（`run_all.py` 的默认模式检查全部通过）；
+好处是各平台的 C 库不再影响这张表。compat=dll 不变（compat 用 AVAS.dll 的 10³ 中点表，不经过这里）。
+
+### 3. 参考运行（libPIC.so，A100）
+
+方法与全部数字见 65 §9：ctypes 调原库导出的 `main`，单进程 singleton MPI（用户态 OpenMPI 4.1.6，cudart 11 与 cufft 10 来自 `module load cuda/11.4`），
+同一份 dst（质子 3 MeV、30 mA、1e5 粒子、5 个种子），1 m 漂移，32³、meshrms 4。结论：
+
+- **同一束流的网格场**：新内核 PICNIC 比原库横向强 3.3 %、纵向强 1.2 %；逐项分解后差别完全来自三处修正（系数表 3.6 %、截断 0.2 %、边界节点 0.9 %，三者合起来与新内核相差 3e-8）。
+- **统计**：出口 rms x 新内核小 0.97 % ± 0.14 %、ε x 大 0.54 %，超出种子起伏，原因已查明：① libPIC 从第一步起就对还在入口上游的束团计空间电荷，新内核（沿用 AVAS.dll）
+  在束团进入 lattice 的约 20 步内 rms x′ 不变；② 束团完全进入后 rms x′ 的增长新内核大 3.3 %、rms z′ 大 0.7 %，与场强之比一致。传输率都是 100 %。
+- libPIC 的 s4picnic 与 picnic 在种子起伏以内；libPIC 的 fft 是三维周期、单精度，与开放边界相差 5–18 %。
+- 物理检验见第 5 节：新内核 PICNIC 收敛到解析解；原库的 PICNIC 没有单独做椭球检验（它的场与新内核的差别已逐项量出）。
+
+### 4. 检查结果
+
+**Mac（arm64，Clang）**：构建无新警告；单元测试、`run_all.py`（compat=dll 与 AVAS.dll 最大相对差 3.44e-11 不变，默认模式检查全部通过，inData 记录值 23/23 不变，
+PN1 / PN2 线程无关）、`run_physics.py`、`tools_check.py`、`uvx ruff@0.6.9 check avas engine/tests engine/tools` 通过。
+**A100 构建（GCC 12 + nvcc 12.4）**：无新警告；`nm -D` 只有 7 个 C 接口，只依赖 GLIBC_2.14。
+
+**GPU（A100，`run_gpu.py --gpus2 0,1 --mpi "mpirun -np 2"`，M6b 构建）**：
+
+构建包含 dcc9132 的全部改动（`het_row` 的 |γβ| 恢复），所以这也是 dcc9132 在 GPU 上的重跑。176 个默认模式算例（22 个有空间电荷）：
+
+| 检查 | 结果 |
+|---|---|
+| 无空间电荷的 154 个算例，GPU 与 CPU 的全部输出文件 | **154/154 逐字节相同** |
+| 有空间电荷的 22 个算例：第二次 GPU 运行、GPU 0,1 双卡、Intel MPI 2 进程 | **全部与第一次 GPU 运行逐字节相同** |
+| PICNIC（PN1、PN2、PN3、EP_F01）GPU 与 CPU | **逐字节相同** |
+| SPICNIC（SC1、3–7、9、10、12、ER16，格林函数表与修正表改在设备上算）GPU 与 CPU | **逐字节相同**（与 M6a 相同） |
+| 含 hard-edge + SC 的算例（SC5、SC6、ER16，dcc9132 改动所涉） | GPU 与 CPU 逐字节相同 |
+| FFT（SC2、8、11、13、14、LP2、LP3）GPU 与 CPU | dst 相差 7e-16～1.9e-11（rms），DataSet 相同，与 M6a 相同（直接变换对 pocketfft） |
+
+Mac 上用 emu 设备（`run_gpu.py --device emu`）同样得到 PICNIC、SPICNIC 与 CPU 逐位相同。
+fp32（`--fp32`，PN1–PN3、SC1、SC9）：DataSet 与 CPU 相差 3e-5～9e-5（列最大值的比例），dst 的粒子坐标 PN1、PN2 相差 1.5e-5、5e-6 rms，PN3（奇数小网格、meshrms 3.5）
+最大 5e-3 rms——是单个粒子在网格边缘按 float 落到网格内外的不同一侧（网格场与点电荷场的切换），统计量不受影响。
+
+### 5. 物理检验（Mac，`run_physics.py`）
+
+| 检验 | 结果 | 阈值 |
+|---|---|---|
+| 均匀带电椭球（1 / 1.5 / 3 mm），PICNIC 16³ / 24³ / 32³ | 最大偏差 2.0 % / 0.54 % / 0.19 %，随网格单调减小 | 32³ 时 ≤ 1 % |
+| DC KV 束 1 m 漂移，PICNIC 24³、8 万粒子 | 空间电荷增长与 KV 包络之比 x 0.984、y 0.984 | 与 KV 相差 ≤ 2 % |
+
+SPICNIC、FFT 的检验结果不变（SPICNIC 40³ 0.34 %，FFT meshrms 13 为 0.99 %，DC KV SPICNIC 40³ 为 0.993）。
+
+### 6. 性能（A100 fp64，hwr010 两周期线、`perf_gpu.py`，推进 + 空间电荷每步时间）
+
+| 配置 | 1e6（30³） | 1e7（44³） |
+|---|---|---|
+| SPICNIC，dcc9132（主机制表），1 卡 | 6.18 ms | 27.7 ms |
+| SPICNIC，M6b（设备制表），1 卡 | **3.68 ms** | **22.5 ms** |
+| SPICNIC，dcc9132，2 卡 | 5.76 ms | 21.3 ms |
+| SPICNIC，M6b，2 卡 | **2.93 ms** | **14.9 ms** |
+| PICNIC，M6b，1 卡 | 3.93 ms | 24.3 ms |
+| PICNIC，M6b，2 卡 | 3.30 ms | 14.7 ms |
+
+- SPICNIC 准备移到 GPU 后，1e7 粒子每步快 5.2 ms（1 卡）/ 6.5 ms（2 卡），双卡加速比从 1.30× 提高到 1.51×；1e6 每步快 2.5 / 2.8 ms。
+- PICNIC 在 GPU 上只比 SPICNIC 慢约 1.7 ms/步（1e7，44³），双卡时网格点在两卡间均分，与 SPICNIC 相当。CPU 上 PICNIC 的计算量 ∝ 非零源 × 网格点，32³ 以上明显慢于 SPICNIC，
+  大网格建议在 GPU 上用。
+- 参考：原 libPIC.so 在 1e5 粒子、32³ 时 PICNIC 约 1.2 ms/步（截断的核函数、原子加）。
+
+### 7. 工具链与临时数据
+
+- **工具链（保留）**：A100 `~/avas_engine_work/toolchains/cuda124`（M6a）；`~/avas_engine_work/toolchains/openmpi4`（本段新增：conda-forge 的 OpenMPI 4.1.6，含 `libmpi.so.40`、
+  libstdc++ 14，以及 `cuobjdump` / `nvdisasm`；运行原 libPIC.so 时 `LD_LIBRARY_PATH` 依次放 `/public/apps/cuda/cuda-11.4/lib64` 与该目录的 `lib`，设 `OPAL_PREFIX` 为该目录）。
+- 临时数据（本段结束时已删除）：A100 的 `~/avas_engine_work/tmp_m6b`（libPIC.so 副本、SASS 导出、源码包、两套构建、参考运行与性能 / 检查的运行目录，约 2.4 GB）
+  以及本段 conda 安装留在 `~/.conda/pkgs` 中的 16 个包（只删本段的包名）；Mac 上的 Ghidra / JDK 下载、伪代码导出、构建与运行目录。L40S、lyc-pc、XPS 本段未能登录，没有产生临时数据。
+
+### 8. 本段未完成的验收
+
+- L40S、1080Ti 主机、XPS（Windows）在本段开始、中途和结束时都无法连接（ssh 超时），M6a 遗留的验收仍未做：Windows MSVC 的 `run_all.py --strict`、
+  `test_error_study.py` 的 DLL / 默认 / compat 三种方式、MSVC 下的 CUDA 构建与 GTX 1650、manylinux 容器构建、L40S / 1080Ti（双卡）/ GTX 1650 的比对与性能；MSVC 是否有新警告也未知。
+- A100 上 dcc9132 的 GPU 全套用 M6b 的构建重跑（包含 dcc9132 的全部改动，第 4 节），没有再单独跑 dcc9132 的构建。
+- 原 libPIC.so 只跑了漂移段的空间电荷参考；RF 场图、硬边元件、bend、输出面、多 rank 的行为未实测（65 §9.5）。
+- PICNIC 在多个 MPI 进程间不分摊网格点（第 9 节第 6 项）。
+
+### 9. 待用户决定（每项附推荐）
+
+1. **`numofgrid` 的含义**：libPIC 向上取到 8 的倍数，新内核按输入。推荐按输入（用户写的网格就是实际网格）。
+2. **PICNIC 不写网格时的默认值**：libPIC 没有默认值（未初始化），新内核用 SPICNIC 的默认网格（按粒子数 14³～64³、meshrms 3.5～7）。推荐保持。
+3. **`s2picnic` / `s4picnic`**：推荐不实现，继续报 “unknown item”，提示改用 PICNIC（它们是 PICNIC 的近似，场差 0.5–0.7 %，新内核 PICNIC 已足够快）；`spicnic` 继续表示 AVAS.dll 的 SPICNIC（libPIC 里它是 s4picnic 的别名，两者含义不同，在 65 中已注明）。
+4. **是否提供复现 libPIC 缺陷的兼容开关**（8³ 中点表、自身单元 0、截断、边界 0、float）：推荐不提供（没有依赖原库逐位结果的用户；差别已逐项量出并写进规格）。
+5. **束团进入 lattice 时的空间电荷**：libPIC 从第一步起对入口上游的束团计空间电荷，新内核沿用 AVAS.dll。推荐保持 AVAS.dll 的约定（与 CPU 内核和全部既有结果一致）。
+6. **多 MPI 进程的 PICNIC**：现在每个进程都求整个网格（同一进程的多卡已分摊网格点）。推荐暂不改；多节点需要时再按 MPI 进程分摊网格点并用 Allgatherv 汇总电势。
+7. **默认模式下 `scmethod` 的值是否不区分大小写**：PICNIC 已不区分；推荐 FFT / SPICNIC 也不区分（无害），compat=dll 仍区分。
+8. **libPIC.so 其余的独有功能**（65 §11.3 的表）：推荐只实现 `statoutputinterval`（每 N 步写一行 DataSet）与 BeamSet 大小预估警告，其余不实现。

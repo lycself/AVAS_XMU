@@ -201,6 +201,52 @@ AVAS_HD inline double p_sinh(double x) {
     return x < 0.0 ? -s : s;
 }
 
+// fdlibm __ieee754_log for finite x > 0 (the Green table of SPICNIC / PICNIC; 0 for x <= 0).
+AVAS_HD inline double p_log(double x) {
+    const double ln2HI = 6.93147180369123816490e-01, ln2LO = 1.90821492927058770002e-10,
+                 two54 = 1.80143985094819840000e+16, Lg1 = 6.666666666666735130e-01,
+                 Lg2 = 3.999999999940941908e-01, Lg3 = 2.857142874366239149e-01, Lg4 = 2.222219843214978396e-01,
+                 Lg5 = 1.818357216161805012e-01, Lg6 = 1.531383769920937332e-01, Lg7 = 1.479819860511658591e-01;
+    if (!(x > 0.0)) return 0.0;
+    std::int32_t hx = static_cast<std::int32_t>(pm::high_word(x));
+    int k = 0;
+    if (hx < 0x00100000) {  // subnormal
+        k -= 54;
+        x = x * two54;
+        hx = static_cast<std::int32_t>(pm::high_word(x));
+    }
+    if (hx >= 0x7ff00000) return x + x;
+    k += (hx >> 20) - 1023;
+    hx &= 0x000fffff;
+    std::int32_t i = (hx + 0x95f64) & 0x100000;
+    x = pm::from_bits((static_cast<std::uint64_t>(static_cast<std::uint32_t>(hx | (i ^ 0x3ff00000))) << 32) |
+                      (pm::bits(x) & 0xffffffffull));  // x or x/2 in [sqrt(2)/2, sqrt(2))
+    k += i >> 20;
+    const double f = x - 1.0;
+    const double dk = static_cast<double>(k);
+    if ((0x000fffff & (2 + hx)) < 3) {  // |f| < 2^-20
+        if (f == 0.0) return k == 0 ? 0.0 : dk * ln2HI + dk * ln2LO;
+        const double R = f * f * (0.5 - 0.33333333333333333 * f);
+        return k == 0 ? f - R : dk * ln2HI - ((R - dk * ln2LO) - f);
+    }
+    const double s = f / (2.0 + f);
+    const double z = s * s;
+    i = hx - 0x6147a;
+    const double w = z * z;
+    const std::int32_t j = 0x6b851 - hx;
+    const double t1 = w * (Lg2 + w * (Lg4 + w * Lg6));
+    const double t2 = z * (Lg1 + w * (Lg3 + w * (Lg5 + w * Lg7)));
+    i |= j;
+    const double R = t2 + t1;
+    if (i > 0) {
+        const double hfsq = 0.5 * f * f;
+        if (k == 0) return f - (hfsq - s * (hfsq + R));
+        return dk * ln2HI - ((hfsq - (s * (hfsq + R) + dk * ln2LO)) - f);
+    }
+    if (k == 0) return f - s * (f - R);
+    return dk * ln2HI - ((s * (f - R) - dk * ln2LO) - f);
+}
+
 // fdlibm atan.
 AVAS_HD inline double p_atan(double x) {
     const double atanhi[4] = {4.63647609000806093515e-01, 7.85398163397448278999e-01, 9.82793723247329054082e-01,

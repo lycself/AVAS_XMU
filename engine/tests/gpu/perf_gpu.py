@@ -1,12 +1,12 @@
 """Timing of the engine on the example hwr010 beam line (M6a performance table).
 
 usage: python engine/tests/gpu/perf_gpu.py --run PATH/avas_engine_run --work DIR [--sizes 1e5,1e6,1e7]
-                                           [--sc 0,1] [--label NAME] [--env KEY=VALUE ...] [--json OUT]
+                                           [--sc 0,1] [--scmethod SPICNIC] [--label NAME] [--env KEY=VALUE ...] [--json OUT]
 
 The beam line is two periods of the tutorial line of the example project (drift, solenoid "sol",
 drift, cavity "hwr010" at -30 deg, drift; 1.72 m), the bunch is generated (GS GS, the Twiss parameters
-of the example, randomseed 1), space charge SPICNIC with the default mesh.  The configuration (CPU
-threads, device, precision, GPUs) comes from --env, e.g. --env AVAS_ENGINE_DEVICE=cuda
+of the example, randomseed 1), space charge SPICNIC (--scmethod: FFT, SPICNIC or PICNIC) with the default mesh.
+The configuration (CPU threads, device, precision, GPUs) comes from --env, e.g. --env AVAS_ENGINE_DEVICE=cuda
 --env AVAS_ENGINE_PRECISION=fp32.  Reported per run: tracking time (SimulationTime.txt, without the
 initialisation, with the output files), push + space-charge time (SimulationTime.txt "Exter"), steps (rows
 of DataSet.txt), push + space-charge time per step, and the wall time of the process.
@@ -48,7 +48,7 @@ def set_keys(path, changes):
     open(path, "w", encoding="utf-8", newline="\n").write("\n".join(lines) + "\n")
 
 
-def prepare(d, n, sc):
+def prepare(d, n, sc, method="SPICNIC"):
     shutil.rmtree(d, ignore_errors=True)
     inp = os.path.join(d, "inputs")
     os.makedirs(inp)
@@ -57,7 +57,7 @@ def prepare(d, n, sc):
         shutil.copy(os.path.join(EXAMPLE, f), inp)
     set_keys(os.path.join(inp, "beam.txt"), {"particlenumber": int(n), "randomseed": 1, "current": 5.0 if sc else 0.0,
                                               "readparticledistribution": "unknown"})
-    set_keys(os.path.join(inp, "input.txt"), {"spacecharge": 1 if sc else 0, "scmethod": "SPICNIC"})
+    set_keys(os.path.join(inp, "input.txt"), {"spacecharge": 1 if sc else 0, "scmethod": method})
     open(os.path.join(inp, "lattice.txt"), "w", newline="\n").write(LATTICE)
     return inp
 
@@ -68,6 +68,7 @@ def main():
     ap.add_argument("--work", required=True)
     ap.add_argument("--sizes", default="1e5,1e6,1e7")
     ap.add_argument("--sc", default="0,1")
+    ap.add_argument("--scmethod", default="SPICNIC")
     ap.add_argument("--label", default="")
     ap.add_argument("--env", action="append", default=[])
     ap.add_argument("--json", default="")
@@ -81,7 +82,7 @@ def main():
     for sc in [int(s) for s in a.sc.split(",")]:
         for n in [float(s) for s in a.sizes.split(",")]:
             d = os.path.join(a.work, f"perf_{int(n)}_{sc}")
-            inp = prepare(d, n, sc)
+            inp = prepare(d, n, sc, a.scmethod)
             out = os.path.join(d, "OutputFile")
             t0 = time.time()
             p = subprocess.run([a.run, inp + os.sep, out + os.sep, EXAMPLE + os.sep], env=env, stdout=subprocess.PIPE,

@@ -121,20 +121,21 @@ def main():
                                       os.path.join("Release", "avas_engine.dll"))) if os.path.exists(p))
     runs = [(a.scmethod, a.grid, a.particles)]
     if a.check:
-        runs = [("SPICNIC", "20 20 20", 20000), ("SPICNIC", "30 30 30", 80000), ("SPICNIC", "40 40 40", 160000)]
+        runs = [("SPICNIC", "20 20 20", 20000), ("SPICNIC", "30 30 30", 80000), ("SPICNIC", "40 40 40", 160000),
+                ("PICNIC", "24 24 24", 80000)]
     print(f"DC KV beam, {a.current} mA, 1 m drift, bunch = one period at {a.frequency / 1e6:g} MHz; "
           "space-charge growth of the exit rms, engine / KV envelope")
-    last = None
+    last = {}
     for method, grid, n in runs:
         perv, nmid, o = run_case(lib, a.current, method, grid, n, a.frequency, a.negligible, a.meshrms)
         gx, gy = o["x"][3], o["y"][3]
         print(f"  {method} {grid or 'default'}, {n} particles ({nmid} in the middle half), K = {perv:.3e}: "
               f"rms x {o['x'][0] * 1e3:.4f} mm (KV {o['x'][1] * 1e3:.4f}, 0 mA {o['x'][2] * 1e3:.4f}), "
               f"rms y {o['y'][0] * 1e3:.4f} mm (KV {o['y'][1] * 1e3:.4f}); growth ratio x {gx:.4f}, y {gy:.4f}")
-        last = (gx, gy)
+        last[method] = (gx, gy)
     if a.check:
-        ok = all(abs(g - 1) <= 0.02 for g in last)
-        print(f"  threshold: growth ratio within 2 % of KV at the finest setting: {'ok' if ok else 'FAIL'}")
+        ok = all(abs(g - 1) <= 0.02 for v in last.values() for g in v)
+        print(f"  threshold: growth ratio within 2 % of KV at the finest setting of each solver: {'ok' if ok else 'FAIL'}")
         print("DC KV CHECK OK" if ok else "DC KV CHECK FAILED")
         sys.exit(0 if ok else 1)
 

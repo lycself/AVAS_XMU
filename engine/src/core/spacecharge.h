@@ -1,5 +1,5 @@
-// Space charge (spec 60): mesh in the beam rest frame, CIC deposit, FFT (pocketfft) or SPICNIC
-// solver, interpolation back to the particles (scE = (Ex/gamma, Ey/gamma, Ez), B = 0).
+// Space charge (spec 60, PICNIC spec 65): mesh in the beam rest frame, CIC deposit, FFT (pocketfft),
+// SPICNIC or PICNIC solver, interpolation back to the particles (scE = (Ex/gamma, Ey/gamma, Ez), B = 0).
 #pragma once
 #include <array>
 #include <vector>
@@ -40,6 +40,9 @@ public:
     int method() const { return method_; }
     // SPICNIC: Green table, threshold and the asymmetric correction list (host part of spicnic()).
     void spicnic_prepare(std::vector<int>& corr, std::vector<double>& dval, double& thr);
+    // SPICNIC threshold negligibleratio * rho(centre) and the cell volume of this solve (device solve).
+    double spicnic_threshold() const { return negligible_ * rho_[at(nx_ / 2, ny_ / 2, nz_ / 2)]; }
+    double cell_volume() const { return vol_; }
     // FFT: eigenvalue tables lx, ly, lz and the normalisation (host part of fft()).
     void fft_tables(std::vector<double>& lx, std::vector<double>& ly, std::vector<double>& lz, double& scale,
                     double& norm) const;
@@ -62,7 +65,7 @@ public:
 
 private:
     bool compat_;
-    int method_;  // 0 FFT, 1 SPICNIC
+    int method_;  // 0 FFT, 1 SPICNIC, 2 PICNIC (libPIC.so)
     int nx_, ny_, nz_;
     double mr_[3];
     double negligible_;
@@ -95,6 +98,7 @@ private:
     void init_fix(const Beam& b);
     void fft();
     void spicnic();
+    void picnic();
     void tabulate();
     void allocate(Beam& b);
     void record(const Beam& b, double Q);

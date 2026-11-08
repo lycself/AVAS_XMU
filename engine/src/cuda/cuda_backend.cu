@@ -6,6 +6,8 @@
 // of particles (4096); their partial sums are combined on the host in group order, so the result
 // does not depend on the number of GPUs.
 #include <cuda_runtime.h>
+#include <cub/device/device_select.cuh>
+#include <cub/iterator/counting_input_iterator.cuh>
 
 #include <algorithm>
 #include <chrono>
@@ -374,6 +376,55 @@ __global__ void k_corr(SpGrid g, const T* G, const int* corr, const T* dval, lon
     sck::corr_node<T>(g, G, corr, dval, nc, a, bb, c, phi);
 }
 
+// Green table (sc_kernels.h): F at the cell corners, then the cell averages into the 8 mirror entries.
+__global__ void k_green_corner(SpGrid g, double dx, double dy, double dz, double* F) {
+    const long long ay = g.my + 1, az = g.mz + 1;
+    const long long id = static_cast<long long>(blockIdx.x) * blockDim.x + threadIdx.x;
+    if (id >= (g.mx + 1) * ay * az) return;
+    F[id] = sck::green_corner(static_cast<int>(id / (ay * az)), static_cast<int>((id / az) % ay), static_cast<int>(id % az),
+                              dx, dy, dz);
+}
+
+__global__ void k_green_cell(SpGrid g, const double* F, double vol, double* G) {
+    const long long id = static_cast<long long>(blockIdx.x) * blockDim.x + threadIdx.x;
+    if (id >= static_cast<long long>(g.mx) * g.my * g.mz) return;
+    sck::green_cell(g, F, vol, static_cast<int>(id / (static_cast<long long>(g.my) * g.mz)),
+                    static_cast<int>((id / g.mz) % g.my), static_cast<int>(id % g.mz), G);
+}
+
+// SPICNIC correction candidates: q = 8 target + mirror, kept when the difference is not dropped.
+__global__ void k_corr_val(SpGrid g, const double* rho, double thr, long long nq, double* dv, int* flag) {
+    const long long q = static_cast<long long>(blockIdx.x) * blockDim.x + threadIdx.x;
+    if (q >= nq) return;
+    int I, J, K;
+    const double d = sck::corr_value(g, rho, thr, q / 8, static_cast<int>(q % 8), I, J, K);
+    dv[q] = d;
+    flag[q] = d != 0.0 ? 1 : 0;
+}
+
+__global__ void k_corr_expand(SpGrid g, const double* rho, double thr, const int* idx, const double* dv, long long nc,
+                              int* corr, double* dval) {
+    const long long e = static_cast<long long>(blockIdx.x) * blockDim.x + threadIdx.x;
+    if (e >= nc) return;
+    const long long q = idx[e];
+    int I, J, K;
+    sck::corr_value(g, rho, thr, q / 8, static_cast<int>(q % 8), I, J, K);
+    corr[3 * e] = I;
+    corr[3 * e + 1] = J;
+    corr[3 * e + 2] = K;
+    dval[e] = dv[q];
+}
+
+// PICNIC: nodes [lo, hi) of the mesh, one per thread.
+template <class T>
+__global__ void k_picnic(SpGrid g, const T* rho, const T* G, long long lo, long long hi, double* phi) {
+    const long long id = lo + static_cast<long long>(blockIdx.x) * blockDim.x + threadIdx.x;
+    if (id >= hi) return;
+    int i, j, k;
+    g.ijk(id, i, j, k);
+    phi[id] = sck::picnic_node<T>(g, rho, G, i, j, k);
+}
+
 __global__ void k_grad_spicnic(SpGrid g, const double* phi, double hx, double hy, double hz, double* ex, double* ey,
                                double* ez) {
     const long long id = static_cast<long long>(blockIdx.x) * blockDim.x + threadIdx.x;
@@ -496,8 +547,9 @@ struct Shard {
     DBuf<unsigned long long> grid;
     DBuf<double> gridD;  // measurement only (atomic)
     DBuf<double> xs, ys, zs, rho, G, phi, gex, gey, gez, work[4], tabs[6];
-    DBuf<int> corr;
-    DBuf<double> dval;
+    DBuf<int> corr, cflag, cidx, csel;
+    DBuf<double> dval, gF, cdv;
+    DBuf<unsigned char> ctmp;
     kern::PartV P{};
     // fp32 state
     DBuf<float> fd[3], fdu[3], fE[3], fB[3], fsc[3], frel[6], fhq, ftq, off, rhoF, GF, dvalF;
@@ -937,48 +989,115 @@ public:
         mpi_allreduce_sum(acc.data(), n3);
     }
 
+    // Green table of SPICNIC / PICNIC on the device of shard s.
+    void green_table(Shard& s, const SpGrid& g, const ScSolveIn& in) {
+        const long long nF = static_cast<long long>(g.mx + 1) * (g.my + 1) * (g.mz + 1);
+        const long long nC = static_cast<long long>(g.mx) * g.my * g.mz;
+        const size_t nG = static_cast<size_t>(2 * in.nx + 1) * (2 * in.ny + 1) * (2 * in.nz + 1);
+        s.gF.alloc(static_cast<size_t>(nF));
+        s.G.alloc(nG);
+        k_green_corner<<<blocks(nF), 256>>>(g, in.dx, in.dy, in.dz, s.gF.p);
+        k_green_cell<<<blocks(nC), 256>>>(g, s.gF.p, in.vol, s.G.p);
+    }
+
+    // SPICNIC correction list on the device (stable compaction keeps the order of the CPU engine).
+    long long corr_list(Shard& s, const SpGrid& g, const ScSolveIn& in) {
+        const long long nq = 8 * g.n_targets();
+        s.cdv.alloc(static_cast<size_t>(nq));
+        s.cflag.alloc(static_cast<size_t>(nq));
+        s.cidx.alloc(static_cast<size_t>(nq));
+        s.csel.alloc(1);
+        k_corr_val<<<blocks(nq), 256>>>(g, s.rho.p, in.thr, nq, s.cdv.p, s.cflag.p);
+        cub::CountingInputIterator<int> it(0);
+        size_t bytes = 0;
+        CK(cub::DeviceSelect::Flagged(nullptr, bytes, it, s.cflag.p, s.cidx.p, s.csel.p, static_cast<int>(nq)));
+        s.ctmp.alloc(std::max<size_t>(bytes, 1));
+        CK(cub::DeviceSelect::Flagged(s.ctmp.p, bytes, it, s.cflag.p, s.cidx.p, s.csel.p, static_cast<int>(nq)));
+        int nc = 0;
+        s.csel.down(&nc, 1);
+        s.corr.alloc(static_cast<size_t>(std::max(3 * nc, 1)));
+        s.dval.alloc(static_cast<size_t>(std::max(nc, 1)));
+        if (nc > 0) k_corr_expand<<<blocks(nc), 256>>>(g, s.rho.p, in.thr, s.cidx.p, s.cdv.p, nc, s.corr.p, s.dval.p);
+        return nc;
+    }
+
     void sc_solve(const ScSolveIn& in) override {
         const long long n3 = static_cast<long long>(in.nx) * in.ny * in.nz;
         n3_ = n3;
-        for (auto& sp : sh_) {
+        const SpGrid g{in.nx, in.ny, in.nz, in.mx, in.my, in.mz};
+        const double hx = 1.0 / (in.dx + in.dx), hy = 1.0 / (in.dy + in.dy), hz = 1.0 / (in.dz + in.dz);
+        const size_t nG = static_cast<size_t>(2 * in.nx + 1) * (2 * in.ny + 1) * (2 * in.nz + 1);
+        std::vector<Shard*> act;
+        for (auto& sp : sh_)
+            if (sp->n() > 0) act.push_back(sp.get());
+        for (Shard* sp : act) {
             Shard& s = *sp;
-            if (s.n() == 0) continue;
             CK(cudaSetDevice(s.dev));
-            SpGrid g{in.nx, in.ny, in.nz, in.mx, in.my, in.mz};
             s.rho.up_alloc(in.rho, n3);
             s.phi.alloc(static_cast<size_t>(n3));
             s.gex.alloc(static_cast<size_t>(n3));
             s.gey.alloc(static_cast<size_t>(n3));
             s.gez.alloc(static_cast<size_t>(n3));
-            const double hx = 1.0 / (in.dx + in.dx), hy = 1.0 / (in.dy + in.dy), hz = 1.0 / (in.dz + in.dz);
-            if (in.method == 1) {
-                const size_t nG = static_cast<size_t>(2 * in.nx + 1) * (2 * in.ny + 1) * (2 * in.nz + 1);
-                s.G.up_alloc(in.G, static_cast<long long>(nG));
-                s.corr.alloc(static_cast<size_t>(std::max<long long>(3 * in.ncorr, 1)));
-                s.dval.alloc(static_cast<size_t>(std::max<long long>(in.ncorr, 1)));
-                s.corr.up(in.corr, static_cast<size_t>(3 * in.ncorr));
-                s.dval.up(in.dval, static_cast<size_t>(in.ncorr));
-                const long long nt = static_cast<long long>(in.nx - in.nx / 2) * (in.ny - in.ny / 2) * (in.nz - in.nz / 2);
+            if (in.method == 1 || in.method == 2) {
+                green_table(s, g, in);
                 if (fp32_) {
                     s.rhoF.alloc(static_cast<size_t>(n3));
                     s.GF.alloc(nG);
-                    s.dvalF.alloc(static_cast<size_t>(std::max<long long>(in.ncorr, 1)));
                     k_to_float<<<blocks(n3), 256>>>(s.rho.p, s.rhoF.p, n3);
                     k_to_float<<<blocks(static_cast<long long>(nG)), 256>>>(s.G.p, s.GF.p, static_cast<long long>(nG));
-                    if (in.ncorr > 0) k_to_float<<<blocks(in.ncorr), 256>>>(s.dval.p, s.dvalF.p, in.ncorr);
+                }
+            }
+            if (in.method == 1) {
+                const long long nc = corr_list(s, g, in);
+                const long long nt = g.n_targets();
+                if (fp32_) {
+                    s.dvalF.alloc(static_cast<size_t>(std::max<long long>(nc, 1)));
+                    if (nc > 0) k_to_float<<<blocks(nc), 256>>>(s.dval.p, s.dvalF.p, nc);
                     k_sym<float><<<blocks(nt, 128), 128>>>(g, s.rhoF.p, s.GF.p, static_cast<float>(in.thr), s.phi.p);
-                    if (in.ncorr > 0)
-                        k_corr<float><<<blocks(n3, 128), 128>>>(g, s.GF.p, s.corr.p, s.dvalF.p, in.ncorr, s.phi.p);
+                    if (nc > 0) k_corr<float><<<blocks(n3, 128), 128>>>(g, s.GF.p, s.corr.p, s.dvalF.p, nc, s.phi.p);
                 } else {
                     k_sym<double><<<blocks(nt, 128), 128>>>(g, s.rho.p, s.G.p, in.thr, s.phi.p);
-                    if (in.ncorr > 0)
-                        k_corr<double><<<blocks(n3, 128), 128>>>(g, s.G.p, s.corr.p, s.dval.p, in.ncorr, s.phi.p);
+                    if (nc > 0) k_corr<double><<<blocks(n3, 128), 128>>>(g, s.G.p, s.corr.p, s.dval.p, nc, s.phi.p);
                 }
-                k_grad_spicnic<<<blocks(n3), 256>>>(g, s.phi.p, hx, hy, hz, s.gex.p, s.gey.p, s.gez.p);
-            } else {
+            } else if (in.method == 0) {
                 fft_solve(s, g, in, n3);
-                k_grad_fft<<<blocks(n3), 256>>>(g, s.phi.p, hx, hy, hz, s.gex.p, s.gey.p, s.gez.p);
             }
+            CK(cudaGetLastError());
+        }
+        if (in.method == 2 && !act.empty()) {
+            // PICNIC: the nodes are split between the GPUs of this process, then the potential is
+            // gathered on the host and sent to every GPU (each node is computed the same way anywhere)
+            const long long na = static_cast<long long>(act.size());
+            auto lo_of = [&](long long a) { return n3 * a / na; };
+            for (long long a = 0; a < na; ++a) {
+                Shard& s = *act[static_cast<size_t>(a)];
+                CK(cudaSetDevice(s.dev));
+                const long long lo = lo_of(a), hi = lo_of(a + 1);
+                if (hi <= lo) continue;
+                if (fp32_) k_picnic<float><<<blocks(hi - lo, 128), 128>>>(g, s.rhoF.p, s.GF.p, lo, hi, s.phi.p);
+                else k_picnic<double><<<blocks(hi - lo, 128), 128>>>(g, s.rho.p, s.G.p, lo, hi, s.phi.p);
+                CK(cudaGetLastError());
+            }
+            if (na > 1) {
+                std::vector<double> phi(static_cast<size_t>(n3));
+                for (long long a = 0; a < na; ++a) {
+                    Shard& s = *act[static_cast<size_t>(a)];
+                    CK(cudaSetDevice(s.dev));
+                    const long long lo = lo_of(a), hi = lo_of(a + 1);
+                    if (hi > lo)
+                        CK(cudaMemcpy(phi.data() + lo, s.phi.p + lo, static_cast<size_t>(hi - lo) * 8, cudaMemcpyDeviceToHost));
+                }
+                for (Shard* sp : act) {
+                    CK(cudaSetDevice(sp->dev));
+                    sp->phi.up(phi.data(), static_cast<size_t>(n3));
+                }
+            }
+        }
+        for (Shard* sp : act) {
+            Shard& s = *sp;
+            CK(cudaSetDevice(s.dev));
+            if (in.method == 0) k_grad_fft<<<blocks(n3), 256>>>(g, s.phi.p, hx, hy, hz, s.gex.p, s.gey.p, s.gez.p);
+            else k_grad_spicnic<<<blocks(n3), 256>>>(g, s.phi.p, hx, hy, hz, s.gex.p, s.gey.p, s.gez.p);
             CK(cudaGetLastError());
         }
     }

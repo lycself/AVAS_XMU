@@ -493,14 +493,10 @@ private:
         in.dx = M.dx;
         in.dy = M.dy;
         in.dz = M.dz;
-        std::vector<int> corr;
-        std::vector<double> dval, lx, ly, lz;
-        if (in.method == 1) {
-            sc.spicnic_prepare(corr, dval, in.thr);
-            in.G = sc.green().data();
-            in.corr = corr.data();
-            in.dval = dval.data();
-            in.ncorr = static_cast<long long>(dval.size());
+        std::vector<double> lx, ly, lz;
+        if (in.method == 1 || in.method == 2) {
+            in.vol = sc.cell_volume();
+            in.thr = in.method == 1 ? sc.spicnic_threshold() : 0.0;
         } else {
             sc.fft_tables(lx, ly, lz, in.scale, in.norm);
             in.lx = lx.data();

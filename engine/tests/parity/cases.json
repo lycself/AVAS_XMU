@@ -1680,6 +1680,79 @@
    "compat_tolerance": 1e-10
   },
   {
+   "name": "PN1_picnic_S1",
+   "new_engine_only": true,
+   "comment": "scmethod PICNIC (libPIC.so, spec 65), default mesh",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "PICNIC"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "space_charge": true,
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   }
+  },
+  {
+   "name": "PN2_picnic_Z1",
+   "new_engine_only": true,
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "picnic",
+    "numofgrid": "16 16 16",
+    "meshrms": "4 4 4"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 10",
+    "drift 0.1 0.02 0",
+    "quad 0.1 0.02 0 -10",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "space_charge": true,
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   }
+  },
+  {
+   "name": "PN3_picnic_odd_mesh",
+   "new_engine_only": true,
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "PICNIC",
+    "numofgrid": "15 17 21",
+    "meshrms": "3.5 3.5 4"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "space_charge": true,
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   }
+  },
+  {
    "beam": {
     "readparticledistribution": "hwr010_seed12345.dst"
    },

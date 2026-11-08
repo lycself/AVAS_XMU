@@ -239,16 +239,50 @@ public:
         ez_.assign(static_cast<size_t>(n3), 0.0);
         const double hx = 1.0 / (in.dx + in.dx), hy = 1.0 / (in.dy + in.dy), hz = 1.0 / (in.dz + in.dz);
         int i, j, k;
-        if (in.method == 1) {
-            for (long long id = g.n_targets() - 1; id >= 0; --id) {  // any order: independent targets
-                g.target(id, i, j, k);
-                sck::sym_target<double>(g, in.rho, in.G, in.thr, i, j, k, phi_.data());
+        if (in.method == 1 || in.method == 2) {
+            // Green table and correction list as on the GPU (in reverse order: independent entries)
+            const int ax = g.mx + 1, ay = g.my + 1, az = g.mz + 1;
+            std::vector<double> F(static_cast<size_t>(ax) * ay * az);
+            for (long long e = static_cast<long long>(F.size()) - 1; e >= 0; --e)
+                F[static_cast<size_t>(e)] = sck::green_corner(static_cast<int>(e / (ay * az)), static_cast<int>((e / az) % ay),
+                                                              static_cast<int>(e % az), in.dx, in.dy, in.dz);
+            G_.assign(static_cast<size_t>(2 * g.nx + 1) * (2 * g.ny + 1) * (2 * g.nz + 1), 0.0);
+            for (long long e = static_cast<long long>(g.mx) * g.my * g.mz - 1; e >= 0; --e)
+                sck::green_cell(g, F.data(), in.vol, static_cast<int>(e / (g.my * g.mz)), static_cast<int>((e / g.mz) % g.my),
+                                static_cast<int>(e % g.mz), G_.data());
+        }
+        if (in.method == 2) {
+            for (long long id = n3 - 1; id >= 0; --id) {
+                g.ijk(id, i, j, k);
+                phi_[static_cast<size_t>(id)] = sck::picnic_node<double>(g, in.rho, G_.data(), i, j, k);
             }
-            if (in.ncorr > 0)
+        }
+        if (in.method == 1) {
+            std::vector<int> corr;
+            std::vector<double> dval;
+            const long long nt = g.n_targets();
+            for (long long q = 0; q < 8 * nt; ++q) {
+                int I, J, K;
+                const double d = sck::corr_value(g, in.rho, in.thr, q / 8, static_cast<int>(q % 8), I, J, K);
+                if (d != 0.0) {
+                    corr.push_back(I);
+                    corr.push_back(J);
+                    corr.push_back(K);
+                    dval.push_back(d);
+                }
+            }
+            const long long nc = static_cast<long long>(dval.size());
+            for (long long id = nt - 1; id >= 0; --id) {  // any order: independent targets
+                g.target(id, i, j, k);
+                sck::sym_target<double>(g, in.rho, G_.data(), in.thr, i, j, k, phi_.data());
+            }
+            if (nc > 0)
                 for (long long id = 0; id < n3; ++id) {
                     g.ijk(id, i, j, k);
-                    sck::corr_node<double>(g, in.G, in.corr, in.dval, in.ncorr, i, j, k, phi_.data());
+                    sck::corr_node<double>(g, G_.data(), corr.data(), dval.data(), nc, i, j, k, phi_.data());
                 }
+        }
+        if (in.method == 1 || in.method == 2) {
             for (long long id = 0; id < n3; ++id) {
                 g.ijk(id, i, j, k);
                 sck::grad_spicnic_node(g, phi_.data(), hx, hy, hz, i, j, k, ex_.data(), ey_.data(), ez_.data());
@@ -369,7 +403,7 @@ private:
     kern::LatV lat_{};
     LatScalars sc_{};
     std::vector<EmuShard> sh_;
-    std::vector<double> phi_, ex_, ey_, ez_;
+    std::vector<double> G_, phi_, ex_, ey_, ez_;
 
     void set_scalars(const LatScalars& ls) {
         lat_ = L_->view(Lattice());

@@ -486,7 +486,7 @@ def main():
     bad += error_study_check(doc, os.path.join(work, "none"))
     bad += loop_feature_check(doc, os.path.join(work, "none"))
     bad += secondary_steerer_check(work)
-    bad += thread_check(lib, work, ["SC1_spicnic_S1", "SC2_fft_S1", "SC5_spicnic_Z1", "D_GS_GS",
+    bad += thread_check(lib, work, ["SC1_spicnic_S1", "SC2_fft_S1", "SC5_spicnic_Z1", "PN1_picnic_S1", "PN2_picnic_Z1", "D_GS_GS",
                                     "ER3_quad_dyn_r2_step31_dst", "ER16_quad_dyn_spicnic_dst",
                                     "LP2_lpboundary_fft_dst", "LB2_boundary_mixed_dst"])
     if bad:
