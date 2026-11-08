@@ -1,7 +1,8 @@
-// fp32 tier of the t-code step shared by the Metal back end (src/metal/kernels.metal, compiled as MSL)
-// and the fp32 tier of the CPU device back end (core/f32_cpu.cpp, compiled as C++ with the same
-// "double = float" world): the same source gives the same float operations on both, so a Metal
-// run and an emu fp32 run can agree bit for bit (M6c phase 3).  Only compiled where AVAS_FLOAT_ONLY.
+// fp32 tier of the t-code step shared by the Metal back end (src/metal/kernels.metal, compiled as MSL),
+// the CUDA fp32 tier (src/cuda/cuda_f32_device.cu) and the fp32 tier of the CPU device back end
+// (core/f32_cpu.cpp, compiled as C++), all in the same "double = float" world: the same source gives
+// the same float operations, so Metal, CUDA fp32 and emu fp32 runs agree bit for bit (M6c phases 3
+// and 4).  Only compiled where AVAS_FLOAT_ONLY.
 #pragma once
 #include "core/hd.h"
 #include "core/kernels.h"
@@ -22,6 +23,25 @@ inline float avas_maxf(float a, float b) { return metal::max(a, b); }
 inline float avas_rint(float x) { return metal::rint(x); }
 inline float avas_ldexp(float x, int e) { return metal::ldexp(x, e); }
 inline float avas_inf() { return INFINITY; }
+#elif defined(__CUDACC__)
+typedef unsigned avas_atomic_u32;
+AVAS_HD inline unsigned avas_fetch_add(avas_atomic_u32* c, unsigned v) {
+#if defined(__CUDA_ARCH__)
+    return atomicAdd(c, v);
+#else
+    const unsigned o = *c;
+    *c = o + v;
+    return o;
+#endif
+}
+// atan / cos / sin only in the boundary.txt pre-selection (margins; the decisions are made in double)
+AVAS_HD inline float avas_atanf(float x) { return ::atanf(x); }
+AVAS_HD inline float avas_cosf(float x) { return ::cosf(x); }
+AVAS_HD inline float avas_sinf(float x) { return ::sinf(x); }
+AVAS_HD inline float avas_maxf(float a, float b) { return a < b ? b : a; }
+AVAS_HD inline float avas_rint(float x) { return ::rintf(x); }
+AVAS_HD inline float avas_ldexp(float x, int e) { return ::ldexpf(x, e); }
+AVAS_HD inline float avas_inf() { return INFINITY; }
 #else
 typedef unsigned avas_atomic_u32;  // the CPU fp32 tier runs one particle after the other
 inline unsigned avas_fetch_add(avas_atomic_u32* c, unsigned v) { const unsigned o = *c; *c = o + v; return o; }
@@ -51,13 +71,13 @@ struct RelZM {  // lattice positions relative to the synchronous particle after 
     const AVAS_G float* e0;
     const AVAS_G float* s0;
     float z0, spx, tot;
-    float elem_start(int k) const { return es[k]; }
-    float elem_end(int k) const { return ee[k]; }
-    float estart(int k, const AVAS_G kern::ElemV&) const { return e0[k]; }
-    float sstart(int q, const AVAS_G kern::SubV&) const { return s0[q]; }
-    float zero() const { return z0; }
-    float sp_exit() const { return spx; }
-    float total() const { return tot; }
+    AVAS_HD float elem_start(int k) const { return es[k]; }
+    AVAS_HD float elem_end(int k) const { return ee[k]; }
+    AVAS_HD float estart(int k, const AVAS_G kern::ElemV&) const { return e0[k]; }
+    AVAS_HD float sstart(int q, const AVAS_G kern::SubV&) const { return s0[q]; }
+    AVAS_HD float zero() const { return z0; }
+    AVAS_HD float sp_exit() const { return spx; }
+    AVAS_HD float total() const { return tot; }
 };
 
 struct PartF {
@@ -82,12 +102,22 @@ struct PartF {
     AVAS_G int* spOutCount;
     AVAS_G float* C;      // 21 per particle
     AVAS_G float* Mx;     // 8 per particle
-    AVAS_G float* snap;   // 12 per particle: d0, u0, dn, up of a plane crossing
     AVAS_G float* oldS;   // 6 per particle: d0, u0 (writeOld)
     AVAS_G avas_atomic_u32* crossCount;  // [0] plane crossings, [1] superposeout candidates
     AVAS_G unsigned* crossIdx;            // plane crossings
     AVAS_G unsigned* spIdx;               // superposeout candidates
     AVAS_G unsigned* bdIdx;               // boundary.txt candidates (count in crossCount[2])
+    AVAS_G float* row[8];  // z-code rows {x, ux, y, uy, dt, uz, t - T0, flag} (phase 4)
+    AVAS_G float* qm;      // q/m
+    // compact candidate entries (slot = position in crossIdx / spIdx): the host reads only these, so a
+    // GPU with its own memory (CUDA) moves no particle pages to the host
+    AVAS_G float* cSnap;  // 12 per plane crossing: d0, u0, dn, up
+    AVAS_G int* cNp;      // next plane of the crossing
+    AVAS_G float* sSnap;  // 12 per superposeout candidate
+    AVAS_G int* sElem;    // element index of the candidate
+    AVAS_G int* aIdx;     // host results applied by kZApply: 2 i + kind (0 plane record, 1 superposeout record)
+    AVAS_G float* aRow;   // 8 per entry: the float row of a plane record
+    AVAS_G float* scTmp;  // 3 per particle: the interpolated space-charge field (kZSc copies it into sc)
 };
 
 struct StepU {
@@ -98,9 +128,10 @@ struct StepU {
     float z0, spx, tot;
     int zeroField;  // a.zMinPrev <= a.zField (evaluated on the host in double)
     int rotMode, nEvents, writeOld, n;
+    int stride;  // of the C and Mx columns (n rounded up to whole reduction groups)
 };
 
-inline void K_of(float tx, float ty, float tz, AVAS_T float* K) {
+AVAS_HD inline void K_of(float tx, float ty, float tz, AVAS_T float* K) {
     const float tx2 = tx * tx, ty2 = ty * ty, tz2 = tz * tz;
     const float d = 1.0f / ((tx2 + ty2 + tz2) * 0.25f + 1.0f);
     const float txy = ty * tx * 0.5f, txz = tz * tx * 0.5f, tyz = tz * ty * 0.5f;
@@ -135,7 +166,7 @@ AVAS_HD inline void step_particle(AVAS_T const kern::LatV& L, AVAS_T const StepU
     rf.table = rft;
     rf.t = 0.0f;
     // column-major (coalesced): C[j n + i], Mx[j n + i]
-    const unsigned nn = unsigned(U.n);
+    const unsigned nn = unsigned(U.stride);
     float C[21], Mx[8];
     for (int j = 0; j < 21; ++j) C[j] = 0.0f;
     for (int j = 0; j < 6; ++j) Mx[j] = 0.0f;
@@ -266,16 +297,29 @@ AVAS_HD inline void step_particle(AVAS_T const kern::LatV& L, AVAS_T const StepU
     // superposeout exit: candidates (the host decides in double, as the CUDA fp32 tier does)
     const bool spCand = L.spOutCur < L.spOutCount && L.elems[F.elemIndex[i]].inSuperposeOut != 0 && F.spFlag[i] == 0 &&
                         dn[2] + 1e-4f * hm::fabs(dn[2]) + 1e-9f > F.spz0[i] - U.zsPost;
-    if (cross || spCand) {
-        AVAS_G float* sn = F.snap + 12 * i;
+    if (cross) {
+        const unsigned c = avas_fetch_add(F.crossCount, 1u);
+        F.crossIdx[c] = i;
+        F.cNp[c] = mp;
+        AVAS_G float* sn = F.cSnap + 12 * c;
         for (int j = 0; j < 3; ++j) {
             sn[j] = d0[j];
             sn[3 + j] = u0[j];
             sn[6 + j] = dn[j];
             sn[9 + j] = up[j];
         }
-        if (cross) F.crossIdx[avas_fetch_add(F.crossCount, 1u)] = i;
-        if (spCand) F.spIdx[avas_fetch_add(F.crossCount + 1, 1u)] = i;
+    }
+    if (spCand) {
+        const unsigned c = avas_fetch_add(F.crossCount + 1, 1u);
+        F.spIdx[c] = i;
+        F.sElem[c] = F.elemIndex[i];
+        AVAS_G float* sn = F.sSnap + 12 * c;
+        for (int j = 0; j < 3; ++j) {
+            sn[j] = d0[j];
+            sn[3 + j] = u0[j];
+            sn[6 + j] = dn[j];
+            sn[9 + j] = up[j];
+        }
     }
     if (F.lost[i] != 1) {
         const float w = F.w[i];
@@ -404,6 +448,161 @@ AVAS_HD inline void interp_particle(AVAS_T const kern::MeshV& M, const AVAS_G fl
     sc[3 * p] = s[0];
     sc[3 * p + 1] = s[1];
     sc[3 * p + 2] = s[2];
+}
+
+// ---- z-code rows on the device (M6c phase 4) ----
+// The rows are kept in float with the time relative to T0 (held by the host in double and moved to the
+// reference time after every element, `shift`); the transfers are the shared kern::het_row /
+// kick_row / ztot_row in the float world.  Sums over particles go through the C / Mx columns and the
+// fixed-point group sums like the t-code statistics.
+enum : int { kZHet = 1, kZKick = 2, kZTref = 3, kZHesc1 = 4, kZHesc2 = 5, kZTot = 6, kZUbp1 = 7, kZUbp2 = 8, kZApply = 9, kZClear = 10, kZSc = 11 };
+
+struct ZArgs {
+    kern::RowOp op;
+    int code, kind, stride, n;
+    float shift, t, zpl, uzs, gc, wx, wy, len;
+    float off[6], cen[6];
+};
+
+AVAS_HD inline void zrow_particle(AVAS_T const ZArgs& A, AVAS_T const PartF& F, int i) {
+    if (i >= A.n) return;
+    if (A.code == kZApply) {  // i: entry of the host's result list (each particle at most once per kind)
+        const int e = F.aIdx[i], p = e >> 1;
+        if ((e & 1) == 0) {
+            F.recFlag[p] = 1;
+            F.nextPlane[p] = F.nextPlane[p] + 1;
+            for (int j = 0; j < 8; ++j) F.row[j][p] = F.aRow[8 * i + j];
+        } else {
+            F.spFlag[p] = 1;
+        }
+        return;
+    }
+    if (A.code == kZSc) {
+        for (int j = 0; j < 3; ++j) F.sc[j][i] = F.scTmp[3 * i + j];
+        return;
+    }
+    if (A.code == kZClear) {  // records cleared by the tracker (kind 0: plane records, 1: superposeout)
+        if (A.kind == 0) {
+            F.recFlag[i] = 0;
+            F.row[7][i] = 0.0f;
+        } else {
+            F.spFlag[i] = 0;
+        }
+        return;
+    }
+    const unsigned nn = unsigned(A.stride);
+    const bool on = F.row[7][i] == 1.0f;
+    float r[8];
+    for (int j = 0; j < 8; ++j) r[j] = F.row[j][i];
+    if (on && A.shift != 0.0f && A.code <= kZTot && A.code != kZHesc2) {
+        // the row times move to the new origin (exact: they are close to the shift)
+        r[6] = r[6] - A.shift;
+        F.row[6][i] = r[6];
+    }
+    if (A.code == kZHet) {
+        if (!on) return;
+        kern::het_row<PortableMath>(A.op, r, F.qm[i], F.sc[0][i], F.sc[1][i], F.sc[2][i]);
+        for (int j = 0; j < 7; ++j) F.row[j][i] = r[j];
+    } else if (A.code == kZKick) {
+        if (!on) return;
+        kern::kick_row(r, A.kind, A.wx, A.wy, A.len * F.qm[i], false);
+        F.row[1][i] = r[1];
+        F.row[3][i] = r[3];
+        F.row[5][i] = r[5];
+    } else if (A.code == kZTref) {
+        F.C[0 * nn + i] = on ? r[6] : 0.0f;
+        F.C[1 * nn + i] = on ? 1.0f : 0.0f;
+        F.Mx[0 * nn + i] = on ? -r[6] : -avas_inf();
+    } else if (A.code == kZHesc1) {
+        // HESCFieldPre pass 1 (kern::hesc_pass1): rel at the reference time from the row
+        if (!on) {
+            for (int k = 0; k < 7; ++k) F.C[k * nn + i] = 0.0f;
+            return;
+        }
+        const float dt = r[6] - A.t;
+        const float g = hm::sqrt(r[1] * r[1] + 1.0f + r[3] * r[3] + r[5] * r[5]);
+        const float be = hm::sqrt((r[1] * r[1] + r[3] * r[3]) + r[5] * r[5]) / g;  // without 1 - 1/g^2 (see zrow_b2)
+        const float xp = r[1] / r[5], yp = r[3] / r[5];
+        const float c = float(k::c);
+        const float vz = hm::sqrt((be * c * be * c) / (xp * xp + yp * yp + 1.0f));
+        float rel[6];
+        rel[4] = -dt * vz;
+        rel[0] = r[0] - ((r[1] * dt) / g) * c;
+        rel[2] = r[2] - ((dt * r[3]) / g) * c;
+        rel[1] = r[1];
+        rel[3] = r[3];
+        rel[5] = r[5];
+        for (int k = 0; k < 6; ++k) {
+            F.rel[k][i] = rel[k];
+            F.C[k * nn + i] = rel[k];
+        }
+        F.C[6 * nn + i] = 1.0f;
+    } else if (A.code == kZHesc2) {
+        if (!on) {
+            for (int k = 0; k < 3; ++k) F.C[k * nn + i] = 0.0f;
+            return;
+        }
+        const float ax = F.rel[0][i] - A.cen[0], ay = F.rel[2][i] - A.cen[2], az = (F.rel[4][i] - A.cen[4]) * A.gc;
+        F.C[0 * nn + i] = ax * ax;
+        F.C[1 * nn + i] = ay * ay;
+        F.C[2 * nn + i] = az * az;
+    } else if (A.code == kZTot) {
+        // zTotcode: the row back to the particle at the reference time, relative to the new synchronous
+        // particle {0, 0, 0, 0, z_s, uz_s} (zpl = zPlane - z_s); particles without a row keep their place
+        F.nextPlane[i] = 0;
+        if (on) {
+            float x, ux, y, uy, z, uz;
+            ztot_row(r, A.zpl, A.t, true, x, ux, y, uy, z, uz);
+            // zPlane - z_s and uz_s as float + remainder (cen[4], cen[5]): their rounding would be the same for
+            // every particle and move the whole bunch against the synchronous particle
+            F.d[0][i] = x;
+            F.d[1][i] = y;
+            F.d[2][i] = z + A.cen[4];
+            F.du[0][i] = ux;
+            F.du[1][i] = uy;
+            F.du[2][i] = (uz - A.uzs) - A.cen[5];
+        } else {
+            for (int j = 0; j < 3; ++j) {
+                F.d[j][i] = F.d[j][i] + A.off[2 * j];
+                F.du[j][i] = F.du[j][i] + A.off[2 * j + 1];
+            }
+        }
+        for (int j = 0; j < 8; ++j) F.row[j][i] = 0.0f;
+        F.recFlag[i] = 0;
+    } else if (A.code == kZUbp1) {
+        // UpdateBeamParameters pass 1 (kern::ubp_pass1): off = reference - s6 (positions), absolute
+        // momentum of the reference (cen 1, 3, 5)
+        if (F.lost[i] == 1) {
+            for (int k = 0; k < 9; ++k) F.C[k * nn + i] = 0.0f;
+            return;
+        }
+        float rel[6];
+        for (int j = 0; j < 3; ++j) {
+            rel[2 * j] = F.d[j][i] + A.off[2 * j];
+            rel[2 * j + 1] = A.cen[2 * j + 1] + F.du[j][i];
+        }
+        const float w = F.w[i];
+        F.C[0 * nn + i] = w;
+        for (int j = 0; j < 6; ++j) {
+            F.rel[j][i] = rel[j];
+            F.C[(1 + j) * nn + i] = w * rel[j];
+        }
+        F.C[7 * nn + i] = hm::sqrt(rel[1] * rel[1] + rel[3] * rel[3] + rel[5] * rel[5] + 1.0f) * w;
+        F.C[8 * nn + i] = 1.0f;
+    } else if (A.code == kZUbp2) {
+        // pass 2 (kern::ubp_pass2) and the extent in z of every particle (relative to the reference)
+        F.Mx[0 * nn + i] = F.d[2][i];
+        F.Mx[1 * nn + i] = -F.d[2][i];
+        if (F.lost[i] == 1) {
+            for (int k = 0; k < 3; ++k) F.C[k * nn + i] = 0.0f;
+            return;
+        }
+        const float w = F.w[i];
+        const float ax = F.rel[0][i] - A.cen[0], ay = F.rel[2][i] - A.cen[2], az = (F.rel[4][i] - A.cen[4]) * A.gc;
+        F.C[0 * nn + i] = w * ax * ax;
+        F.C[1 * nn + i] = w * ay * ay;
+        F.C[2 * nn + i] = w * az * az;
+    }
 }
 
 }  // namespace f32

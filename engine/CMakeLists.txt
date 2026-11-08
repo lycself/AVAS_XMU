@@ -48,6 +48,8 @@ set(AVAS_CORE_SOURCES
   src/core/device.cpp
   src/core/device_emu.cpp
   src/core/f32_cpu.cpp
+  src/core/f32_host.cpp
+  src/core/f32_cpu_device.cpp
   src/core/errorset.cpp
   src/core/tools.cpp
   src/core/synchronous.cpp
@@ -71,7 +73,7 @@ if(AVAS_WITH_CUDA)
   set(CMAKE_CUDA_STANDARD 17)
   set(CMAKE_CUDA_STANDARD_REQUIRED ON)
   find_package(CUDAToolkit REQUIRED)
-  list(APPEND AVAS_CORE_SOURCES src/cuda/cuda_backend.cu)
+  list(APPEND AVAS_CORE_SOURCES src/cuda/cuda_backend.cu src/cuda/cuda_f32_kernels.cu src/cuda/cuda_f32_device.cu)
   # AVAS_CUDA_FMAD=ON only to measure what the bit-for-bit agreement costs (not for releases)
   option(AVAS_CUDA_FMAD "Measurement only: let nvcc contract to FMA (GPU fp64 no longer equals the CPU)" OFF)
   if(AVAS_CUDA_FMAD)

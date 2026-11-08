@@ -107,14 +107,16 @@ kernel void k_bound(constant f32::BoundU& Uc [[buffer(0)]], constant f32::PartF&
 // independent of the order) and the host gets sum and e; maxima are exact in float.
 kernel void k_group(device const float* C [[buffer(0)]], device const float* Mx [[buffer(1)]],
                     device long* sums [[buffer(2)]], device int* exps [[buffer(3)]], device float* mxo [[buffer(4)]],
-                    constant int& n [[buffer(5)]], uint g [[threadgroup_position_in_grid]],
+                    constant int& n [[buffer(5)]], constant int& stride [[buffer(6)]], constant int* cols [[buffer(7)]],
+                    uint g [[threadgroup_position_in_grid]],
                     uint t [[thread_position_in_threadgroup]]) {
     threadgroup float tf[256];
     threadgroup long tl[256];
     const int lo = int(g) * 4096, hi = min(n, lo + 4096);
-    for (int col = 0; col < 21; ++col) {
+    const int ncol = cols[0], nmx = cols[1], nmx0 = cols[2];
+    for (int col = 0; col < ncol; ++col) {
         float m = 0.0f;
-        for (int p = lo + int(t); p < hi; p += 256) m = max(m, fabs(C[col * n + p]));
+        for (int p = lo + int(t); p < hi; p += 256) m = max(m, fabs(C[col * stride + p]));
         tf[t] = m;
         threadgroup_barrier(mem_flags::mem_threadgroup);
         for (uint s2 = 128; s2 > 0; s2 >>= 1) {
@@ -129,7 +131,7 @@ kernel void k_group(device const float* C [[buffer(0)]], device const float* Mx 
         }
         const int e = gm > 0.0f ? 50 - ex : 0;
         long acc = 0;
-        for (int p = lo + int(t); p < hi; p += 256) acc += long(rint(ldexp(C[col * n + p], e)));
+        for (int p = lo + int(t); p < hi; p += 256) acc += long(rint(ldexp(C[col * stride + p], e)));
         tl[t] = acc;
         threadgroup_barrier(mem_flags::mem_threadgroup);
         for (uint s2 = 128; s2 > 0; s2 >>= 1) {
@@ -137,23 +139,31 @@ kernel void k_group(device const float* C [[buffer(0)]], device const float* Mx 
             threadgroup_barrier(mem_flags::mem_threadgroup);
         }
         if (t == 0) {
-            sums[21 * g + col] = tl[0];
-            exps[21 * g + col] = e;
+            sums[ncol * int(g) + col] = tl[0];
+            exps[ncol * int(g) + col] = e;
         }
         threadgroup_barrier(mem_flags::mem_threadgroup);
     }
-    for (int col = 0; col < 8; ++col) {
-        float m = col < 6 ? 0.0f : -INFINITY;
-        for (int p = lo + int(t); p < hi; p += 256) m = max(m, Mx[col * n + p]);
+    for (int col = 0; col < nmx; ++col) {
+        float m = col < nmx0 ? 0.0f : -INFINITY;
+        for (int p = lo + int(t); p < hi; p += 256) m = max(m, Mx[col * stride + p]);
         tf[t] = m;
         threadgroup_barrier(mem_flags::mem_threadgroup);
         for (uint s2 = 128; s2 > 0; s2 >>= 1) {
             if (t < s2) tf[t] = max(tf[t], tf[t + s2]);
             threadgroup_barrier(mem_flags::mem_threadgroup);
         }
-        if (t == 0) mxo[8 * g + col] = tf[0];
+        if (t == 0) mxo[nmx * int(g) + col] = tf[0];
         threadgroup_barrier(mem_flags::mem_threadgroup);
     }
+}
+
+// z-code rows, beam parameters and HESC sums (f32::zrow_particle)
+kernel void k_zrow(constant f32::ZArgs& Ac [[buffer(0)]], constant f32::PartF& Fc [[buffer(1)]], uint i [[thread_position_in_grid]]) {
+    const f32::ZArgs A = Ac;
+    if (int(i) >= A.n) return;
+    const f32::PartF F = Fc;
+    f32::zrow_particle(A, F, int(i));
 }
 
 kernel void k_sizes(device uint* o [[buffer(0)]]) {
@@ -162,6 +172,7 @@ kernel void k_sizes(device uint* o [[buffer(0)]]) {
     o[2] = sizeof(kern::LatV);
     o[3] = sizeof(kern::ElemV);
     o[7] = sizeof(kern::SubV);
+    o[10] = sizeof(f32::ZArgs);
     o[8] = sizeof(f32::GeomF);
     o[9] = sizeof(f32::BoundU);
     o[4] = sizeof(MapView<float, float>);

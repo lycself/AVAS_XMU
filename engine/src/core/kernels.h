@@ -27,13 +27,58 @@
 namespace avas {
 
 #if defined(AVAS_FLOAT_ONLY)
-struct PortableMath {  // Metal / CPU fp32: only for code that the t-code step does not reach (RF from own time)
+// sin, cos, sinh, cosh of the fp32 z-code rows (M6c phase 4) from + - * / floor and ldexp only, so
+// that Metal, CUDA and the CPU compute the same floats (Cody-Waite reduction and the minimax
+// polynomials of the Cephes single-precision library; about 1 ulp for |a| < 1e4).
+namespace fm {
+AVAS_HD inline void sincos(float a, AVAS_T float& s, AVAS_T float& c) {
+    const float j = hm::floor(a * 0.636619772f + 0.5f);
+    const float r = ((a - j * 1.5703125f) - j * 4.837512969970703125e-4f) - j * 7.54978995489188216e-8f;
+    const float z = r * r;
+    const float sn = ((-1.9515295891e-4f * z + 8.3321608736e-3f) * z - 1.6666654611e-1f) * z * r + r;
+    const float cs = ((2.443315711809948e-5f * z - 1.388731625493765e-3f) * z + 4.166664568298827e-2f) * z * z - 0.5f * z + 1.0f;
+    const float q = j - 4.0f * hm::floor(j * 0.25f);  // quadrant 0..3
+    if (q == 0.0f) { s = sn; c = cs; }
+    else if (q == 1.0f) { s = cs; c = -sn; }
+    else if (q == 2.0f) { s = -sn; c = -cs; }
+    else { s = -cs; c = sn; }
+}
+AVAS_HD inline float exp(float x) {
+    const float k = hm::floor(x * 1.44269504088896341f + 0.5f);
+    const float r = (x - k * 0.693359375f) + k * 2.12194440e-4f;
+    const float z = r * r;
+    const float p = (((((1.9875691500e-4f * r + 1.3981999507e-3f) * r + 8.3334519073e-3f) * r + 4.1665795894e-2f) * r +
+                      1.6666665459e-1f) * r + 5.0000001201e-1f) * z + r + 1.0f;
+    return hm::ldexp(p, int(k));
+}
+AVAS_HD inline float sinh(float x) {
+    const float a = hm::fabs(x);
+    if (a < 1.0f) {
+        const float z = x * x;
+        return ((2.03721912945e-4f * z + 8.33028376239e-3f) * z + 1.66667160211e-1f) * z * x + x;
+    }
+    const float e = exp(a);
+    const float v = 0.5f * e - 0.5f / e;
+    return x < 0.0f ? -v : v;
+}
+AVAS_HD inline float cosh(float x) {
+    const float e = exp(hm::fabs(x));
+    return 0.5f * e + 0.5f / e;
+}
+}  // namespace fm
+
+struct PortableMath {  // Metal / CUDA / CPU fp32
     enum : int { compat = 0 };
 #if defined(AVAS_METAL)
-    static float cos(float a) { return metal::precise::cos(a); }
+    static float cos(float a) { return metal::precise::cos(a); }  // RF from own time (not reached by the push)
+#elif defined(__CUDACC__)
+    AVAS_HD static float cos(float a) { return ::cosf(a); }
 #else
     static float cos(float a) { return std::cos(a); }
 #endif
+    AVAS_HD static void sincos(float a, AVAS_T float& s, AVAS_T float& c) { fm::sincos(a, s, c); }
+    AVAS_HD static float sinh(float a) { return fm::sinh(a); }
+    AVAS_HD static float cosh(float a) { return fm::cosh(a); }
 };
 #elif defined(AVAS_PMATH_LIBM_FOR_TEST)
 struct PortableMath {  // verification build only: the C library instead of pmath.h
@@ -875,11 +920,14 @@ AVAS_HD inline void ubp_pass2(const PartV& b, int i, const double* cen, double i
     c[2] = w * az * az;
 }
 
-// ---- z-code rows ----
+#endif  // AVAS_FLOAT_ONLY
+
+// ---- z-code rows (also the fp32 rows of Metal, CUDA fp32 and emu fp32) ----
+// Literals are written double(...) so that they are float in the float world (no double arithmetic there).
 
 // z-code misalignment (spec 30 2.8.3): entrance transform T_in into the element frame; returns the
 // local longitudinal position, which T_in drops.
-AVAS_HD inline double het_err_in(double* r, const ElemV& e) {
+AVAS_HD inline double het_err_in(AVAS_T double* r, AVAS_T const ElemV& e) {
     const double X0 = r[0] - e.errDx, Y0 = r[2] - e.errDy, mdz = -e.errDz;
     const double sz = e.esz, cz = e.ecz, sy = e.esy, cy = e.ecy, sx = e.esx, cx = e.ecx;
     const double u = sz * Y0 + cz * X0;
@@ -899,7 +947,7 @@ AVAS_HD inline double het_err_in(double* r, const ElemV& e) {
 // Exit transform T_out.  AVAS.dll adds the offsets before rotating back (and takes +dz as the local
 // z), so T_out is not the inverse of T_in when the element is rotated; the corrected engine rotates
 // back and then adds the offsets (exact inverse, zl from T_in).
-AVAS_HD inline void het_err_out(double* r, const ElemV& e, double zl, bool compat) {
+AVAS_HD inline void het_err_out(AVAS_T double* r, AVAS_T const ElemV& e, double zl, bool compat) {
     const double sx = e.esx, cx = e.ecx, sy = e.esy, cy = e.ecy, sz = e.esz, cz = e.ecz;
     double q, w;
     if (compat) {
@@ -939,25 +987,25 @@ struct RowOp {
 
 template <class P>
 struct PSinCos {
-    AVAS_HD void operator()(double a, double& s, double& c) const { P::sincos(a, s, c); }
+    AVAS_HD void operator()(double a, AVAS_T double& s, AVAS_T double& c) const { P::sincos(a, s, c); }
 };
 
 template <class P>
-AVAS_HD inline void quad_row_p(double* r, double qOverM, double G, double len) {
+AVAS_HD inline void quad_row_p(AVAS_T double* r, double qOverM, double G, double len) {
     double xa, ya;
     const double g2 = zrow_advance(r, len, xa, ya);
     const double qG = qOverM * G;
-    const double gb = hm::sqrt((1.0 - 1.0 / g2) * g2);
+    const double gb = zrow_gb(g2, r);
     const double kq = hm::sqrt(hm::fabs(qG / (gb * k::c)));
     const double x = r[0], y = r[2];
     const double xp = r[1] / r[5];
     const double yp = r[3] / r[5];
-    const double ik = 1.0 / kq;
+    const double ik = double(1) / kq;
     double X, Xp, Y, Yp;
     double s, c;
     P::sincos(len * kq, s, c);
     const double sh = P::sinh(kq * len), ch = P::cosh(kq * len);
-    if (qG > 0.0) {
+    if (qG > double(0)) {
         X = c * x + (s * xp) * ik;
         Xp = c * xp - s * (kq * x);
         Y = (sh * yp) * ik + ch * y;
@@ -975,10 +1023,10 @@ AVAS_HD inline void quad_row_p(double* r, double qOverM, double G, double len) {
 }
 
 template <class P>
-AVAS_HD inline void het_row(const RowOp& op, double* r, double qOverM, double scx, double scy, double scz) {
+AVAS_HD inline void het_row(AVAS_T const RowOp& op, AVAS_T double* r, double qOverM, double scx, double scy, double scz) {
     if (op.kind == kEdge) {
         const double p2 = zrow_p2(r);
-        const double zl = op.err ? het_err_in(r, op.e) : 0.0;
+        const double zl = op.err ? het_err_in(r, op.e) : double(0);
         edge_row(r, op.k1, op.k2, op.hv);
         if (op.err) het_err_out(r, op.e, zl, P::compat);
         if (!P::compat) zrow_keep_momentum(r, p2);
@@ -987,8 +1035,8 @@ AVAS_HD inline void het_row(const RowOp& op, double* r, double qOverM, double sc
     // corrected engine: |gamma*beta| of the row before the magnetic transfer is restored after it.
     // T_in is a rotation (keeps |p|); the space-charge kick changes |p|, so after a kick the value
     // is taken again (M6 decision 4, 2026-11-08: until then the kick's energy change was undone).
-    double p2 = P::compat ? 0.0 : zrow_p2(r);
-    double zl = 0.0;
+    double p2 = P::compat ? double(0) : zrow_p2(r);
+    double zl = double(0);
     if (op.err) zl = het_err_in(r, op.e);
     if (op.scKick) {
         // space-charge kick of both half steps (dt of the first half twice), lab frame
@@ -1007,13 +1055,14 @@ AVAS_HD inline void het_row(const RowOp& op, double* r, double qOverM, double sc
 }
 
 // Steerer kick of a row; lq = (length of the kicked element) * q/m.
-AVAS_HD inline void kick_row(double* r, int kind, double wx, double wy, double lq, bool compat) {
+AVAS_HD inline void kick_row(AVAS_T double* r, int kind, double wx, double wy, double lq, bool compat) {
     const double p2 = zrow_p2(r);
     steerer_kick(r, kind, wx, wy, lq);
     // thin kick: the particle does not move across the field, so |p| is kept (AVAS.dll keeps uz)
     if (!compat) zrow_keep_momentum(r, p2);
 }
 
+#ifndef AVAS_FLOAT_ONLY
 // HESCFieldPre (corrected engine), pass 1: rel at time tRef from the row; sums 0-5 rel, 6 count.
 constexpr int kHescSums = 7;
 AVAS_HD inline void hesc_pass1(const PartV& b, int i, double tRef, double* c) {

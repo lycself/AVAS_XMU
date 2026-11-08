@@ -734,6 +734,7 @@ private:
         op.len = zTo - zFrom;
         op.err = !hetErr_.empty() && hetErr_[static_cast<size_t>(idx)] ? 1 : 0;
         op.e = latH_.elems[static_cast<size_t>(idx)];
+        op.uzs = planeRec_[static_cast<size_t>(b_.n)][5];  // synchronous gamma*beta_z (bend; time scale of the fp32 rows)
         if (e.kind == ElemKind::Edge) {
             op.kind = kern::kEdge;
             edge_k(e, op.k1, op.k2);
@@ -857,17 +858,20 @@ private:
         Beam& b = b_;
         const int n = b.n;
         const bool onDev = dev_ && !detach_device_rows_;
-        if (onDev) dev_->ztot(zPlane, tRef);
-        for (int i = 0; i < (onDev ? 0 : n); ++i) {
-            b.nextPlane[i] = 0;
-            Rec& r = planeRec_[i];
-            if (r[7] == 1.0)
-                ztot_row(r.data(), zPlane, tRef, !compat_, b.x[i], b.ux[i], b.y[i], b.uy[i], b.z[i], b.uz[i]);
-            r.fill(0.0);
-        }
         Rec& r = planeRec_[n];
         double x, ux, y, uy, z, uz;
         ztot_row(r.data(), zPlane, tRef, !compat_, x, ux, y, uy, z, uz);
+        if (onDev) {
+            const double sync[6] = {0.0, 0.0, 0.0, 0.0, z, r[5]};  // the synchronous particle set below
+            dev_->ztot(zPlane, tRef, sync);
+        }
+        for (int i = 0; i < (onDev ? 0 : n); ++i) {
+            b.nextPlane[i] = 0;
+            Rec& q = planeRec_[i];
+            if (q[7] == 1.0)
+                ztot_row(q.data(), zPlane, tRef, !compat_, b.x[i], b.ux[i], b.y[i], b.uy[i], b.z[i], b.uz[i]);
+            q.fill(0.0);
+        }
         b.z[n] = z;
         b.x[n] = b.ux[n] = b.y[n] = b.uy[n] = 0.0;
         b.uz[n] = r[5];

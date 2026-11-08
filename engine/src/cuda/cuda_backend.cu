@@ -28,7 +28,6 @@
 #include "core/reduce.h"
 #include "core/sc_kernels.h"
 #include "core/secondary.h"
-#include "cuda/cuda_f32.cuh"
 #include "cuda/cuda_mpi.h"
 
 namespace avas {
@@ -551,17 +550,12 @@ struct Shard {
     DBuf<double> dval, gF, cdv;
     DBuf<unsigned char> ctmp;
     kern::PartV P{};
-    // fp32 state
-    DBuf<float> fd[3], fdu[3], fE[3], fB[3], fsc[3], frel[6], fhq, ftq, off, rhoF, GF, dvalF;
-    DBuf<MapView<float, float>> mapsF;
-    std::vector<std::unique_ptr<DBuf<float>>> mapDataF;
-    F32View FV{};
 };
 
 class CudaBackend : public DeviceBackend {
 public:
-    CudaBackend(std::vector<int> devs, bool fp32, std::string desc)
-        : devs_(std::move(devs)), fp32_(fp32), desc_(std::move(desc)), atomic_(options().gpuAtomic) {}
+    CudaBackend(std::vector<int> devs, std::string desc)
+        : devs_(std::move(devs)), desc_(std::move(desc)), atomic_(options().gpuAtomic) {}
 
     ~CudaBackend() override {
         if (prof_)
@@ -569,7 +563,7 @@ public:
                          profN_, profK_, profD_, profO_);
     }
     std::string describe() const override { return desc_; }
-    bool fp32() const override { return fp32_; }
+    bool fp32() const override { return false; }
 
     void begin_run(Beam& b, const LatHost& L, bool spRec) override {
         n_ = b.n;
@@ -647,25 +641,7 @@ public:
             s.restMass.up(b.restMass.data() + s.lo, cnt);
             s.t.up(b.t.data() + s.lo, cnt);
             s.dt.up(b.dt.data() + s.lo, cnt);
-            if (fp32_) {
-                const size_t m = static_cast<size_t>(std::max(s.n(), 1));
-                for (int j = 0; j < 3; ++j) {
-                    s.fd[j].alloc(m); s.fdu[j].alloc(m); s.fE[j].alloc(m); s.fB[j].alloc(m); s.fsc[j].alloc(m);
-                    s.FV.d[j] = s.fd[j].p; s.FV.du[j] = s.fdu[j].p; s.FV.E[j] = s.fE[j].p; s.FV.B[j] = s.fB[j].p;
-                    s.FV.sc[j] = s.fsc[j].p;
-                }
-                for (int j = 0; j < 6; ++j) {
-                    s.frel[j].alloc(m);
-                    s.FV.rel[j] = s.frel[j].p;
-                }
-                s.fhq.alloc(m);
-                s.ftq.alloc(m);
-                s.FV.hq = s.fhq.p;
-                s.FV.tq = s.ftq.p;
-            }
         }
-        auth32_ = false;
-        latZ_ = L;  // positions for the fp32 offsets
     }
 
     void set_elems(const LatHost& L) override {
@@ -676,7 +652,6 @@ public:
     }
 
     void download(Beam& b, double* old, double* rec, double* spRec, unsigned mask) override {
-        to_fp64_if_needed();
         for (auto& sp : sh_) {
             Shard& s = *sp;
             if (s.n() == 0) continue;
@@ -732,7 +707,6 @@ public:
     }
 
     void upload(const Beam& b, const double* old, const double* rec, const double* spRec, unsigned mask) override {
-        to_fp64_if_needed();  // fields not uploaded must come from the current state
         for (auto& sp : sh_) {
             Shard& s = *sp;
             if (s.n() == 0) continue;
@@ -787,22 +761,6 @@ public:
         out.assign(static_cast<size_t>(ng), empty);
         std::vector<double> gbuf;
         spCount = recCount = 0;
-        SyncStep S{};
-        std::vector<float> offs;
-        if (fp32_) {
-            note_step(a0.segEnd, a0.zField);
-            S = sync_step(a0);
-            if (!auth32_) {
-                for (auto& sp : sh_) {
-                    if (sp->n() == 0) continue;
-                    CK(cudaSetDevice(sp->dev));
-                    k_f32_from64<<<blocks(sp->n()), 256>>>(sp->P, sp->FV, sp->n(), S, a0.dt);
-                    CK(cudaGetLastError());
-                }
-                auth32_ = true;
-            }
-            offs = f32_offsets(ls, S, events);
-        }
         for (auto& sp : sh_) {
             Shard& s = *sp;
             if (s.n() == 0) continue;
@@ -813,39 +771,9 @@ public:
             s.counters.zero();
             kern::StepArgs a = a0;
             a.events = s.events.p;
-            if (fp32_) {
-                s.off.set(offs);
-                const int nE = static_cast<int>(latZ_.elems.size()), nS = static_cast<int>(latZ_.subs.size());
-                const int nEv = static_cast<int>(events.size());
-                F32Step f{};
-                f.L = s.L;
-                f.L.mapsF = s.mapsF.p;
-                f.zo.es = s.off.p;
-                f.zo.ee = s.off.p + nE;
-                f.zo.e0 = s.off.p + 2 * nE;
-                f.zo.s0 = s.off.p + 3 * nE;
-                f.evRel = s.off.p + 3 * nE + nS;
-                f.evOk = s.off.p + 3 * nE + nS + nEv;
-                const size_t base = static_cast<size_t>(3 * nE + nS + 2 * nEv);
-                f.zo.z0 = offs[base + 0];
-                f.zo.spx = offs[base + 1];
-                f.zo.tot = offs[base + 2];
-                f.segEnd = offs[base + 3];
-                f.zNeg = offs[base + 0];
-                f.zFieldPre = offs[base + 4];
-                f.P = s.P;
-                f.F = s.FV;
-                f.a = a;
-                f.rf = kern::RfSrc{s.rf.p, a.tEnd};
-                f.S = S;
-                for (int j = 0; j < 6; ++j) f.cen[j] = static_cast<float>(a.cen[j]);
-                f.counters = s.counters.p;
-                launch_reduce<kStepK, 8>(s, f);
-            } else {
-                StepF f{s.L, s.P, a, kern::RfSrc{s.rf.p, a.tEnd}, s.counters.p};
-                if (atomic_) launch_atomic<kStepK, 8>(s, f);
-                else launch_reduce<kStepK, 8>(s, f);
-            }
+            StepF f{s.L, s.P, a, kern::RfSrc{s.rf.p, a.tEnd}, s.counters.p};
+            if (atomic_) launch_atomic<kStepK, 8>(s, f);
+            else launch_reduce<kStepK, 8>(s, f);
         }
         if (prof_) sync_all();
         const auto tp1 = std::chrono::steady_clock::now();
@@ -855,7 +783,7 @@ public:
             CK(cudaSetDevice(s.dev));
             int sg = groups_of(s);
             constexpr int W = kStepK + 8;
-            if (atomic_ && !fp32_) sg = 1;  // one total in group slot of the shard
+            if (atomic_) sg = 1;  // one total in group slot of the shard
             gbuf.resize(static_cast<size_t>(sg) * W);
             s.groups.down(gbuf.data(), gbuf.size());
             const int g0 = s.lo / kRedGroup;
@@ -884,14 +812,12 @@ public:
     }
 
     void ubp1(const double* s6, double* sums) override {
-        to_fp64_if_needed();
         Ubp1F f{};
         for (int j = 0; j < 6; ++j) f.s6[j] = s6[j];
         reduce_all<kern::kUbpSums, 0>([&](Shard& s) { f.P = s.P; return f; }, sums, nullptr);
     }
 
     void ubp2(const double* cen, double igz, double* q3, double& zmin, double& zmax) override {
-        to_fp64_if_needed();
         Ubp2F f{};
         for (int j = 0; j < 6; ++j) f.cen[j] = cen[j];
         f.igz = igz;
@@ -902,29 +828,25 @@ public:
     }
 
     void rows(const kern::RowOp& op) override {
-        to_fp64_if_needed();
         for_shards([&](Shard& s) { k_rows<<<blocks(s.n()), 256>>>(op, s.P, s.n()); });
     }
 
     void rows_tref(bool average, double& tRef) override {
-        to_fp64_if_needed();
         double s2[2], m[1];
         reduce_all<2, 1>([&](Shard& s) { return TrefF{s.P}; }, s2, m);
         tRef = average ? s2[0] / s2[1] : (m[0] == -1e10 ? 1e10 : -m[0]);
     }
 
     void rows_kick(int kind, double wx, double wy, double len) override {
-        to_fp64_if_needed();
         for_shards([&](Shard& s) { k_kick<<<blocks(s.n()), 256>>>(kind, wx, wy, len, s.P, s.n()); });
     }
 
-    void ztot(double zPlane, double tRef) override {
-        to_fp64_if_needed();
+    void ztot(double zPlane, double tRef, const double* sync) override {
+        (void)sync;
         for_shards([&](Shard& s) { k_ztot<<<blocks(s.n()), 256>>>(s.P, s.n(), zPlane, tRef); });
     }
 
     void rec_tmin(bool sp, double& tmin) override {
-        to_fp64_if_needed();
         double m[1];
         if (sp) reduce_all<0, 1>([&](Shard& s) { return SpTminF{s.P}; }, nullptr, m);
         else {
@@ -935,7 +857,6 @@ public:
     }
 
     void hesc1(double tRef, double* sums) override {
-        to_fp64_if_needed();
         reduce_all<kern::kHescSums, 0>([&](Shard& s) { return Hesc1F{s.P, tRef}; }, sums, nullptr);
     }
 
@@ -963,19 +884,18 @@ public:
             M.xs = s.xs.p;
             M.ys = s.ys.p;
             M.zs = s.zs.p;
-            if (atomic_ && !auth32_) {
+            if (atomic_) {
                 s.gridD.alloc(static_cast<size_t>(n3));
                 s.gridD.zero();
                 k_deposit_atomic<<<blocks(s.n()), 256>>>(M, s.P, s.n(), s.gridD.p);
-            } else if (auth32_) k_f32_deposit<<<blocks(s.n()), 256>>>(M, s.P, s.FV, s.n(), s.grid.p);
-            else k_deposit<<<blocks(s.n()), 256>>>(M, s.P, s.n(), s.grid.p);
+            } else k_deposit<<<blocks(s.n()), 256>>>(M, s.P, s.n(), s.grid.p);
         }
         for (auto& sp : sh_) {
             Shard& s = *sp;
             if (s.n() == 0) continue;
             CK(cudaSetDevice(s.dev));
             CK(cudaGetLastError());
-            if (atomic_ && !auth32_) {
+            if (atomic_) {
                 std::vector<double> d(static_cast<size_t>(n3));
                 s.gridD.down(d.data(), d.size());
                 for (long long e = 0; e < n3; ++e) part[static_cast<size_t>(e)] = kern::fix_charge(d[static_cast<size_t>(e)], M0.fixScaleExp);
@@ -1026,7 +946,6 @@ public:
         n3_ = n3;
         const SpGrid g{in.nx, in.ny, in.nz, in.mx, in.my, in.mz};
         const double hx = 1.0 / (in.dx + in.dx), hy = 1.0 / (in.dy + in.dy), hz = 1.0 / (in.dz + in.dz);
-        const size_t nG = static_cast<size_t>(2 * in.nx + 1) * (2 * in.ny + 1) * (2 * in.nz + 1);
         std::vector<Shard*> act;
         for (auto& sp : sh_)
             if (sp->n() > 0) act.push_back(sp.get());
@@ -1040,25 +959,12 @@ public:
             s.gez.alloc(static_cast<size_t>(n3));
             if (in.method == 1 || in.method == 2) {
                 green_table(s, g, in);
-                if (fp32_) {
-                    s.rhoF.alloc(static_cast<size_t>(n3));
-                    s.GF.alloc(nG);
-                    k_to_float<<<blocks(n3), 256>>>(s.rho.p, s.rhoF.p, n3);
-                    k_to_float<<<blocks(static_cast<long long>(nG)), 256>>>(s.G.p, s.GF.p, static_cast<long long>(nG));
-                }
             }
             if (in.method == 1) {
                 const long long nc = corr_list(s, g, in);
                 const long long nt = g.n_targets();
-                if (fp32_) {
-                    s.dvalF.alloc(static_cast<size_t>(std::max<long long>(nc, 1)));
-                    if (nc > 0) k_to_float<<<blocks(nc), 256>>>(s.dval.p, s.dvalF.p, nc);
-                    k_sym<float><<<blocks(nt, 128), 128>>>(g, s.rhoF.p, s.GF.p, static_cast<float>(in.thr), s.phi.p);
-                    if (nc > 0) k_corr<float><<<blocks(n3, 128), 128>>>(g, s.GF.p, s.corr.p, s.dvalF.p, nc, s.phi.p);
-                } else {
-                    k_sym<double><<<blocks(nt, 128), 128>>>(g, s.rho.p, s.G.p, in.thr, s.phi.p);
-                    if (nc > 0) k_corr<double><<<blocks(n3, 128), 128>>>(g, s.G.p, s.corr.p, s.dval.p, nc, s.phi.p);
-                }
+                k_sym<double><<<blocks(nt, 128), 128>>>(g, s.rho.p, s.G.p, in.thr, s.phi.p);
+                if (nc > 0) k_corr<double><<<blocks(n3, 128), 128>>>(g, s.G.p, s.corr.p, s.dval.p, nc, s.phi.p);
             } else if (in.method == 0) {
                 fft_solve(s, g, in, n3);
             }
@@ -1074,8 +980,7 @@ public:
                 CK(cudaSetDevice(s.dev));
                 const long long lo = lo_of(a), hi = lo_of(a + 1);
                 if (hi <= lo) continue;
-                if (fp32_) k_picnic<float><<<blocks(hi - lo, 128), 128>>>(g, s.rhoF.p, s.GF.p, lo, hi, s.phi.p);
-                else k_picnic<double><<<blocks(hi - lo, 128), 128>>>(g, s.rho.p, s.G.p, lo, hi, s.phi.p);
+                k_picnic<double><<<blocks(hi - lo, 128), 128>>>(g, s.rho.p, s.G.p, lo, hi, s.phi.p);
                 CK(cudaGetLastError());
             }
             if (na > 1) {
@@ -1126,14 +1031,12 @@ public:
             M.xs = s.xs.p;
             M.ys = s.ys.p;
             M.zs = s.zs.p;
-            if (auth32_) k_f32_interp<<<blocks(s.n()), 256>>>(M, s.P, s.FV, s.n(), s.gex.p, s.gey.p, s.gez.p);
-            else k_interp<<<blocks(s.n()), 256>>>(M, s.P, s.n(), s.gex.p, s.gey.p, s.gez.p);
+            k_interp<<<blocks(s.n()), 256>>>(M, s.P, s.n(), s.gex.p, s.gey.p, s.gez.p);
         }
         sync_all();
     }
 
     void boundary(const LatScalars& ls, double t, double dt, std::vector<BoundaryHit>& hits) override {
-        to_fp64_if_needed();
         hits.clear();
         for (auto& sp : sh_) {
             Shard& s = *sp;
@@ -1161,12 +1064,10 @@ public:
     }
 
     void lp_fold(double zs, double full, double half) override {
-        to_fp64_if_needed();
         for_shards([&](Shard& s) { k_lp_fold<<<blocks(s.n()), 256>>>(s.P, s.n(), zs, full, half); });
     }
 
     void long_loss(double zs, double ws, double dW, double dzMax) override {
-        to_fp64_if_needed();
         for_shards([&](Shard& s) { k_long_loss<<<blocks(s.n()), 256>>>(s.P, s.n(), s.restMass.p, zs, ws, dW, dzMax); });
     }
 
@@ -1244,7 +1145,6 @@ public:
 
 private:
     std::vector<int> devs_;
-    bool fp32_;
     std::string desc_;
     bool atomic_;  // measurement only: non-deterministic atomic sums
     bool prof_ = std::getenv("AVAS_ENGINE_PROFILE") != nullptr;
@@ -1254,7 +1154,6 @@ private:
     bool spRecOn_ = false;
     long long n3_ = 0;
     std::vector<std::unique_ptr<Shard>> sh_;
-    bool auth32_ = false;  // fp32: the float state is the current one (else the fp64 arrays)
     std::vector<long long> rankGOff_, rankGCnt_, rankPOff_, rankPCnt_;  // groups / particles of every MPI rank
 
     template <class T>
@@ -1267,8 +1166,6 @@ private:
     }
     void mpi_gather_doubles(std::vector<double>& v, size_t per) { mpi_gather_particles(v.data(), static_cast<int>(per)); }
     void mpi_gather_hits(std::vector<BoundaryHit>& h) { mpi_allgather_list(h); }
-    SyncStep ref_{};       // fp32: reference of the float state (synchronous particle after the last step)
-    LatHost latZ_;         // fp32: lattice positions for the relative offsets
 
     static int groups_of(const Shard& s) {
         const int nch = (s.n() + kThreads - 1) / kThreads;
@@ -1380,23 +1277,6 @@ private:
             s.mapData.push_back(std::move(d));
         }
         s.maps.set(mv.empty() ? std::vector<MapView<double>>(1) : mv);
-        if (fp32_) {
-            std::vector<MapView<float, float>> mf;
-            s.mapDataF.clear();
-            for (size_t k = 0; k < L.maps.size(); ++k) {
-                const MapView<double>& m = L.maps[k];
-                const size_t cnt = static_cast<size_t>(m.nx + 1) * (m.ny + 1) * (m.nz + 1) * m.ncomp;
-                std::vector<float> h(m.data, m.data + cnt);
-                auto d = std::make_unique<DBuf<float>>();
-                d->set(h.empty() ? std::vector<float>(1) : h);
-                MapView<float, float> v{d->p, m.ncomp, m.nx, m.ny, m.nz, static_cast<float>(m.xmin), static_cast<float>(m.xmax),
-                                        static_cast<float>(m.ymin), static_cast<float>(m.ymax), static_cast<float>(m.zlen),
-                                        static_cast<float>(m.dx), static_cast<float>(m.dy), static_cast<float>(m.dz)};
-                mf.push_back(v);
-                s.mapDataF.push_back(std::move(d));
-            }
-            s.mapsF.set(mf.empty() ? std::vector<MapView<float, float>>(1) : mf);
-        }
         s.zStart.set(L.zStart);
         s.zEnd.set(L.zEnd);
         s.spOut.set(L.spOut.empty() ? std::vector<kern::SpOutV>(1) : L.spOut);
@@ -1460,85 +1340,6 @@ private:
         k_dst<<<blocks(n3), 256>>>(g, 0, A, C, s.tabs[0].p);
         k_dst<<<blocks(n3), 256>>>(g, 1, C, D, s.tabs[1].p);
         k_norm<<<blocks(n3), 256>>>(D, in.norm, s.phi.p, n3);
-    }
-
-    // fp32: float state -> fp64 arrays before any work on the fp64 arrays.
-    void to_fp64_if_needed() {
-        if (!fp32_ || !auth32_) return;
-        for (auto& sp : sh_) {
-            if (sp->n() == 0) continue;
-            CK(cudaSetDevice(sp->dev));
-            k_f32_to64<<<blocks(sp->n()), 256>>>(sp->P, sp->FV, sp->n(), ref_);
-            CK(cudaGetLastError());
-        }
-        sync_all();
-        auth32_ = false;
-    }
-
-    // The synchronous particle's Boris push of this step (boris_push of physics.h, intermediates kept).
-    SyncStep sync_step(const kern::StepArgs& a) {
-        SyncStep S{};
-        const double* p = a.syncPre;
-        const double* E = a.syncTot;
-        const double* B = a.syncTot + 3;
-        const double qm = a.qmSync, dt = a.dt;
-        const double h = qm * k::half_inv_c * dt;
-        double ux = h * E[0] + p[1], uy = h * E[1] + p[3], uz = h * E[2] + p[5];
-        S.hEs[0] = static_cast<float>(h * E[0]);
-        S.hEs[1] = static_cast<float>(h * E[1]);
-        S.hEs[2] = static_cast<float>(h * E[2]);
-        S.usm[0] = static_cast<float>(ux);
-        S.usm[1] = static_cast<float>(uy);
-        S.usm[2] = static_cast<float>(uz);
-        const double g = std::sqrt((uz * uz + uy * uy) + (ux * ux + 1.0));
-        S.gsm = static_cast<float>(g);
-        const double sq = (dt * qm) / g;
-        const double tx = sq * B[0], ty = sq * B[1], tz = sq * B[2];
-        const double tx2 = tx * tx, ty2 = ty * ty, tz2 = tz * tz;
-        const double d = 1.0 / ((tx2 + ty2 + tz2) * 0.25 + 1.0);
-        const double txy = ty * tx * 0.5, txz = tz * tx * 0.5, tyz = tz * ty * 0.5;
-        const double K[9] = {-(ty2 + tz2) * 0.5 * d, (txy + tz) * d, (txz - ty) * d,
-                             (txy - tz) * d, -(tz2 + tx2) * 0.5 * d, (tx + tyz) * d,
-                             (txz + ty) * d, (tyz - tx) * d, -(ty2 + tx2) * 0.5 * d};
-        for (int j = 0; j < 9; ++j) S.Ks[j] = static_cast<float>(K[j]);
-        double x = p[0], y = p[2], z = p[4], qx = p[1], qy = p[3], qz = p[5];
-        boris_push(x, qx, y, qy, z, qz, E, B, qm, dt);
-        S.usp[0] = static_cast<float>(qx);
-        S.usp[1] = static_cast<float>(qy);
-        S.usp[2] = static_cast<float>(qz);
-        S.gsp = static_cast<float>(std::sqrt((qy * qy + qz * qz) + (qx * qx + 1.0)));
-        S.cdt = static_cast<float>(k::c * dt);
-        for (int j = 0; j < 6; ++j) S.pre[j] = p[j];
-        S.post[0] = x; S.post[1] = qx; S.post[2] = y; S.post[3] = qy; S.post[4] = z; S.post[5] = qz;
-        ref_ = S;
-        return S;
-    }
-
-    // Lattice positions, events and scalars relative to the synchronous particle after the step.
-    std::vector<float> f32_offsets(const LatScalars& ls, const SyncStep& S, const std::vector<double>& events) {
-        const double zs = S.post[4];
-        std::vector<float> o;
-        const size_t nE = latZ_.elems.size();
-        o.reserve(3 * nE + latZ_.subs.size() + 2 * events.size() + 8);
-        for (size_t k = 0; k < nE; ++k) o.push_back(static_cast<float>(latZ_.zStart[k] - zs));
-        for (size_t k = 0; k < nE; ++k) o.push_back(static_cast<float>(latZ_.zEnd[k] - zs));
-        for (size_t k = 0; k < nE; ++k) o.push_back(static_cast<float>(latZ_.elems[k].zStart - zs));
-        for (const kern::SubV& q : latZ_.subs) o.push_back(static_cast<float>(q.zStart - zs));
-        for (double e : events) o.push_back(static_cast<float>(e - zs));
-        for (double e : events) o.push_back(e <= ls.spExit ? 1.0f : 0.0f);
-        o.push_back(static_cast<float>(0.0 - zs));
-        o.push_back(static_cast<float>(ls.spExit - zs));
-        o.push_back(static_cast<float>(ls.totalLength - zs));
-        o.push_back(static_cast<float>(segEnd_ - zs));
-        o.push_back(static_cast<float>(zField_ - S.pre[4]));
-        return o;
-    }
-    double segEnd_ = 1e300, zField_ = 0.0;
-
-public:
-    void note_step(double segEnd, double zField) {
-        segEnd_ = segEnd;
-        zField_ = zField;
     }
 };
 
@@ -1660,9 +1461,9 @@ std::unique_ptr<DeviceBackend> make_cuda_backend(long long nParticles, bool spac
                          : allFull               ? "auto: full-rate fp64 GPU"
                                                  : "auto: fp64 is slow on this GPU, coordinates relative to the "
                                                    "synchronous particle in fp32";
-    // memory estimate per GPU: particle arrays (+ float state in fp32) and the mesh
+    // memory estimate per GPU: particle arrays (fp64, or the float state of the fp32 tier) and the mesh
     const long long perGpu = (nParticles + static_cast<long long>(devs.size()) - 1) / static_cast<long long>(devs.size());
-    const double bytesPer = 8.0 * 50 + 4.0 * 6 + (fp32 ? 4.0 * 24 : 0.0);
+    const double bytesPer = fp32 ? 4.0 * 94 : 8.0 * 50 + 4.0 * 6;  // fp32: 82 floats + 8 ints + candidate lists
     const double need = bytesPer * static_cast<double>(perGpu) + (spaceCharge ? 64.0 * 1024 * 1024 : 0.0) + 32.0 * 1024 * 1024;
     if (need > 0.92 * static_cast<double>(minFree)) {
         char buf[200];
@@ -1675,8 +1476,18 @@ std::unique_ptr<DeviceBackend> make_cuda_backend(long long nParticles, bool spac
     if (world.size > 1) full << "MPI rank " << world.rank << " of " << world.size << ", ";
     full << "CUDA, " << devs.size() << " GPU" << (devs.size() > 1 ? "s" : "") << ": " << desc.str() << "; precision "
          << (fp32 ? "fp32" : "fp64") << " (" << reason << ")";
+    if (fp32) {
+        // the fp32 tier (M6c phase 4): the device back end on the host with the fp32 kernels of
+        // core/f32_kernels.h on the GPUs, as Metal; every MPI rank computes all particles
+        full << ": t-code push, z-code rows, statistics, boundary.txt and space-charge mesh work on the GPU in fp32 "
+                "(FFT solve, secondary particles on the CPU)";
+        if (world.size > 1) full << "; every MPI rank computes all particles";
+        std::unique_ptr<ScAccel> acc = make_cuda_f32_accel(devs, full.str(), why);
+        if (!acc) return nullptr;
+        return make_emu_backend(std::move(acc));
+    }
     if (options().gpuAtomic) full << "; MEASUREMENT MODE: atomic sums, results not reproducible";
-    return std::make_unique<cu::CudaBackend>(devs, fp32, full.str());
+    return std::make_unique<cu::CudaBackend>(devs, full.str());
 }
 
 }  // namespace avas

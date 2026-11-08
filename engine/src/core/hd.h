@@ -30,6 +30,31 @@ inline float sqrt(float x) { return metal::precise::sqrt(x); }
 inline float fabs(float x) { return metal::fabs(x); }
 inline float ceil(float x) { return metal::ceil(x); }
 inline float floor(float x) { return metal::floor(x); }
+inline float ldexp(float x, int e) { return metal::ldexp(x, e); }
+}  // namespace hm
+}  // namespace avas
+
+#elif defined(AVAS_F32_CUDA)
+// ---- the CUDA fp32 tier (src/cuda/cuda_f32_device.cu): the Metal world compiled by nvcc ----
+// As AVAS_F32_CPU (namespace avas_f32, `double` defined as float by the including file), with
+// __host__ __device__ functions; --fmad=false, IEEE division and square root (no fast math).
+#define AVAS_HD __host__ __device__
+#define AVAS_RESTRICT __restrict__
+#define AVAS_G
+#define AVAS_T
+#define AVAS_PCONST
+#define AVAS_DEVICE_COMPILE 1
+#define AVAS_FLOAT_ONLY 1
+typedef long long avas_i64;
+typedef unsigned long long avas_u64;
+
+namespace avas {
+namespace hm {
+AVAS_HD inline float sqrt(float x) { return ::sqrtf(x); }
+AVAS_HD inline float fabs(float x) { return ::fabsf(x); }
+AVAS_HD inline float ceil(float x) { return ::ceilf(x); }
+AVAS_HD inline float floor(float x) { return ::floorf(x); }
+AVAS_HD inline float ldexp(float x, int e) { return ::ldexpf(x, e); }
 }  // namespace hm
 }  // namespace avas
 
@@ -52,6 +77,7 @@ inline float sqrt(float x) { return std::sqrt(x); }
 inline float fabs(float x) { return std::fabs(x); }
 inline float ceil(float x) { return std::ceil(x); }
 inline float floor(float x) { return std::floor(x); }
+inline float ldexp(float x, int e) { return std::ldexp(x, e); }
 }  // namespace hm
 }  // namespace avas
 

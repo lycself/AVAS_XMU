@@ -41,6 +41,7 @@ void sizes(unsigned* o) {
     o[7] = sizeof(kern::SubV);
     o[8] = sizeof(f32::GeomF);
     o[9] = sizeof(f32::BoundU);
+    o[10] = sizeof(f32::ZArgs);
 }
 
 void step(const void* L, const void* U, const void* F, const float* off, const float* rft, const int* sizes, int n) {
@@ -110,29 +111,36 @@ void grad(const void* g, const float* phi, const float* h, float* ex, float* ey,
 // The group sums of k_group: per column the largest |value| of the group fixes e with |v| 2^e < 2^50,
 // the values are summed as 64-bit integers; the maxima in float.  Max and integer sums do not depend
 // on the order, so this sequential loop gives the threadgroup tree's result.
-void group(const float* C, const float* Mx, long long* sums, int* exps, float* mxo, int n) {
+void zrow(const void* A, const void* F, int n) {
+    const auto& AV = *static_cast<const f32::ZArgs*>(A);
+    const auto& FV = *static_cast<const f32::PartF*>(F);
+    for (int i = 0; i < n; ++i) f32::zrow_particle(AV, FV, i);
+}
+
+void group(const float* C, const float* Mx, long long* sums, int* exps, float* mxo, int n, int stride, int ncol, int nmx, int nmx0) {
     const int ng = (n + 4095) / 4096;
     for (int g = 0; g < ng; ++g) {
         const int lo = g * 4096, hi = std::min(n, lo + 4096);
-        for (int col = 0; col < 21; ++col) {
+        for (int col = 0; col < ncol; ++col) {
             float m = 0.0f;
-            for (int p = lo; p < hi; ++p) m = std::max(m, std::fabs(C[static_cast<size_t>(col) * n + p]));
+            for (int p = lo; p < hi; ++p) m = std::max(m, std::fabs(C[static_cast<size_t>(col) * stride + p]));
             int ex = 0;
             if (m > 0.0f) std::frexp(m, &ex);
             const int e = m > 0.0f ? 50 - ex : 0;
             long long acc = 0;
             for (int p = lo; p < hi; ++p)
-                acc += static_cast<long long>(std::nearbyint(std::ldexp(C[static_cast<size_t>(col) * n + p], e)));
-            sums[21 * g + col] = acc;
-            exps[21 * g + col] = e;
+                acc += static_cast<long long>(std::nearbyint(std::ldexp(C[static_cast<size_t>(col) * stride + p], e)));
+            sums[ncol * g + col] = acc;
+            exps[ncol * g + col] = e;
         }
-        for (int col = 0; col < 8; ++col) {
-            float m = col < 6 ? 0.0f : -HUGE_VALF;
-            for (int p = lo; p < hi; ++p) m = std::max(m, Mx[static_cast<size_t>(col) * n + p]);
-            mxo[8 * g + col] = m;
+        for (int col = 0; col < nmx; ++col) {
+            float m = col < nmx0 ? 0.0f : -HUGE_VALF;
+            for (int p = lo; p < hi; ++p) m = std::max(m, Mx[static_cast<size_t>(col) * stride + p]);
+            mxo[nmx * g + col] = m;
         }
     }
 }
 
 }  // namespace f32cpu
+
 }  // namespace avas

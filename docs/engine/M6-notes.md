@@ -635,3 +635,133 @@ C++ 中按 Metal 的方式编译——先包含标准库，再 `#define avas ava
 1. **CUDA fp32 档换成与 Metal 相同的设计**（共享 `f32_kernels.h`、定点组和、候选列表），使三者 fp32 逐位一致：推荐做，同时把 Metal 后端的主机逻辑抽成与设备无关的 C++ 类
    （Metal、CUDA、CPU 共用），emu fp32 也就能在 Linux 上用。CUDA fp32 结果会改变（预计与现在相差约 1e-6 相对，与 Metal 相同）。
 2. **z-code 行变换上 Metal**（误差研究、四极段常用，现在每次进出 z-code 各转换一次）：推荐在第 1 项之后做。
+
+### 16. 用户决定（2026-11-09）与第四阶段
+
+第 15 节两个待定点都做，按推荐顺序：先把 CUDA fp32 档换成与 Metal 相同的设计（主机逻辑抽成与设备无关的类），再把 z-code 行变换放到 GPU 上。
+
+**设备无关的 fp32 主机逻辑**：Metal 后端的主机逻辑移到 `core/f32_host.cpp` 的 `F32Accel`（设备后端 emu 的加速器，接口 `ScAccel`）；设备只实现 `core/f32_host.h` 的
+`F32Device`——分配主机能直接读写的缓冲区（`F32Buf`：主机指针 + 内核用的地址），启动 `core/f32_kernels.h` 的内核，每次调用返回时已完成。三个实现：
+- Metal：`src/metal/metal_backend.mm`（共享内存缓冲区、运行时编译的 MSL）；
+- CUDA：`src/cuda/cuda_f32_device.cu`（托管内存 `cudaMallocManaged`）与 `cuda_f32_kernels.cu`（内核由 nvcc 在 “double = float” 世界编译：`hd.h` 新增 `AVAS_F32_CUDA`
+  分支，`AVAS_HD` 为 `__host__ __device__`；与 CPU / Metal 一样关闭收缩，除法与开方为 IEEE 正确舍入）；
+- CPU：`core/f32_cpu_device.cpp` 与 `f32_cpu.cpp`（emu fp32 档）。这两个文件和 `f32_host.cpp` 在每个构建中都编译，emu fp32 因此在 Linux 和 conda clang 的 Mac 构建中也可用。
+结构体布局在启动时按设备报告的 `sizeof` 核对（新增 `ZArgs`）；C / Mx 列的步长单独传给内核。
+**主机只碰紧凑的数据**：平面穿越与 superposeout 候选在内核里连同快照（12 个 float）、下一平面号、元件号写进按候选槽排列的紧凑表（取代每粒子的快照列），
+主机在双精度中补全后，把结果（记录标志、下一平面号加一、float 行；superposeout 标志）写进一张结果表，由内核 `kZApply` 写回粒子；清除记录（`zero_rec`）、
+空间电荷场写回粒子（`kZSc`）也在设备上。正常的一步里主机不读写任何粒子列——统一内存的 Metal 上这只是少了几次散写，在 CUDA 的托管内存上则是关键（见下）。
+
+**CUDA fp32 档**（`AVAS_ENGINE_PRECISION=fp32`，或 auto 在非 HPC 卡上）现在是“emu 设备后端 + `F32Accel` + CUDA 设备”，与 Metal 完全同一套主机逻辑与内核；
+旧的 CUDA fp32 实现（`cuda_f32.cuh`、`CudaBackend` 中的 fp32 分支、float 网格求和模板实例）删除，`CudaBackend` 只剩 fp64 档，运算不变。
+- 每张卡（单卡也一样）的候选计数、列表与紧凑表、每步的偏移表与 RF 表、组和结果都在该卡自己的显存里，用显式复制进出（只复制实际的候选数）；
+  `PartF` 中这几个指针按卡替换，主机再按卡拼接（主机逻辑与候选次序无关）。粒子状态、晶格表与场图在托管内存中，正常的一步里只有 GPU 访问。
+- 多卡：每张卡分到整数个归约组；分配每张卡有自己的 64 位整数网格（结果在主机按模 2^64 相加，与次序无关），统计按组分卡，网格求解（PICNIC / SPICNIC 求和、梯度）
+  在第一张卡；托管内存中的表、场图与网格数组设为 read-mostly（每张卡一份副本），粒子列按卡的粒子段设首选位置。
+- 第一版直接让主机读写托管内存（候选快照在粒子列里、组和与偏移表也在托管内存中），A100 上每步都有大量页在主机与 GPU 之间来回：1e6 粒子无空间电荷每步推进比旧
+  CUDA fp32 慢 15 倍、双卡再慢一倍，中间版本的空间电荷每步也慢 17 倍（场写回粒子在主机上）。改成上面的紧凑表与显式复制后见下面的性能表。
+- MPI：fp32 档下每个进程计算全部粒子（各自用自己的卡），结果与进程数无关；MPI 对 fp32 档不加速（见待定点）。
+- 显存估计按 fp32 状态（每粒子约 94 个 4 字节字）计算。
+
+**z-code 行在 GPU 上**：
+- 粒子状态新增 8 列 float 行 {x, ux, y, uy, dt, uz, t − T0, flag} 与 q/m 列。t-code 中主机按双精度完成平面穿越记录（`P.rec`）时同时写 float 行，时间原点 T0
+  取第一次记录那一步的结束时刻（与设备、候选次序无关）。
+- `rows`、`rows_tref`、`rows_kick`、HESC 两遍、`ztot`、`update_beam_parameters` 两遍（`ubp1` / `ubp2`）都由一个内核 `zrow_particle`（`f32_kernels.h`）完成，
+  求和走与 t-code 统计相同的定点组和（组和内核推广为任意列数与最大值列数）。行变换用共享的 `kern::het_row`、`kick_row` 与 `physics.h` 的 `zrow_advance`、
+  `solenoid_row`、`bend_row`、`edge_row`、`steerer_kick`、`ztot_row`：这部分移出 `AVAS_FLOAT_ONLY` 保护、加地址空间宏，字面量写成 `double(1)`（在 float 世界里是 float），
+  fp64 代码的运算一个不变。float 世界的 sin / cos / sinh / cosh 用只含 + − × ÷、floor、ldexp 的 Cody–Waite 约化加 Cephes 单精度多项式（`kernels.h` 的 `fm`），
+  三种设备逐位相同。
+- 每个元件之后（`rows_tref`）行时间移到参考时间：下一个行内核先减去同一个 float 值、T0 在主机双精度中加上它（行时间与它相差不到一倍，减法精确）。
+- `ztot` 在 GPU 上直接把行换回相对新同步粒子 {0, 0, 0, 0, z_s, uz_s} 的 float 状态（`DeviceBackend::ztot` 增加同步粒子参数，tracker 先算同步行），
+  随后的 `update_beam_parameters` 也在 GPU 上，所以 **进出 z-code 都不再整体转换粒子数据**。需要主机记录时（dst / dump 输出）只把行换回 `P.rec`，不动粒子状态；
+  加速器的 `to_host` 不再放弃“当前态”，只有主机改动粒子数组（`host_mod`：回退路径、lpboundary、longlimits、upload）时才失效，改动记录时 float 行才重建。
+- float 精度的三处处理：(1) β² 不用 1 − 1/γ²（在 β = 0.05 时丢约 9 位，而且整束团舍入方向相同，飞行时间整体偏 1e-5 相对），float 世界改用 p²/γ²
+  （`zrow_c2b2` 等，fp64 仍是原式）；(2) c² 与元件长度舍入成 float 对每个粒子相同（约 4e-8 相对，每个元件约 1e-16 s，低于行时间的 float 分辨率），改由 T0 在双精度中扣除；
+  (3) `ztot` 中 zPlane − z_s 与 uz_s 用 float 加余数传入。
+- `AVAS_ENGINE_F32_ZCODE=0` 让这些操作回到主机（与之前的走法相同，仅供测量）；`AVAS_ENGINE_PROFILE=1` 的 `[fp32 profile]` 增加 z-code 在 GPU 上的次数与行上传 / 记录下载 / 同步重定基的次数。
+
+**检查**（Apple M2，Mac 默认构建：AppleClang、含 Metal）：
+- `run_gpu.py --device metal`（184 个算例）：重跑全部逐字节相同；**Metal 与 emu fp32 逐字节相同 184/184**（含 45 个 z-code 在 GPU 上的算例）。
+- z-code 在 GPU 上的证据（`AVAS_ENGINE_PROFILE=1`，184 个算例的计数）：45 个含 z-code 的算例共 224 次行操作、74 次 zTotcode、74 次 `update_beam_parameters`
+  全部在 GPU 上完成；这 45 个算例每个只有开始时 1 次 fp64→fp32 转换，多粒子算例只有结束输出时 1 次 fp32→fp64（单粒子算例每步的单粒子输出只读取，不再转回 float），
+  行上传（fp64 记录→float 行）0 次、同步粒子重定基 0 次。第四阶段之前每个 z-code 段进、出各一次整体转换，行变换在主机上逐粒子串行。
+  仍逐步转换的只有 lpboundary（LP1–3）、longlimits（LL1）与 importSCF（LS1），它们的这部分工作在主机上。
+- 与 CPU（fp64）的差别：t-code 算例与第三阶段相同（DataSet 一般 3e-5～1e-4、最大 2.2e-4；dst ≤ 7e-5 rms，PN3 的单个网格边缘粒子 5e-3）。
+  z-code 多粒子算例（23 个）：dst 中位 6.1e-5、最大 1.2e-4 rms（z-code 在主机时 ≤ 1.2e-5）；DataSet 中位 5.1e-5，最大 7.5e-4 出现在质心 z 偏移列
+  （接近 0 的列，ER16 的绝对差 1.5e-8 m），弯铁 Z3 / Z4 的横向质心列 3.9e-4（绝对 2.6e-10 m）。z-code 单粒子算例（22 个）：dst ≤ 4.4e-6 rms；DataSet 的
+  z 偏移列相对差最大 0.77（Z3，绝对 7e-8 m，162.5 MHz 下 2e-4 度）。来源是 float 行用绝对的 βγ_z：βγ_z ≈ 0.057 时舍入 3.7e-9，对应能量 2e-7 MeV、
+  每个元件的飞行时间约 1e-15 s（见待定点 1）。修正前（β² 用 1 − 1/γ²、c² 与长度的舍入未扣除）Z1 的质心 z 列差 1.1e-2，修正后 4.6e-5。
+- emu fp32 在不含 Metal 的构建中可用：conda clang 的 Mac 构建（默认关闭 Metal）编译通过，emu fp32 运行 Z1 / SC5 / LB2，z-code 同样走 float 行；
+  A100（Linux，GCC 12）上 emu fp32 跑全部 184 个算例（见下）。
+- 物理检验在 Metal 上通过（z-code 不涉及，数字与第三阶段相同）：DC KV SPICNIC 40³ 增长比 0.993、PICNIC 24³ 0.984；椭球 SPICNIC 40³ 0.34 %、PICNIC 32³ 0.19 %。
+- Mac CPU 全套（默认构建）：单元测试、`run_all.py`（inData 23/23 不变，compat=dll 与 AVAS.dll 最大差 3.44e-11 不变）、`run_physics.py`、`tools_check.py`、
+  `ruff`（`engine/tests`、`engine/tools`、`avas`）通过；两种 Mac 构建（AppleClang 含 Metal、conda clang 不含 Metal）都无新警告（conda 构建的 `-pie` 链接提示来自 conda 的 `LDFLAGS`）。
+  CPU 默认模式只改了不改变运算的地方（`physics.h` / `kernels.h` 的地址空间宏与 `double(…)` 字面量、tracker 先算同步行、`RowOp::uzs` 对所有元件填写）。
+
+**A100**（GCC 12 + nvcc 12.4，`--fmad=false`，无新警告；`nm -D` 只有 7 个 C 接口，只依赖 GLIBC_2.14；按正常 Slurm 申请 2 块空闲 GPU，未动用户的 7888_* 作业）：
+- 第一部分完成时（z-code 仍在主机）先跑一遍全套：fp64 154/154 与 CPU 逐字节相同、30 个空间电荷算例重跑 / 双卡 / MPI 逐字节相同（删除旧 fp32 代码不影响 fp64）；
+  **CUDA fp32 与 emu fp32 逐字节相同 184/184**，fp32 重跑、双卡（`AVAS_ENGINE_GPUS=0,1`）、MPI（`mpirun -np 2`）对全部 184 个算例逐字节相同（552/552）；
+  CUDA fp32 与旧 CUDA fp32 的差别：DataSet 最大 3.2e-5（列最大值的比例）、dst 最大 1.4e-5 rms，62 个算例不变；与 CPU 的最大差不变（3.4e-3，单粒子校正铁算例）。
+- 含 z-code 上 GPU 的构建（CUDA 内存改造之前）：`run_gpu.py --gpus2 0,1 --mpi "mpirun -np 2" --fp32 --stats 8` 全部通过——fp64 154/154、空间电荷 30 个算例重跑 / 双卡 / MPI 逐字节相同；
+  **CUDA fp32 与 emu fp32 逐字节相同 184/184**（数字与 Metal 完全相同）；fp32 重跑 184、双卡 184、MPI 61 个算例（空间电荷与多粒子的 z-code、误差、superpose(out)、
+  boundary 算例；fp32 下 MPI 每个进程算全部粒子，每个算例一次 `mpirun` 太慢，全部 184 个已在第一部分跑过）逐字节相同 429/429；8 个种子的统计检验通过。
+  z-code 计数与 Metal 相同（45 个算例、224 次行操作、74 次 zTotcode，行上传 0）。与旧 CUDA fp32 相比：t-code 算例同上（≤ 3.2e-5），z-code 算例的变化即上面
+  float 行的差别（多粒子 DataSet ≤ 7.5e-4、dst ≤ 1.2e-4 rms；单粒子 z 偏移列最大 0.77，绝对 7e-8 m）。
+- CUDA 内存改造（紧凑候选表、显式复制，见上）之后的构建再跑全套：fp64 154/154、空间电荷 30 个算例重跑 / 双卡 / MPI 逐字节相同，fp32 重跑 / 双卡 / MPI 429/429，
+  与 emu fp32 逐字节相同 184/184；最后加上的托管内存提示（read-mostly、首选位置、批量预取，只影响页的位置）的构建跑 18 个代表算例（空间电荷、z-code、误差、
+  superposeout、boundary、单粒子、dump）：fp64 11/11，fp32 重跑 / 双卡 / MPI 50/50，与 emu fp32 18/18；`nm -D` 7 个接口、GLIBC_2.14，无新警告。
+- Linux 上 emu fp32 可用：A100 计算节点上（不含 Metal 的构建）emu fp32 跑全部 184 个算例，即上面逐字节比较的参照。
+**CUDA fp32 的性能（A100，`perf_gpu.py`，推进 + 空间电荷时间 / 跟踪总时间，秒；“旧”为 c534785 的 CUDA fp32，新构建与同节点的其他作业并行时测得）**：
+
+| 运行 | 旧 CUDA fp32 | CUDA fp64 | 新 CUDA fp32，1 卡 | 新 CUDA fp32，2 卡 |
+|---|---|---|---|---|
+| hwr010 两周期，1e6，无 SC | 0.82 / 4.25 | 0.97 / 4.30 | 1.00 / 4.79 | 1.32–3.63 / 5.4–8.6 |
+| hwr010 两周期，1e6，SPICNIC | 2.38 / 5.83 | 2.79 / 6.13 | 55 / 59 | 31–36 / 36–40 |
+| 四极段，1e5，无 SC | 0.30 / 1.21 | 0.36 / 1.34 | 0.96 / 1.87 | 1.64 / 2.91 |
+| 四极段，1e6，无 SC | 1.70 / 5.36 | 2.04 / 5.49 | 6.1–40 / 10–44 | 7.1 / 11.3 |
+| 四极段，1e6，SPICNIC | 5.76 / 9.39 | 6.28 / 9.82 | 125–128 / 130–133 | 80 / 85 |
+
+- 无空间电荷的 t-code 与旧 fp32 持平；z-code 束线 1e5 慢约 1.5 倍，1e6 时单卡在不同运行间相差可达 6 倍（托管内存的页迁移不稳定，原因未查清），双卡稳定在约 2 倍。
+- **有空间电荷时比旧 CUDA fp32 慢 15–25 倍**：网格的格林函数表、SPICNIC 修正表、电荷与场的 float / double 转换都在主机上（emu 的做法；Metal 的统一内存上这些开销小，
+  第二阶段测得 Metal 比 CPU 快 7–13 倍），而旧 CUDA fp32 在 GPU 上算格林函数表与修正表。这是本阶段最大的遗留问题（见待定点 4）。
+- 排查中发现并修正的问题：托管内存由主机 `memset` 清零时逐页缺页（1e6 粒子开始时耗时几十秒，改为 GPU 清零、主机批量读写前后整体预取）；单卡上粒子页
+  没有首选位置时每步都被迁走（推进内核一步 23 ms，设首选位置后 0.2 ms）；表与列表设为 read-mostly。
+
+**性能**（M2；束线为 20 个四极铁的 FODO（`quad 0.1` 与 `drift 0.1` 交替，4.05 m，20 个 z-code 段）与同一束线加四极误差研究（2 组，ER16 的误差设置）；
+示例 hwr010 束流生成 1e5 / 1e6 粒子；`perf_gpu.py --lattice`；“之前”为第三阶段提交 c534785 的构建，与现在的构建交替运行，同一配置测两轮）。
+这台机器本段测时的起伏很大（同一构建同一配置两轮相差可到 30 %，第一次测量时甚至慢 5 倍，原因未查明），总时间的差别大多在起伏之内；
+能稳定分辨的是“跟踪时间 − 推进与空间电荷时间”，即 z-code 段、进出转换与输出的时间：
+
+| 四极段（每次运行，两轮） | Metal 之前 | Metal 现在 | CPU（8 线程）总跟踪时间 |
+|---|---|---|---|
+| 1e5，无 SC：z-code + 转换 | 0.51 / 0.47 s | 0.25 / 0.26 s | 6.5 s（Metal 现在总计 2.2 s） |
+| 1e6，无 SC：z-code + 转换 | 4.10 / 3.83 s | 1.52 / 1.54 s | 64 s（Metal 现在总计 12.7–13.0 s） |
+| 1e6，SPICNIC：z-code + 转换 | 5.16 / 5.15 s | 1.96 / 3.52 s | — |
+
+- z-code 部分快 2–2.7 倍。之前 Metal 在这条束线上 1e5 无空间电荷时比 CPU 只快 2.4 倍，现在快 3 倍；1e6 时 5 倍。
+- 误差研究（2 组，进程总时间，两轮）：1e5 无 SC 之前 6.7 / 5.5 s、现在 6.2 / 6.6 s，1e6 无 SC 之前 30.5 / 42.0 s、现在 25.8 / 40.5 s，1e6 SPICNIC 之前 73.7 / 90.8 s、
+  现在 66.0 / 91.0 s；CPU 1e5 无 SC 17.3 s、1e6 无 SC 401 s、1e5 SPICNIC 248 s。总时间由 t-code 推进主导，改进在起伏之内。
+- t-code（hwr010 两周期线）与之前持平（1e6 无 SC 推进 4.5–5.2 s 对 4.9–5.4 s）。中间试过把粒子列长度补齐到整组（多卡时按页对齐），
+  结果一个粒子的约 80 列都相隔 16 KiB、落在同一组缓存上，推进内核慢 25 %，已撤回。
+- 1e6 时每步主机约 2–4.6 ms：t-code 中每个粒子穿过 20 个四极入口和输出面，穿越点由主机在双精度中补全（同时写 float 行），这是剩下的主要主机开销。
+
+**受限 / 未完成**：
+- z-code 的 float 行是绝对坐标（见上），z-code 算例的 fp32 差别比 t-code 大几倍（仍远小于物理需要）。
+- MPI 下 fp32 档不加速（每个进程计算全部粒子）。
+- CUDA fp32 用托管内存：Linux 上可并发访问（已在 A100 上验证）；Windows（WDDM）上托管内存不能与内核并发访问，本设计每次调用后都同步，结果正确，性能未实测（XPS 不能连接）。
+- 在主机上的部分：FFT 求解、二次粒子、lpboundary、longlimits、importSCF、dump / 单粒子输出的读取；emu 的 fp64 副本仍在（第 14 节第 3 项暂不做）。
+- CUDA fp32 的性能：有空间电荷时比旧 CUDA fp32 慢 15–25 倍，z-code 束线单卡耗时不稳定（见性能表与待定点 4）。
+- L40S、lyc-pc、XPS 在本段开始与结束时都无法连接（ssh 超时）。
+- 临时数据：A100 的 `~/avas_engine_work/tmp_m6g`（源码包、各次构建、全套与性能运行目录）与 Mac 的构建 / 运行目录已删除，工具链保留。
+
+**新的待定点（附推荐）**：
+1. **z-code 行改为相对同步行的增量形式**（时间与 βγ_z 存相对量、行变换按增量更新），把 z-code 算例的 fp32 差别降到 t-code 水平：要为 float 世界另写行变换的时间与动量更新
+   （共享的 `het_row` 是绝对坐标，fp64 路径必须不变），工作量中等。推荐：暂不做，现在的差别（能量 2e-7 MeV、z 1e-7 m）远小于物理需要；若需要，可用
+   `AVAS_ENGINE_F32_ZCODE=0` 让 z-code 回到主机 fp64（变慢）。
+2. **MPI 下 fp32 档按进程分粒子**：要让主机逻辑只持有本进程的粒子，并在进程间合并统计、候选与网格。推荐：暂不做——fp32 档面向单机消费级显卡，单进程多卡已支持；
+   A100 等 HPC 卡 auto 用 fp64 档，MPI 照常加速。
+3. **FFT 求解与 lpboundary / longlimits 也放到 fp32 设备上**（现在在主机，后两者每步转换）：推荐在第 4 项之后做 FFT（与 PICNIC / SPICNIC 同样编进 float 世界），
+   lpboundary / longlimits 随后。
+4. **CUDA fp32 的性能**（本阶段最大的遗留问题）：(a) 网格的格林函数表与 SPICNIC 修正表在设备上计算（可移植的 `p_log` / `p_atan`，fp64 档已有，CPU / Metal 用同一份 fp64 代码，
+   结果仍逐字节相同），电荷与场的转换放到设备；(b) CUDA 设备改用显式显存加批量复制（`F32Device` 增加读写区段的接口），不再依赖托管内存的页迁移。推荐：下一步先做 (a)，
+   再做 (b)。在此之前 **auto 精度在非 HPC 卡上仍选 fp32**，有空间电荷的运行会比旧版本慢；可以选择暂时让 CUDA 的 auto 改选 fp64（消费级卡 fp64 慢，但不受上述主机开销影响）——
+   需用户决定，推荐先保持 fp32、尽快做 (a)。

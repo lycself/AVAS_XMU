@@ -311,6 +311,44 @@ def main():
                 worst_single = max(worst_single, dd if math.isfinite(dd) else 0.0)
             print(f"  {n:<32} DataSet {ds:10.3g}   dst {dd:10.3g}{'   (single particle)' if single else ''}")
         print(f"  single-particle cases: largest coordinate difference {worst_single:.3g} rms")
+        # the fp32 tier is one design on every device (M6c phase 4): a rerun, two GPUs and MPI must give
+        # the same bytes; the fp32 reference on the CPU (emu, precision fp32) should too
+        e32 = os.path.join(work, "emu_fp32")
+        run_cases(lib, e32, {"AVAS_ENGINE_DEVICE": "emu", "AVAS_ENGINE_PRECISION": "fp32", "AVAS_ENGINE_GPUS": ""}, names)
+        runs32 = [("rerun", os.path.join(work, "gpu32_again"), dict(gpu_env, AVAS_ENGINE_PRECISION="fp32"), None, names)]
+        if a.gpus2:
+            runs32.append((f"GPUs {a.gpus2}", os.path.join(work, "gpu32_x2"),
+                           dict(gpu_env, AVAS_ENGINE_PRECISION="fp32", AVAS_ENGINE_GPUS=a.gpus2), None, names))
+        if a.mpi:
+            # every rank computes all particles in fp32 (one mpirun per case is slow): the space-charge cases
+            # and the multi-particle z-code, error, superpose(out) and boundary cases
+            mpi32 = [n for n in names if n in sc_names or (by_name[n].get("beam", {}).get("particlenumber") not in (1, "1") and
+                                                         n.split("_")[0].rstrip("0123456789abm") in ("Z", "ER", "SE", "SP", "LB"))]
+            runs32.append((a.mpi, os.path.join(work, "gpu32_mpi"), dict(gpu_env, AVAS_ENGINE_PRECISION="fp32", AVAS_ENGINE_GPUS=""),
+                           a.mpi, mpi32))
+        for _, d, env, launcher, sel in runs32:
+            run_cases(lib, d, env, sel, launcher=launcher)
+        nref, notref, bad32 = 0, [], []
+        for n in names:
+            for lbl, d, _, _, sel in runs32:
+                if n not in sel:
+                    continue
+                ok, why = identical(os.path.join(g32, n), os.path.join(d, n))
+                if not ok:
+                    fails += 1
+                    bad32.append(f"{n} ({lbl}): {why[:60]}")
+            ok, why = identical(os.path.join(g32, n), os.path.join(e32, n))
+            nref += ok
+            if not ok:
+                notref.append(f"{n}: {why[:60]}")
+        ntot = sum(len(r[4]) for r in runs32)
+        print("\nfp32: " + ", ".join(f"{lbl} ({len(sel)} cases)" for lbl, _, _, _, sel in runs32) +
+              f" against the first fp32 run (byte-identical required): {ntot - len(bad32)}/{ntot}")
+        for line in bad32:
+            print(f"  FAIL {line}")
+        print(f"fp32 against the fp32 reference on the CPU (emu, precision fp32), byte-identical: {nref}/{len(names)}")
+        for line in notref:
+            print(f"  differs: {line}")
     if a.stats:
         for sc in (False, True):
             spec = os.path.join(work, f"stats_{'sc' if sc else 'nosc'}.json")

@@ -2,6 +2,7 @@
 
 usage: python engine/tests/gpu/perf_gpu.py --run PATH/avas_engine_run --work DIR [--sizes 1e5,1e6,1e7]
                                            [--sc 0,1] [--scmethod SPICNIC] [--label NAME] [--env KEY=VALUE ...] [--json OUT]
+                                           [--lattice FILE]
 
 The beam line is two periods of the tutorial line of the example project (drift, solenoid "sol",
 drift, cavity "hwr010" at -30 deg, drift; 1.72 m), the bunch is generated (GS GS, the Twiss parameters
@@ -9,7 +10,9 @@ of the example, randomseed 1), space charge SPICNIC (--scmethod: FFT, SPICNIC or
 The configuration (CPU threads, device, precision, GPUs) comes from --env, e.g. --env AVAS_ENGINE_DEVICE=cuda
 --env AVAS_ENGINE_PRECISION=fp32.  Reported per run: tracking time (SimulationTime.txt, without the
 initialisation, with the output files), push + space-charge time (SimulationTime.txt "Exter"), steps (rows
-of DataSet.txt), push + space-charge time per step, and the wall time of the process.
+of DataSet.txt), push + space-charge time per step, and the wall time of the process.  --lattice replaces the
+beam line (e.g. quadrupoles for z-code, or an error study); the tracking time per DataSet row is then the
+figure to compare, since "Exter" counts the t-code steps only.
 """
 import argparse
 import json
@@ -48,7 +51,7 @@ def set_keys(path, changes):
     open(path, "w", encoding="utf-8", newline="\n").write("\n".join(lines) + "\n")
 
 
-def prepare(d, n, sc, method="SPICNIC"):
+def prepare(d, n, sc, method="SPICNIC", lattice=None):
     shutil.rmtree(d, ignore_errors=True)
     inp = os.path.join(d, "inputs")
     os.makedirs(inp)
@@ -58,7 +61,8 @@ def prepare(d, n, sc, method="SPICNIC"):
     set_keys(os.path.join(inp, "beam.txt"), {"particlenumber": int(n), "randomseed": 1, "current": 5.0 if sc else 0.0,
                                               "readparticledistribution": "unknown"})
     set_keys(os.path.join(inp, "input.txt"), {"spacecharge": 1 if sc else 0, "scmethod": method})
-    open(os.path.join(inp, "lattice.txt"), "w", newline="\n").write(LATTICE)
+    text = open(lattice, encoding="utf-8").read() if lattice else LATTICE
+    open(os.path.join(inp, "lattice.txt"), "w", newline="\n").write(text)
     return inp
 
 
@@ -73,6 +77,7 @@ def main():
     ap.add_argument("--env", action="append", default=[])
     ap.add_argument("--json", default="")
     ap.add_argument("--keep", action="store_true")
+    ap.add_argument("--lattice", default="", help="beam line file instead of the two hwr010 periods")
     a = ap.parse_args()
     env = dict(os.environ)
     for kv in a.env:
@@ -82,7 +87,7 @@ def main():
     for sc in [int(s) for s in a.sc.split(",")]:
         for n in [float(s) for s in a.sizes.split(",")]:
             d = os.path.join(a.work, f"perf_{int(n)}_{sc}")
-            inp = prepare(d, n, sc, a.scmethod)
+            inp = prepare(d, n, sc, a.scmethod, a.lattice or None)
             out = os.path.join(d, "OutputFile")
             t0 = time.time()
             p = subprocess.run([a.run, inp + os.sep, out + os.sep, EXAMPLE + os.sep], env=env, stdout=subprocess.PIPE,
@@ -91,7 +96,7 @@ def main():
             log = p.stdout.decode("latin-1", "replace")
             open(os.path.join(d, "log.txt"), "w").write(log)
             for ln in log.splitlines():
-                if ln.startswith("[gpu profile]"):
+                if ln.startswith("[gpu profile]") or ln.startswith("[fp32 profile]"):
                     print("   ", ln)
             dev = next((ln.strip() for ln in log.splitlines() if ln.startswith("Device:")), "Device: CPU")
             steps, track = 0, float("nan")
@@ -106,10 +111,11 @@ def main():
                 push = float(w[2])  # "Exter:<blocks>:" then the time of the space-charge solves and pushes
             r = {"label": a.label, "particles": int(n), "space_charge": sc, "rc": p.returncode, "steps": steps,
                  "tracking_s": track, "push_s": push, "ms_per_step": 1000.0 * push / steps if steps else float("nan"),
-                 "wall_s": wall, "device": dev}
+                 "wall_s": wall, "device": dev, "ms_per_row": 1000.0 * track / steps if steps else float("nan")}
             results.append(r)
             print(f"{a.label:<22} N={int(n):>9} sc={sc} rc={p.returncode} steps={steps:5d} push+sc {push:8.2f} s "
-                  f"{r['ms_per_step']:8.2f} ms/step  tracking {track:8.2f} s  wall {wall:7.1f} s  {dev[:60]}", flush=True)
+                  f"{r['ms_per_step']:8.2f} ms/step  tracking {track:8.2f} s ({r['ms_per_row']:.2f} ms/row)  wall {wall:7.1f} s  {dev[:60]}",
+                  flush=True)
             if p.returncode != 0:
                 print(log[-2000:])
             if not a.keep:

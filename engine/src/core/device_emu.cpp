@@ -89,18 +89,32 @@ public:
         if (accel_) accel_->begin_run(L, n_);
     }
 
-    // The accelerator's float state back into the fp64 arrays before any work on them.
-    void host() {
-        if (accel_ && accel_->authoritative())
-            for (EmuShard& s : sh_) accel_->to_host(s.P, s.n());
+    // The accelerator's float state (and its z-code rows) into the fp64 arrays before the host reads
+    // them; the accelerator stays authoritative.  state = false: only the records.
+    void host(bool state = true) {
+        if (!accel_) return;
+        for (EmuShard& s : sh_) {
+            if (state && accel_->authoritative()) accel_->to_host(s.P, s.n());
+            accel_->rec_to_host(s.P, s.n());
+        }
     }
+    // ... before the host changes them (rec: also the records): the accelerator converts again before
+    // its next use.
+    void host_mod(bool rec) {
+        host();
+        if (accel_) {
+            accel_->invalidate();
+            if (rec) accel_->invalidate_rows();
+        }
+    }
+    bool acc1() const { return accel_ && sh_.size() == 1; }
 
     void set_elems(const LatHost& L) override {  // the view points at the host table
         if (accel_) accel_->set_elems(L);
     }
 
     void download(Beam& b, double* old, double* rec, double* spRec, unsigned m) override {
-        host();
+        host((m & ~(kDevRec | kDevSpRec)) != 0);
         for (EmuShard& s : sh_) {
             const int o = s.lo, c = s.n();
             auto put = [&](const std::vector<double>& v, std::vector<double>& h) { std::copy(v.begin(), v.end(), h.begin() + o); };
@@ -124,7 +138,10 @@ public:
 
     void upload(const Beam& b, const double* old, const double* rec, const double* spRec, unsigned m) override {
         host();
-        if (accel_) accel_->invalidate();
+        if (accel_) {
+            accel_->invalidate();
+            if (m & kDevRec) accel_->invalidate_rows();
+        }
         for (EmuShard& s : sh_) {
             const int o = s.lo, c = s.n();
             if (m & kDevCoord) { cp_in(s.x, b.x, o, c); cp_in(s.ux, b.ux, o, c); cp_in(s.y, b.y, o, c); cp_in(s.uy, b.uy, o, c); cp_in(s.z, b.z, o, c); cp_in(s.uz, b.uz, o, c); }
@@ -157,7 +174,7 @@ public:
         spCount = recCount = 0;
         set_scalars(ls);
         if (accel_ && sh_.size() == 1 && accel_->step(ls, a0, rf, events, sh_[0].P, sh_[0].n(), out, spCount, recCount)) return;
-        host();
+        host_mod(true);
         kern::StepArgs a = a0;
         a.events = events.data();
         const kern::RfSrc src{rf.data(), a.tEnd};
@@ -194,10 +211,12 @@ public:
     }
 
     void ubp1(const double* s6, double* sums) override {
-        host();
+        if (acc1() && accel_->ubp1(s6, sums)) return;
+        host_mod(false);
         reduce<kern::kUbpSums>([&](EmuShard& s, int i, double* c) { kern::ubp_pass1(s.P, i, s6, c); }, sums);
     }
     void ubp2(const double* cen, double igz, double* q3, double& zmin, double& zmax) override {
+        if (acc1() && accel_->ubp2(cen, igz, q3, zmin, zmax)) return;
         host();
         reduce<3>([&](EmuShard& s, int i, double* c) { kern::ubp_pass2(s.P, i, cen, igz, c); }, q3);
         zmin = 1e10;
@@ -209,13 +228,15 @@ public:
             }
     }
     void rows(const kern::RowOp& op) override {
-        host();
+        if (acc1() && accel_->rows(op, sh_[0].P, sh_[0].n())) return;
+        host_mod(true);
         each([&](EmuShard& s, int i) {
             double* r = s.rec.data() + 8 * static_cast<size_t>(i);
             if (r[7] == 1.0) kern::het_row<PortableMath>(op, r, s.qOverM[i], s.scx[i], s.scy[i], s.scz[i]);
         });
     }
     void rows_tref(bool average, double& tRef) override {
+        if (acc1() && accel_->rows_tref(average, sh_[0].P, sh_[0].n(), tRef)) return;
         host();
         if (average) {
             double s2[2];
@@ -230,14 +251,16 @@ public:
         }
     }
     void rows_kick(int kind, double wx, double wy, double len) override {
-        host();
+        if (acc1() && accel_->rows_kick(kind, wx, wy, len, sh_[0].P, sh_[0].n())) return;
+        host_mod(true);
         each([&](EmuShard& s, int i) {
             double* r = s.rec.data() + 8 * static_cast<size_t>(i);
             if (r[7] == 1.0) kern::kick_row(r, kind, wx, wy, len * s.qOverM[i], false);
         });
     }
-    void ztot(double zPlane, double tRef) override {
-        host();
+    void ztot(double zPlane, double tRef, const double* sync) override {
+        if (acc1() && accel_->ztot(zPlane, tRef, sync, sh_[0].P, sh_[0].n())) return;
+        host_mod(true);
         each([&](EmuShard& s, int i) {
             s.nextPlane[i] = 0;
             double* r = s.rec.data() + 8 * static_cast<size_t>(i);
@@ -246,7 +269,7 @@ public:
         });
     }
     void rec_tmin(bool sp, double& tmin) override {
-        host();
+        host(false);
         tmin = 1e10;
         each([&](EmuShard& s, int i) {
             const double* r = (sp ? s.spRec : s.rec).data() + 8 * static_cast<size_t>(i);
@@ -254,10 +277,12 @@ public:
         });
     }
     void hesc1(double tRef, double* sums) override {
-        host();
+        if (acc1() && accel_->hesc1(tRef, sh_[0].P, sh_[0].n(), sums)) return;
+        host_mod(false);
         reduce<kern::kHescSums>([&](EmuShard& s, int i, double* c) { kern::hesc_pass1(s.P, i, tRef, c); }, sums);
     }
     void hesc2(const double* cen, double gc, double* q3) override {
+        if (acc1() && accel_->hesc2(cen, gc, q3)) return;
         host();
         reduce<3>([&](EmuShard& s, int i, double* c) { kern::hesc_pass2(s.P, i, cen, gc, c); }, q3);
     }
@@ -301,14 +326,21 @@ public:
         if (in.method == 1 || in.method == 2) {
             // Green table and correction list as on the GPU (in reverse order: independent entries)
             const int ax = g.mx + 1, ay = g.my + 1, az = g.mz + 1;
+            // every entry (cell) is computed on its own: in parallel over the CPU threads, the same values
             std::vector<double> F(static_cast<size_t>(ax) * ay * az);
-            for (long long e = static_cast<long long>(F.size()) - 1; e >= 0; --e)
-                F[static_cast<size_t>(e)] = sck::green_corner(static_cast<int>(e / (ay * az)), static_cast<int>((e / az) % ay),
-                                                              static_cast<int>(e % az), in.dx, in.dy, in.dz);
+            const long long nF = static_cast<long long>(F.size()), nC = static_cast<long long>(g.mx) * g.my * g.mz;
+            constexpr int kChunks = 256;
+            par_for(kChunks, [&](int ch) {
+                for (long long e = nF * ch / kChunks; e < nF * (ch + 1) / kChunks; ++e)
+                    F[static_cast<size_t>(e)] = sck::green_corner(static_cast<int>(e / (ay * az)), static_cast<int>((e / az) % ay),
+                                                                  static_cast<int>(e % az), in.dx, in.dy, in.dz);
+            });
             G_.assign(static_cast<size_t>(2 * g.nx + 1) * (2 * g.ny + 1) * (2 * g.nz + 1), 0.0);
-            for (long long e = static_cast<long long>(g.mx) * g.my * g.mz - 1; e >= 0; --e)
-                sck::green_cell(g, F.data(), in.vol, static_cast<int>(e / (g.my * g.mz)), static_cast<int>((e / g.mz) % g.my),
-                                static_cast<int>(e % g.mz), G_.data());
+            par_for(kChunks, [&](int ch) {
+                for (long long e = nC * ch / kChunks; e < nC * (ch + 1) / kChunks; ++e)
+                    sck::green_cell(g, F.data(), in.vol, static_cast<int>(e / (g.my * g.mz)), static_cast<int>((e / g.mz) % g.my),
+                                    static_cast<int>(e % g.mz), G_.data());
+            });
         }
         if (accel_ && (in.method == 1 || in.method == 2)) {
             // accelerator: the sums in fp32 there; table and correction list from the host (fp64)
@@ -420,7 +452,7 @@ public:
     }
     void boundary(const LatScalars& ls, double t, double dt, std::vector<BoundaryHit>& hits) override {
         if (accel_ && accel_->authoritative() && accel_->boundary(ls, t, dt, hits)) return;
-        host();
+        host_mod(false);
         set_scalars(ls);
         hits.clear();
         for (int k = static_cast<int>(sh_.size()) - 1; k >= 0; --k) {  // shards in reverse: the host sorts
@@ -438,15 +470,15 @@ public:
         }
     }
     void lp_fold(double zs, double full, double half) override {
-        host();
+        host_mod(false);
         each([&](EmuShard& s, int i) { kern::lp_fold_particle(s.P, i, zs, full, half); });
     }
     void long_loss(double zs, double ws, double dW, double dzMax) override {
-        host();
+        host_mod(false);
         each([&](EmuShard& s, int i) { kern::long_loss_particle(s.P, i, s.restMass.data(), zs, ws, dW, dzMax, false); });
     }
     void secondary(const LatScalars& ls, const SeHost& se, const kern::SeV& v, SeOut& out) override {
-        host();
+        host_mod(false);
         const int nSlots = std::max(se.nSlots, 1);
         out.planes.assign(static_cast<size_t>(n_) * nSlots * 8, 0.0);
         out.hits.clear();

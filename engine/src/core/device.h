@@ -114,7 +114,9 @@ public:
     virtual void rows(const kern::RowOp& op) = 0;
     virtual void rows_tref(bool average, double& tRef) = 0;
     virtual void rows_kick(int kind, double wx, double wy, double len) = 0;
-    virtual void ztot(double zPlane, double tRef) = 0;
+    // sync: the synchronous particle after zTotcode {x, ux, y, uy, z, uz} (the fp32 tier keeps the
+    // particles relative to it)
+    virtual void ztot(double zPlane, double tRef, const double* sync) = 0;
     virtual void rec_tmin(bool sp, double& tmin) = 0;
     virtual void hesc1(double tRef, double* sums) = 0;
     virtual void hesc2(const double* cen, double gc, double* q3) = 0;
@@ -183,6 +185,8 @@ public:
         return false;
     }
     virtual bool authoritative() const { return false; }
+    // Writes the float state into P; the accelerator stays authoritative (the host only reads P)
+    // until invalidate() says that the host changed P.
     virtual void to_host(const kern::PartV& P, int n) { (void)P; (void)n; }
     virtual void invalidate() {}
     // rec / spRec flags cleared by the tracker (zero_rec)
@@ -194,6 +198,33 @@ public:
     }
     // element table changed (superposeout rotMode)
     virtual void set_elems(const LatHost& L) { (void)L; }
+
+    // ---- z-code rows on the accelerator (M6c phase 4; authoritative only, false: the caller does it on
+    // the CPU).  The rows are the fp64 records P.rec in float; after row work they are newer than
+    // P.rec until rec_to_host(). ----
+    virtual bool rows(const kern::RowOp& op, const kern::PartV& P, int n) { (void)op; (void)P; (void)n; return false; }
+    virtual bool rows_tref(bool average, const kern::PartV& P, int n, double& tRef) {
+        (void)average; (void)P; (void)n; (void)tRef;
+        return false;
+    }
+    virtual bool rows_kick(int kind, double wx, double wy, double len, const kern::PartV& P, int n) {
+        (void)kind; (void)wx; (void)wy; (void)len; (void)P; (void)n;
+        return false;
+    }
+    virtual bool hesc1(double tRef, const kern::PartV& P, int n, double* sums) { (void)tRef; (void)P; (void)n; (void)sums; return false; }
+    virtual bool hesc2(const double* cen, double gc, double* q3) { (void)cen; (void)gc; (void)q3; return false; }
+    virtual bool ztot(double zPlane, double tRef, const double* sync, const kern::PartV& P, int n) {
+        (void)zPlane; (void)tRef; (void)sync; (void)P; (void)n;
+        return false;
+    }
+    virtual bool ubp1(const double* s6, double* sums) { (void)s6; (void)sums; return false; }
+    virtual bool ubp2(const double* cen, double igz, double* q3, double& zmin, double& zmax) {
+        (void)cen; (void)igz; (void)q3; (void)zmin; (void)zmax;
+        return false;
+    }
+    virtual void rec_to_host(const kern::PartV& P, int n) { (void)P; (void)n; }
+    // the host changed P.rec (upload): the float rows are rebuilt before their next use
+    virtual void invalidate_rows() {}
     // Deposit / interpolation from the float state (authoritative only).
     virtual void deposit_state(const kern::MeshV& M, int n, std::vector<long long>& acc) { (void)M; (void)n; (void)acc; }
     virtual void interp_state(const kern::MeshV& M, const double* ex, const double* ey, const double* ez, int n) {
@@ -206,10 +237,12 @@ public:
 std::unique_ptr<DeviceBackend> make_emu_backend(std::unique_ptr<ScAccel> accel = nullptr);
 // Metal (src/metal/, AVAS_WITH_METAL): the accelerator, or null and a reason.
 std::unique_ptr<ScAccel> make_metal_accel(std::string& why);
-// The fp32 tier of the emu device (precision fp32): the Metal back end's host logic with its kernels
-// run on the CPU (core/f32_cpu.cpp); for now only in builds with Metal.
+// The fp32 tier of the emu device (precision fp32): the host logic of the fp32 GPU back ends
+// (core/f32_host.cpp) with their kernels run on the CPU (core/f32_cpu.cpp); every build.
 std::unique_ptr<ScAccel> make_f32_cpu_accel(std::string& why);
 bool metal_compiled();
+// The CUDA fp32 tier (src/cuda/cuda_f32_device.cu): the accelerator on the given GPUs.
+std::unique_ptr<ScAccel> make_cuda_f32_accel(const std::vector<int>& devs, const std::string& desc, std::string& why);
 // Compiled with CUDA support?
 bool cuda_compiled();
 

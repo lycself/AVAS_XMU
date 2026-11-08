@@ -180,29 +180,84 @@ AVAS_HD inline void sync_push(R coord[6], const R E[3], const R B[3], R qOverM, 
     coord[4] = uz * v * dt + coord[4];
 }
 
+#endif  // AVAS_FLOAT_ONLY
 
 // ---- z-code (hard-edge matrix) kernels -------------------------------------------------------
+// The particle rows below are also compiled in the float world (Metal, CUDA fp32, emu fp32: the
+// z-code rows of the fp32 tier, M6c phase 4); the synchronous rows stay on the host.
 // A z-code row is {x, ux, y, uy, dt, uz, t, flag}: the particle at a fixed z plane, u = gamma*beta,
 // t the time it reaches the plane, dt the time of the last transfer (MethodMP::HardEdgeTrans).
 namespace k {
-constexpr double c2 = 8.987551787368176e16;  // c^2 as folded by the DLL
-constexpr double inv_c2 = 1.1126500560536185e-17;
+AVAS_PCONST constexpr double c2 = 8.987551787368176e16;  // c^2 as folded by the DLL
+AVAS_PCONST constexpr double inv_c2 = 1.1126500560536185e-17;
 }  // namespace k
+
+// beta^2 c^2, beta^2 and gamma*beta of a row with g2 = gamma^2.  The DLL forms (fp64) take 1 - 1/g2,
+// which loses about 9 bits at beta = 0.05; harmless in double, but in float (the fp32 rows of the GPU
+// back ends) that rounding is the same for all particles of a bunch and shifts every time of flight
+// by about 1e-5 relative.  The float world therefore uses p^2 / g2 with p^2 = ux^2 + uy^2 + uz^2.
+template <class R>
+AVAS_HD inline R zrow_c2b2(R g2, const AVAS_T R* r) {
+#if defined(AVAS_FLOAT_ONLY)
+    return R(k::c2) * (((r[5] * r[5] + r[3] * r[3]) + r[1] * r[1]) / g2);
+#else
+    (void)r;
+    return R(k::c2) - R(k::c2) / g2;
+#endif
+}
+template <class R>
+AVAS_HD inline R zrow_b2(R g2, const AVAS_T R* r) {
+#if defined(AVAS_FLOAT_ONLY)
+    return ((r[5] * r[5] + r[3] * r[3]) + r[1] * r[1]) / g2;
+#else
+    (void)r;
+    return R(1) - R(1) / g2;
+#endif
+}
+template <class R>
+AVAS_HD inline R zrow_b2c2(R g2, const AVAS_T R* r) {
+#if defined(AVAS_FLOAT_ONLY)
+    return zrow_b2(g2, r) * R(k::c2);
+#else
+    (void)r;
+    return (R(1) - R(1) / g2) * R(k::c2);
+#endif
+}
+template <class R>
+AVAS_HD inline R zrow_gb(R g2, const AVAS_T R* r) {
+#if defined(AVAS_FLOAT_ONLY)
+    (void)g2;
+    return hm::sqrt((r[5] * r[5] + r[3] * r[3]) + r[1] * r[1]);
+#else
+    (void)r;
+    return hm::sqrt((R(1) - R(1) / g2) * g2);
+#endif
+}
+template <class R>
+AVAS_HD inline R ztot_beta(R gamma, const AVAS_T R* r) {
+#if defined(AVAS_FLOAT_ONLY)
+    return hm::sqrt((r[1] * r[1] + r[3] * r[3]) + r[5] * r[5]) / gamma;
+#else
+    (void)r;
+    return hm::sqrt(R(1) - (R(1) / gamma) / gamma);
+#endif
+}
 
 // Common prologue of the particle workers: returns gamma^2 and the slopes, advances the time.
 template <class R>
-AVAS_HD inline R zrow_advance(R* r, R len, R& xa, R& ya) {
+AVAS_HD inline R zrow_advance(AVAS_T R* r, R len, AVAS_T R& xa, AVAS_T R& ya) {
     const R g2 = (r[5] * r[5] + r[3] * r[3]) + (r[1] * r[1] + R(1));
     const R iuz = R(1) / r[5];
     xa = iuz * r[1];
     ya = iuz * r[3];
-    const R vz = hm::sqrt((R(k::c2) - R(k::c2) / g2) / ((ya * ya + xa * xa) + R(1)));
+    const R vz = hm::sqrt(zrow_c2b2(g2, r) / ((ya * ya + xa * xa) + R(1)));
     const R dt = len / vz;
     r[6] = dt + r[6];
     r[4] = dt;
     return g2;
 }
 
+#ifndef AVAS_FLOAT_ONLY
 // Quadrupole, particle version (fn.1-3).  sincos = the static sincos of the DLL.
 template <class R, class SinCos>
 AVAS_HD inline void quad_row(R* r, R qOverM, R G, R len, SinCos sincos) {
@@ -272,12 +327,14 @@ AVAS_HD inline void quad_sync_row(R* r, R qOverM, R G, R len, SinCos sincos) {
     r[3] = r[5] * Yp;
 }
 
+#endif  // AVAS_FLOAT_ONLY
+
 // Hard-edge solenoid (fn.4-6 and the synchronous row): K = qB/(2p).
 template <class R, class SinCos>
-AVAS_HD inline void solenoid_row(R* r, R qOverM, R B, R len, SinCos sincos) {
+AVAS_HD inline void solenoid_row(AVAS_T R* r, R qOverM, R B, R len, SinCos sincos) {
     R xa, ya;
     const R g2 = zrow_advance(r, len, xa, ya);
-    const R gb = hm::sqrt((R(1) - R(1) / g2) * g2);
+    const R gb = zrow_gb(g2, r);
     const R K = (R(k::half_inv_c) / gb) * (qOverM * B);
     const R x = r[0], y = r[2];
     R S, C;
@@ -302,13 +359,13 @@ struct BendStep {
 
 // Bend, particle version.  uzs = gamma*beta_z of the synchronous row (momentum deviation).
 template <class R>
-AVAS_HD inline void bend_row(R* r, R uzs, const BendStep<R>& b) {
+AVAS_HD inline void bend_row(AVAS_T R* r, R uzs, AVAS_T const BendStep<R>& b) {
     const R delta = (r[5] - uzs) / uzs;
     const R g2 = (r[5] * r[5] + r[3] * r[3]) + (r[1] * r[1] + R(1));
     const R iuz = R(1) / r[5];
     const R xa = iuz * r[1];
     const R ya = iuz * r[3];
-    const R vz2 = ((R(1) - R(1) / g2) * R(k::c2)) / ((ya * ya + xa * xa) + R(1));
+    const R vz2 = zrow_b2c2(g2, r) / ((ya * ya + xa * xa) + R(1));
     const R dt = b.s / hm::sqrt(vz2);
     r[6] = dt + r[6];
     r[4] = dt;
@@ -335,6 +392,7 @@ AVAS_HD inline void bend_row(R* r, R uzs, const BendStep<R>& b) {
     }
 }
 
+#ifndef AVAS_FLOAT_ONLY
 // Bend, synchronous row: transverse momentum cleared, no dispersion term, whole arc.
 template <class R>
 AVAS_HD inline void bend_sync_row(R* r, const BendStep<R>& b) {
@@ -366,9 +424,11 @@ AVAS_HD inline void bend_sync_row(R* r, const BendStep<R>& b) {
     }
 }
 
+#endif  // AVAS_FLOAT_ONLY
+
 // Edge (pole-face) thin lens: k1 in the bending plane, k2 in the other one.
 template <class R>
-AVAS_HD inline void edge_row(R* r, R k1, R k2, int hv) {
+AVAS_HD inline void edge_row(AVAS_T R* r, R k1, R k2, int hv) {
     const R iuz = R(1) / r[5];
     const R xp = iuz * r[1];
     const R yp = iuz * r[3];
@@ -387,7 +447,7 @@ AVAS_HD inline void edge_row(R* r, R k1, R k2, int hv) {
 // Restores |gamma*beta| = sqrt(p2) of a z-code row after a magnetic transfer, keeping the new
 // slopes x' = ux/uz, y' = uy/uz.  The DLL keeps uz fixed, so every change of slope changes |p|.
 template <class R>
-AVAS_HD inline void zrow_keep_momentum(R* r, R p2) {
+AVAS_HD inline void zrow_keep_momentum(AVAS_T R* r, R p2) {
     const R xp = r[1] / r[5];
     const R yp = r[3] / r[5];
     R uz = hm::sqrt(p2 / (R(1) + xp * xp + yp * yp));
@@ -398,14 +458,14 @@ AVAS_HD inline void zrow_keep_momentum(R* r, R p2) {
 }
 
 template <class R>
-AVAS_HD inline R zrow_p2(const R* r) {
+AVAS_HD inline R zrow_p2(const AVAS_T R* r) {
     return r[1] * r[1] + r[3] * r[3] + r[5] * r[5];
 }
 
 // Steerer kick on a z-code row.  lq = (length of the following element) * q/m.
 // kind 0: magnetic (bx, by in T); kind 1: electric (ex, ey in V/m).
 template <class R>
-AVAS_HD inline void steerer_kick(R* r, int kind, R wx, R wy, R lq) {
+AVAS_HD inline void steerer_kick(AVAS_T R* r, int kind, R wx, R wy, R lq) {
     if (kind == 0) {
         const R dX = (lq * wy) * R(k::inv_c);
         const R dY = (lq * wx) * R(k::inv_c);
@@ -417,7 +477,7 @@ AVAS_HD inline void steerer_kick(R* r, int kind, R wx, R wy, R lq) {
     const R dY = (lq * wy) * R(k::inv_c2);
     if (kind == 1) {
         const R g2 = (r[5] * r[5] + r[3] * r[3]) + (r[1] * r[1] + R(1));
-        const R ib = R(1) / hm::sqrt(R(1) - R(1) / g2);
+        const R ib = R(1) / hm::sqrt(zrow_b2(g2, r));
         r[1] = dX * ib + r[1];
         r[3] = dY * ib + r[3];
     } else {
@@ -429,8 +489,8 @@ AVAS_HD inline void steerer_kick(R* r, int kind, R wx, R wy, R lq) {
 // zTotcode: z-code row -> particle at time tRef (straight line back from the plane).
 // fullGamma = false reproduces AVAS.dll, which takes gamma from gamma*beta_z alone.
 template <class R>
-AVAS_HD inline void ztot_row(const R* r, R zPlane, R tRef, bool fullGamma, R& x, R& ux, R& y, R& uy, R& z,
-                             R& uz, bool restartForm = false) {
+AVAS_HD inline void ztot_row(const AVAS_T R* r, R zPlane, R tRef, bool fullGamma, AVAS_T R& x, AVAS_T R& ux, AVAS_T R& y,
+                             AVAS_T R& uy, AVAS_T R& z, AVAS_T R& uz, bool restartForm = false) {
     const R dt = r[6] - tRef;
     if (!fullGamma) {
         const R g = r[5] * r[5] + R(1);
@@ -442,7 +502,7 @@ AVAS_HD inline void ztot_row(const R* r, R zPlane, R tRef, bool fullGamma, R& x,
                         : zPlane - (hm::sqrt(R(1) - R(1) / g) * R(k::c)) * dt;
     } else {
         const R gamma = hm::sqrt(r[1] * r[1] + R(1) + r[3] * r[3] + r[5] * r[5]);
-        const R beta = hm::sqrt(R(1) - (R(1) / gamma) / gamma);
+        const R beta = ztot_beta(gamma, r);
         const R xp = r[1] / r[5], yp = r[3] / r[5];
         const R vz = hm::sqrt((beta * R(k::c) * beta * R(k::c)) / (xp * xp + yp * yp + R(1)));
         x = r[0] - ((r[1] * dt) / gamma) * R(k::c);
@@ -453,7 +513,5 @@ AVAS_HD inline void ztot_row(const R* r, R zPlane, R tRef, bool fullGamma, R& x,
     uy = r[3];
     uz = r[5];
 }
-
-#endif  // AVAS_FLOAT_ONLY
 
 }  // namespace avas
