@@ -12,9 +12,7 @@
 #include <cstdint>
 #include <cstring>
 
-#ifndef AVAS_HD
-#define AVAS_HD
-#endif
+#include "core/hd.h"
 
 namespace avas {
 
@@ -78,13 +76,10 @@ enum RngStream : std::uint32_t { kStreamTransverse = 1, kStreamLongitudinal = 2,
 // Natural logarithm of x > 0 (finite, normal).  Relative error about 1e-16.
 template <class R>
 AVAS_HD inline R p_log(R x) {
-    std::uint64_t bits;
-    double xd = static_cast<double>(x);
-    std::memcpy(&bits, &xd, 8);
+    std::uint64_t bits = hm::dbits(static_cast<double>(x));
     int e = static_cast<int>((bits >> 52) & 0x7FF) - 1023;
     bits = (bits & 0x000FFFFFFFFFFFFFull) | 0x3FF0000000000000ull;  // mantissa m in [1, 2)
-    double m;
-    std::memcpy(&m, &bits, 8);
+    double m = hm::dfrom(bits);
     if (m > 1.4142135623730951) {
         m = m * 0.5;
         e += 1;

@@ -17,6 +17,8 @@
 #include "core/errors.h"
 #include "core/files.h"
 #include "core/format.h"
+#include "core/latview.h"
+#include "core/reduce.h"
 #include "core/options.h"
 #include "core/physics.h"
 #include "third_party/pocketfft/pocketfft_hdronly.h"
@@ -188,12 +190,9 @@ SpaceCharge::SpaceCharge(const Params& p, int nParticles) : compat_(compat_dll()
     ey_.assign(n3, 0.0);
     ez_.assign(n3, 0.0);
     if (method_ == 1) G_.assign(static_cast<size_t>(2 * nx_ + 1) * (2 * ny_ + 1) * (2 * nz_ + 1), 0.0);
-    cell_.assign(nParticles, {0, 0, 0});
-    w_.assign(nParticles, {});
-    out_.assign(nParticles, 0);
 }
 
-bool SpaceCharge::solve(Beam& b, double factor, const double* sync) {
+bool SpaceCharge::begin(const Beam& b, const double* sync) {
     ++calls_;
     for (int k = 0; k < 6; ++k) sync_[k] = sync ? sync[k] : 0.0;
     if (method_ == 1) {
@@ -205,6 +204,11 @@ bool SpaceCharge::solve(Beam& b, double factor, const double* sync) {
         for (int k = 0; k < 3; ++k) prevRms_[k] = b.rms[k];
     }
     ++solves_;
+    return true;
+}
+
+bool SpaceCharge::solve(Beam& b, double factor, const double* sync) {
+    if (!begin(b, sync)) return false;
     weight(b, factor);
     if (method_ == 0) fft();
     else spicnic();
@@ -213,7 +217,7 @@ bool SpaceCharge::solve(Beam& b, double factor, const double* sync) {
 }
 
 // ---- mesh and CIC deposit (PIC::Weight) ----
-void SpaceCharge::weight(Beam& b, double factor) {
+void SpaceCharge::mesh(const Beam& b) {
     const double* c = b.centroid.data();
     gamma_ = b.gamma;
     if (compat_) {
@@ -233,24 +237,101 @@ void SpaceCharge::weight(Beam& b, double factor) {
     for (int k = 0; k < nz_; ++k) zs_[k] = ((k - nz_ * 0.5) + 0.5) * dz_ + cz;
     vol_ = dy_ * dx_ * dz_;
     igamma_ = 1.0 / gamma_;
+}
+
+kern::MeshV SpaceCharge::mesh_view(const Beam& b) const {
+    kern::MeshV M{};
+    M.nx = nx_;
+    M.ny = ny_;
+    M.nz = nz_;
+    M.dx = dx_;
+    M.dy = dy_;
+    M.dz = dz_;
+    M.vol = vol_;
+    M.gamma = gamma_;
+    M.igamma = igamma_;
+    M.c0 = b.centroid[0];
+    M.c2 = b.centroid[2];
+    M.c4 = b.centroid[4];
+    M.lpRel = lp_ == 1 && (!compat_ || (pool_ && cores_[4] != 1)) ? 1 : 0;
+    M.lpc = lp_ == 1 && (!compat_ || (pool_ && cores_[9] != 1)) ? 1 : 0;
+    M.compat = compat_ ? 1 : 0;
+    M.xs = xs_.data();
+    M.ys = ys_.data();
+    M.zs = zs_.data();
+    M.Q = 0.0;
+    M.rotMode = b.rotMode;
+    M.rs = 0.0;
+    M.rc = 1.0;
+    if (b.rotMode != 0) dll_sincos(b.rotAngle, M.rs, M.rc);
+    M.fixScaleExp = fixExp_;
+    return M;
+}
+
+// Fixed-point scale of the corrected deposit: |sum| <= n max|q| <= 2^61 (charges never change).
+void SpaceCharge::init_fix(const Beam& b) {
+    if (fixInit_) return;
+    double mq = 0.0;
+    for (int p = 0; p < b.n; ++p) {
+        const double a = std::fabs(b.charge[p]);
+        if (mq < a) mq = a;
+    }
+    const double B = mq * static_cast<double>(b.n);
+    int e = 0;
+    std::frexp(B, &e);  // B < 2^e
+    fixExp_ = B > 0.0 ? 61 - e : 0;
+    fixInit_ = true;
+}
+
+void SpaceCharge::set_rho(const std::vector<long long>& acc, double factor) {
+    for (size_t e = 0; e < rho_.size(); ++e) rho_[e] = pm::scale2(static_cast<double>(acc[e]), static_cast<int>(-fixExp_));
+    if (factor != 1.0)
+        for (double& v : rho_) v = v * factor;
+}
+
+double SpaceCharge::total_charge() const {
+    double Q = 0.0;
+    for (int k = 0; k < nz_; ++k)
+        for (int j = 0; j < ny_; ++j)
+            for (int i = 0; i < nx_; ++i) Q = Q + rho_[at(i, j, k)];
+    return Q;
+}
+
+void SpaceCharge::weight(Beam& b, double factor) {
+    mesh(b);
+    const double* c = b.centroid.data();
     const int n = b.n;
+    if (!compat_) {
+        // corrected engine: every deposit is an exact 64-bit integer (charge * 2^e), so the sum
+        // does not depend on the order -- the same on any thread count, GPU or number of GPUs
+        init_fix(b);
+        fix_.assign(rho_.size(), 0);
+        const kern::MeshV M = mesh_view(b);
+        const kern::PartV P = beam_view(b);
+        for (int p = 0; p < n; ++p) {
+            if (b.lost[p] == 1) continue;
+            int i, j, k;
+            double w[8];
+            if (!kern::mesh_cell(M, P, p, i, j, k, w)) continue;
+            const double q = b.charge[p];
+            for (int m = 0; m < 8; ++m) fix_[kern::mesh_corner(M, i, j, k, m)] += kern::fix_charge(w[m] * q, fixExp_);
+        }
+        set_rho(fix_, factor);
+        return;
+    }
     const bool lpRel = lp_ == 1 && (!compat_ || (pool_ && cores_[4] != 1));
     auto deposit = [&](int i0, int i1, std::vector<double>& g) {
         for (int p = i0; p < i1; ++p) {
             if (b.lost[p] == 1) continue;
             const double x = b.rel[0][p], y = b.rel[2][p];
             // lpboundary 1: AVAS.dll stretches about the synchronous particle only in the threaded
-            // deposit (Calculate_Weight, cores[4] > 1), the serial one stretches about the centroid;
-            // the corrected engine always stretches about the synchronous particle (mesh centre)
-            const double zr = lpRel ? (compat_ ? b.rel[4][p] * gamma_ + c[4] : b.rel[4][p] * gamma_)
-                                    : (b.rel[4][p] - c[4]) * gamma_ + c[4];
+            // deposit (Calculate_Weight, cores[4] > 1), the serial one stretches about the centroid
+            const double zr = lpRel ? b.rel[4][p] * gamma_ + c[4] : (b.rel[4][p] - c[4]) * gamma_ + c[4];
             const int i = static_cast<int>(std::floor((x - xs_[0]) / dx_));
             const int j = static_cast<int>(std::floor((y - ys_[0]) / dy_));
             const int k = static_cast<int>(std::floor((zr - zs_[0]) / dz_));
-            cell_[p] = {i, j, k};
-            auto& w = w_[p];
             if (0 <= i && i < nx_ - 1 && 0 <= j && j < ny_ - 1 && 0 <= k && k < nz_ - 1) {
-                out_[p] = 0;
+                double w[8];
                 for (int m = 0; m < 8; ++m) {
                     const int ii = i + ((m & 1) ^ 1);
                     const int jj = j + (((m & 3) == 1 || (m & 3) == 0) ? 1 : 0);
@@ -266,22 +347,13 @@ void SpaceCharge::weight(Beam& b, double factor) {
                 g[at(i + 1, j, k + 1)] = w[5] * q + g[at(i + 1, j, k + 1)];
                 g[at(i, j + 1, k + 1)] = w[6] * q + g[at(i, j + 1, k + 1)];
                 g[at(i + 1, j + 1, k + 1)] = w[7] * q + g[at(i + 1, j + 1, k + 1)];
-            } else {
-                out_[p] = 1;
-                w.fill(0.0);
             }
         }
     };
     std::fill(rho_.begin(), rho_.end(), 0.0);
     // AVAS.dll: particle segments of cores[4] tasks into private meshes (serial when
-    // multithreading 0 or one task); the corrected engine always uses 64 fixed segments, so the
-    // summation order never depends on the machine
-    std::vector<int> bounds;
-    if (compat_) {
-        bounds = (pool_ && cores_[4] != 1) ? wBounds_ : std::vector<int>{0, n};
-    } else {
-        bounds = {0, n};  // corrected engine: one pass in particle order (independent of threads)
-    }
+    // multithreading 0 or one task)
+    const std::vector<int> bounds = (pool_ && cores_[4] != 1) ? wBounds_ : std::vector<int>{0, n};
     const int nb = static_cast<int>(bounds.size()) - 1;
     if (nb == 1) {
         deposit(0, n, rho_);
@@ -294,12 +366,8 @@ void SpaceCharge::weight(Beam& b, double factor) {
             rho_[e] = s;
         }
     }
-    if (compat_) {
-        if (factor < 0.999999999)
-            for (double& v : rho_) v = v * (1.0 - factor);
-    } else if (factor != 1.0) {
-        for (double& v : rho_) v = v * factor;
-    }
+    if (factor < 0.999999999)
+        for (double& v : rho_) v = v * (1.0 - factor);
 }
 
 // ---- FFT Poisson solver: DST-I in x, y (grounded walls), periodic FFT in z ----
@@ -374,31 +442,46 @@ static double box_F(double x, double y, double z) {
            0.5 * (at(x, y * z, x * r) + at(y, z * x, y * r) + at(z, x * y, z * r));
 }
 
-static double box_inv_r(double x0, double x1, double y0, double y1, double z0, double z1) {
-    double s = 0.0;
-    for (int i = 0; i < 2; ++i)
-        for (int j = 0; j < 2; ++j)
-            for (int k = 0; k < 2; ++k) {
-                const double sign = ((i + j + k) % 2 == 0) ? -1.0 : 1.0;  // + at (x1, y1, z1)
-                s += sign * box_F(i ? x1 : x0, j ? y1 : y0, k ? z1 : z0);
-            }
-    return s;
-}
-
 void SpaceCharge::tabulate() {
+    if (!compat_) {
+        // corrected: exact cell average of 1/r for every entry (AVAS.dll: 10^3 midpoints inside a
+        // radius counted in cells, the point value 1/r outside, 0 for the own cell -- all wrong for
+        // elongated cells, e.g. long or dc bunches).  The antiderivative is evaluated once at the
+        // (mx+1)(my+1)(mz+1) cell corners (q - 1/2) h and shared by the neighbouring cells.
+        const int ax = mx_ + 1, ay = my_ + 1, az = mz_ + 1;
+        std::vector<double> F(static_cast<size_t>(ax) * ay * az);
+        run_tasks(ax, [&](int q) {
+            const double x = (q - 0.5) * dx_;
+            for (int r = 0; r < ay; ++r) {
+                const double y = (r - 0.5) * dy_;
+                for (int t = 0; t < az; ++t) F[(static_cast<size_t>(q) * ay + r) * az + t] = box_F(x, y, (t - 0.5) * dz_);
+            }
+        });
+        run_tasks(mx_, [&](int a) {
+            for (int bb = 0; bb < my_; ++bb)
+                for (int c = 0; c < mz_; ++c) {
+                    double sum = 0.0;
+                    for (int i = 0; i < 2; ++i)
+                        for (int j = 0; j < 2; ++j)
+                            for (int k = 0; k < 2; ++k) {
+                                const double sign = ((i + j + k) % 2 == 0) ? -1.0 : 1.0;  // + at (x1, y1, z1)
+                                sum += sign * F[(static_cast<size_t>(a + i) * ay + (bb + j)) * az + (c + k)];
+                            }
+                    const double g = sum / vol_;
+                    for (int sa : {-1, 1})
+                        for (int sb : {-1, 1})
+                            for (int sc : {-1, 1}) G_[gat(nx_ + sa * a, ny_ + sb * bb, nz_ + sc * c)] = g;
+                }
+        });
+        return;
+    }
     const double hx = dx_ / 10.0, hy = dy_ / 10.0, hz = dz_ / 10.0;
     run_tasks(mx_, [&](int a) {
         for (int bb = 0; bb < my_; ++bb)
             for (int c = 0; c < mz_; ++c) {
                 const int s2 = a * a + bb * bb + c * c;
                 double g;
-                if (!compat_) {
-                    // corrected: exact cell average of 1/r for every entry (AVAS.dll: 10^3 midpoints
-                    // inside a radius counted in cells, the point value 1/r outside, 0 for the own
-                    // cell -- all wrong for elongated cells, e.g. long or dc bunches)
-                    g = box_inv_r(a * dx_ - dx_ * 0.5, a * dx_ + dx_ * 0.5, bb * dy_ - dy_ * 0.5, bb * dy_ + dy_ * 0.5,
-                                  c * dz_ - dz_ * 0.5, c * dz_ + dz_ * 0.5) / vol_;
-                } else if (s2 == 0) {
+                if (s2 == 0) {
                     g = 0.0;
                 } else if (s2 > r2_) {
                     const double X = a * dx_, Y = bb * dy_, Z = c * dz_;
@@ -425,9 +508,63 @@ void SpaceCharge::tabulate() {
     });
 }
 
-void SpaceCharge::spicnic() {
+// SPICNIC host part of the corrected engine: Green table, threshold, and the mirror points whose
+// charge differs from the octant-symmetric charge (I, J, K, d), in the order of the targets.
+void SpaceCharge::spicnic_prepare(std::vector<int>& corr, std::vector<double>& dval, double& thr) {
     tabulate();
-    const double thr = negligible_ * rho_[at(nx_ / 2, ny_ / 2, nz_ / 2)];
+    thr = negligible_ * rho_[at(nx_ / 2, ny_ / 2, nz_ / 2)];
+    corr.clear();
+    dval.clear();
+    const int hi = nx_ / 2, hj = ny_ / 2, hk = nz_ / 2;
+    for (int i = hi; i < nx_; ++i)
+        for (int j = hj; j < ny_; ++j)
+            for (int k = hk; k < nz_; ++k) {
+                const double r0 = rho_[at(i, j, k)];
+                for (int I : {nx_ - 1 - i, i})
+                    for (int J : {ny_ - 1 - j, j})
+                        for (int K : {nz_ - 1 - k, k}) {
+                            const double d = rho_[at(I, J, K)] - r0;
+                            if (d != 0.0 && (thr <= d || d <= -thr)) {
+                                corr.push_back(I);
+                                corr.push_back(J);
+                                corr.push_back(K);
+                                dval.push_back(d);
+                            }
+                        }
+            }
+}
+
+void SpaceCharge::fft_tables(std::vector<double>& lx, std::vector<double>& ly, std::vector<double>& lz, double& scale,
+                             double& norm) const {
+    scale = ((1.0 / dx_) / dy_) / dz_;
+    lx.resize(nx_);
+    ly.resize(ny_);
+    lz.resize(nz_);
+    for (int i = 0; i < nx_; ++i) {
+        const double v = std::sin((i + 1) * (1.5707963267948966 / (nx_ + 1)));
+        lx[i] = ((4.0 / dx_) / dx_) * v * v;
+    }
+    for (int j = 0; j < ny_; ++j) {
+        const double v = std::sin((j + 1) * (1.5707963267948966 / (ny_ + 1)));
+        ly[j] = ((4.0 / dy_) / dy_) * v * v;
+    }
+    for (int k = 0; k < nz_; ++k) {
+        const double v = std::sin(k * (3.141592653589793 / nz_));
+        lz[k] = ((4.0 / dz_) / dz_) * v * v;
+    }
+    norm = fft_norm(nx_, ny_, nz_, compat_);
+}
+
+void SpaceCharge::spicnic() {
+    std::vector<int> corr;
+    std::vector<double> dval;
+    double thr = 0.0;
+    if (compat_) {
+        tabulate();
+        thr = negligible_ * rho_[at(nx_ / 2, ny_ / 2, nz_ / 2)];
+    } else {
+        spicnic_prepare(corr, dval, thr);
+    }
     const size_t n3 = rho_.size();
     // potential of the octant charge mirrored into the 8 octants, at target (i, j, k)
     auto sym = [&](int i, int j, int k) {
@@ -491,8 +628,6 @@ void SpaceCharge::spicnic() {
         // corrected: every upper-octant target, and the asymmetric part of the charge added
         // (accumulated, not assigned) as sum over the mirror points of (rho(P) - rho_sym) G
         const int hi = nx_ / 2, hj = ny_ / 2, hk = nz_ / 2;
-        std::vector<std::array<int, 4>> corr;  // I, J, K, target index
-        std::vector<double> dval;
         std::vector<double> symv(n3, 0.0);
         run_tasks(nx_ - hi, [&](int ii) {
             const int i = hi + ii;
@@ -501,25 +636,17 @@ void SpaceCharge::spicnic() {
         });
         for (int i = hi; i < nx_; ++i)
             for (int j = hj; j < ny_; ++j)
-                for (int k = hk; k < nz_; ++k) {
-                    const double r0 = rho_[at(i, j, k)];
+                for (int k = hk; k < nz_; ++k)
                     for (int I : {nx_ - 1 - i, i})
                         for (int J : {ny_ - 1 - j, j})
-                            for (int K : {nz_ - 1 - k, k}) {
-                                phi_[at(I, J, K)] = symv[at(i, j, k)];
-                                const double d = rho_[at(I, J, K)] - r0;
-                                if (d != 0.0 && (thr <= d || d <= -thr)) {
-                                    corr.push_back({I, J, K, 0});
-                                    dval.push_back(d);
-                                }
-                            }
-                }
+                            for (int K : {nz_ - 1 - k, k}) phi_[at(I, J, K)] = symv[at(i, j, k)];
+        const size_t nc = dval.size();
         run_tasks(nx_, [&](int a) {
             for (int bb = 0; bb < ny_; ++bb)
                 for (int c = 0; c < nz_; ++c) {
                     double s = 0.0;
-                    for (size_t q = 0; q < corr.size(); ++q)
-                        s = G_[gat(nx_ + corr[q][0] - a, ny_ + corr[q][1] - bb, nz_ + corr[q][2] - c)] * dval[q] + s;
+                    for (size_t q = 0; q < nc; ++q)
+                        s = G_[gat(nx_ + corr[3 * q] - a, ny_ + corr[3 * q + 1] - bb, nz_ + corr[3 * q + 2] - c)] * dval[q] + s;
                     phi_[at(a, bb, c)] = s * kE + phi_[at(a, bb, c)];
                 }
         });
@@ -542,54 +669,11 @@ void SpaceCharge::spicnic() {
 
 // ---- interpolation back to the particles (PIC::Allocate) ----
 void SpaceCharge::allocate(Beam& b) {
-    double Q = 0.0;
-    for (int k = 0; k < nz_; ++k)
-        for (int j = 0; j < ny_; ++j)
-            for (int i = 0; i < nx_; ++i) Q = Q + rho_[at(i, j, k)];
-    const double* c = b.centroid.data();
-    double rs = 0.0, rc = 1.0;
-    if (b.rotMode != 0) dll_sincos(b.rotAngle, rs, rc);
-    const int n = b.n;
-    for (int p = 0; p < n; ++p) {
-        if (b.lost[p] == 1) {
-            b.scx[p] = b.scy[p] = b.scz[p] = 0.0;
-            continue;
-        }
-        if (out_[p] == 0) {
-            const auto& w = w_[p];
-            const int i = cell_[p][0], j = cell_[p][1], k = cell_[p][2];
-            auto interp = [&](const std::vector<double>& g) {
-                return g[at(i, j, k)] * w[0] + g[at(i + 1, j, k)] * w[1] + g[at(i, j + 1, k)] * w[2] +
-                       g[at(i + 1, j + 1, k)] * w[3] + g[at(i, j, k + 1)] * w[4] + g[at(i + 1, j, k + 1)] * w[5] +
-                       g[at(i, j + 1, k + 1)] * w[6] + g[at(i + 1, j + 1, k + 1)] * w[7];
-            };
-            const double Ez = interp(ez_), Ey = interp(ey_), Ex = interp(ex_);
-            double sx = Ex * igamma_, sy = Ey * igamma_, sz = Ez;
-            if (b.rotMode == 1) {
-                const double ny = sy * rc - sz * rs, nz = sy * rs + sz * rc;
-                sy = ny;
-                sz = nz;
-            } else if (b.rotMode != 0) {
-                const double nx = sx * rc + sz * rs, nz = sz * rc - sx * rs;
-                sx = nx;
-                sz = nz;
-            }
-            b.scx[p] = sx;
-            b.scy[p] = sy;
-            b.scz[p] = sz;
-        } else {
-            // lpboundary 1 (AVAS.dll threaded Allocate, corrected always): distance from the mesh centre
-            const bool lpc = lp_ == 1 && (!compat_ || (pool_ && cores_[9] != 1));
-            const double ddx = lpc ? b.rel[0][p] : b.rel[0][p] - c[0];
-            const double ddy = lpc ? b.rel[2][p] : b.rel[2][p] - c[2];
-            const double ddz = lpc ? b.rel[4][p] : b.rel[4][p] - c[4];
-            const double r = std::sqrt(ddx * ddx + ddy * ddy + ddz * ddz);
-            const double f = (((Q * kE) / r) / r) / r * igamma_;
-            b.scx[p] = ddx * f;
-            b.scy[p] = ddy * f;
-            b.scz[p] = f * ddz * gamma_;
-        }
-    }
+    const double Q = total_charge();
+    kern::MeshV M = mesh_view(b);
+    M.Q = Q;
+    const kern::PartV P = beam_view(b);
+    for (int p = 0; p < b.n; ++p) kern::mesh_interp(M, P, p, ex_.data(), ey_.data(), ez_.data(), kE);
     if (rec_ == 1) record(b, Q);
 }
 
@@ -781,36 +865,20 @@ void hesc_field_pre(Beam& b, const std::vector<std::array<double, 8>>& rows, dou
         for (int k = 0; k < 3; ++k) b.rms[k] = std::sqrt(q[k] / tot[0]);
         return;
     }
-    double s[6] = {0, 0, 0, 0, 0, 0};
-    double cnt = 0.0;
-    for (int i = 0; i < n; ++i) {
-        const auto& r = rows[i];
-        if (r[7] != 1.0) continue;
-        const double dt = r[6] - tRef;
-        const double g = std::sqrt(r[1] * r[1] + 1.0 + r[3] * r[3] + r[5] * r[5]);
-        const double be = std::sqrt(1.0 - (1.0 / g) / g);
-        const double xp = r[1] / r[5], yp = r[3] / r[5];
-        const double vz = std::sqrt((be * k::c * be * k::c) / (xp * xp + yp * yp + 1.0));
-        b.rel[4][i] = -dt * vz;
-        b.rel[0][i] = r[0] - ((r[1] * dt) / g) * k::c;
-        b.rel[2][i] = r[2] - ((dt * r[3]) / g) * k::c;
-        b.rel[1][i] = r[1];
-        b.rel[3][i] = r[3];
-        b.rel[5][i] = r[5];
-        cnt = cnt + 1.0;
-        for (int k = 0; k < 6; ++k) s[k] = s[k] + b.rel[k][i];
-    }
+    // corrected engine: sums in the fixed order of reduce.h
+    kern::PartV P = beam_view(b);
+    P.rec = const_cast<double*>(rows.empty() ? nullptr : rows[0].data());
+    auto serial = [](int ng, const std::function<void(int)>& fn) {
+        for (int g = 0; g < ng; ++g) fn(g);
+    };
+    double s[kern::kHescSums];
+    fixed_sum<kern::kHescSums>(n, serial, [&](int i, double* c) { kern::hesc_pass1(P, i, tRef, c); }, s);
+    const double cnt = s[6];
     for (int k = 0; k < 6; ++k) b.centroid[k] = s[k] / cnt;
     const double* c = b.centroid.data();
     const double gc = 1.0 / std::sqrt(1.0 - std::pow(c[5] / std::sqrt(c[1] * c[1] + 1.0 + c[3] * c[3] + c[5] * c[5]), 2.0));
-    double q[3] = {0, 0, 0};
-    for (int i = 0; i < n; ++i) {
-        if (rows[i][7] != 1.0) continue;
-        const double ax = b.rel[0][i] - c[0], ay = b.rel[2][i] - c[2], az = (b.rel[4][i] - c[4]) * gc;
-        q[0] = q[0] + ax * ax;
-        q[1] = q[1] + ay * ay;
-        q[2] = q[2] + az * az;
-    }
+    double q[3];
+    fixed_sum<3>(n, serial, [&](int i, double* cc) { kern::hesc_pass2(P, i, c, gc, cc); }, q);
     for (int k = 0; k < 3; ++k) b.rms[k] = std::sqrt(q[k] / cnt);
 }
 

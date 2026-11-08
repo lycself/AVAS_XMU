@@ -1,6 +1,10 @@
 #include <algorithm>
 // Unit tests of the text, format and physics helpers (no framework; exit code = failures).
 #include "core/rng.h"
+#include "core/pmath.h"
+#include "core/reduce.h"
+#include "core/kernels.h"
+#include <functional>
 #include "core/spacecharge.h"
 #include <cmath>
 #include <cstdio>
@@ -276,6 +280,69 @@ static void test_error_sampling() {
     options().compat = saved;
 }
 
+// Portable elementary functions (pmath.h) against the C library: |error| <= 1 ulp of the libm value.
+static double ulp_err(double a, double ref) {
+    if (a == ref) return 0.0;
+    const double u = std::nextafter(std::fabs(ref), 1e308) - std::fabs(ref);
+    return std::fabs(a - ref) / u;
+}
+
+static void test_pmath() {
+    std::uint64_t st = 88172645463325252ull;
+    auto rnd = [&]() {
+        st ^= st << 13;
+        st ^= st >> 7;
+        st ^= st << 17;
+        return static_cast<double>(st >> 11) * (1.0 / 9007199254740992.0);
+    };
+    double es = 0, ec = 0, ee = 0, esh = 0, ech = 0, ea = 0;
+    for (int i = 0; i < 400000; ++i) {
+        const double sc = i % 4 == 0 ? 1.0 : i % 4 == 1 ? 10.0 : i % 4 == 2 ? 1000.0 : 1e5;
+        const double x = (rnd() * 2.0 - 1.0) * sc;
+        double s, c;
+        p_sincos(x, s, c);
+        es = std::max(es, ulp_err(s, std::sin(x)));
+        ec = std::max(ec, ulp_err(c, std::cos(x)));
+        const double y = (rnd() * 2.0 - 1.0) * (i % 3 == 0 ? 0.5 : i % 3 == 1 ? 5.0 : 50.0);
+        ee = std::max(ee, ulp_err(p_exp(y), std::exp(y)));
+        esh = std::max(esh, ulp_err(p_sinh(y), std::sinh(y)));
+        ech = std::max(ech, ulp_err(p_cosh(y), std::cosh(y)));
+        const double z = (rnd() * 2.0 - 1.0) * (i % 3 == 0 ? 1.0 : i % 3 == 1 ? 10.0 : 1e6);
+        ea = std::max(ea, ulp_err(p_atan(z), std::atan(z)));
+    }
+    std::printf("pmath max error (ulp): sin %.2f cos %.2f exp %.2f sinh %.2f cosh %.2f atan %.2f\n", es, ec, ee, esh,
+                ech, ea);
+    CHECK(es <= 1.0 && ec <= 1.0 && ee <= 1.0 && ea <= 1.0);
+    CHECK(esh <= 2.0 && ech <= 2.0);
+    CHECK(p_sin(0.0) == 0.0 && p_cos(0.0) == 1.0 && p_exp(0.0) == 1.0 && p_atan(0.0) == 0.0);
+}
+
+// Fixed-order sums (reduce.h) and the fixed-point deposit: independent of the grouping.
+static void test_reduce() {
+    std::vector<double> v(10000);
+    for (size_t i = 0; i < v.size(); ++i) v[i] = std::sin(0.37 * static_cast<double>(i)) * std::pow(10.0, static_cast<double>(i % 7) - 3.0);
+    const int n = static_cast<int>(v.size());
+    double a[1], b[1];
+    auto serial = [](int ng, const std::function<void(int)>& fn) { for (int g = 0; g < ng; ++g) fn(g); };
+    auto reverse = [](int ng, const std::function<void(int)>& fn) { for (int g = ng - 1; g >= 0; --g) fn(g); };
+    fixed_sum<1>(n, serial, [&](int i, double* c) { c[0] = v[static_cast<size_t>(i)]; }, a);
+    fixed_sum<1>(n, reverse, [&](int i, double* c) { c[0] = v[static_cast<size_t>(i)]; }, b);
+    CHECK(a[0] == b[0]);
+    // explicit tree of the first chunk
+    double t[256];
+    for (int i = 0; i < 256; ++i) t[i] = v[static_cast<size_t>(i)];
+    for (int s2 = 128; s2 >= 1; s2 >>= 1)
+        for (int i = 0; i < s2; ++i) t[i] = t[i] + t[i + s2];
+    double g[1];
+    group_sum<1>(0, 256, [&](int i, double* c) { c[0] = v[static_cast<size_t>(i)]; }, g);
+    CHECK(g[0] == t[0]);
+    CHECK(round_to_ll(2.5) == 2 && round_to_ll(3.5) == 4 && round_to_ll(-2.5) == -2 && round_to_ll(-2.6) == -3);
+    long long s1 = 0, s2 = 0;
+    for (int i = 0; i < n; ++i) s1 += kern::fix_charge(v[static_cast<size_t>(i)] * 1e-15, 80);
+    for (int i = n - 1; i >= 0; --i) s2 += kern::fix_charge(v[static_cast<size_t>(i)] * 1e-15, 80);
+    CHECK(s1 == s2);
+}
+
 int main() {
     test_split();
     test_numbers();
@@ -285,6 +352,8 @@ int main() {
     test_space_charge_ellipsoid();
     test_error_sampling();
     test_fft_norm();
+    test_pmath();
+    test_reduce();
     std::printf("%s (%d failures)\n", failures ? "FAILED" : "OK", failures);
     return failures;
 }

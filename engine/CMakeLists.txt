@@ -29,6 +29,9 @@ if(APPLE AND CMAKE_OSX_SYSROOT AND NOT MSVC)
   endif()
 endif()
 
+option(AVAS_WITH_CUDA "Build the CUDA back end (NVIDIA GPUs)" OFF)
+option(AVAS_WITH_MPI "Distribute the particles over MPI ranks (CUDA back end)" OFF)
+
 set(AVAS_CORE_SOURCES
   src/capi.cpp
   src/core/options.cpp
@@ -41,6 +44,9 @@ set(AVAS_CORE_SOURCES
   src/core/beam.cpp
   src/core/distribution.cpp
   src/core/spacecharge.cpp
+  src/core/latview.cpp
+  src/core/device.cpp
+  src/core/device_emu.cpp
   src/core/errorset.cpp
   src/core/tools.cpp
   src/core/synchronous.cpp
@@ -49,13 +55,80 @@ set(AVAS_CORE_SOURCES
   src/core/dllmath.cpp
 )
 
+if(AVAS_WITH_CUDA)
+  if(CMAKE_VERSION VERSION_LESS 3.18)
+    message(FATAL_ERROR "AVAS_WITH_CUDA needs CMake 3.18 or newer")
+  endif()
+  # One CUDA 12.x tool kit builds sm_60 .. sm_90 (CUDA 13 dropped Pascal); the CUDA runtime is
+  # linked statically.  --fmad=false: no FMA contraction, so that the fp64 particles are bit for bit
+  # those of the CPU engine (corrected mode).
+  if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+    set(CMAKE_CUDA_ARCHITECTURES "60-real;61-real;70-real;75-real;80-real;86-real;89-real;90")
+  endif()
+  set(CMAKE_CUDA_RUNTIME_LIBRARY Static)
+  enable_language(CUDA)
+  set(CMAKE_CUDA_STANDARD 17)
+  set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+  find_package(CUDAToolkit REQUIRED)
+  list(APPEND AVAS_CORE_SOURCES src/cuda/cuda_backend.cu)
+  # AVAS_CUDA_FMAD=ON only to measure what the bit-for-bit agreement costs (not for releases)
+  option(AVAS_CUDA_FMAD "Measurement only: let nvcc contract to FMA (GPU fp64 no longer equals the CPU)" OFF)
+  if(AVAS_CUDA_FMAD)
+    set(AVAS_FMAD_FLAG --fmad=true)
+  else()
+    set(AVAS_FMAD_FLAG --fmad=false)
+  endif()
+  if(MSVC)
+    set(AVAS_CUDA_FLAGS ${AVAS_FMAD_FLAG} -Xcompiler=/fp:precise,/utf-8,/EHsc)
+  else()
+    set(AVAS_CUDA_FLAGS ${AVAS_FMAD_FLAG} -Xcompiler=-ffp-contract=off,-fno-fast-math)
+  endif()
+  list(APPEND AVAS_CUDA_FLAGS --expt-relaxed-constexpr -Xcudafe=--diag_suppress=20012)
+else()
+  list(APPEND AVAS_CORE_SOURCES src/core/device_stub.cpp)
+endif()
+if(AVAS_WITH_MPI)
+  if(NOT AVAS_WITH_CUDA)
+    message(FATAL_ERROR "AVAS_WITH_MPI needs AVAS_WITH_CUDA")
+  endif()
+  # only the MPI C API is used; AVAS_MPI_INCLUDE + AVAS_MPI_LIBRARY bypass FindMPI (e.g. Intel MPI with
+  # another host compiler)
+  add_library(avas_mpi INTERFACE)
+  if(AVAS_MPI_INCLUDE AND AVAS_MPI_LIBRARY)
+    target_include_directories(avas_mpi INTERFACE ${AVAS_MPI_INCLUDE})
+    target_link_libraries(avas_mpi INTERFACE ${AVAS_MPI_LIBRARY})
+  else()
+    find_package(MPI REQUIRED COMPONENTS C)
+    target_link_libraries(avas_mpi INTERFACE MPI::MPI_C)
+  endif()
+endif()
+
 add_library(avas_engine SHARED ${AVAS_CORE_SOURCES})
 target_include_directories(avas_engine PUBLIC include PRIVATE src ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(avas_engine PRIVATE AVAS_ENGINE_BUILD)
-target_compile_options(avas_engine PRIVATE ${AVAS_FP_FLAGS})
-set_target_properties(avas_engine PROPERTIES CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON)
+target_compile_options(avas_engine PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:${AVAS_FP_FLAGS}>")
+if(AVAS_WITH_CUDA)
+  target_compile_options(avas_engine PRIVATE "$<$<COMPILE_LANGUAGE:CUDA>:${AVAS_CUDA_FLAGS}>")
+  target_compile_definitions(avas_engine PRIVATE AVAS_WITH_CUDA=1)
+  target_link_libraries(avas_engine PRIVATE CUDA::cudart_static)
+endif()
+if(AVAS_WITH_MPI)
+  target_compile_definitions(avas_engine PRIVATE AVAS_WITH_MPI=1)
+  target_link_libraries(avas_engine PRIVATE avas_mpi)
+endif()
+set_target_properties(avas_engine PROPERTIES CXX_VISIBILITY_PRESET hidden CUDA_VISIBILITY_PRESET hidden
+  VISIBILITY_INLINES_HIDDEN ON)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  # Symbols of statically linked archives (libstdc++ with -static-libstdc++, cudart_static) must not
+  # be exported: a Python process that already loaded another libstdc++ would otherwise bind to ours
+  # and crash in std::ostream (seen on the CentOS 7 cluster, M6-notes section 6).
+  # The version script hides the weak std:: template instances too, which -fvisibility cannot.
+  target_link_options(avas_engine PRIVATE "LINKER:--exclude-libs,ALL"
+    "LINKER:--version-script=${CMAKE_CURRENT_SOURCE_DIR}/src/exports.map")
+  set_property(TARGET avas_engine APPEND PROPERTY LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/exports.map)
+endif()
 if(MSVC)
-  target_compile_options(avas_engine PRIVATE /W3 /utf-8 /EHsc)
+  target_compile_options(avas_engine PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:/W3;/utf-8;/EHsc>")
   target_compile_definitions(avas_engine PRIVATE _CRT_SECURE_NO_WARNINGS)
   # The original DLL was built with /fp:fast; MSVC then evaluates sin and cos of the same
   # argument with its own static SSE2 sincos routine.  dllmath.cpp is compiled the same way so
@@ -63,7 +136,7 @@ if(MSVC)
   set_source_files_properties(src/core/dllmath.cpp PROPERTIES COMPILE_OPTIONS "/fp:fast")
   set_target_properties(avas_engine PROPERTIES OUTPUT_NAME avas_engine PREFIX "")
 else()
-  target_compile_options(avas_engine PRIVATE -Wall -Wextra -Wno-unused-parameter)
+  target_compile_options(avas_engine PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:-Wall;-Wextra;-Wno-unused-parameter>")
 endif()
 find_package(Threads REQUIRED)
 target_link_libraries(avas_engine PRIVATE Threads::Threads)
@@ -81,10 +154,19 @@ target_link_libraries(avas_engine_unit PRIVATE avas_engine_static_for_tests)
 add_library(avas_engine_static_for_tests STATIC ${AVAS_CORE_SOURCES})
 target_include_directories(avas_engine_static_for_tests PUBLIC include PRIVATE src ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(avas_engine_static_for_tests PUBLIC AVAS_ENGINE_STATIC)
-target_compile_options(avas_engine_static_for_tests PRIVATE ${AVAS_FP_FLAGS})
+target_compile_options(avas_engine_static_for_tests PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:${AVAS_FP_FLAGS}>")
 target_link_libraries(avas_engine_static_for_tests PUBLIC Threads::Threads)
+if(AVAS_WITH_CUDA)
+  target_compile_options(avas_engine_static_for_tests PRIVATE "$<$<COMPILE_LANGUAGE:CUDA>:${AVAS_CUDA_FLAGS}>")
+  target_compile_definitions(avas_engine_static_for_tests PRIVATE AVAS_WITH_CUDA=1)
+  target_link_libraries(avas_engine_static_for_tests PUBLIC CUDA::cudart_static)
+endif()
+if(AVAS_WITH_MPI)
+  target_compile_definitions(avas_engine_static_for_tests PRIVATE AVAS_WITH_MPI=1)
+  target_link_libraries(avas_engine_static_for_tests PUBLIC avas_mpi)
+endif()
 if(MSVC)
-  target_compile_options(avas_engine_static_for_tests PRIVATE /utf-8 /EHsc)
+  target_compile_options(avas_engine_static_for_tests PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:/utf-8;/EHsc>")
   target_compile_definitions(avas_engine_static_for_tests PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()
 add_test(NAME unit COMMAND avas_engine_unit)

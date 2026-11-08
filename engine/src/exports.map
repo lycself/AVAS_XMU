@@ -1,0 +1,9 @@
+/* Linux: export only the C API (include/avas_engine.h).  Everything else -- avas:: internals, weak
+   copies of std templates, statically linked libstdc++ / cudart -- stays local, so the library cannot
+   interpose on or be interposed by another libstdc++ in the same process (M6-notes section 6). */
+{
+  global:
+    path; main_agent; sampling; meshing; dataprocess; avas_set_option; avas_engine_version;
+  local:
+    *;
+};

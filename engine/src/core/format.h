@@ -31,6 +31,8 @@ private:
 
 // Console output (stdout, flushed): say() appends "\n"; say_raw() writes as is.
 void say(const std::string& line);
+// MPI ranks other than 0 print nothing.
+void set_console_quiet(bool q);
 void say_raw(const std::string& text);
 
 // "%Y/%m/%d %X  " time stamp (local time) used by ErrorLog.txt and synParticle.txt.

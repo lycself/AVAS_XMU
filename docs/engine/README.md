@@ -19,6 +19,7 @@
 | [80-dll-extras.md](80-dll-extras.md) | DLL 独有的 sampling / meshing / dataprocess，DLL 与 .so 的差异 | H-01～H-24 | DLL 33 |
 | [90-experiments.md](90-experiments.md) | 用原内核运行的比对实验与结果 | — | — |
 | [M1-notes.md](M1-notes.md) | 新内核 M1 的实现记录、兼容开关、对规格的更正与比对结果 | — | — |
+| [M6-notes.md](M6-notes.md) | 新内核 M6（GPU）的实现记录：M6a CUDA 后端的架构、确定性、精度分档、构建与比对 / 性能结果 | — | — |
 
 合计 280 个对齐项；`.so` 的 214 个函数全部出现在各文档的函数覆盖表中。每份文档的结构相同：概述、规格正文、对齐清单、函数覆盖表、未解决的问题、对结构表的更正。
 

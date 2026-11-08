@@ -8,9 +8,7 @@
 #pragma once
 #include <cmath>
 
-#ifndef AVAS_HD
-#define AVAS_HD
-#endif
+#include "core/hd.h"
 
 namespace avas {
 
@@ -31,29 +29,30 @@ constexpr double inv_proton_mc2 = 0.0010657891669192364;  // 1/938.271875 as fol
 constexpr double e_over_mp = 95788337.57933226;            // e/m_p as folded by the DLL
 }  // namespace k
 
-// Read-only view of one field map (grid, nodes x fastest, then y, then z).
-template <class R>
+// Read-only view of one field map (grid, nodes x fastest, then y, then z).  R: coordinates,
+// D: stored field values (float maps for the fp32 GPU path).
+template <class R, class D = double>
 struct MapView {
-    const double* data;  // node n, component c at data[n * ncomp + c]
+    const D* data;  // node n, component c at data[n * ncomp + c]
     int ncomp;
     int nx, ny, nz;
     R xmin, xmax, ymin, ymax, zlen, dx, dy, dz;
 };
 
 // True when (x, y, zl) lies strictly inside the grid (zl is measured from the map entrance).
-template <class R>
-AVAS_HD inline bool map_contains(const MapView<R>& m, R x, R y, R zl) {
+template <class R, class D>
+AVAS_HD inline bool map_contains(const MapView<R, D>& m, R x, R y, R zl) {
     return m.xmin < x && x < m.xmax && m.ymin < y && y < m.ymax && R(0) < zl && zl < m.zlen;
 }
 
 // Trilinear interpolation: calls acc(w, node_values) for the 8 corners in the original order.
 // The weight is the expanded product (1-|a|)(1-|b|)(1-|c|) exactly as the DLL evaluates it.
-template <class R, class Acc>
-AVAS_HD inline void trilinear(const MapView<R>& m, R x, R y, R zl, Acc&& acc) {
+template <class R, class D, class Acc>
+AVAS_HD inline void trilinear(const MapView<R, D>& m, R x, R y, R zl, Acc&& acc) {
     const R fx = (x - m.xmin) / m.dx;
     const R fy = (y - m.ymin) / m.dy;
     const R fz = zl / m.dz;
-    const R cx = std::ceil(fx), cy = std::ceil(fy), cz = std::ceil(fz);
+    const R cx = hm::ceil(fx), cy = hm::ceil(fy), cz = hm::ceil(fz);
     for (int corner = 0; corner < 8; ++corner) {
         const int ix = static_cast<int>((corner & 1) ? cx - R(1) : cx);
         const int iy = static_cast<int>(((corner & 3) >= 2) ? cy - R(1) : cy);
@@ -62,8 +61,8 @@ AVAS_HD inline void trilinear(const MapView<R>& m, R x, R y, R zl, Acc&& acc) {
         const R b = fy - R(iy);
         const R c = fz - R(iz);
         const R ab = a * b;
-        const R w = ((R(1) - std::fabs(c)) - (std::fabs(a) - std::fabs(c * a))) -
-                    ((std::fabs(b) - std::fabs(c * b)) - (std::fabs(ab) - std::fabs(c * ab)));
+        const R w = ((R(1) - hm::fabs(c)) - (hm::fabs(a) - hm::fabs(c * a))) -
+                    ((hm::fabs(b) - hm::fabs(c * b)) - (hm::fabs(ab) - hm::fabs(c * ab)));
         const int node = (m.nx + 1) * ((m.ny + 1) * iz + iy) + ix;
         acc(w, m.data + static_cast<long long>(node) * m.ncomp);
     }
@@ -77,7 +76,7 @@ AVAS_HD inline void boris_push(R& x, R& ux, R& y, R& uy, R& z, R& uz, const R E[
     ux = h * E[0] + ux;
     uy = h * E[1] + uy;
     uz = h * E[2] + uz;
-    const R g = std::sqrt((uz * uz + uy * uy) + (ux * ux + R(1)));
+    const R g = hm::sqrt((uz * uz + uy * uy) + (ux * ux + R(1)));
     const R s = (dt * qOverM) / g;
     const R ty = s * B[1];
     const R tz = s * B[2];
@@ -93,7 +92,7 @@ AVAS_HD inline void boris_push(R& x, R& ux, R& y, R& uy, R& z, R& uz, const R E[
     ux = h * E[0] + nux;
     uy = h * E[1] + nuy;
     uz = h * E[2] + nuz;
-    const R g2 = std::sqrt((uy * uy + uz * uz) + (ux * ux + R(1)));
+    const R g2 = hm::sqrt((uy * uy + uz * uz) + (ux * ux + R(1)));
     const R v = (R(k::c) / g2) * dt;
     x = v * ux + x;
     y = v * uy + y;
@@ -108,7 +107,7 @@ AVAS_HD inline void sync_push(R coord[6], const R E[3], const R B[3], R qOverM, 
         coord[0] = coord[1] = coord[2] = coord[3] = R(0);
         const R uz = E[2] * qOverM * (dt * R(k::inv_c)) + coord[5];
         coord[5] = uz;
-        const R g = std::sqrt(uz * uz + R(1));
+        const R g = hm::sqrt(uz * uz + R(1));
         coord[4] = (R(k::c) / g) * uz * dt + coord[4];
         return;
     }
@@ -120,7 +119,7 @@ AVAS_HD inline void sync_push(R coord[6], const R E[3], const R B[3], R qOverM, 
         coord[3] = uy;
         const R uz = E[2] * qOverM * k1 + coord[5];
         coord[5] = uz;
-        const R v = R(k::c) / std::sqrt((uz * uz + uy * uy) + (ux * ux + R(1)));
+        const R v = R(k::c) / hm::sqrt((uz * uz + uy * uy) + (ux * ux + R(1)));
         coord[0] = v * ux * dt + coord[0];
         coord[2] = v * uy * dt + coord[2];
         coord[4] = v * uz * dt + coord[4];
@@ -130,7 +129,7 @@ AVAS_HD inline void sync_push(R coord[6], const R E[3], const R B[3], R qOverM, 
     R ux = E[0] * qOverM * kh + coord[1];
     R uy = E[1] * qOverM * kh + coord[3];
     R uz = E[2] * qOverM * kh + coord[5];
-    const R ig = R(1) / std::sqrt((uz * uz + uy * uy) + (ux * ux + R(1)));
+    const R ig = R(1) / hm::sqrt((uz * uz + uy * uy) + (ux * ux + R(1)));
     const R idt = ig * dt;
     const R tx = idt * (qOverM * B[0]);
     const R ty = (qOverM * B[1]) * idt;
@@ -149,7 +148,7 @@ AVAS_HD inline void sync_push(R coord[6], const R E[3], const R B[3], R qOverM, 
     coord[1] = ux;
     coord[3] = uy;
     coord[5] = uz;
-    const R v = R(k::c) / std::sqrt((uz * uz + uy * uy) + (ux * ux + R(1)));
+    const R v = R(k::c) / hm::sqrt((uz * uz + uy * uy) + (ux * ux + R(1)));
     coord[0] = v * ux * dt + coord[0];
     coord[2] = uy * v * dt + coord[2];
     coord[4] = uz * v * dt + coord[4];
@@ -171,7 +170,7 @@ AVAS_HD inline R zrow_advance(R* r, R len, R& xa, R& ya) {
     const R iuz = R(1) / r[5];
     xa = iuz * r[1];
     ya = iuz * r[3];
-    const R vz = std::sqrt((R(k::c2) - R(k::c2) / g2) / ((ya * ya + xa * xa) + R(1)));
+    const R vz = hm::sqrt((R(k::c2) - R(k::c2) / g2) / ((ya * ya + xa * xa) + R(1)));
     const R dt = len / vz;
     r[6] = dt + r[6];
     r[4] = dt;
@@ -184,8 +183,8 @@ AVAS_HD inline void quad_row(R* r, R qOverM, R G, R len, SinCos sincos) {
     R xa, ya;
     const R g2 = zrow_advance(r, len, xa, ya);
     const R qG = qOverM * G;
-    const R gb = std::sqrt((R(1) - R(1) / g2) * g2);
-    const R kq = std::sqrt(std::fabs(qG / (gb * R(k::c))));
+    const R gb = hm::sqrt((R(1) - R(1) / g2) * g2);
+    const R kq = hm::sqrt(hm::fabs(qG / (gb * R(k::c))));
     const R x = r[0], y = r[2];
     const R xp = r[1] / r[5];
     const R yp = r[3] / r[5];
@@ -215,10 +214,10 @@ AVAS_HD inline void quad_row(R* r, R qOverM, R G, R len, SinCos sincos) {
 template <class R, class SinCos>
 AVAS_HD inline void quad_sync_row(R* r, R qOverM, R G, R len, SinCos sincos) {
     const R g2 = (r[5] * r[5] + r[3] * r[3]) + (r[1] * r[1] + R(1));
-    const R beta = std::sqrt(R(1) - R(1) / g2);
-    const R gamma = std::sqrt(g2);
+    const R beta = hm::sqrt(R(1) - R(1) / g2);
+    const R gamma = hm::sqrt(g2);
     const R qG = G * qOverM;
-    const R kq = std::sqrt(std::fabs(qG / ((gamma * R(k::c)) * beta)));
+    const R kq = hm::sqrt(hm::fabs(qG / ((gamma * R(k::c)) * beta)));
     const R dt = (R(k::inv_c) / beta) * len;
     r[4] = dt;
     r[6] = dt + r[6];
@@ -252,7 +251,7 @@ template <class R, class SinCos>
 AVAS_HD inline void solenoid_row(R* r, R qOverM, R B, R len, SinCos sincos) {
     R xa, ya;
     const R g2 = zrow_advance(r, len, xa, ya);
-    const R gb = std::sqrt((R(1) - R(1) / g2) * g2);
+    const R gb = hm::sqrt((R(1) - R(1) / g2) * g2);
     const R K = (R(k::half_inv_c) / gb) * (qOverM * B);
     const R x = r[0], y = r[2];
     R S, C;
@@ -284,7 +283,7 @@ AVAS_HD inline void bend_row(R* r, R uzs, const BendStep<R>& b) {
     const R xa = iuz * r[1];
     const R ya = iuz * r[3];
     const R vz2 = ((R(1) - R(1) / g2) * R(k::c2)) / ((ya * ya + xa * xa) + R(1));
-    const R dt = b.s / std::sqrt(vz2);
+    const R dt = b.s / hm::sqrt(vz2);
     r[6] = dt + r[6];
     r[4] = dt;
     // bending plane (q, qa), other plane (o, oa)
@@ -317,7 +316,7 @@ AVAS_HD inline void bend_sync_row(R* r, const BendStep<R>& b) {
     const R iuz = R(1) / r[5];
     const R xa0 = iuz * r[1];
     const R ya0 = iuz * r[3];
-    const R vz = std::sqrt((R(k::c2) - R(k::c2) / g2) / ((ya0 * ya0 + xa0 * xa0) + R(1)));
+    const R vz = hm::sqrt((R(k::c2) - R(k::c2) / g2) / ((ya0 * ya0 + xa0 * xa0) + R(1)));
     const R dt = b.s / vz;
     r[6] = dt + r[6];
     r[4] = dt;
@@ -365,7 +364,7 @@ template <class R>
 AVAS_HD inline void zrow_keep_momentum(R* r, R p2) {
     const R xp = r[1] / r[5];
     const R yp = r[3] / r[5];
-    R uz = std::sqrt(p2 / (R(1) + xp * xp + yp * yp));
+    R uz = hm::sqrt(p2 / (R(1) + xp * xp + yp * yp));
     if (r[5] < R(0)) uz = -uz;
     r[5] = uz;
     r[1] = uz * xp;
@@ -392,7 +391,7 @@ AVAS_HD inline void steerer_kick(R* r, int kind, R wx, R wy, R lq) {
     const R dY = (lq * wy) * R(k::inv_c2);
     if (kind == 1) {
         const R g2 = (r[5] * r[5] + r[3] * r[3]) + (r[1] * r[1] + R(1));
-        const R ib = R(1) / std::sqrt(R(1) - R(1) / g2);
+        const R ib = R(1) / hm::sqrt(R(1) - R(1) / g2);
         r[1] = dX * ib + r[1];
         r[3] = dY * ib + r[3];
     } else {
@@ -409,17 +408,17 @@ AVAS_HD inline void ztot_row(const R* r, R zPlane, R tRef, bool fullGamma, R& x,
     const R dt = r[6] - tRef;
     if (!fullGamma) {
         const R g = r[5] * r[5] + R(1);
-        const R ig = R(1) / std::sqrt(g);
+        const R ig = R(1) / hm::sqrt(g);
         x = r[0] - (dt * r[1]) * (ig * R(k::c));
         y = r[2] - (dt * r[3]) * (ig * R(k::c));
         // zTotcode multiplies beta*c first, the superposeout restart of tcodeRun beta*dt first
-        z = restartForm ? zPlane - (std::sqrt(R(1) - R(1) / g) * dt) * R(k::c)
-                        : zPlane - (std::sqrt(R(1) - R(1) / g) * R(k::c)) * dt;
+        z = restartForm ? zPlane - (hm::sqrt(R(1) - R(1) / g) * dt) * R(k::c)
+                        : zPlane - (hm::sqrt(R(1) - R(1) / g) * R(k::c)) * dt;
     } else {
-        const R gamma = std::sqrt(r[1] * r[1] + R(1) + r[3] * r[3] + r[5] * r[5]);
-        const R beta = std::sqrt(R(1) - (R(1) / gamma) / gamma);
+        const R gamma = hm::sqrt(r[1] * r[1] + R(1) + r[3] * r[3] + r[5] * r[5]);
+        const R beta = hm::sqrt(R(1) - (R(1) / gamma) / gamma);
         const R xp = r[1] / r[5], yp = r[3] / r[5];
-        const R vz = std::sqrt((beta * R(k::c) * beta * R(k::c)) / (xp * xp + yp * yp + R(1)));
+        const R vz = hm::sqrt((beta * R(k::c) * beta * R(k::c)) / (xp * xp + yp * yp + R(1)));
         x = r[0] - ((r[1] * dt) / gamma) * R(k::c);
         y = r[2] - ((r[3] * dt) / gamma) * R(k::c);
         z = -dt * vz + zPlane;

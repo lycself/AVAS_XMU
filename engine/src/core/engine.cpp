@@ -6,9 +6,11 @@
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
+#include <filesystem>
 #include <stdexcept>
 
 #include "core/beam.h"
+#include "core/device.h"
 #include "core/errors.h"
 #include "core/errorset.h"
 #include "core/files.h"
@@ -150,6 +152,24 @@ void set_paths(const std::string& input, const std::string& output, const std::s
 
 int run_main_agent(int* state) {
     init_options_from_env();
+    // MPI ranks other than 0 run the same program in a private output folder and stay silent
+    const ProcessRank pr = process_rank();
+    struct RankFolder {
+        std::string saved, dir;
+        ~RankFolder() {
+            if (dir.empty()) return;
+            std::error_code ec;
+            std::filesystem::remove_all(std::filesystem::u8path(dir), ec);
+            paths().output = saved;
+        }
+    } rankFolder;
+    if (pr.size > 1 && pr.rank > 0) {
+        rankFolder.saved = paths().output;
+        rankFolder.dir = paths().output + ".mpi_rank_" + std::to_string(pr.rank) + "/";
+        make_dir(rankFolder.dir);
+        paths().output = rankFolder.dir;
+        set_console_quiet(true);
+    }
     const bool compat = compat_dll();
     if (!compat && state && *state == 2) {
         // main_agent(2) is the Python "stop" call; the original ignores the argument and starts a

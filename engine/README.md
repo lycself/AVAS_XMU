@@ -2,7 +2,7 @@
 
 原 C++ 内核（`avas/engine/AVAS.dll`、`libAVAS.so`）和 GPU 内核（`libPIC.so`）的源码已丢失。这里是按原二进制逆向整理出规格后重写的新内核，在 `engine-rebuild` 分支开发，完成全部功能对齐前不合并到 main。
 
-目标：同一份 C++ 物理代码（`__host__ __device__`）编译成 CPU 版（OpenMP）和 CUDA 版；macOS 的 MPS 用 PyTorch。支持 macOS（CPU、MPS）、Windows 和 Linux（CPU、NVIDIA GPU，最低 Pascal sm_61），包括 CentOS 7 / glibc 2.17 的离线集群。精度分 `auto`／`fp64`／`fp32` 三档，`auto` 在 fp64 全速的卡上用 fp64，其余用 fp32 相对参考粒子坐标。
+目标：同一份 C++ 物理代码（`__host__ __device__`，设备修饰只经 `src/core/hd.h` 的中性宏）编译成 CPU 版和 CUDA 版；macOS 的 GPU 走 Metal（M6c）。支持 macOS（CPU）、Windows 和 Linux（CPU、NVIDIA GPU，最低 Pascal sm_61），包括 CentOS 7 / glibc 2.17 的离线集群。精度分 `auto`／`fp64`／`fp32` 三档，`auto` 在 fp64 全速的卡上用 fp64，其余用 fp32 相对参考粒子坐标。
 
 逆向整理的规格在 [docs/engine/](../docs/engine/README.md)：数据结构、8 个子系统、280 个对齐项、已实测核实的结论和待做的比对实验。
 
@@ -14,6 +14,24 @@
 - `tools/cu_probe.cu`、`build_probe_linux.sh`、`build_probe_windows.bat`：工具链检查程序，验证多架构机器码的选择、静态 CUDA 运行库在各版本驱动上的兼容性、fp32／fp64 吞吐量，以及同一份 `__host__ __device__` 代码在 CPU 与 GPU 上的结果。
 - `tools/oracle/`：原内核比对实验工具。`runner.py cases.json WORKDIR REPO` 经 `avas run --mode basic` 运行各算例（在示例 hwr010 上改 beam / input / lattice、加文件，带超时）；`direct.py` 绕过 Python 的 lattice 处理直接调用 `path()` / `main_agent()`（测试内核自己的误差处理等）。`batch1_*.json` 是第一批实验的算例，`batch1_platform_cases.json` 用到的 `win_in.dst` 取自 Windows 上 `g1_base` 算例的 inData.dst。结果见 docs/engine/90-experiments.md。
 - `tools/ExportDecomp.java`：Ghidra headless 脚本，导出非库函数的伪代码和调用关系（`index.tsv`）。导出的伪代码不放进仓库。
+
+## GPU（M6a，CUDA）
+
+构建（默认 `AVAS_WITH_CUDA=OFF`，CPU 构建不受影响）：
+
+- Linux（glibc 2.17 及以后）：在 manylinux2014 + CUDA 12.4 容器里运行 `tools/build_cuda_linux.sh`
+  （`docker run --rm -v 源码:/src -v 输出:/out 镜像 bash /src/engine/tools/build_cuda_linux.sh`）；也可以用 conda-forge 的 GCC（sysroot 2.17）加 NVIDIA 的 cuda-nvcc 12.4，
+  `cmake -S engine -B build -DAVAS_WITH_CUDA=ON -DCMAKE_CUDA_COMPILER=…/nvcc -DCMAKE_CXX_COMPILER=…/g++ -DCMAKE_CUDA_HOST_COMPILER=…/g++ -DCMAKE_SHARED_LINKER_FLAGS="-static-libstdc++ -static-libgcc"`
+  （`CMAKE_CUDA_HOST_COMPILER` 必须指向同一个 conda GCC，否则 nvcc 用系统的 GCC 4.8，在 CentOS 7 上编译 `.cu` 失败）。
+- Windows：VS 2022 Build Tools + CUDA 12.x，`tools\build_cuda_windows.bat engine源码 构建目录 [CUDA目录]`。
+- 机器码 sm_60/61/70/75/80/86/89/90 并附 compute_90 的 PTX，CUDA 运行库静态链接，nvcc `--fmad=false`。CUDA 13 不支持 Pascal，必须用 12.x。
+- `-DAVAS_WITH_MPI=ON` 加入跨进程（跨节点）的 MPI；`-DAVAS_CUDA_FMAD=ON` 只用于测量逐位一致的代价。
+
+运行（`avas_set_option` 或环境变量；默认 `device=cpu`）：`AVAS_ENGINE_DEVICE=cuda|auto|cpu`、`AVAS_ENGINE_PRECISION=auto|fp64|fp32`、
+`AVAS_ENGINE_GPUS=0|0,1|all`。`compat=dll` 只在 CPU 上提供。MPI：`mpirun -np 2 avas_engine_run IN OUT FIELD`（每个进程一块 GPU）。
+
+检查：`python3 engine/tests/gpu/run_gpu.py --lib 库 [--gpus2 0,1] [--mpi "mpirun -np 2"] [--fp32 --stats 8]`（CPU 与 GPU 比对；没有 GPU 时可用 `--device emu` 检查设备通路），
+性能 `engine/tests/gpu/perf_gpu.py`。实现记录、结果和限制见 [docs/engine/M6-notes.md](../docs/engine/M6-notes.md)。
 
 ## 工具链检查结果（2026-11-07）
 

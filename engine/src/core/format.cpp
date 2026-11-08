@@ -60,13 +60,18 @@ std::string fmt_fixed(double v, int precision) {
     return s;
 }
 
+static bool g_quiet = false;
+void set_console_quiet(bool q) { g_quiet = q; }
+
 void say(const std::string& line) {
+    if (g_quiet) return;
     std::fwrite(line.data(), 1, line.size(), stdout);
     std::fputc('\n', stdout);
     std::fflush(stdout);
 }
 
 void say_raw(const std::string& text) {
+    if (g_quiet) return;
     std::fwrite(text.data(), 1, text.size(), stdout);
     std::fflush(stdout);
 }

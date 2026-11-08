@@ -15,4 +15,14 @@ void dll_sincos(double a, double& s, double& c);
 inline double dll_sin(double a) { return std::sin(a); }
 inline double dll_cos(double a) { return std::cos(a); }
 
+// Elementary functions of compat=dll for the shared particle kernels (kernels.h); host only.
+struct DllMath {
+    static constexpr bool compat = true;
+    static void sincos(double a, double& s, double& c) { dll_sincos(a, s, c); }
+    static double cos(double a) { return dll_cos(a); }
+    static double sinh(double a) { return std::sinh(a); }
+    static double cosh(double a) { return std::cosh(a); }
+    static double atan(double a) { return std::atan(a); }
+};
+
 }  // namespace avas

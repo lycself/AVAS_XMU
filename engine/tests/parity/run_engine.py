@@ -261,8 +261,10 @@ def main():
             shutil.copy(os.path.join(base, old_name), os.path.join(inp, new_name))
         t0 = time.time()
         try:
-            proc = subprocess.run([sys.executable, "-c", CHILD, a.lib, inp + os.sep, out + os.sep, field + os.sep,
-                                   a.compat], cwd=d, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            # AVAS_PARITY_LAUNCHER: optional command prefix, e.g. "mpirun -np 2" (MPI GPU runs)
+            launcher = os.environ.get("AVAS_PARITY_LAUNCHER", "").split()
+            proc = subprocess.run(launcher + [sys.executable, "-c", CHILD, a.lib, inp + os.sep, out + os.sep, field + os.sep,
+                                              a.compat], cwd=d, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                   timeout=case.get("timeout", a.timeout))
             rc = proc.returncode - 100 if proc.returncode >= 100 else f"exit {proc.returncode}"
             log = proc.stdout.decode("latin-1")

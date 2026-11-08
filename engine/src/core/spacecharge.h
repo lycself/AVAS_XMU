@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "core/beam.h"
+#include "core/kernels.h"
 #include "core/params.h"
 
 namespace avas {
@@ -22,6 +23,42 @@ public:
     // impscfield 1: fields from a recorded run (importSCF) instead of a solve
     bool importing() const { return imp_; }
     void import_scf(Beam& b);
+
+    // ---- pieces of solve() for a device back end (corrected engine only) ----
+    // autoPIC test and counters; false: skip this solve (the particles keep their field).
+    bool begin(const Beam& b, const double* sync);
+    // Mesh of this solve (cell sizes, node coordinates, centre) from the beam rms and centroid.
+    void mesh(const Beam& b);
+    // View of the mesh for the particle kernels (Q = total charge, set after the deposit).
+    kern::MeshV mesh_view(const Beam& b) const;
+    // Fixed-point exponent of the corrected deposit (charge * 2^e is an exact 64-bit integer).
+    long long fix_exp() const { return fixExp_; }
+    void prepare_fix(const Beam& b) { init_fix(b); }
+    bool recording() const { return rec_ == 1; }
+    // rho from the summed fixed-point deposit, times the space-charge factor.
+    void set_rho(const std::vector<long long>& acc, double factor);
+    int method() const { return method_; }
+    // SPICNIC: Green table, threshold and the asymmetric correction list (host part of spicnic()).
+    void spicnic_prepare(std::vector<int>& corr, std::vector<double>& dval, double& thr);
+    // FFT: eigenvalue tables lx, ly, lz and the normalisation (host part of fft()).
+    void fft_tables(std::vector<double>& lx, std::vector<double>& ly, std::vector<double>& lz, double& scale,
+                    double& norm) const;
+    double total_charge() const;
+    // recscfield 1 after a device solve (ex/ey/ez filled by the caller).
+    void record_after(const Beam& b, double Q) { if (rec_ == 1) record(b, Q); }
+    std::vector<double>& rho() { return rho_; }
+    std::vector<double>& ex() { return ex_; }
+    std::vector<double>& ey() { return ey_; }
+    std::vector<double>& ez() { return ez_; }
+    const std::vector<double>& green() const { return G_; }
+    const std::vector<double>& xs() const { return xs_; }
+    const std::vector<double>& ys() const { return ys_; }
+    const std::vector<double>& zs() const { return zs_; }
+    int ny() const { return ny_; }
+    int nz() const { return nz_; }
+    int mx() const { return mx_; }
+    int my() const { return my_; }
+    int mz() const { return mz_; }
 
 private:
     bool compat_;
@@ -44,6 +81,9 @@ private:
     std::vector<std::array<int, 3>> cell_;
     std::vector<std::array<double, 8>> w_;
     std::vector<int> out_;
+    std::vector<long long> fix_;  // corrected deposit (fixed point)
+    long long fixExp_ = 0;
+    bool fixInit_ = false;
     double prevRms_[3] = {0, 0, 0};
     long long calls_ = 0, solves_ = 0;
 
@@ -52,6 +92,7 @@ private:
         return (static_cast<size_t>(a) * (2 * ny_ + 1) + b) * (2 * nz_ + 1) + c;
     }
     void weight(Beam& b, double factor);
+    void init_fix(const Beam& b);
     void fft();
     void spicnic();
     void tabulate();
