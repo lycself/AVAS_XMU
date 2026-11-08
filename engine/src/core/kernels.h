@@ -922,9 +922,10 @@ AVAS_HD inline void het_row(const RowOp& op, double* r, double qOverM, double sc
         if (!P::compat) zrow_keep_momentum(r, p2);
         return;
     }
-    // corrected engine: |gamma*beta| of the row before the transfer (taken before T_in and the
-    // space-charge kick, as in the CPU engine of M2-M5) is restored after it
-    const double p2 = P::compat ? 0.0 : zrow_p2(r);
+    // corrected engine: |gamma*beta| of the row before the magnetic transfer is restored after it.
+    // T_in is a rotation (keeps |p|); the space-charge kick changes |p|, so after a kick the value
+    // is taken again (M6 decision 4, 2026-11-08: until then the kick's energy change was undone).
+    double p2 = P::compat ? 0.0 : zrow_p2(r);
     double zl = 0.0;
     if (op.err) zl = het_err_in(r, op.e);
     if (op.scKick) {
@@ -934,6 +935,7 @@ AVAS_HD inline void het_row(const RowOp& op, double* r, double qOverM, double sc
         r[1] = scx * ak + r[1];
         r[3] = scy * ak + r[3];
         r[5] = ak * scz + r[5];
+        if (!P::compat) p2 = zrow_p2(r);
     }
     if (op.kind == kQuad) quad_row_p<P>(r, qOverM, op.strength, op.len);
     else if (op.kind == kSolenoid) solenoid_row(r, qOverM, op.strength, op.len, PSinCos<P>());
