@@ -185,8 +185,15 @@ public:
     virtual bool authoritative() const { return false; }
     virtual void to_host(const kern::PartV& P, int n) { (void)P; (void)n; }
     virtual void invalidate() {}
-    // rec flags cleared by the tracker (zero_rec)
-    virtual void rec_cleared() {}
+    // rec / spRec flags cleared by the tracker (zero_rec)
+    virtual void rec_cleared(bool sp) { (void)sp; }
+    // boundary.txt on the accelerator (authoritative only); false: the caller does it on the CPU.
+    virtual bool boundary(const LatScalars& ls, double t, double dt, std::vector<BoundaryHit>& hits) {
+        (void)ls; (void)t; (void)dt; (void)hits;
+        return false;
+    }
+    // element table changed (superposeout rotMode)
+    virtual void set_elems(const LatHost& L) { (void)L; }
     // Deposit / interpolation from the float state (authoritative only).
     virtual void deposit_state(const kern::MeshV& M, int n, std::vector<long long>& acc) { (void)M; (void)n; (void)acc; }
     virtual void interp_state(const kern::MeshV& M, const double* ex, const double* ey, const double* ez, int n) {
@@ -199,6 +206,9 @@ public:
 std::unique_ptr<DeviceBackend> make_emu_backend(std::unique_ptr<ScAccel> accel = nullptr);
 // Metal (src/metal/, AVAS_WITH_METAL): the accelerator, or null and a reason.
 std::unique_ptr<ScAccel> make_metal_accel(std::string& why);
+// The fp32 tier of the emu device (precision fp32): the Metal back end's host logic with its kernels
+// run on the CPU (core/f32_cpu.cpp); for now only in builds with Metal.
+std::unique_ptr<ScAccel> make_f32_cpu_accel(std::string& why);
 bool metal_compiled();
 // Compiled with CUDA support?
 bool cuda_compiled();

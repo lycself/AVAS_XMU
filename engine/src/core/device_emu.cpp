@@ -95,7 +95,9 @@ public:
             for (EmuShard& s : sh_) accel_->to_host(s.P, s.n());
     }
 
-    void set_elems(const LatHost&) override {}  // the view points at the host table
+    void set_elems(const LatHost& L) override {  // the view points at the host table
+        if (accel_) accel_->set_elems(L);
+    }
 
     void download(Beam& b, double* old, double* rec, double* spRec, unsigned m) override {
         host();
@@ -143,7 +145,7 @@ public:
     }
 
     void zero_rec(bool sp) override {
-        if (accel_ && !sp) accel_->rec_cleared();
+        if (accel_) accel_->rec_cleared(sp);
         for (EmuShard& s : sh_) std::fill((sp ? s.spRec : s.rec).begin(), (sp ? s.spRec : s.rec).end(), 0.0);
     }
 
@@ -417,6 +419,7 @@ public:
         }
     }
     void boundary(const LatScalars& ls, double t, double dt, std::vector<BoundaryHit>& hits) override {
+        if (accel_ && accel_->authoritative() && accel_->boundary(ls, t, dt, hits)) return;
         host();
         set_scalars(ls);
         hits.clear();

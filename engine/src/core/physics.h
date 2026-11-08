@@ -7,7 +7,7 @@
 // replaced divisions by 1/c with multiplications); keep the order when editing.
 #pragma once
 #include "core/hd.h"
-#ifndef AVAS_METAL
+#ifndef AVAS_FLOAT_ONLY
 #include <cmath>
 #endif
 
@@ -83,7 +83,7 @@ AVAS_HD inline R tri_corner(AVAS_G const MapView<R, D>& m, AVAS_T const TriPos<R
     return w;
 }
 
-#ifndef AVAS_METAL
+#ifndef AVAS_FLOAT_ONLY
 template <class R, class D, class Acc>
 AVAS_HD inline void trilinear(const MapView<R, D>& m, R x, R y, R zl, Acc&& acc) {
     const TriPos<R> t = tri_pos(m, x, y, zl);
@@ -454,6 +454,6 @@ AVAS_HD inline void ztot_row(const R* r, R zPlane, R tRef, bool fullGamma, R& x,
     uz = r[5];
 }
 
-#endif  // AVAS_METAL
+#endif  // AVAS_FLOAT_ONLY
 
 }  // namespace avas

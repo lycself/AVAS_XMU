@@ -10,6 +10,7 @@
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -23,6 +24,7 @@
 #include "core/errors.h"
 #include "core/format.h"
 #include "core/kernels.h"
+#include "core/lattice.h"
 #include "core/physics.h"
 #include "core/reduce.h"
 #include "core/sc_kernels.h"
@@ -30,6 +32,22 @@
 #include "avas_msl_source.inc"  // kAvasMslSource
 
 namespace avas {
+
+namespace f32cpu {  // core/f32_cpu.cpp: the same kernels on the CPU (fp32 tier of the emu device)
+void sizes(unsigned* o);
+void step(const void* L, const void* U, const void* F, const float* off, const float* rft, const int* sizes, int n);
+void bound(const void* U, const void* F, const void* geoms, const float* segStart, const float* segEnd, const float* bndZ,
+           const int* bndR1, const int* bndR2, int n);
+void deposit(const void* M, const float* x, const float* y, const float* z, const float* q, const int* lost, unsigned* lo,
+             unsigned* hi, int n);
+void interp(const void* M, const float* x, const float* y, const float* z, const int* lost, const float* ex, const float* ey,
+            const float* ez, float* sc, int n);
+void picnic(const void* g, const float* rho, const float* G, float* phi);
+void sym(const void* g, const float* rho, const float* G, float thr, float* phi);
+void corr(const void* g, const float* G, const int* corr, const float* dval, long long nc, float* phi);
+void grad(const void* g, const float* phi, const float* h, float* ex, float* ey, float* ez);
+void group(const float* C, const float* Mx, long long* sums, int* exps, float* mxo, int n);
+}  // namespace f32cpu
 
 namespace {
 
@@ -57,6 +75,25 @@ struct ElemVF {
     float errDx, errDy, errDz;
     float esx, ecx, esy, ecy, esz, ecz;
 };
+struct SubVF {
+    int type, map, hasErr, rfErr;
+    float ke, kb, zStart, radius, length;
+    float place[6];
+    float s3, c3, s4, c4, s5, c5;
+    float err[12];
+    float es4, ec4, es5, ec5, es6, ec6, esin6;
+};
+struct GeomFH {  // GeomF of kernels.metal
+    int shape, npar;
+    float zStart;
+    float par[6];
+    float place[6];
+    float s3, c3, s4, c4, s5, c5;
+};
+struct BoundUH {  // BoundU of kernels.metal
+    float zs, post0, post2, totalLength, segEndLast;
+    int nSeg, nBnd, spOutCur, spOutSize, n;
+};
 struct LatVF {
     std::uint64_t elems, eff, subs, maps, mapsF, elemZStart, elemZEnd, spOut, cavTime, cavPhase, rfSlots;
     int nElem, errOn, spOutCur, spOutCount, spOutSize;
@@ -68,7 +105,8 @@ struct LatVF {
 };
 struct PartFH {  // PartF of kernels.metal
     std::uint64_t d[3], du[3], E[3], B[3], sc[3], rel[6], hq, tq, w, spz0, spz1;
-    std::uint64_t lost, elemIndex, nextPlane, boundaryMode, recFlag, C, Mx, snap, oldS, crossCount, crossIdx;
+    std::uint64_t lost, elemIndex, nextPlane, boundaryMode, recFlag, spFlag, geomIndex, spOutCount, C, Mx, snap, oldS, crossCount,
+        crossIdx, spIdx, bdIdx;
 };
 struct StepUH {  // StepU of kernels.metal
     float hEs[3], usm[3], gsm, Ks[9], usp[3], gsp, cdt;
@@ -87,6 +125,7 @@ struct SyncH {
 
 class MetalAccel : public ScAccel {
 public:
+    explicit MetalAccel(bool cpu = false) : cpu_(cpu) {}
     bool init(std::string& why) {
         @autoreleasepool {
             dev_ = MTLCreateSystemDefaultDevice();
@@ -131,14 +170,17 @@ public:
             grad_ = pipe("k_grad");
             step_ = pipe("k_step");
             group_ = pipe("k_group");
-            if (!sizes_ || !dep_ || !interp_ || !picnic_ || !sym_ || !corr_ || !grad_ || !step_ || !group_) return false;
+            bound_ = pipe("k_bound");
+            if (!sizes_ || !dep_ || !interp_ || !picnic_ || !sym_ || !corr_ || !grad_ || !step_ || !group_ || !bound_) return false;
             queue_ = [dev_ newCommandQueue];
             // layout check of the structures shared with the MSL code
             id<MTLBuffer> b = buf(sz_, 64);
-            run(sizes_, 1, [&](id<MTLComputeCommandEncoder> enc) { [enc setBuffer:b offset:0 atIndex:0]; });
+            if (cpu_) f32cpu::sizes(static_cast<unsigned*>([b contents]));
+            else run(sizes_, 1, [&](id<MTLComputeCommandEncoder> enc) { [enc setBuffer:b offset:0 atIndex:0]; });
             const std::uint32_t* s = static_cast<const std::uint32_t*>([b contents]);
             if (s[0] != sizeof(MeshF) || s[1] != sizeof(sck::SpGrid) || s[2] != sizeof(LatVF) || s[3] != sizeof(ElemVF) ||
-                s[4] != sizeof(MapView<float, float>) || s[5] != sizeof(PartFH) || s[6] != sizeof(StepUH)) {
+                s[4] != sizeof(MapView<float, float>) || s[5] != sizeof(PartFH) || s[6] != sizeof(StepUH) || s[7] != sizeof(SubVF) ||
+                s[8] != sizeof(GeomFH) || s[9] != sizeof(BoundUH)) {
                 why = "Metal structure layout mismatch (MeshV " + std::to_string(s[0]) + " / " + std::to_string(sizeof(MeshF)) + ")";
                 return false;
             }
@@ -148,6 +190,7 @@ public:
     }
 
     std::string describe() const override {
+        if (cpu_) return "emu fp32 (the kernels of the Metal back end on the CPU, core/f32_kernels.h)";
         return "Metal, " + name_ + ": t-code push, statistics and space-charge mesh work on the GPU in fp32 (z-code, FFT solve, "
                "secondary particles on the CPU)";
     }
@@ -168,7 +211,9 @@ public:
             std::memset([hi contents], 0, n3 * 4);
             MeshF F = mesh(M);
             const std::uint32_t nn = static_cast<std::uint32_t>(n);
-            run(dep_, static_cast<size_t>(n), [&](id<MTLComputeCommandEncoder> enc) {
+            if (cpu_) f32cpu::deposit(&F, hp<float>(bx_), hp<float>(by_), hp<float>(bz_), hp<float>(bq_), hp<int>(blost_), hp<unsigned>(lo),
+                                      hp<unsigned>(hi), n);
+            else run(dep_, static_cast<size_t>(n), [&](id<MTLComputeCommandEncoder> enc) {
                 [enc setBytes:&F length:sizeof(F) atIndex:0];
                 [enc setBuffer:bx_ offset:0 atIndex:1];
                 [enc setBuffer:by_ offset:0 atIndex:2];
@@ -201,7 +246,8 @@ public:
             id<MTLBuffer> phi = buf(bphi_, n3 * 4);
             std::memset([phi contents], 0, n3 * 4);
             if (in.method == 2) {
-                run(picnic_, n3, [&](id<MTLComputeCommandEncoder> enc) {
+                if (cpu_) f32cpu::picnic(&g, hp<float>(brho_), hp<float>(bG_), hp<float>(phi));
+                else run(picnic_, n3, [&](id<MTLComputeCommandEncoder> enc) {
                     [enc setBytes:&g length:sizeof(g) atIndex:0];
                     [enc setBuffer:brho_ offset:0 atIndex:1];
                     [enc setBuffer:bG_ offset:0 atIndex:2];
@@ -209,7 +255,8 @@ public:
                 });
             } else {
                 const float thr = static_cast<float>(in.thr);
-                run(sym_, static_cast<size_t>(g.n_targets()), [&](id<MTLComputeCommandEncoder> enc) {
+                if (cpu_) f32cpu::sym(&g, hp<float>(brho_), hp<float>(bG_), thr, hp<float>(phi));
+                else run(sym_, static_cast<size_t>(g.n_targets()), [&](id<MTLComputeCommandEncoder> enc) {
                     [enc setBytes:&g length:sizeof(g) atIndex:0];
                     [enc setBuffer:brho_ offset:0 atIndex:1];
                     [enc setBuffer:bG_ offset:0 atIndex:2];
@@ -220,7 +267,8 @@ public:
                     std::memcpy([buf(bcorr_, static_cast<size_t>(3 * nc) * 4) contents], corr, static_cast<size_t>(3 * nc) * 4);
                     fl(bdval_, static_cast<size_t>(nc), dval);
                     const long nl = static_cast<long>(nc);
-                    run(corr_, n3, [&](id<MTLComputeCommandEncoder> enc) {
+                    if (cpu_) f32cpu::corr(&g, hp<float>(bG_), hp<int>(bcorr_), hp<float>(bdval_), nc, hp<float>(phi));
+                    else run(corr_, n3, [&](id<MTLComputeCommandEncoder> enc) {
                         [enc setBytes:&g length:sizeof(g) atIndex:0];
                         [enc setBuffer:bG_ offset:0 atIndex:1];
                         [enc setBuffer:bcorr_ offset:0 atIndex:2];
@@ -233,7 +281,8 @@ public:
             const float h[3] = {static_cast<float>(1.0 / (in.dx + in.dx)), static_cast<float>(1.0 / (in.dy + in.dy)),
                                 static_cast<float>(1.0 / (in.dz + in.dz))};
             id<MTLBuffer> fe = buf(bfield_, 3 * n3 * 4);
-            run(grad_, n3, [&](id<MTLComputeCommandEncoder> enc) {
+            if (cpu_) f32cpu::grad(&g, hp<float>(phi), h, hp<float>(fe), hp<float>(fe, n3 * 4), hp<float>(fe, 2 * n3 * 4));
+            else run(grad_, n3, [&](id<MTLComputeCommandEncoder> enc) {
                 [enc setBytes:&g length:sizeof(g) atIndex:0];
                 [enc setBuffer:phi offset:0 atIndex:1];
                 [enc setBytes:h length:12 atIndex:2];
@@ -268,7 +317,9 @@ public:
             id<MTLBuffer> sc = buf(bsc_, static_cast<size_t>(n) * 12);
             MeshF F = mesh(M);
             const std::uint32_t nn = static_cast<std::uint32_t>(n);
-            run(interp_, static_cast<size_t>(n), [&](id<MTLComputeCommandEncoder> enc) {
+            if (cpu_) f32cpu::interp(&F, hp<float>(bx_), hp<float>(by_), hp<float>(bz_), hp<int>(blost_), hp<float>(fe), hp<float>(fe, n3 * 4),
+                                     hp<float>(fe, 2 * n3 * 4), hp<float>(sc), n);
+            else run(interp_, static_cast<size_t>(n), [&](id<MTLComputeCommandEncoder> enc) {
                 [enc setBytes:&F length:sizeof(F) atIndex:0];
                 [enc setBuffer:bx_ offset:0 atIndex:1];
                 [enc setBuffer:by_ offset:0 atIndex:2];
@@ -294,19 +345,10 @@ public:
     void begin_run(const LatHost& L, int n) override {
         auth_ = false;
         n_ = n;
-        stepOk_ = !L.errOn;
-        for (const kern::ElemV& e : L.elems)
-            if (e.kind == kern::kField && e.fieldType == 4) stepOk_ = false;
+        stepOk_ = true;
         why_.clear();
-        if (!stepOk_) {
-            why_ = L.errOn ? "error fields" : "superpose blocks";
-            return;
-        }
         @autoreleasepool {
-            // elements
-            const size_t nE = L.elems.size();
-            ElemVF* ev = static_cast<ElemVF*>([buf(belems_, std::max<size_t>(nE, 1) * sizeof(ElemVF)) contents]);
-            for (size_t k = 0; k < nE; ++k) ev[k] = elemf(L.elems[k]);
+            set_elems(L);
             // field maps in float (the same conversion as the CUDA fp32 tier)
             size_t tot = 0;
             for (const MapView<double>& m : L.maps) tot += static_cast<size_t>(m.nx + 1) * (m.ny + 1) * (m.nz + 1) * m.ncomp;
@@ -320,7 +362,7 @@ public:
                 const size_t cnt = static_cast<size_t>(m.nx + 1) * (m.ny + 1) * (m.nz + 1) * m.ncomp;
                 for (size_t e = 0; e < cnt; ++e) f[o + e] = static_cast<float>(m.data[e]);
                 MapView<float, float> g{};
-                g.data = reinterpret_cast<const float*>([md gpuAddress] + o * 4);
+                g.data = reinterpret_cast<const float*>(addr(md) + o * 4);
                 g.ncomp = m.ncomp;
                 g.nx = m.nx;
                 g.ny = m.ny;
@@ -341,9 +383,9 @@ public:
             const size_t m = static_cast<size_t>(std::max(n, 1));
             const size_t floats = 26 * m + 21 * m + 8 * m + 12 * m + 6 * m;
             buf(bstate_, floats * 4);
-            buf(bints_, 5 * m * 4);
-            buf(bcross_, (m + 1) * 4);
-            const std::uint64_t fa = [bstate_ gpuAddress], ia = [bints_ gpuAddress], ca = [bcross_ gpuAddress];
+            buf(bints_, 8 * m * 4);
+            buf(bcross_, (3 * m + 4) * 4);
+            const std::uint64_t fa = addr(bstate_), ia = addr(bints_), ca = addr(bcross_);
             auto fs = [&](size_t k) { return fa + k * m * 4; };
             PartFH& P = pf_;
             for (int j = 0; j < 3; ++j) {
@@ -368,24 +410,74 @@ public:
             P.nextPlane = ia + 2 * m * 4;
             P.boundaryMode = ia + 3 * m * 4;
             P.recFlag = ia + 4 * m * 4;
+            P.spFlag = ia + 5 * m * 4;
+            P.geomIndex = ia + 6 * m * 4;
+            P.spOutCount = ia + 7 * m * 4;
             P.crossCount = ca;
-            P.crossIdx = ca + 4;
+            P.crossIdx = ca + 16;
+            P.spIdx = ca + 16 + m * 4;
+            P.bdIdx = ca + 16 + 2 * m * 4;
         }
     }
 
     bool authoritative() const override { return auth_; }
     void invalidate() override { auth_ = false; }
-    void rec_cleared() override {
-        if (n_ > 0 && bints_) std::memset(static_cast<char*>([bints_ contents]) + 4 * static_cast<size_t>(std::max(n_, 1)) * 4, 0,
-                                          static_cast<size_t>(n_) * 4);
+    void rec_cleared(bool sp) override {
+        if (n_ > 0 && bints_)
+            std::memset(static_cast<char*>([bints_ contents]) + (sp ? 5 : 4) * static_cast<size_t>(std::max(n_, 1)) * 4, 0,
+                        static_cast<size_t>(n_) * 4);
+    }
+
+    // element tables (also when the superposeout beam frame changes rotMode)
+    void set_elems(const LatHost& L) override {
+        @autoreleasepool {
+            const size_t nE = L.elems.size();
+            ElemVF* ev = static_cast<ElemVF*>([buf(belems_, std::max<size_t>(nE, 1) * sizeof(ElemVF)) contents]);
+            for (size_t k = 0; k < nE; ++k) ev[k] = elemf(L.elems[k]);
+            ElemVF* fv = static_cast<ElemVF*>([buf(beff_, std::max<size_t>(L.eff.size(), 1) * sizeof(ElemVF)) contents]);
+            for (size_t k = 0; k < L.eff.size(); ++k) fv[k] = elemf(L.eff[k]);
+            SubVF* sv = static_cast<SubVF*>([buf(bsubs_, std::max<size_t>(L.subs.size(), 1) * sizeof(SubVF)) contents]);
+            for (size_t q = 0; q < L.subs.size(); ++q) sv[q] = subf(L.subs[q]);
+            hasEff_ = !L.eff.empty();
+            errOn_ = L.errOn;
+            GeomFH* gv = static_cast<GeomFH*>([buf(bgeom_, std::max<size_t>(L.geoms.size(), 1) * sizeof(GeomFH)) contents]);
+            for (size_t q = 0; q < L.geoms.size(); ++q) {
+                const kern::GeomV& g = L.geoms[q];
+                GeomFH f{};
+                f.shape = g.shape;
+                f.npar = g.npar;
+                f.zStart = static_cast<float>(g.zStart);
+                for (int j = 0; j < 6; ++j) {
+                    f.par[j] = static_cast<float>(g.par[j]);
+                    f.place[j] = static_cast<float>(g.place[j]);
+                }
+                f.s3 = static_cast<float>(g.s3);
+                f.c3 = static_cast<float>(g.c3);
+                f.s4 = static_cast<float>(g.s4);
+                f.c4 = static_cast<float>(g.c4);
+                f.s5 = static_cast<float>(g.s5);
+                f.c5 = static_cast<float>(g.c5);
+                gv[q] = f;
+            }
+            const size_t ns = L.segStart.size();
+            float* sg = static_cast<float*>([buf(bseg_, std::max<size_t>(2 * ns, 1) * 4) contents]);
+            for (size_t q = 0; q < ns; ++q) {
+                sg[q] = static_cast<float>(L.segStart[q]);
+                sg[ns + q] = static_cast<float>(L.segEnd[q]);
+            }
+            const size_t nb = L.bndR1.size();
+            float* bz = static_cast<float*>([buf(bbndz_, std::max<size_t>(L.bndZ.size(), 1) * 4) contents]);
+            for (size_t q = 0; q < L.bndZ.size(); ++q) bz[q] = static_cast<float>(L.bndZ[q]);
+            int* br = static_cast<int*>([buf(bbndr_, std::max<size_t>(2 * nb, 1) * 4) contents]);
+            for (size_t q = 0; q < nb; ++q) {
+                br[q] = L.bndR1[q];
+                br[nb + q] = L.bndR2[q];
+            }
+        }
     }
 
     bool step(const LatScalars& ls, const kern::StepArgs& a, const std::vector<double>& rf, const std::vector<double>& events,
               const kern::PartV& P, int n, std::vector<StepGroup>& out, long long& spCount, long long& recCount) override {
-        if (stepOk_ && ls.spOutCount > 0) {
-            stepOk_ = false;
-            why_ = "superposeout";
-        }
         if (!stepOk_ || n != n_ || n <= 0) {
             if (!stepOk_ && !warned_) {
                 say("Metal: the particle push stays on the CPU for this lattice (" + why_ + ")");
@@ -393,6 +485,7 @@ public:
             }
             return false;
         }
+        hostP_ = P;
         const double t0 = now();
         double t1 = t0, t2 = t0;
         @autoreleasepool {
@@ -449,17 +542,20 @@ public:
             U.writeOld = a.writeOld;
             U.n = n;
             LatVF LV{};
-            LV.elems = [belems_ gpuAddress];
-            LV.mapsF = [bmaps_ gpuAddress];
+            LV.elems = addr(belems_);
+            LV.eff = hasEff_ ? addr(beff_) : addr(belems_);
+            LV.subs = addr(bsubs_);
+            LV.mapsF = addr(bmaps_);
             LV.nElem = static_cast<int>(nE);
-            LV.errOn = 0;
+            LV.errOn = errOn_ ? 1 : 0;
             LV.spOutCur = ls.spOutCur;
             LV.spOutCount = ls.spOutCount;
             LV.spOutSize = ls.spOutSize;
             LV.totalLength = static_cast<float>(ls.totalLength);
             LV.spExit = static_cast<float>(ls.spExit);
-            *static_cast<std::uint32_t*>([bcross_ contents]) = 0;
-            run(step_, static_cast<size_t>(n), [&](id<MTLComputeCommandEncoder> enc) {
+            for (int c = 0; c < 4; ++c) static_cast<std::uint32_t*>([bcross_ contents])[c] = 0;
+            if (cpu_) f32cpu::step(&LV, &U, &pf_, hp<float>(boff_), hp<float>(brf_), sizes, n);
+            else run(step_, static_cast<size_t>(n), [&](id<MTLComputeCommandEncoder> enc) {
                 [enc setBytes:&LV length:sizeof(LV) atIndex:0];
                 [enc setBytes:&U length:sizeof(U) atIndex:1];
                 [enc setBytes:&pf_ length:sizeof(pf_) atIndex:2];
@@ -467,6 +563,8 @@ public:
                 [enc setBuffer:brf_ offset:0 atIndex:4];
                 [enc setBytes:sizes length:sizeof(sizes) atIndex:5];
                 [enc useResource:belems_ usage:MTLResourceUsageRead];
+                [enc useResource:beff_ usage:MTLResourceUsageRead];
+                [enc useResource:bsubs_ usage:MTLResourceUsageRead];
                 [enc useResource:bmaps_ usage:MTLResourceUsageRead];
                 [enc useResource:bmapd_ usage:MTLResourceUsageRead];
                 [enc useResource:bstate_ usage:MTLResourceUsageRead | MTLResourceUsageWrite];
@@ -478,7 +576,11 @@ public:
             const int ng = red_groups(n);
             id<MTLBuffer> gs = buf(bgs_, static_cast<size_t>(ng) * 21 * 8), ge = buf(bge_, static_cast<size_t>(ng) * 21 * 4),
                           gm = buf(bgm_, static_cast<size_t>(ng) * 8 * 4);
-            {
+            if (cpu_) {
+                const size_t m0 = static_cast<size_t>(std::max(n_, 1));
+                f32cpu::group(hp<float>(bstate_, 26 * m0 * 4), hp<float>(bstate_, (26 + 21) * m0 * 4), hp<long long>(gs), hp<int>(ge),
+                              hp<float>(gm), n);
+            } else {
                 id<MTLCommandBuffer> cb = [queue_ commandBuffer];
                 id<MTLComputeCommandEncoder> enc = [cb computeCommandEncoder];
                 [enc setComputePipelineState:group_];
@@ -512,7 +614,7 @@ public:
             }
             // crossings of output planes: completed in double (as the CUDA fp32 tier)
             const std::uint32_t nc = *static_cast<const std::uint32_t*>([bcross_ contents]);
-            const std::uint32_t* idx = static_cast<const std::uint32_t*>([bcross_ contents]) + 1;
+            const std::uint32_t* idx = static_cast<const std::uint32_t*>([bcross_ contents]) + 4;
             const float* snap = static_cast<const float*>([bstate_ contents]) + (26 + 21 + 8) * static_cast<size_t>(std::max(n_, 1));
             int* np = static_cast<int*>([bints_ contents]) + 2 * static_cast<size_t>(std::max(n_, 1));
             int* rflag = static_cast<int*>([bints_ contents]) + 4 * static_cast<size_t>(std::max(n_, 1));
@@ -539,13 +641,47 @@ public:
                     np[i] += 1;
                 }
             }
-            if (a.writeOld) {
-                const float* os = static_cast<const float*>([bstate_ contents]) + (26 + 21 + 8 + 12) * static_cast<size_t>(std::max(n_, 1));
-                for (int i = 0; i < n; ++i)
-                    for (int j = 0; j < 6; ++j) P.old[6 * static_cast<long long>(i) + j] = S.pre[j] + static_cast<double>(os[6 * i + j]);
+            // superposeout exits: the candidates of the GPU decided and recorded in double
+            const std::uint32_t ns = static_cast<const std::uint32_t*>([bcross_ contents])[1];
+            const std::uint32_t* sidx = static_cast<const std::uint32_t*>([bcross_ contents]) + 4 + std::max(n_, 1);
+            const int* eidx = static_cast<const int*>([bints_ contents]) + static_cast<size_t>(std::max(n_, 1));
+            int* sflag = static_cast<int*>([bints_ contents]) + 5 * static_cast<size_t>(std::max(n_, 1));
+            for (std::uint32_t c = 0; c < ns; ++c) {
+                const int i = static_cast<int>(sidx[c]);
+                const float* sn = snap + 12 * static_cast<size_t>(i);
+                double cur[6], old[6];
+                for (int j = 0; j < 3; ++j) {
+                    cur[2 * j] = S.post[2 * j] + static_cast<double>(sn[6 + j]);
+                    cur[2 * j + 1] = S.post[2 * j + 1] + static_cast<double>(sn[9 + j]);
+                    old[2 * j] = S.pre[2 * j] + static_cast<double>(sn[j]);
+                    old[2 * j + 1] = S.pre[2 * j + 1] + static_cast<double>(sn[3 + j]);
+                }
+                if (!(cur[4] > P.spOutZ0[i]) || P.spRec[8 * static_cast<long long>(i) + 7] != 0.0) continue;
+                const kern::SpOutV& row = L.spOut[static_cast<size_t>(ls.spOutCur)];
+                const double zst = L.elems[static_cast<size_t>(eidx[i])].zStart;
+                double lc[6], lp[6];
+                kern::sp_local(row, zst, cur, lc);
+                kern::sp_local(row, zst, old, lp);
+                if (lc[4] > 0.0) {
+                    const double r = lp[4] / (lp[4] - lc[4]);
+                    double* sr = P.spRec + 8 * static_cast<long long>(i);
+                    for (int j = 0; j < 6; ++j) sr[j] = (lc[j] - lp[j]) * r + lp[j];
+                    kern::interp_momentum_norm(sr, lp, lc, r);
+                    sr[6] = (r - 1.0) * a.dt + a.tEnd;
+                    sr[7] = 1.0;
+                    sflag[i] = 1;
+                    out[static_cast<size_t>(i / kRedGroup)].sp += 1.0;
+                }
             }
+            // old (writeOld, boundary.txt): kept in float, written into the fp64 array on demand
+            oldValid_ = a.writeOld != 0;
+            if (oldValid_)
+                for (int j = 0; j < 6; ++j) oldPre_[j] = S.pre[j];
             spCount = recCount = 0;
-            for (const StepGroup& og : out) recCount += static_cast<long long>(og.rec);
+            for (const StepGroup& og : out) {
+                recCount += static_cast<long long>(og.rec);
+                spCount += static_cast<long long>(og.sp);
+            }
         }
         const double t3 = now();
         ++nStep_;
@@ -582,8 +718,103 @@ public:
             P.elemIndex[i] = iv[m + i];
             P.nextPlane[i] = iv[2 * m + i];
             P.boundaryMode[i] = iv[3 * m + i];
+            P.geomIndex[i] = iv[6 * m + i];
+        }
+        if (oldValid_ && P.old) {
+            const float* os = f + (26 + 21 + 8 + 12) * m;
+            for (int i = 0; i < n; ++i)
+                for (int j = 0; j < 6; ++j) P.old[6 * static_cast<long long>(i) + j] = oldPre_[j] + static_cast<double>(os[6 * i + j]);
         }
         auth_ = false;
+    }
+
+    // boundary.txt: float pre-selection on the GPU (k_bound), the candidates in double here with the
+    // shared kern::boundary_particle (the same decisions and wall coordinates as the CPU engine).
+    bool boundary(const LatScalars& ls, double t, double dt, std::vector<BoundaryHit>& hits) override {
+        if (!auth_ || !latZ_ || latZ_->segEnd.empty()) return false;
+        @autoreleasepool {
+            const LatHost& L = *latZ_;
+            const size_t m = static_cast<size_t>(std::max(n_, 1));
+            BoundUH U{};
+            U.zs = static_cast<float>(ref_.post[4]);
+            U.post0 = static_cast<float>(ref_.post[0]);
+            U.post2 = static_cast<float>(ref_.post[2]);
+            U.totalLength = static_cast<float>(ls.totalLength);
+            U.segEndLast = static_cast<float>(L.segEnd.back());
+            U.nSeg = static_cast<int>(L.segStart.size());
+            U.nBnd = static_cast<int>(L.bndR1.size());
+            U.spOutCur = ls.spOutCur;
+            U.spOutSize = ls.spOutSize;
+            U.n = n_;
+            static_cast<std::uint32_t*>([bcross_ contents])[2] = 0;
+            const size_t ns = L.segStart.size(), nb = L.bndR1.size();
+            if (cpu_) f32cpu::bound(&U, &pf_, [bgeom_ contents], hp<float>(bseg_), hp<float>(bseg_, ns * 4), hp<float>(bbndz_),
+                                    hp<int>(bbndr_), hp<int>(bbndr_, nb * 4), n_);
+            else run(bound_, static_cast<size_t>(n_), [&](id<MTLComputeCommandEncoder> enc) {
+                [enc setBytes:&U length:sizeof(U) atIndex:0];
+                [enc setBytes:&pf_ length:sizeof(pf_) atIndex:1];
+                [enc setBuffer:bgeom_ offset:0 atIndex:2];
+                [enc setBuffer:bseg_ offset:0 atIndex:3];
+                [enc setBuffer:bseg_ offset:ns * 4 atIndex:4];
+                [enc setBuffer:bbndz_ offset:0 atIndex:5];
+                [enc setBuffer:bbndr_ offset:0 atIndex:6];
+                [enc setBuffer:bbndr_ offset:nb * 4 atIndex:7];
+                [enc useResource:bstate_ usage:MTLResourceUsageRead];
+                [enc useResource:bints_ usage:MTLResourceUsageRead | MTLResourceUsageWrite];
+                [enc useResource:bcross_ usage:MTLResourceUsageRead | MTLResourceUsageWrite];
+            });
+            const std::uint32_t nc = static_cast<const std::uint32_t*>([bcross_ contents])[2];
+            std::vector<std::uint32_t> cand(static_cast<const std::uint32_t*>([bcross_ contents]) + 4 + 2 * m,
+                                            static_cast<const std::uint32_t*>([bcross_ contents]) + 4 + 2 * m + nc);
+            std::sort(cand.begin(), cand.end());  // hits in particle order, as on the CPU
+            kern::LatV LV = L.view(Lattice());
+            LV.spOutCur = ls.spOutCur;
+            LV.spOutCount = ls.spOutCount;
+            LV.spOutSize = ls.spOutSize;
+            LV.totalLength = ls.totalLength;
+            LV.spExit = ls.spExit;
+            const float* f = static_cast<const float*>([bstate_ contents]);
+            int* iv = static_cast<int*>([bints_ contents]);
+            hits.clear();
+            const kern::PartV& PH = hostP_;
+            for (std::uint32_t c : cand) {
+                const size_t i = c;
+                double x[6], old[6], spz0 = PH.spOutZ0[i];
+                int lost = iv[i], spc = iv[7 * m + i], gi = iv[6 * m + i];
+                for (int j = 0; j < 3; ++j) {
+                    x[2 * j] = ref_.post[2 * j] + static_cast<double>(f[j * m + i]);
+                    x[2 * j + 1] = ref_.post[2 * j + 1] + static_cast<double>(f[(3 + j) * m + i]);
+                }
+                const float* os = f + (26 + 21 + 8 + 12) * m + 6 * i;
+                for (int j = 0; j < 6; ++j) old[j] = oldValid_ ? oldPre_[j] + static_cast<double>(os[j]) : PH.old[6 * i + j];
+                kern::PartV T{};
+                T.x = &x[0];
+                T.ux = &x[1];
+                T.y = &x[2];
+                T.uy = &x[3];
+                T.z = &x[4];
+                T.uz = &x[5];
+                T.lost = &lost;
+                T.spOutZ0 = &spz0;
+                T.spOutCount = &spc;
+                T.geomIndex = &gi;
+                T.old = old;
+                T.sync = -1;
+                BoundaryHit h{};
+                h.tHit = t;
+                const int code = kern::boundary_particle<PortableMath>(LV, T, 0, t, dt, false, h.geom, h.P, h.tHit);
+                iv[6 * m + i] = gi;
+                iv[i] = lost;
+                if (code == 0) continue;
+                if (code == 1) iv[i] = 1;
+                h.i = static_cast<int>(i);
+                h.code = code;
+                hits.push_back(h);
+            }
+            ++nBound_;
+            nCand_ += nc;
+        }
+        return true;
     }
 
     void deposit_state(const kern::MeshV& M, int n, std::vector<long long>& acc) override {
@@ -597,7 +828,9 @@ public:
             std::memset([hi contents], 0, n3 * 4);
             MeshF F = mesh(M);
             const std::uint32_t nn = static_cast<std::uint32_t>(n);
-            run(dep_, static_cast<size_t>(n), [&](id<MTLComputeCommandEncoder> enc) {
+            if (cpu_) f32cpu::deposit(&F, hp<float>(bstate_, 15 * m * 4), hp<float>(bstate_, 17 * m * 4), hp<float>(bstate_, 19 * m * 4),
+                                      hp<float>(bq_), hp<int>(bints_), hp<unsigned>(lo), hp<unsigned>(hi), n);
+            else run(dep_, static_cast<size_t>(n), [&](id<MTLComputeCommandEncoder> enc) {
                 [enc setBytes:&F length:sizeof(F) atIndex:0];
                 [enc setBuffer:bstate_ offset:15 * m * 4 atIndex:1];
                 [enc setBuffer:bstate_ offset:17 * m * 4 atIndex:2];
@@ -632,7 +865,9 @@ public:
             id<MTLBuffer> sc = buf(bsc_, static_cast<size_t>(n) * 12);
             MeshF F = mesh(M);
             const std::uint32_t nn = static_cast<std::uint32_t>(n);
-            run(interp_, static_cast<size_t>(n), [&](id<MTLComputeCommandEncoder> enc) {
+            if (cpu_) f32cpu::interp(&F, hp<float>(bstate_, 15 * m * 4), hp<float>(bstate_, 17 * m * 4), hp<float>(bstate_, 19 * m * 4),
+                                     hp<int>(bints_), hp<float>(fe), hp<float>(fe, n3 * 4), hp<float>(fe, 2 * n3 * 4), hp<float>(sc), n);
+            else run(interp_, static_cast<size_t>(n), [&](id<MTLComputeCommandEncoder> enc) {
                 [enc setBytes:&F length:sizeof(F) atIndex:0];
                 [enc setBuffer:bstate_ offset:15 * m * 4 atIndex:1];
                 [enc setBuffer:bstate_ offset:17 * m * 4 atIndex:2];
@@ -655,16 +890,24 @@ public:
     ~MetalAccel() override {
         if (prof_ && nStep_ > 0)
             std::fprintf(stderr, "[metal profile] %lld steps: step kernel %.3f ms, group sums %.3f ms, host %.3f ms per step; "
-                         "fp64->fp32 %lld, fp32->fp64 %lld conversions\n", nStep_, 1e3 * tStep_ / nStep_, 1e3 * tGroup_ / nStep_,
-                         1e3 * tHost_ / nStep_, nFrom_, nTo_);
+                         "fp64->fp32 %lld, fp32->fp64 %lld conversions; boundary.txt %lld calls on the GPU, %lld candidates\n", nStep_,
+                         1e3 * tStep_ / nStep_, 1e3 * tGroup_ / nStep_, 1e3 * tHost_ / nStep_, nFrom_, nTo_, nBound_, nCand_);
     }
 
 private:
+    bool cpu_ = false;  // emu fp32: the kernels of f32_cpu.cpp on the CPU, the same buffers and host logic
     bool prof_ = std::getenv("AVAS_ENGINE_PROFILE") != nullptr;
+    // address of a buffer as the kernels see it (GPU address, or the host pointer on the CPU)
+    std::uint64_t addr(id<MTLBuffer> b) const { return cpu_ ? reinterpret_cast<std::uint64_t>([b contents]) : [b gpuAddress]; }
+    template <class T>
+    T* hp(id<MTLBuffer> b, size_t off = 0) const { return reinterpret_cast<T*>(static_cast<char*>([b contents]) + off); }
     long long nStep_ = 0, nFrom_ = 0, nTo_ = 0;
     double tStep_ = 0, tGroup_ = 0, tHost_ = 0;
     static double now() { return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count(); }
-    bool auth_ = false, stepOk_ = false, warned_ = false;
+    bool auth_ = false, stepOk_ = false, warned_ = false, hasEff_ = false, errOn_ = false, oldValid_ = false;
+    kern::PartV hostP_{};
+    long long nBound_ = 0, nCand_ = 0;
+    double oldPre_[6] = {0, 0, 0, 0, 0, 0};
     int n_ = 0;
     std::string why_;
     const LatHost* latZ_ = nullptr;
@@ -672,6 +915,8 @@ private:
     SyncH ref_{};
     std::vector<float> charge_;
     id<MTLComputePipelineState> step_ = nil, group_ = nil;
+    id<MTLBuffer> beff_ = nil, bsubs_ = nil, bgeom_ = nil, bseg_ = nil, bbndz_ = nil, bbndr_ = nil;
+    id<MTLComputePipelineState> bound_ = nil;
     id<MTLBuffer> belems_ = nil, bmaps_ = nil, bmapd_ = nil, bstate_ = nil, bints_ = nil, bcross_ = nil, boff_ = nil, brf_ = nil,
                   bgs_ = nil, bge_ = nil, bgm_ = nil;
 
@@ -693,6 +938,35 @@ private:
         float* dst[18] = {&f.zStart, &f.length, &f.radius, &f.strength, &f.ke, &f.kb, &f.keErr, &f.kbErr, &f.phaseErr,
                           &f.errDx, &f.errDy, &f.errDz, &f.esx, &f.ecx, &f.esy, &f.ecy, &f.esz, &f.ecz};
         for (int j = 0; j < 18; ++j) *dst[j] = static_cast<float>(*src[j]);
+        return f;
+    }
+
+    static SubVF subf(const kern::SubV& q) {
+        SubVF f{};
+        f.type = q.type;
+        f.map = q.map;
+        f.hasErr = q.hasErr;
+        f.rfErr = q.rfErr;
+        f.ke = static_cast<float>(q.ke);
+        f.kb = static_cast<float>(q.kb);
+        f.zStart = static_cast<float>(q.zStart);
+        f.radius = static_cast<float>(q.radius);
+        f.length = static_cast<float>(q.length);
+        for (int j = 0; j < 6; ++j) f.place[j] = static_cast<float>(q.place[j]);
+        f.s3 = static_cast<float>(q.s3);
+        f.c3 = static_cast<float>(q.c3);
+        f.s4 = static_cast<float>(q.s4);
+        f.c4 = static_cast<float>(q.c4);
+        f.s5 = static_cast<float>(q.s5);
+        f.c5 = static_cast<float>(q.c5);
+        for (int j = 0; j < 12; ++j) f.err[j] = static_cast<float>(q.err[j]);
+        f.es4 = static_cast<float>(q.es4);
+        f.ec4 = static_cast<float>(q.ec4);
+        f.es5 = static_cast<float>(q.es5);
+        f.ec5 = static_cast<float>(q.ec5);
+        f.es6 = static_cast<float>(q.es6);
+        f.ec6 = static_cast<float>(q.ec6);
+        f.esin6 = static_cast<float>(q.esin6);
         return f;
     }
 
@@ -770,6 +1044,9 @@ private:
             iv[2 * m + i] = P.nextPlane[i];
             iv[3 * m + i] = P.boundaryMode[i];
             iv[4 * m + i] = P.rec[8 * static_cast<long long>(i) + 7] == 1.0 ? 1 : 0;
+            iv[5 * m + i] = P.spRec && P.spRec[8 * static_cast<long long>(i) + 7] != 0.0 ? 1 : 0;
+            iv[6 * m + i] = P.geomIndex[i];
+            iv[7 * m + i] = P.spOutCount[i];
             charge_[static_cast<size_t>(i)] = static_cast<float>(P.charge[i]);
         }
     }
@@ -819,7 +1096,7 @@ private:
         F.lpRel = M.lpRel;
         F.lpc = M.lpc;
         F.compat = M.compat;
-        const std::uint64_t a = [b gpuAddress];
+        const std::uint64_t a = addr(b);
         F.xs = a;
         F.ys = a + static_cast<std::uint64_t>(M.nx) * 4;
         F.zs = a + static_cast<std::uint64_t>(M.nx + M.ny) * 4;
@@ -850,6 +1127,12 @@ private:
 }  // namespace
 
 bool metal_compiled() { return true; }
+
+std::unique_ptr<ScAccel> make_f32_cpu_accel(std::string& why) {
+    auto a = std::make_unique<MetalAccel>(true);
+    if (!a->init(why)) return nullptr;
+    return a;
+}
 
 std::unique_ptr<ScAccel> make_metal_accel(std::string& why) {
     auto a = std::make_unique<MetalAccel>();

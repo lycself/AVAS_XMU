@@ -51,8 +51,9 @@ M6b 决定（默认模式，compat=dll 不变）：`scmethod` 不区分大小写
 conda 等环境设置的 `CC`／`CXX` 编译不了 SDK 的 Foundation 头文件：这时默认关闭 Metal 并在配置时提示改法，显式 `-DAVAS_WITH_METAL=ON` 则报错。
 只需 Command Line Tools（Metal 着色器在运行时编译，源代码在构建时嵌入库中）；需要支持 Metal 3 的 GPU（Apple 芯片等）与 macOS 13 以上。
 运行：`AVAS_ENGINE_DEVICE=metal`（或 `avas_set_option("device", "metal")`）；`device=auto` 在 Mac 上有空间电荷时选 Metal、否则 CPU；默认仍是 cpu。
-Metal 上 t-code 推进、统计量和空间电荷网格工作（分配、PICNIC / SPICNIC 求和、插值）在 GPU 上（fp32 档，相对同步粒子坐标），z-code、FFT 求解、二次粒子、
-边界几何以及含 superpose 块、误差场、superposeout 的晶格在 CPU 上；同一台机器重跑逐位相同。检查：`run_gpu.py --device metal`（按 fp32 档与 CPU 比较）、
+Metal 上 t-code 推进（含 superpose 块、误差场、superposeout）、统计量、`boundary.txt` 几何损失和空间电荷网格工作（分配、PICNIC / SPICNIC 求和、插值）在 GPU 上
+（fp32 档，相对同步粒子坐标），z-code、FFT 求解、二次粒子在 CPU 上；同一台机器重跑逐位相同。`AVAS_ENGINE_DEVICE=emu AVAS_ENGINE_PRECISION=fp32` 在 CPU 上运行同一套
+fp32 内核（`core/f32_kernels.h`），与 Metal 逐字节相同，用作参照。检查：`run_gpu.py --device metal`（按 fp32 档与 CPU 比较，并与 emu fp32 逐字节比较）、
 `avas_engine_physics --metal`；`AVAS_ENGINE_PROFILE=1` 打印 Metal 每步各部分耗时。设计、结果与限制见 [docs/engine/M6-notes.md](../docs/engine/M6-notes.md) 的 M6c 一节。
 
 ## 工具链检查结果（2026-11-07）

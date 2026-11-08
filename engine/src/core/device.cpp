@@ -11,7 +11,14 @@ std::unique_ptr<DeviceBackend> make_device_backend(long long nParticles, bool sp
     if (o.device == Device::Cpu) return nullptr;
     if (o.device == Device::Emu) {
         if (compat_dll()) throw EngineError("compat=dll is only available on the CPU (device emu was requested)");
-        std::unique_ptr<DeviceBackend> be = make_emu_backend();
+        std::unique_ptr<ScAccel> acc;
+        if (o.precision == Precision::Fp32) {
+            // the fp32 reference of the Metal back end (M6c): its kernels on the CPU
+            std::string why;
+            acc = make_f32_cpu_accel(why);
+            if (!acc) throw EngineError("device emu, precision fp32: " + why);
+        }
+        std::unique_ptr<DeviceBackend> be = make_emu_backend(std::move(acc));
         say("Device: " + be->describe());
         return be;
     }

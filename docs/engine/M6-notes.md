@@ -578,3 +578,60 @@ z-code、FFT 求解、二次粒子、`boundary.txt` 几何损失、`lpboundary` 
 2. **superpose 块、误差场、superposeout 也在 Metal 上推进**：要把 `superpose_field_t`、`element_err_field_t`、superposeout 记录改写为 MSL 可编译（去 lambda、加地址空间）。推荐下一步做（误差研究常用）。
 3. **去掉 emu 的 fp64 副本**（Metal 为当前态时不保留 fp64 数组，切换时才分配）：推荐暂不做，16 GB 机器上 1e7 已能运行。
 4. **`boundary.txt` 几何损失放到 Metal**：推荐与第 2 项一起做。
+
+### 15. 用户决定（2026-11-09）与第三阶段
+
+第 14 节 4 个待定点全部按推荐：第 2 项（superpose 块、误差场、superposeout 在 Metal 上推进）与第 4 项（`boundary.txt` 几何损失放到 Metal）先做；
+第 1 项（CPU / emu 的 fp32 参照，Metal 与之逐位一致；CUDA fp32 用同一套 float 字段）随后；第 3 项（去掉 emu 的 fp64 副本）暂不做。
+
+**superpose、误差场、superposeout**：`superpose_field_t`、`element_err_field_t` 的 lambda 改为 `tri_pos` / `tri_corner` 循环与函数 `err_back`（逐项同序），
+指针与引用加地址空间宏，编入 MSL（只有 compat=dll 用的 `superpose_err_field_dll_t` 仍只在主机）。Metal 上 `SubV`、校正后的 superpose 块（`eff`）、误差开关随晶格上传，
+superposeout 期间元件表变化时（`set_elems`）重新上传。superposeout 出口：`k_step` 把可能穿过出口面的粒子（同 CUDA 的条件，浮点比较带余量）追加到候选列表，
+主机按 CUDA fp32 档的公式在双精度中判断并记录 spRec（`sp_local`、`interp_momentum_norm`），计数进 `StepGroup::sp`。
+
+**boundary.txt**：`k_bound` 在 GPU 上对每个粒子做几何段查找与壁面判定（float，所有比较带 1e-5 相对余量，弯管的 atan / sincos 用 Metal 内建 precise 函数），
+只把可能碰壁、靠近段边界或越过 lattice 末端的粒子列为候选；主机对候选用共享的 `kern::boundary_particle` 在双精度中给出与 CPU 相同的判定、碰壁坐标与时刻
+（推进前的坐标按需从 float 快照换成双精度，不再每步整体换算）。其他粒子在 GPU 上更新几何段序号（离段边界足够远，与双精度的结果相同）。
+LB1 / LB2 的碰壁记录数、存活粒子数与 CPU 相同（LB2：684 行 collisionData、4597 个存活）。
+
+**CPU 上的 fp32 参照（第 1 项的 CPU 部分）**：`k_step`、`k_bound`、分配、插值的逐粒子函数移到共享头文件 `core/f32_kernels.h`；`core/f32_cpu.cpp` 把同一套头文件在
+C++ 中按 Metal 的方式编译——先包含标准库，再 `#define avas avas_f32`（与引擎其余部分隔开，不违反 ODR）、`#define double float`，`hd.h` 的 `AVAS_F32_CPU` 分支只给 float 版函数；
+结构体中的双精度字段因此与 Metal 一样是 float，而不必把结构体模板化。emu 设备的 fp32 档（`AVAS_ENGINE_DEVICE=emu AVAS_ENGINE_PRECISION=fp32`）用 Metal 后端的同一套主机逻辑，
+内核换成这些 CPU 函数（目前只在含 Metal 的构建中提供；Linux 上 `f32_cpu.cpp` 也能编译，A100 上 GCC 12 通过）。
+**结果：`run_gpu.py --device metal` 的 184 个算例，Metal 与 emu fp32 全部逐字节相同（184/184）**——包括空间电荷（FFT、SPICNIC、PICNIC）、superpose、误差研究、superposeout、boundary。
+这说明 Metal 关闭收缩后的 float 加减乘除、sqrt、rint、ldexp 与 CPU 逐位相同；弯管预选用的 atan / sin / cos 只影响候选集合，不影响结果。
+
+**CUDA fp32 用同一套 float 字段（第 1 项的 CUDA 部分）：本轮没有做**。要让 CUDA fp32 与 Metal / emu fp32 逐位相同，CUDA fp32 档要整体换成第二阶段的设计
+（`f32_kernels.h` 的逐粒子函数在 nvcc 下按 float 世界编译、统计改为定点整数组和、事件面 / superposeout / boundary 改为候选列表由主机完成），相当于把 Metal 后端的主机逻辑移到 CUDA 后端；
+现在的 CUDA fp32 结果不变（见下）。
+
+**检查**（Apple M2）：
+- `run_gpu.py --device metal`（184 个算例，`AVAS_ENGINE_PROFILE=1` 计数）：重跑全部逐字节相同；**没有一个算例退回 CPU 推进**（日志中 0 个“stays on the CPU”），
+  149 个有 t-code 步的算例都在 Metal 上推进（其余 35 个只有 z-code 段、单步或在初始化时报错）。例如 ER5（误差研究，147 步）、SE4（superpose 误差，223 步）、
+  SP4（superposeout，230 步，两次切换）、LB2（boundary，169 步，169 次 `k_bound`，只有 1 次往返转换）都在 GPU 上。与 CPU fp64 的差别与第二阶段相同（DataSet ≤ 1e-4，
+  单粒子校正铁算例 3.4e-3；dst ≤ 4e-5 rms，PN3 的单个边缘粒子 5e-3）。**与 emu fp32 逐字节相同 184/184。**
+- 物理检验在 Metal 上通过：DC KV SPICNIC 40³ 0.993、PICNIC 24³ 0.984；椭球 SPICNIC 40³ 0.34 %、PICNIC 32³ 0.19 %。
+- Mac CPU 全套（默认构建，含 Metal）：单元测试、`run_all.py`（inData 23/23，compat=dll 最大差 3.44e-11）、`run_physics.py`、`tools_check.py`、`ruff` 通过，无新警告；
+  conda 的 clang 构建（默认不含 Metal，配置时提示）编译通过、无警告。
+- A100 CUDA（GCC 12 + nvcc 12.4，`run_gpu.py --gpus2 0,1 --mpi "mpirun -np 2" --fp32`，按正常 Slurm 申请 2 块空闲 GPU，未动用户作业）：fp64 154/154 逐字节相同，
+  30 个空间电荷算例重跑 / 双卡 / MPI 逐字节相同；fp32 的数字与之前完全相同（SC1 3.24e-5 / 1.52e-5、SE4 3.27e-5 / 7.04e-6、PN3 3.29e-5 / 5.12e-3）；`nm -D` 7 个接口、GLIBC_2.14，无新警告。
+
+**性能**（M2，推进 + 空间电荷每步时间；晶格同 LB2 / ER5，束流改为生成的 1e5 / 1e6 粒子，无空间电荷）：
+
+| 运行 | CPU（8 线程） | Metal |
+|---|---|---|
+| boundary.txt，1e5 | 3.07 ms | 1.82 ms |
+| boundary.txt，1e6 | 30.3 ms | 7.19 ms（每步约 990 个候选由主机判定） |
+| 误差研究（2 组），1e5 | 3.48 ms | 1.34 ms |
+| 误差研究（2 组），1e6 | 40.6 ms | 6.94 ms |
+
+**受限 / 未完成**：
+- CUDA fp32 与 Metal / emu fp32 的逐位一致（见上，CUDA fp32 档需要换成第二阶段的设计）。
+- emu fp32 档目前只在含 Metal 的构建中可用（它复用 Metal 后端的主机逻辑与共享内存缓冲区）；`f32_cpu.cpp` 本身可在任何平台编译。
+- z-code、FFT 求解、二次粒子仍在 CPU；emu 的 fp64 副本仍在（第 14 节第 3 项暂不做）。
+- L40S、lyc-pc、XPS 开始与结束时都无法连接。
+
+**新的待定点（附推荐）**：
+1. **CUDA fp32 档换成与 Metal 相同的设计**（共享 `f32_kernels.h`、定点组和、候选列表），使三者 fp32 逐位一致：推荐做，同时把 Metal 后端的主机逻辑抽成与设备无关的 C++ 类
+   （Metal、CUDA、CPU 共用），emu fp32 也就能在 Linux 上用。CUDA fp32 结果会改变（预计与现在相差约 1e-6 相对，与 Metal 相同）。
+2. **z-code 行变换上 Metal**（误差研究、四极段常用，现在每次进出 z-code 各转换一次）：推荐在第 1 项之后做。

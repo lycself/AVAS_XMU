@@ -188,12 +188,20 @@ def exit_stats(d):
 def metal_report(lib, work, names, gpu_env, cpu, g1, by_name):
     g2 = os.path.join(work, "metal_again")
     run_cases(lib, g2, gpu_env, names)
+    # the fp32 reference on the CPU: the Metal kernels compiled as C++ (emu, precision fp32)
+    e32 = os.path.join(work, "emu_fp32")
+    run_cases(lib, e32, {"AVAS_ENGINE_DEVICE": "emu", "AVAS_ENGINE_PRECISION": "fp32", "AVAS_ENGINE_GPUS": ""}, names)
+    nref, notref = 0, []
     fails, worst_single, worst_ds, worst_dst = 0, 0.0, 0.0, 0.0
     print("\nMetal (fp32 tier) against the CPU (DataSet: largest column difference / column maximum; dst: / rms)"
           " and a second Metal run (byte-identical required):")
     for n in names:
         same, why = identical(os.path.join(g1, n), os.path.join(g2, n))
         fails += 0 if same else 1
+        ref, rwhy = identical(os.path.join(g1, n), os.path.join(e32, n))
+        nref += ref
+        if not ref:
+            notref.append(f"{n}: {rwhy[:60]}")
         single = by_name[n].get("beam", {}).get("particlenumber") in (1, "1")
         ds = dataset_rel(os.path.join(cpu, n), os.path.join(g1, n))
         dd = dst_rel(os.path.join(cpu, n), os.path.join(g1, n))
@@ -207,6 +215,9 @@ def metal_report(lib, work, names, gpu_env, cpu, g1, by_name):
         print(f"  {n:<32} rerun {'same' if same else 'DIFF ' + why[:40]:<6} DataSet {ds:10.3g}   dst {dd:10.3g}"
               f"{'   (single particle)' if single else ''}")
     print(f"  largest: DataSet {worst_ds:.3g}, dst {worst_dst:.3g} rms, single particles {worst_single:.3g} rms")
+    print(f"\nMetal against the fp32 reference on the CPU (emu, precision fp32), byte-identical: {nref}/{len(names)}")
+    for line in notref:
+        print(f"  differs: {line}")
     print(f"\n{'ALL REQUIRED CHECKS PASSED' if not fails else f'FAILURES: {fails}'}")
     return 1 if fails else 0
 

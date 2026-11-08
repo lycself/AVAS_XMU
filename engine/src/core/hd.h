@@ -20,7 +20,9 @@
 #define AVAS_PCONST constant  // program-scope constants
 #define AVAS_DEVICE_COMPILE 1
 #define AVAS_METAL 1
+#define AVAS_FLOAT_ONLY 1
 typedef long avas_i64;
+typedef ulong avas_u64;
 
 namespace avas {
 namespace hm {
@@ -28,6 +30,28 @@ inline float sqrt(float x) { return metal::precise::sqrt(x); }
 inline float fabs(float x) { return metal::fabs(x); }
 inline float ceil(float x) { return metal::ceil(x); }
 inline float floor(float x) { return metal::floor(x); }
+}  // namespace hm
+}  // namespace avas
+
+#elif defined(AVAS_F32_CPU)
+// ---- the fp32 tier of the CPU device back end (core/f32_cpu.cpp): the Metal world in C++ ----
+// The including file has included the standard headers, renamed the namespace (avas -> avas_f32)
+// and defined `double` as float; the shared headers then compile to the float code of Metal.
+#define AVAS_HD
+#define AVAS_RESTRICT
+#define AVAS_G
+#define AVAS_T
+#define AVAS_PCONST
+#define AVAS_FLOAT_ONLY 1
+typedef long long avas_i64;
+typedef unsigned long long avas_u64;
+
+namespace avas {
+namespace hm {
+inline float sqrt(float x) { return std::sqrt(x); }
+inline float fabs(float x) { return std::fabs(x); }
+inline float ceil(float x) { return std::ceil(x); }
+inline float floor(float x) { return std::floor(x); }
 }  // namespace hm
 }  // namespace avas
 
@@ -53,6 +77,7 @@ inline float floor(float x) { return metal::floor(x); }
 #define AVAS_T
 #define AVAS_PCONST
 typedef long long avas_i64;
+typedef unsigned long long avas_u64;
 
 // Restrict-qualified pointers where the back end can use them (no effect on the results).
 #if defined(__CUDACC__) || defined(__GNUC__) || defined(__clang__)

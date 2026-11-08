@@ -1,0 +1,1 @@
+• 内部维护：新内核（`AVAS_ENGINE=new`，尚未接入界面，软件默认仍用原内核）在 Mac 显卡（Metal）上的计算扩展到含 superpose 块、误差研究、superposeout 段和 boundary.txt 几何边界的运行，这些情形不再退回 CPU；100 万粒子时带边界的运行每步快约 4 倍、误差研究快约 6 倍，碰壁判定与 CPU 完全相同。新增 CPU 上的单精度参照（emu 设备的 fp32 档），它与 Mac 显卡的结果在全部 184 个测试算例上逐字节相同。CPU 默认模式、NVIDIA 显卡的结果不变。

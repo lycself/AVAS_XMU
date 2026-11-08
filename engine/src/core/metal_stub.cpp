@@ -10,4 +10,9 @@ std::unique_ptr<ScAccel> make_metal_accel(std::string& why) {
     return nullptr;
 }
 
+std::unique_ptr<ScAccel> make_f32_cpu_accel(std::string& why) {
+    why = "the fp32 tier of the emu device needs the Metal build for now (AVAS_WITH_METAL=OFF)";
+    return nullptr;
+}
+
 }  // namespace avas

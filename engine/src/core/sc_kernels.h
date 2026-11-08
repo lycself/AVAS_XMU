@@ -12,7 +12,7 @@
 //          this file is host / CUDA only.
 #pragma once
 #include "core/hd.h"
-#ifndef AVAS_METAL
+#ifndef AVAS_FLOAT_ONLY
 #include <cmath>
 #include <vector>
 
@@ -93,7 +93,7 @@ AVAS_HD inline void corr_node(AVAS_T const SpGrid& g, const AVAS_G T* G, const A
     phi[g.at(a, bb, c)] = static_cast<double>(s) * kE + phi[g.at(a, bb, c)];
 }
 
-#ifndef AVAS_METAL
+#ifndef AVAS_FLOAT_ONLY
 // ---- Green table of the corrected SPICNIC and of PICNIC: exact cell average of 1/r ----
 // Antiderivative F(x, y, z) of 1/r (portable log / atan: the same bits on the host and the GPU).
 AVAS_HD inline double box_F(double x, double y, double z) {
@@ -143,7 +143,7 @@ AVAS_HD inline double corr_value(const SpGrid& g, const double* rho, double thr,
     return (d != 0.0 && (thr <= d || d <= -thr)) ? d : 0.0;
 }
 
-#endif  // AVAS_METAL
+#endif  // AVAS_FLOAT_ONLY
 
 // ---- PICNIC (libPIC.so): direct sum of the whole mesh charge with the Green table ----
 // Potential at node (i, j, k) times 1/(4 pi eps0): every source node in the order of the mesh
@@ -179,7 +179,7 @@ AVAS_HD inline void grad_spicnic_node(AVAS_T const SpGrid& g, const AVAS_G doubl
     ez[id] = sp_grad(k, g.nz, k > 0 ? phi[g.at(i, j, k - 1)] : 0.0, p0, k + 1 < g.nz ? phi[g.at(i, j, k + 1)] : 0.0, hz);
 }
 
-#ifndef AVAS_METAL
+#ifndef AVAS_FLOAT_ONLY
 // DST-I along axis 0 (x) or 1 (y) at node (i, j, k); sinTab[q] = sin(pi q / (N + 1)).
 AVAS_HD inline double dst_node(const SpGrid& g, int axis, const double* in, const double* sinTab, int i, int j, int k) {
     const int N = axis == 0 ? g.nx : g.ny;
@@ -250,7 +250,7 @@ inline FftTables fft_tables(int nx, int ny, int nz) {
     return t;
 }
 
-#endif  // AVAS_METAL
+#endif  // AVAS_FLOAT_ONLY
 
 }  // namespace sck
 }  // namespace avas

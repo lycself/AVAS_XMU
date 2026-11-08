@@ -47,6 +47,7 @@ set(AVAS_CORE_SOURCES
   src/core/latview.cpp
   src/core/device.cpp
   src/core/device_emu.cpp
+  src/core/f32_cpu.cpp
   src/core/errorset.cpp
   src/core/tools.cpp
   src/core/synchronous.cpp
@@ -117,6 +118,7 @@ if(AVAS_WITH_METAL)
   endif()
   enable_language(OBJCXX)
   set(AVAS_MSL_PARTS src/core/hd.h src/core/mesh_kernels.h src/core/physics.h src/core/kernels.h src/core/sc_kernels.h
+      src/core/f32_kernels.h
       src/metal/kernels.metal)
   set(AVAS_MSL "#define double float\n")
   foreach(part ${AVAS_MSL_PARTS})
