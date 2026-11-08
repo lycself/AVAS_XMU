@@ -11,18 +11,26 @@
 // Values that are the same for all particles (RF phase of a step, rotation angles of elements,
 // bend matrices) are computed once on the host and passed in, so the corrected engine uses the C
 // library for them exactly as before.
+//   Metal: only the structures and the t-code field of drifts and single field maps
+//          (external_field_t without superpose blocks and error fields) are compiled as MSL.
 #pragma once
-#include <cstdint>
-
 #include "core/hd.h"
 #include "core/mesh_kernels.h"
 #include "core/physics.h"
+#ifndef AVAS_METAL
+#include <cstdint>
+
 #include "core/pmath.h"
 #include "core/reduce.h"
+#endif
 
 namespace avas {
 
-#if defined(AVAS_PMATH_LIBM_FOR_TEST)
+#if defined(AVAS_METAL)
+struct PortableMath {  // Metal: only for code that the t-code step does not reach (RF from own time)
+    static float cos(float a) { return metal::precise::cos(a); }
+};
+#elif defined(AVAS_PMATH_LIBM_FOR_TEST)
 struct PortableMath {  // verification build only: the C library instead of pmath.h
     static constexpr bool compat = false;
     static void sincos(double a, double& s, double& c) { s = std::sin(a); c = std::cos(a); }
@@ -92,32 +100,33 @@ struct GeomV {  // boundary.txt geometry
 };
 
 struct LatV {
-    const ElemV* elems;
-    const ElemV* eff;  // corrected engine: superpose blocks with the sub-field errors applied
-    const SubV* subs;
-    const MapView<double>* maps;
-    const MapView<float, float>* mapsF;  // fp32 GPU path: the maps in float
-    const double* elemZStart;
-    const double* elemZEnd;
-    const SpOutV* spOut;
-    const double* cavTime;
-    const double* cavPhase;
-    const RfSlotV* rfSlots;
+    const AVAS_G ElemV* elems;
+    const AVAS_G ElemV* eff;  // corrected engine: superpose blocks with the sub-field errors applied
+    const AVAS_G SubV* subs;
+    const AVAS_G MapView<double>* maps;
+    const AVAS_G MapView<float, float>* mapsF;  // fp32 GPU path: the maps in float
+    const AVAS_G double* elemZStart;
+    const AVAS_G double* elemZEnd;
+    const AVAS_G SpOutV* spOut;
+    const AVAS_G double* cavTime;
+    const AVAS_G double* cavPhase;
+    const AVAS_G RfSlotV* rfSlots;
     int nElem;
     int errOn;
     int spOutCur, spOutCount, spOutSize;
     double totalLength, spExit;
     // boundary.txt
-    const GeomV* geoms;
-    const double* segStart;
-    const double* segEnd;
+    const AVAS_G GeomV* geoms;
+    const AVAS_G double* segStart;
+    const AVAS_G double* segEnd;
     int nSeg;
-    const double* bndZ;  // per superposeout section: z offset, first and last geometry
-    const int* bndR1;
-    const int* bndR2;
+    const AVAS_G double* bndZ;  // per superposeout section: z offset, first and last geometry
+    const AVAS_G int* bndR1;
+    const AVAS_G int* bndR2;
     int nBnd;
 };
 
+#ifndef AVAS_METAL
 // Particle arrays.  rel[] are the coordinates relative to the synchronous particle, old the
 // coordinates before the last step, rec / spRec the crossing records {x, ux, y, uy, z, uz, t, flag}.
 struct PartV {
@@ -135,20 +144,22 @@ struct PartV {
     int sync;       // index of the synchronous particle in this view, -1 when it is not part of it
 };
 
+#endif  // AVAS_METAL
+
 // RF field factors of a slot: from the per-step table, or from the particle's own time.
 struct RfSrc {
-    const double* table;  // 2 per slot, at the step time (null: compute from t)
+    const AVAS_G double* table;  // 2 per slot, at the step time (null: compute from t)
     double t;
 };
 
 template <class P>
-AVAS_HD inline void rf_factors(const LatV& L, const RfSrc& rf, int slot, double& ce, double& cb) {
+AVAS_HD inline void rf_factors(AVAS_T const LatV& L, AVAS_T const RfSrc& rf, int slot, AVAS_T double& ce, AVAS_T double& cb) {
     if (rf.table) {
         ce = rf.table[2 * slot];
         cb = rf.table[2 * slot + 1];
         return;
     }
-    const RfSlotV& s = L.rfSlots[slot];
+    AVAS_G const RfSlotV& s = L.rfSlots[slot];
     const double ph = s.hasAdd ? (rf.t - L.cavTime[s.cav]) * s.freq * k::two_pi + (L.cavPhase[s.cav] + s.add) * k::deg_to_rad
                                : (rf.t - L.cavTime[s.cav]) * s.freq * k::two_pi + L.cavPhase[s.cav] * k::deg_to_rad;
     ce = P::cos(ph);
@@ -172,6 +183,7 @@ struct FieldIn {
     int boundaryMode;
 };
 
+#ifndef AVAS_METAL
 struct AbsZ {
     const LatV* L;
     AVAS_HD double elem_start(int k) const { return L->elemZStart[k]; }
@@ -183,27 +195,30 @@ struct AbsZ {
     AVAS_HD double total() const { return L->totalLength; }
 };
 
+#endif
+
 template <class R>
 struct MapsOf {
-    AVAS_HD static const MapView<double>& get(const LatV& L, int k) { return L.maps[k]; }
+    AVAS_HD static AVAS_G const MapView<double>& get(AVAS_T const LatV& L, int k) { return L.maps[k]; }
 };
 template <>
 struct MapsOf<float> {
-    AVAS_HD static const MapView<float, float>& get(const LatV& L, int k) { return L.mapsF[k]; }
+    AVAS_HD static AVAS_G const MapView<float, float>& get(AVAS_T const LatV& L, int k) { return L.mapsF[k]; }
 };
 
 template <class R>
-AVAS_HD inline void zero3(R* E, R* B) {
+AVAS_HD inline void zero3(AVAS_T R* E, AVAS_T R* B) {
     E[0] = E[1] = E[2] = R(0);
     B[0] = B[1] = B[2] = R(0);
 }
 
 template <class R, class Z>
-AVAS_HD inline bool aperture_lost_t(const Z& zo, int k, const ElemV& e, const FieldIn<R>& in) {
+AVAS_HD inline bool aperture_lost_t(AVAS_T const Z& zo, int k, AVAS_G const ElemV& e, AVAS_T const FieldIn<R>& in) {
     const R r = hm::sqrt(in.x * in.x + in.y * in.y);
     return R(e.radius) <= r && in.boundaryMode == 0 && zo.estart(k, e) + 1e-06 < in.spZ1 && in.spZ0 < in.fz;
 }
 
+#ifndef AVAS_METAL
 // Field::GetField type 4: sum of the sub-fields of a superpose block (spec 30 2.4.2).
 template <class P, class R, class Z>
 AVAS_HD inline int superpose_field_t(const LatV& L, const Z& zo, int k, const ElemV& e, const FieldIn<R>& in,
@@ -287,9 +302,11 @@ AVAS_HD inline int superpose_field_t(const LatV& L, const Z& zo, int k, const El
 }
 
 // Field::GetField of element k (spec 30 2.4).
+#endif  // AVAS_METAL
+
 template <class P, class R, class Z>
-AVAS_HD inline int element_field_t(const LatV& L, const Z& zo, int k, const ElemV& e, const FieldIn<R>& in,
-                                   const RfSrc& rf, R* E, R* B) {
+AVAS_HD inline int element_field_t(AVAS_T const LatV& L, AVAS_T const Z& zo, int k, AVAS_G const ElemV& e,
+                                   AVAS_T const FieldIn<R>& in, AVAS_T const RfSrc& rf, AVAS_T R* E, AVAS_T R* B) {
     if (e.kind == kDrift) {
         const bool lost = aperture_lost_t(zo, k, e, in);
         zero3(E, B);
@@ -307,10 +324,14 @@ AVAS_HD inline int element_field_t(const LatV& L, const Z& zo, int k, const Elem
         return kFieldWrite;
     }
     const int type = e.fieldType;
+#ifndef AVAS_METAL
     if (type == 4) return superpose_field_t<P>(L, zo, k, e, in, rf, E, B);
+#else
+    if (type == 4) return 0;  // not on Metal (the back end keeps such lattices on the CPU)
+#endif
     if (type != 1 && type != 2 && type != 3) return 0;
     if (aperture_lost_t(zo, k, e, in)) return kFieldLost;  // fields keep their previous values
-    const auto& m = MapsOf<R>::get(L, e.mapIndex);
+    AVAS_G const auto& m = MapsOf<R>::get(L, e.mapIndex);
     const R x = in.x, y = in.y;
     const R zs = R(zo.estart(k, e));
     if (!(m.xmin < x && x < m.xmax && m.ymin < y && y < m.ymax && zs < in.fz && in.fz < zs + m.zlen)) {
@@ -321,14 +342,18 @@ AVAS_HD inline int element_field_t(const LatV& L, const Z& zo, int k, const Elem
     if (type == 1) {
         R se[3] = {R(0), R(0), R(0)}, sb[3] = {R(0), R(0), R(0)};
         const R ke6 = R(e.ke * 1000000.0), kb = R(e.kb);
-        trilinear(m, x, y, zl, [&](R w, const auto* f) {
+        const TriPos<R> tp = tri_pos(m, x, y, zl);
+        for (int q = 0; q < 8; ++q) {
+            avas_i64 off;
+            const R w = tri_corner(m, tp, q, off);
+            const auto f = m.data + off;
             se[0] = w * f[0] * ke6 + se[0];
             se[1] = f[1] * w * ke6 + se[1];
             se[2] = f[2] * w * ke6 + se[2];
             sb[0] = f[3] * w * kb + sb[0];
             sb[1] = f[4] * w * kb + sb[1];
             sb[2] = f[5] * w * kb + sb[2];
-        });
+        }
         double ced, cbd;
         rf_factors<P>(L, rf, e.rfPlain, ced, cbd);
         const R ce = R(ced), cb = R(cbd);
@@ -341,23 +366,32 @@ AVAS_HD inline int element_field_t(const LatV& L, const Z& zo, int k, const Elem
     } else if (type == 2) {
         R se[3] = {R(0), R(0), R(0)};
         const R ke = R(e.ke);
-        trilinear(m, x, y, zl, [&](R w, const auto* f) {
+        const TriPos<R> tp = tri_pos(m, x, y, zl);
+        for (int q = 0; q < 8; ++q) {
+            avas_i64 off;
+            const R w = tri_corner(m, tp, q, off);
+            const auto f = m.data + off;
             for (int j = 0; j < 3; ++j) se[j] = w * f[j] * (ke * R(1000000.0)) + se[j];
-        });
+        }
         E[0] = se[0]; E[1] = se[1]; E[2] = se[2];
         B[0] = B[1] = B[2] = R(0);
     } else {
         R sb[3] = {R(0), R(0), R(0)};
         const R kb = R(e.kb);
-        trilinear(m, x, y, zl, [&](R w, const auto* f) {
+        const TriPos<R> tp = tri_pos(m, x, y, zl);
+        for (int q = 0; q < 8; ++q) {
+            avas_i64 off;
+            const R w = tri_corner(m, tp, q, off);
+            const auto f = m.data + off;
             for (int j = 0; j < 3; ++j) sb[j] = w * f[j] * kb + sb[j];
-        });
+        }
         E[0] = E[1] = E[2] = R(0);
         B[0] = sb[0]; B[1] = sb[1]; B[2] = sb[2];
     }
     return kFieldWrite;
 }
 
+#ifndef AVAS_METAL
 // Field::GetErrField type 4 of AVAS.dll (spec 70 6.3; compat only): the sub-field placement of the
 // block is not used; an erroneous sub-field is displaced and rotated by its error only.
 template <class P, class R, class Z>
@@ -523,9 +557,11 @@ AVAS_HD inline int element_err_field_t(const LatV& L, const Z& zo, int k, const 
 }
 
 // Lattice::GetExternalField of one particle: element search (k in/out), then its field.
+#endif  // AVAS_METAL
+
 template <class P, class R, class Z>
-AVAS_HD inline int external_field_t(const LatV& L, const Z& zo, const FieldIn<R>& in, int lost, bool isSync, int& k,
-                                    const RfSrc& rf, R* E, R* B) {
+AVAS_HD inline int external_field_t(AVAS_T const LatV& L, AVAS_T const Z& zo, AVAS_T const FieldIn<R>& in, int lost,
+                                    bool isSync, AVAS_T int& k, AVAS_T const RfSrc& rf, AVAS_T R* E, AVAS_T R* B) {
     const R z = in.fz;
     if (z < R(zo.zero()) || R(zo.sp_exit()) < z || lost != 0) {
         zero3(E, B);
@@ -542,10 +578,13 @@ AVAS_HD inline int external_field_t(const LatV& L, const Z& zo, const FieldIn<R>
     if (k > last) k = last;
     // Lattice::GetErrExternalField: elements marked in the error sample use GetErrField; the
     // synchronous particle always uses GetField
+#ifndef AVAS_METAL
     if (L.errOn && !isSync && L.elems[k].errUse) return element_err_field_t<P>(L, zo, k, in, rf, E, B);
+#endif
     return element_field_t<P>(L, zo, k, L.elems[k], in, rf, E, B);
 }
 
+#ifndef AVAS_METAL
 // ---- fp64 wrappers on the particle arrays ----
 
 AVAS_HD inline FieldIn<double> field_in(const PartV& b, int i) {
@@ -1130,6 +1169,8 @@ AVAS_HD inline void long_loss_particle(const PartV& b, int i, const double* rest
     if (hm::fabs((gi - 1.0) * restMass[i] - ws) > dW) b.lost[i] = 1;
     if (hm::fabs(b.z[i] - zs) > dzMax) b.lost[i] = 1;
 }
+
+#endif  // AVAS_METAL
 
 }  // namespace kern
 }  // namespace avas

@@ -185,6 +185,32 @@ def exit_stats(d):
             "eps y": float(r[14]), "eps z": float(r[15]), "alive": float(r[28])}
 
 
+def metal_report(lib, work, names, gpu_env, cpu, g1, by_name):
+    g2 = os.path.join(work, "metal_again")
+    run_cases(lib, g2, gpu_env, names)
+    fails, worst_single, worst_ds, worst_dst = 0, 0.0, 0.0, 0.0
+    print("\nMetal (fp32 tier) against the CPU (DataSet: largest column difference / column maximum; dst: / rms)"
+          " and a second Metal run (byte-identical required):")
+    for n in names:
+        same, why = identical(os.path.join(g1, n), os.path.join(g2, n))
+        fails += 0 if same else 1
+        single = by_name[n].get("beam", {}).get("particlenumber") in (1, "1")
+        ds = dataset_rel(os.path.join(cpu, n), os.path.join(g1, n))
+        dd = dst_rel(os.path.join(cpu, n), os.path.join(g1, n))
+        if math.isfinite(ds):
+            worst_ds = max(worst_ds, ds)
+        if math.isfinite(dd):
+            if single:
+                worst_single = max(worst_single, dd)
+            else:
+                worst_dst = max(worst_dst, dd)
+        print(f"  {n:<32} rerun {'same' if same else 'DIFF ' + why[:40]:<6} DataSet {ds:10.3g}   dst {dd:10.3g}"
+              f"{'   (single particle)' if single else ''}")
+    print(f"  largest: DataSet {worst_ds:.3g}, dst {worst_dst:.3g} rms, single particles {worst_single:.3g} rms")
+    print(f"\n{'ALL REQUIRED CHECKS PASSED' if not fails else f'FAILURES: {fails}'}")
+    return 1 if fails else 0
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--lib", required=True)
@@ -221,6 +247,10 @@ def main():
     run_cases(lib, g1, gpu_env, names)
     print("device:", device_line(os.path.join(g1, names[0])) if names else "-")
     fails = 0
+    if a.device == "metal":
+        # Metal (no fp64 on the GPU): the t-code push is the fp32 tier, so every case is compared
+        # like --fp32 against the CPU; a second run must be byte-identical
+        return metal_report(lib, work, names, gpu_env, cpu, g1, by_name)
     print("\nfp64: cases without space charge, GPU against the CPU (byte-identical required):")
     nsame = 0
     for n in names:

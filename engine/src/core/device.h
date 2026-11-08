@@ -169,6 +169,29 @@ public:
     virtual void interp(const kern::MeshV& M, const double* ex, const double* ey, const double* ez, int n,
                         const double* x, const double* y, const double* z, const int* lost, double* scx, double* scy,
                         double* scz) = 0;
+
+    // ---- particle push on the accelerator (Metal phase 2, fp32 relative to the synchronous
+    // particle).  After a step the accelerator's float state is the current one ("authoritative")
+    // until to_host() writes it back into the fp64 arrays P of the device back end. ----
+    virtual void begin_run(const LatHost& L, int n) { (void)L; (void)n; }
+    // The t-code step on the accelerator; false: not supported for this lattice (the caller steps
+    // on the CPU).  P: the fp64 arrays (old / rec are written there, in double, by the host).
+    virtual bool step(const LatScalars& ls, const kern::StepArgs& a, const std::vector<double>& rf,
+                      const std::vector<double>& events, const kern::PartV& P, int n, std::vector<StepGroup>& out,
+                      long long& spCount, long long& recCount) {
+        (void)ls; (void)a; (void)rf; (void)events; (void)P; (void)n; (void)out; (void)spCount; (void)recCount;
+        return false;
+    }
+    virtual bool authoritative() const { return false; }
+    virtual void to_host(const kern::PartV& P, int n) { (void)P; (void)n; }
+    virtual void invalidate() {}
+    // rec flags cleared by the tracker (zero_rec)
+    virtual void rec_cleared() {}
+    // Deposit / interpolation from the float state (authoritative only).
+    virtual void deposit_state(const kern::MeshV& M, int n, std::vector<long long>& acc) { (void)M; (void)n; (void)acc; }
+    virtual void interp_state(const kern::MeshV& M, const double* ex, const double* ey, const double* ez, int n) {
+        (void)M; (void)ex; (void)ey; (void)ez; (void)n;
+    }
 };
 
 // Test device "emu" (device_emu.cpp): the device back end on the CPU; with an accelerator for the

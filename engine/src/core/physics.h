@@ -6,34 +6,35 @@
 // original AVAS.dll evaluates it (it was built with /fp:fast, which re-associated products and
 // replaced divisions by 1/c with multiplications); keep the order when editing.
 #pragma once
-#include <cmath>
-
 #include "core/hd.h"
+#ifndef AVAS_METAL
+#include <cmath>
+#endif
 
 namespace avas {
 
 namespace k {
-constexpr double c = 299792458.0;
-constexpr double inv_c = 3.3356409519815204e-09;       // 1/c as folded by the DLL
-constexpr double half_inv_c = 1.6678204759907602e-09;  // 0.5/c
-constexpr double two_pi = 6.283185307179586;
-constexpr double pi = 3.141592653589793;
-constexpr double half_pi = 1.5707963267948966;
-constexpr double deg_to_rad = 0.017453292519943295;
-constexpr double rad_to_deg = 57.29577951308232;
-constexpr double inv_two_pi = 0.15915494309189535;
-constexpr double e_charge = 1.60217653e-19;
-constexpr double m_proton = 1.67262171e-27;
-constexpr double proton_mc2 = 938.271875;
-constexpr double inv_proton_mc2 = 0.0010657891669192364;  // 1/938.271875 as folded by the DLL
-constexpr double e_over_mp = 95788337.57933226;            // e/m_p as folded by the DLL
+AVAS_PCONST constexpr double c = 299792458.0;
+AVAS_PCONST constexpr double inv_c = 3.3356409519815204e-09;       // 1/c as folded by the DLL
+AVAS_PCONST constexpr double half_inv_c = 1.6678204759907602e-09;  // 0.5/c
+AVAS_PCONST constexpr double two_pi = 6.283185307179586;
+AVAS_PCONST constexpr double pi = 3.141592653589793;
+AVAS_PCONST constexpr double half_pi = 1.5707963267948966;
+AVAS_PCONST constexpr double deg_to_rad = 0.017453292519943295;
+AVAS_PCONST constexpr double rad_to_deg = 57.29577951308232;
+AVAS_PCONST constexpr double inv_two_pi = 0.15915494309189535;
+AVAS_PCONST constexpr double e_charge = 1.60217653e-19;
+AVAS_PCONST constexpr double m_proton = 1.67262171e-27;
+AVAS_PCONST constexpr double proton_mc2 = 938.271875;
+AVAS_PCONST constexpr double inv_proton_mc2 = 0.0010657891669192364;  // 1/938.271875 as folded by the DLL
+AVAS_PCONST constexpr double e_over_mp = 95788337.57933226;            // e/m_p as folded by the DLL
 }  // namespace k
 
 // Read-only view of one field map (grid, nodes x fastest, then y, then z).  R: coordinates,
 // D: stored field values (float maps for the fp32 GPU path).
 template <class R, class D = double>
 struct MapView {
-    const D* data;  // node n, component c at data[n * ncomp + c]
+    const AVAS_G D* data;  // node n, component c at data[n * ncomp + c]
     int ncomp;
     int nx, ny, nz;
     R xmin, xmax, ymin, ymax, zlen, dx, dy, dz;
@@ -41,30 +42,55 @@ struct MapView {
 
 // True when (x, y, zl) lies strictly inside the grid (zl is measured from the map entrance).
 template <class R, class D>
-AVAS_HD inline bool map_contains(const MapView<R, D>& m, R x, R y, R zl) {
+AVAS_HD inline bool map_contains(AVAS_G const MapView<R, D>& m, R x, R y, R zl) {
     return m.xmin < x && x < m.xmax && m.ymin < y && y < m.ymax && R(0) < zl && zl < m.zlen;
 }
 
 // Trilinear interpolation: calls acc(w, node_values) for the 8 corners in the original order.
 // The weight is the expanded product (1-|a|)(1-|b|)(1-|c|) exactly as the DLL evaluates it.
+// tri_pos / tri_corner are the same steps for code without lambdas (Metal).
+template <class R>
+struct TriPos {
+    R fx, fy, fz, cx, cy, cz;
+};
+
+template <class R, class D>
+AVAS_HD inline TriPos<R> tri_pos(AVAS_G const MapView<R, D>& m, R x, R y, R zl) {
+    TriPos<R> t;
+    t.fx = (x - m.xmin) / m.dx;
+    t.fy = (y - m.ymin) / m.dy;
+    t.fz = zl / m.dz;
+    t.cx = hm::ceil(t.fx);
+    t.cy = hm::ceil(t.fy);
+    t.cz = hm::ceil(t.fz);
+    return t;
+}
+
+// Weight of corner 0..7 and the offset of its node values in m.data.
+template <class R, class D>
+AVAS_HD inline R tri_corner(AVAS_G const MapView<R, D>& m, AVAS_T const TriPos<R>& t, int corner, AVAS_T avas_i64& off) {
+    const int ix = static_cast<int>((corner & 1) ? t.cx - R(1) : t.cx);
+    const int iy = static_cast<int>(((corner & 3) >= 2) ? t.cy - R(1) : t.cy);
+    const int iz = static_cast<int>((corner >= 4) ? t.cz - R(1) : t.cz);
+    const R a = t.fx - R(ix);
+    const R b = t.fy - R(iy);
+    const R c = t.fz - R(iz);
+    const R ab = a * b;
+    const R w = ((R(1) - hm::fabs(c)) - (hm::fabs(a) - hm::fabs(c * a))) -
+                ((hm::fabs(b) - hm::fabs(c * b)) - (hm::fabs(ab) - hm::fabs(c * ab)));
+    const int node = (m.nx + 1) * ((m.ny + 1) * iz + iy) + ix;
+    off = static_cast<avas_i64>(node) * m.ncomp;
+    return w;
+}
+
+#ifndef AVAS_METAL
 template <class R, class D, class Acc>
 AVAS_HD inline void trilinear(const MapView<R, D>& m, R x, R y, R zl, Acc&& acc) {
-    const R fx = (x - m.xmin) / m.dx;
-    const R fy = (y - m.ymin) / m.dy;
-    const R fz = zl / m.dz;
-    const R cx = hm::ceil(fx), cy = hm::ceil(fy), cz = hm::ceil(fz);
+    const TriPos<R> t = tri_pos(m, x, y, zl);
     for (int corner = 0; corner < 8; ++corner) {
-        const int ix = static_cast<int>((corner & 1) ? cx - R(1) : cx);
-        const int iy = static_cast<int>(((corner & 3) >= 2) ? cy - R(1) : cy);
-        const int iz = static_cast<int>((corner >= 4) ? cz - R(1) : cz);
-        const R a = fx - R(ix);
-        const R b = fy - R(iy);
-        const R c = fz - R(iz);
-        const R ab = a * b;
-        const R w = ((R(1) - hm::fabs(c)) - (hm::fabs(a) - hm::fabs(c * a))) -
-                    ((hm::fabs(b) - hm::fabs(c * b)) - (hm::fabs(ab) - hm::fabs(c * ab)));
-        const int node = (m.nx + 1) * ((m.ny + 1) * iz + iy) + ix;
-        acc(w, m.data + static_cast<long long>(node) * m.ncomp);
+        avas_i64 off;
+        const R w = tri_corner(m, t, corner, off);
+        acc(w, m.data + off);
     }
 }
 
@@ -427,5 +453,7 @@ AVAS_HD inline void ztot_row(const R* r, R zPlane, R tRef, bool fullGamma, R& x,
     uy = r[3];
     uz = r[5];
 }
+
+#endif  // AVAS_METAL
 
 }  // namespace avas

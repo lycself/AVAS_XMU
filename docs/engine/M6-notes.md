@@ -496,3 +496,85 @@ CUDA 能跑的功能 Metal 都要能跑，不能跑或受限的项明确列出�
 ### 10. 临时数据
 
 Mac 上的探针程序、两套构建、run_gpu / 性能 / parity 运行目录已删除；A100 的 `~/avas_engine_work/tmp_m6d` 已删除，工具链保留；L40S、lyc-pc、XPS 未能登录。
+
+### 11. 用户决定（2026-11-08）
+
+第 9 节的 7 个待定点全部按推荐：
+
+1. **继续第二阶段**，先做 t-code 推进与统计（z-code、FFT 求解、二次粒子留在 CPU）——已完成，见第 12 节。
+2. **fp32 数学函数用可移植实现**：第二阶段的 t-code 推进只用到加减乘除、`sqrt`（正确舍入）、`ceil`、`fabs`、`floor`、`rint`、`ldexp`；RF 因子是主机按步算好的表，
+   所以推进里没有超越函数，也就不需要 float 版 sin / cos。代码只用 IEEE 754 正确舍入的运算并关闭收缩，结果只取决于运算次序（第 12 节说明与 CPU 参照的关系）。
+3. **保持运行时编译**：整个 MSL 源第一次编译约 1.8 s，之后由系统的着色器缓存命中（约 0.05 s），不需要自己加磁盘缓存。
+4. **不引入 metal-cpp**。
+5. **`AVAS_WITH_METAL` 在 macOS 上默认打开**：APPLE 且 C++ 编译器为 AppleClang 时默认 ON；否则默认 OFF，并在配置时打一行 STATUS 说明原因与改法
+   （例如 conda 环境设置了 CC / CXX 时：用 `CC=/usr/bin/clang CXX=/usr/bin/clang++` 新建构建目录）；显式 `-DAVAS_WITH_METAL=ON` 而编译器不对时仍 FATAL_ERROR。
+   `device` 的默认仍是 cpu。
+6. **`device=auto` 在 Mac 上**：没有 CUDA、编译了 Metal 时，有空间电荷的运行选 Metal，否则选 CPU（日志写明原因；Metal 不可用时退回 CPU 并写明原因）。
+7. **统计量在 GPU 上用定点整数按组累加**，主机只合并组——已实现（第 12 节）。
+
+### 12. 第二阶段：t-code 推进与统计在 Metal 上
+
+**做法**（与 CUDA 的 fp32 档同一设计）：粒子状态在 Metal 上以 float 存相对同步粒子的坐标 d = x − x_s、u − u_s；同步粒子的推进、晶格位置减去同步粒子 z、
+事件面位置、RF 因子由主机每步用双精度算好再转 float 传入；推进是 `cuda_f32.cuh` 的 `F32Step` 的移植（`src/metal/kernels.metal` 的 `k_step`），元件场调用共享的
+`kern::external_field_t<…, float, …>`。混合运行用“当前态”标记（CUDA 的 `auth32_`）：Metal 推进一步后 float 态是当前态；设备后端（emu）的任何其他操作
+（z-code 行变换、FFT、二次粒子、边界、`lpboundary`、纵向损失、下载等）之前先把 float 态写回 fp64 数组（`to_host`，x = x_s + d，用上一步的同步粒子），
+上传之后作废 float 态，下一个 t-code 步再从 fp64 数组转成 float（`from64`）。缓冲区都是统一内存的共享存储，主机直接读写，没有拷贝；转换只在切换时做（一次运行通常各一次）。
+空间电荷在 float 态下直接用 float 坐标分配、插值写回 float 场。
+
+**为此改的共享代码**（CPU、CUDA 的生成代码不变）：
+- `physics.h`：`k::` 常量加 `AVAS_PCONST`；`MapView::data` 加地址空间；`trilinear` 拆成 `tri_pos` / `tri_corner`（同一次序的同一算术，`trilinear` 改由它们实现）；推进器与 z-code 行变换只在主机 / CUDA 编译。
+- `kernels.h`：`LatV` 的指针、`RfSrc::table`、场函数的引用与数组参数加地址空间宏；`element_field_t` 中三处 lambda 改为 `tri_pos` / `tri_corner` 循环（逐项同序）；
+  superpose 块、误差场、`PartV` 与其后的 fp64 包装只在主机 / CUDA 编译（Metal 上 `element_field_t` 遇到 superpose 块返回 0，后端不会对这类晶格用 Metal 推进）。
+- MSL 源增加 `physics.h`、`kernels.h`。
+
+**统计量**：`k_step` 把每个粒子的 21 个求和项和 8 个最大值写进列优先的缓冲区；`k_group` 每个线程组处理一个归约组（4096 个粒子）：每列先求组内最大绝对值，
+取 2 的幂 e 使 |v|·2^e < 2^50，再把各项换成 64 位整数相加（与次序无关），主机把 (和, e) 换回双精度并按组的次序合并（同 `reduce.h`）。最大值在 float 中精确。
+z 的最小 / 最大值存 d_z，由主机加同步粒子的 z（双精度，与 CUDA 相同）。
+
+**事件面与 old**：粒子越过下一个输出面时，`k_step` 记下它推进前后的 float 状态（12 个数）并把序号原子地追加到列表；主机按列表在双精度中完成插值
+（与 CUDA fp32 档逐式相同：`interp_momentum_norm`、`rec[6] = (r − 1) dt + t_end`），写 rec 并推进 `nextPlane`。`writeOld` 时记下推进前的 float 状态，主机换成双精度的 old。
+列表的次序不确定，但每个粒子的处理互相独立，所以结果确定。
+
+**不在 Metal 上推进的情形**（自动留在 CPU，日志写一行原因）：晶格含 superpose 块（场类型 4）、误差研究的误差场（`errOn`）、superposeout 段。
+z-code、FFT 求解、二次粒子、`boundary.txt` 几何损失、`lpboundary` 折叠、纵向损失在 CPU 上做（每次切换一次转换）。
+
+**与 CPU 参照的关系**：t-code 推进只用正确舍入的运算、关闭收缩，结果只取决于运算次序，重跑逐位相同。但 MSL 源以 `double = float` 编译，`ElemV` 等结构体中的
+双精度字段在 Metal 上也是 float（例如 `R(e.ke * 1e6)` 在 Metal 上是 float 乘积，在 CUDA fp32 档是 double 乘积再转 float），所以 **Metal 与 CUDA fp32 档、与 CPU
+不能逐位相同**；现在也没有 CPU 上的 fp32 参照实现（emu 只有 fp64）。要逐位一致，需要把这些结构体按标量类型模板化，并在 CPU 上编译同一套 float 代码（第 14 节待定点 1）。
+
+**检查**（Apple M2，Mac 默认构建：AppleClang，`AVAS_WITH_METAL` 默认 ON）：
+- `run_gpu.py --device metal`（184 个默认模式算例，Metal 下按 fp32 档比较）：**每个算例重跑逐字节相同**；与 CPU（fp64）的差别：DataSet 一般为列最大值的 3e-5～1e-4
+  （与 CUDA fp32 档同量级：SC1 为 3.24e-5 / dst 1.53e-5，CUDA fp32 为 3.24e-5 / 1.52e-5），最大 3.4e-3 出现在单粒子校正铁算例（该列接近 0）；dst 粒子坐标 ≤ 4e-5 rms，
+  PN3 的单个网格边缘粒子 5e-3 rms（与 CUDA fp32 相同）；单粒子算例 ≤ 1.2e-6 rms。
+- 物理检验：DC KV（`AVAS_ENGINE_DEVICE=metal`，推进与空间电荷都在 Metal 上）SPICNIC 40³ 增长比 0.993、PICNIC 24³ 0.984，与 CPU 的四位有效数字相同，通过；椭球（`avas_engine_physics --metal`）SPICNIC 40³ 最大偏差 0.34 %、PICNIC 32³ 0.19 %，通过。
+- A100 CUDA（fp64 + `--fp32`，按正常 Slurm 申请 2 块空闲 GPU）：fp64 154/154 逐字节相同、空间电荷算例重跑 / 双卡 / MPI 逐字节相同；fp32 档的数字与 M6b 时完全相同
+  （SC1 3.24e-5 / 1.52e-5、PN3 3.29e-5 / 5.12e-3 等），即 `trilinear` 的改写没有改变 CUDA fp32；`nm -D` 7 个接口、GLIBC_2.14，无新警告。
+- Mac CPU 全套：单元测试、`run_all.py`（compat=dll 最大差 3.44e-11 不变，inData 23/23 不变）、`run_physics.py`、`tools_check.py`、`ruff` 通过；默认构建（含 Metal）无新警告。conda 的 clang 配置时默认关闭 Metal 并给出提示，显式打开则报错（已核实）。
+
+**性能**（M2，hwr010 两周期线，推进 + 空间电荷每步时间；CPU 为 8 线程）：
+
+| 粒子数 | CPU 无 SC | Metal 无 SC | CPU SPICNIC | Metal SPICNIC | CPU PICNIC | Metal PICNIC |
+|---|---|---|---|---|---|---|
+| 1e5 | 3.21 ms | 1.93 ms | 17.9 ms | 6.27 ms | 33.9 ms | 7.70 ms |
+| 1e6 | 31.4 ms | 6.86 ms | 169 ms | 23.4 ms | 311–374 ms | 27.9 ms |
+| 1e7 | 592 ms | 98.4 ms | — | 186 ms | — | — |
+
+- 无空间电荷 4.6×（1e6）到 6.0×（1e7），SPICNIC 7.2×、PICNIC 11–13×（1e6）。1e7 粒子在 16 GB 机器上能跑（设备后端仍持有一份 fp64 数组，作为切换时的副本）。
+- 最初统计缓冲区按粒子行优先存放，组归约每步 49 ms；改为列优先（合并访问）后 2 ms。
+- 每步主机开销约 0.07 ms（偏移表、RF 表、组合并）。
+
+### 13. 第二阶段未完成 / 受限
+
+- Metal 与 CPU / CUDA fp32 的逐位一致（见上；需要结构体模板化与 CPU 上的 float 参照）。
+- superpose 块、误差研究的误差场、superposeout 段的晶格，推进留在 CPU（emu，fp64，多线程）。
+- z-code、FFT 求解、二次粒子、边界几何仍在 CPU；带 `boundary.txt` 的运行每步要来回转换，Metal 反而可能更慢。
+- 设备后端（emu）仍保留一份完整的 fp64 粒子数组（内存约为纯 GPU 设计的两倍）。
+- L40S、lyc-pc、XPS 本段开始与结束时都无法连接。
+
+### 14. 新的待定点（每项附推荐）
+
+1. **CPU 上的 fp32 参照**（让 Metal 与 CPU / emu 逐位一致）：需要把 `ElemV` / `SubV` / `LatV` 等按标量类型模板化（`ElemVT<double>` 为现有的 `ElemV`），emu 增加 fp32 档，
+   并让 CUDA fp32 档也用同一套 float 字段（CUDA fp32 的结果会变，量级约 1e-7 相对）。推荐做，但放在 superpose / 误差场上 Metal 之后。
+2. **superpose 块、误差场、superposeout 也在 Metal 上推进**：要把 `superpose_field_t`、`element_err_field_t`、superposeout 记录改写为 MSL 可编译（去 lambda、加地址空间）。推荐下一步做（误差研究常用）。
+3. **去掉 emu 的 fp64 副本**（Metal 为当前态时不保留 fp64 数组，切换时才分配）：推荐暂不做，16 GB 机器上 1e7 已能运行。
+4. **`boundary.txt` 几何损失放到 Metal**：推荐与第 2 项一起做。

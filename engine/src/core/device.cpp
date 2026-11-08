@@ -30,6 +30,22 @@ std::unique_ptr<DeviceBackend> make_device_backend(long long nParticles, bool sp
         say("Device: CPU (auto: compat=dll runs on the CPU only)");
         return nullptr;
     }
+    if (!cuda_compiled() && !required && metal_compiled()) {
+        // auto on macOS (M6c decision 6): Metal when the run has space charge, else the CPU
+        if (!spaceCharge) {
+            say("Device: CPU (auto: no space charge, Metal is used for runs with space charge)");
+            return nullptr;
+        }
+        std::string why;
+        std::unique_ptr<ScAccel> acc = make_metal_accel(why);
+        if (!acc) {
+            say("Device: CPU (auto: " + why + ")");
+            return nullptr;
+        }
+        std::unique_ptr<DeviceBackend> be = make_emu_backend(std::move(acc));
+        say("Device: " + be->describe() + " (auto)");
+        return be;
+    }
     if (!cuda_compiled()) {
         if (required) throw EngineError("device cuda: this engine was built without CUDA (AVAS_WITH_CUDA=OFF)");
         say("Device: CPU (auto: this engine was built without CUDA)");

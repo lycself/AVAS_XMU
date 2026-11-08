@@ -89,7 +89,18 @@ else()
 endif()
 # Metal back end (macOS GPUs, M6c): the MSL source is the shared headers plus src/metal/kernels.metal,
 # embedded into the library and compiled at run time (no offline Metal compiler is needed).
-option(AVAS_WITH_METAL "Build the Metal back end (macOS GPUs)" OFF)
+# Default (M6c decision 5): ON on macOS with Apple's clang; otherwise OFF with a note.  An explicit
+# -DAVAS_WITH_METAL=ON with another compiler stays an error (below).
+if(APPLE AND CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+  set(AVAS_METAL_DEFAULT ON)
+else()
+  set(AVAS_METAL_DEFAULT OFF)
+  if(APPLE AND NOT DEFINED AVAS_WITH_METAL)
+    message(STATUS "avas_engine: Metal back end off (C++ compiler ${CMAKE_CXX_COMPILER_ID}, Apple's clang needed); "
+      "for Metal configure a new build directory with CC=/usr/bin/clang CXX=/usr/bin/clang++")
+  endif()
+endif()
+option(AVAS_WITH_METAL "Build the Metal back end (macOS GPUs)" ${AVAS_METAL_DEFAULT})
 if(AVAS_WITH_METAL)
   if(NOT APPLE)
     message(FATAL_ERROR "AVAS_WITH_METAL needs macOS")
@@ -105,7 +116,8 @@ if(AVAS_WITH_METAL)
     set(CMAKE_OBJCXX_COMPILER "${CMAKE_CXX_COMPILER}")
   endif()
   enable_language(OBJCXX)
-  set(AVAS_MSL_PARTS src/core/hd.h src/core/mesh_kernels.h src/core/sc_kernels.h src/metal/kernels.metal)
+  set(AVAS_MSL_PARTS src/core/hd.h src/core/mesh_kernels.h src/core/physics.h src/core/kernels.h src/core/sc_kernels.h
+      src/metal/kernels.metal)
   set(AVAS_MSL "#define double float\n")
   foreach(part ${AVAS_MSL_PARTS})
     file(READ ${CMAKE_CURRENT_SOURCE_DIR}/${part} txt)

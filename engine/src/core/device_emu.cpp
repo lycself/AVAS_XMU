@@ -86,11 +86,19 @@ public:
         }
         (void)spRec;
         upload(b, nullptr, nullptr, nullptr, kDevAll & ~(kDevOld | kDevRec | kDevSpRec));
+        if (accel_) accel_->begin_run(L, n_);
+    }
+
+    // The accelerator's float state back into the fp64 arrays before any work on them.
+    void host() {
+        if (accel_ && accel_->authoritative())
+            for (EmuShard& s : sh_) accel_->to_host(s.P, s.n());
     }
 
     void set_elems(const LatHost&) override {}  // the view points at the host table
 
     void download(Beam& b, double* old, double* rec, double* spRec, unsigned m) override {
+        host();
         for (EmuShard& s : sh_) {
             const int o = s.lo, c = s.n();
             auto put = [&](const std::vector<double>& v, std::vector<double>& h) { std::copy(v.begin(), v.end(), h.begin() + o); };
@@ -113,6 +121,8 @@ public:
     }
 
     void upload(const Beam& b, const double* old, const double* rec, const double* spRec, unsigned m) override {
+        host();
+        if (accel_) accel_->invalidate();
         for (EmuShard& s : sh_) {
             const int o = s.lo, c = s.n();
             if (m & kDevCoord) { cp_in(s.x, b.x, o, c); cp_in(s.ux, b.ux, o, c); cp_in(s.y, b.y, o, c); cp_in(s.uy, b.uy, o, c); cp_in(s.z, b.z, o, c); cp_in(s.uz, b.uz, o, c); }
@@ -133,6 +143,7 @@ public:
     }
 
     void zero_rec(bool sp) override {
+        if (accel_ && !sp) accel_->rec_cleared();
         for (EmuShard& s : sh_) std::fill((sp ? s.spRec : s.rec).begin(), (sp ? s.spRec : s.rec).end(), 0.0);
     }
 
@@ -143,6 +154,8 @@ public:
         out.assign(static_cast<size_t>(ng), StepGroup{});
         spCount = recCount = 0;
         set_scalars(ls);
+        if (accel_ && sh_.size() == 1 && accel_->step(ls, a0, rf, events, sh_[0].P, sh_[0].n(), out, spCount, recCount)) return;
+        host();
         kern::StepArgs a = a0;
         a.events = events.data();
         const kern::RfSrc src{rf.data(), a.tEnd};
@@ -179,9 +192,11 @@ public:
     }
 
     void ubp1(const double* s6, double* sums) override {
+        host();
         reduce<kern::kUbpSums>([&](EmuShard& s, int i, double* c) { kern::ubp_pass1(s.P, i, s6, c); }, sums);
     }
     void ubp2(const double* cen, double igz, double* q3, double& zmin, double& zmax) override {
+        host();
         reduce<3>([&](EmuShard& s, int i, double* c) { kern::ubp_pass2(s.P, i, cen, igz, c); }, q3);
         zmin = 1e10;
         zmax = -1e10;
@@ -192,12 +207,14 @@ public:
             }
     }
     void rows(const kern::RowOp& op) override {
+        host();
         each([&](EmuShard& s, int i) {
             double* r = s.rec.data() + 8 * static_cast<size_t>(i);
             if (r[7] == 1.0) kern::het_row<PortableMath>(op, r, s.qOverM[i], s.scx[i], s.scy[i], s.scz[i]);
         });
     }
     void rows_tref(bool average, double& tRef) override {
+        host();
         if (average) {
             double s2[2];
             reduce<2>([&](EmuShard& s, int i, double* c) {
@@ -211,12 +228,14 @@ public:
         }
     }
     void rows_kick(int kind, double wx, double wy, double len) override {
+        host();
         each([&](EmuShard& s, int i) {
             double* r = s.rec.data() + 8 * static_cast<size_t>(i);
             if (r[7] == 1.0) kern::kick_row(r, kind, wx, wy, len * s.qOverM[i], false);
         });
     }
     void ztot(double zPlane, double tRef) override {
+        host();
         each([&](EmuShard& s, int i) {
             s.nextPlane[i] = 0;
             double* r = s.rec.data() + 8 * static_cast<size_t>(i);
@@ -225,6 +244,7 @@ public:
         });
     }
     void rec_tmin(bool sp, double& tmin) override {
+        host();
         tmin = 1e10;
         each([&](EmuShard& s, int i) {
             const double* r = (sp ? s.spRec : s.rec).data() + 8 * static_cast<size_t>(i);
@@ -232,13 +252,19 @@ public:
         });
     }
     void hesc1(double tRef, double* sums) override {
+        host();
         reduce<kern::kHescSums>([&](EmuShard& s, int i, double* c) { kern::hesc_pass1(s.P, i, tRef, c); }, sums);
     }
     void hesc2(const double* cen, double gc, double* q3) override {
+        host();
         reduce<3>([&](EmuShard& s, int i, double* c) { kern::hesc_pass2(s.P, i, cen, gc, c); }, q3);
     }
     void sc_deposit(const kern::MeshV& M0, std::vector<long long>& acc) override {
         acc.assign(static_cast<size_t>(M0.nx) * M0.ny * M0.nz, 0);
+        if (accel_ && accel_->authoritative()) {
+            accel_->deposit_state(M0, sh_[0].n(), acc);
+            return;
+        }
         for (EmuShard& s : sh_) {
             s.xs.assign(M0.xs, M0.xs + M0.nx);
             s.ys.assign(M0.ys, M0.ys + M0.ny);
@@ -373,6 +399,10 @@ public:
         ez = ez_;
     }
     void sc_interp(const kern::MeshV& M0) override {
+        if (accel_ && accel_->authoritative()) {
+            accel_->interp_state(M0, ex_.data(), ey_.data(), ez_.data(), sh_[0].n());
+            return;
+        }
         for (EmuShard& s : sh_) {
             kern::MeshV M = M0;
             M.xs = s.xs.data();
@@ -387,6 +417,7 @@ public:
         }
     }
     void boundary(const LatScalars& ls, double t, double dt, std::vector<BoundaryHit>& hits) override {
+        host();
         set_scalars(ls);
         hits.clear();
         for (int k = static_cast<int>(sh_.size()) - 1; k >= 0; --k) {  // shards in reverse: the host sorts
@@ -404,12 +435,15 @@ public:
         }
     }
     void lp_fold(double zs, double full, double half) override {
+        host();
         each([&](EmuShard& s, int i) { kern::lp_fold_particle(s.P, i, zs, full, half); });
     }
     void long_loss(double zs, double ws, double dW, double dzMax) override {
+        host();
         each([&](EmuShard& s, int i) { kern::long_loss_particle(s.P, i, s.restMass.data(), zs, ws, dW, dzMax, false); });
     }
     void secondary(const LatScalars& ls, const SeHost& se, const kern::SeV& v, SeOut& out) override {
+        host();
         const int nSlots = std::max(se.nSlots, 1);
         out.planes.assign(static_cast<size_t>(n_) * nSlots * 8, 0.0);
         out.hits.clear();
@@ -439,6 +473,7 @@ public:
         }
     }
     void download_times(Beam& b) override {
+        host();
         for (EmuShard& s : sh_) std::copy(s.t.begin(), s.t.end(), b.t.begin() + s.lo);
     }
 
