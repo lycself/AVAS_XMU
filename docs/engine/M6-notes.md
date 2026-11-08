@@ -370,3 +370,129 @@ SPICNIC、FFT 的检验结果不变（SPICNIC 40³ 0.34 %，FFT meshrms 13 为 0
   30 个空间电荷算例（含 PX1–PX8）重跑、双卡、MPI 2 进程逐字节相同，PICNIC / SPICNIC 与 CPU 逐字节相同；GCC 无新警告，`nm -D` 7 个接口、GLIBC_2.14。
 - L40S、lyc-pc、XPS 仍无法连接，M6a 的欠账（第 8 节）未能补做。
 - 临时数据：A100 的 `~/avas_engine_work/tmp_m6c` 与 Mac 的构建 / 运行目录已删除，工具链保留。
+
+## M6c：Metal
+
+已定（用户）：Mac GPU 用 Metal；物理代码与 CUDA 共用；Apple GPU 没有 fp64，Metal 固定为 fp32 档；同一台机器重跑逐位相同，不能有依赖调度次序的浮点累加；
+CUDA 能跑的功能 Metal 都要能跑，不能跑或受限的项明确列出。本机：Apple M2（10 核 GPU，16 GB 统一内存，Metal 3），只有 Command Line Tools。
+
+### 1. 本机核实（2026-11-08，探针程序，不进仓库）
+
+| 问题 | 结果 | 对设计的影响 |
+|---|---|---|
+| 没有离线 `metal` 编译器时能否运行时编译 | 能：`newLibraryWithSource` 用的是系统自带的编译器，只装 CLT 即可；示例源 0.1–0.7 s，本段的全部内核约 0.3 s | 运行时编译，MSL 源在构建时嵌入库中；不需要 Xcode、不需要 metal-cpp（用 Objective-C++ 直接调 Metal.framework） |
+| MSL 与共享头文件 | 不支持 `double`、`long long`、lambda、程序作用域的非 `constant` 变量；**每个指针和引用都必须写地址空间**（`device` / `thread` / `constant`） | 共享代码要加地址空间宏（`AVAS_G` / `AVAS_T`，CPU 与 CUDA 上为空）、`avas_i64`、`AVAS_PCONST`；MSL 源开头 `#define double float`；lambda 改为函数 |
+| fast math | `mathMode = Safe`（macOS 15，旧系统 `fastMathEnabled = NO`）| 必须关闭 |
+| 浮点收缩 | 关闭 fast math 后 **仍会把 a·b + c 收缩成 FMA**（32 % 的样本与分开计算不同）；源中 `#pragma METAL fp contract(off)` 后 0 个不同 | 必须加这条 pragma；加了之后 GPU 的 float 加减乘除与 CPU 的 float（`-ffp-contract=off`）逐位相同 |
+| 内建 sin 等 | 与 macOS libm 的 sinf 在 27 % 的点上差 1 ulp | 需要与 CPU 逐位一致的地方用可移植实现（float 版 pmath，见第 2 节） |
+| 64 位原子 | `atomic_ulong` 只有 min / max，**没有原子加**（M2，Apple8） | 定点电荷累加拆成低 32 位与高 32 位两个 32 位原子加，低位溢出时向高位进 1：整数和与次序无关，逐位可重复 |
+| 统一内存 | `hasUnifiedMemory = 1`，单个缓冲区最大 8.6 GB；共享存储的缓冲区 CPU 与 GPU 直接读写，不需要拷贝 | 主机直接读写缓冲区；结构体里的设备指针用 `gpuAddress`（Metal 3） |
+
+### 2. 设计
+
+**共享代码编译成 MSL**：
+- `hd.h` 增加 Metal 分支：`AVAS_HD` 为空，`AVAS_G = device`、`AVAS_T = thread`、`AVAS_PCONST = constant`，`avas_i64 = long`，`hm::sqrt` 等用 `metal::precise::`；
+  CPU / CUDA 分支中这些宏为空、`avas_i64 = long long`，**生成的代码不变**（只是类型别名与空宏）。
+- MSL 源 = `#define double float` + `hd.h` + `mesh_kernels.h` + `sc_kernels.h` + `src/metal/kernels.metal`（CMake 在配置时拼接，去掉 `#include "core/…"`，
+  在 `hd.h` 之后加 `#pragma METAL fp contract(off)`），嵌入库中；运行时编译，关闭 fast math。
+- 需要改写的头文件：编入 MSL 的函数要给指针 / 引用加宏、`long long` 换成 `avas_i64`、lambda 换成函数。本段做了空间电荷网格部分：
+  `kern::MeshV` 与 `mesh_cell_t` / `mesh_trilinear` / `mesh_interp_t`（从 `kernels.h` 移到新的 `mesh_kernels.h`，算术不变），`sck::SpGrid`、`picnic_node`、
+  `sym_target`、`corr_node`、`grad_spicnic_node`；`sc_kernels.h` 的格林函数表、修正表与 FFT 部分只在主机 / CUDA 编译（`#ifndef AVAS_METAL`）。
+- 粒子推进（`kernels.h` 的 `trans_particle` 及场图、Boris、损失、事件面、二次粒子、z-code 行变换）要编入 MSL，同样要加地址空间宏、去掉 lambda，并且整个 fp32 档
+  要不用 double：CUDA 的 fp32 档仍在设备上用 double 算时间、RF 相位、同步粒子差分的重建与统计和，z-code、FFT、二次粒子整段用 fp64。
+  Metal 上这些要么在主机做（统一内存），要么用双 float（float-float）模拟。这是 M6c 的主要工作量，**本段没有完成**（第 5 节）。
+
+**fp32 的数学函数**：Metal 内建的 sin / cos / exp / log / atan（precise）与 macOS libm 不逐位相同。推荐为 fp32 档写 float 版的可移植实现
+（fdlibm 的 float 版 `__kernel_sinf` 等，只用加减乘除与位运算），CPU 的 fp32 参照与 Metal 共用，从而 Metal 与 emu 的 fp32 能逐位相同；
+内建函数作为备选（误差 ≤ 1–2 ulp，但不能与 CPU 逐位一致）。本段的空间电荷网格部分只用加减乘除、sqrt、floor、rint、ldexp（都是正确舍入或精确的）。
+
+**定点电荷累加**：每个分配量 v = round(w·q·2^e)（float 乘以 2 的整数次幂是精确的，`rint` 舍入到偶数），转成 64 位整数后拆成高低两个 32 位原子加：
+`old = atomic_add(lo, l)`，`carry = (old + l < old)`，`atomic_add(hi, h + carry)`。整数加法可交换，最终的 64 位和与线程次序无关。代价：每次分配多一次 32 位原子加，
+1e6 粒子、30³ 网格时分配核函数约 1 ms（第 4 节）。也考虑过按单元排序后分段归约（排序本身要可重复，开销更大），未采用。
+
+**归约、压缩、FFT、网格制表**：
+- 统计量的固定次序和：粒子在 GPU 上推进后，推荐在 GPU 上算每组（4096 个粒子）的部分和——float 积用 Dekker 分拆成两个 float、按定点整数累加，与次序无关——或者在主机上
+  直接读统一内存按 `reduce.h` 的固定分组求和（双精度）。本段统计在主机上算（粒子在主机）。
+- SPICNIC 修正表的压缩：本段在主机上建表（与 CPU、CUDA 同一顺序），GPU 只做求和。
+- FFT：不能用 MPS；沿用 CUDA 后端的直接变换需要 double 才能保持 1e-13 量级，float 的直接 DST / DFT 误差约 1e-6 量级。本段 FFT 在主机上解（双精度）。
+- PICNIC / SPICNIC 的格林函数表：在主机上用双精度算（与 CPU 相同的值），转成 float 写进统一内存；GPU 上 float 求和、float 差分。
+
+**设备选择与选项**：`device=metal`（环境变量 `AVAS_ENGINE_DEVICE=metal`）；没有 Metal、Metal 3 或编译失败时报错并说明原因；`auto` 暂不选 Metal（待定点）。
+`precision` 对 Metal 无意义（固定 fp32 档）；`gpus` 不适用（Apple 芯片只有一块 GPU）。compat=dll 只在 CPU。
+
+### 3. 实现（第一阶段：空间电荷网格在 GPU 上）
+
+| 文件 | 内容 |
+|---|---|
+| `src/core/hd.h` | Metal 分支与 `AVAS_G` / `AVAS_T` / `AVAS_PCONST` / `avas_i64` |
+| `src/core/mesh_kernels.h`（新） | `MeshV` 与逐粒子的网格函数（从 `kernels.h` 移出，lambda 改为 `mesh_trilinear`），带地址空间宏 |
+| `src/core/sc_kernels.h` | 求和与差分函数带地址空间宏；主机专用部分 `#ifndef AVAS_METAL` |
+| `src/core/device.h`、`device_emu.cpp` | `ScAccel` 接口：分配、PICNIC / SPICNIC 求解、插值可交给加速器；emu 的推进与归约改为按归约组多线程（每组写自己的输出，与线程数无关） |
+| `src/metal/kernels.metal`、`metal_backend.mm`（新） | 内核：定点分配（两个 32 位原子带进位）、插值、PICNIC、SPICNIC 八分之一求和与修正、差分；主机侧把 `MeshV` 换成 Metal 布局（启动时核对 sizeof） |
+| `src/core/metal_stub.cpp`、`device.cpp`、`options.*` | `device=metal`；不开 Metal 的构建给出明确报错 |
+| `CMakeLists.txt` | `AVAS_WITH_METAL`（只在 macOS，默认 OFF）：拼接 MSL 源、编译 `.mm`、链接 Metal / Foundation；C++ 编译器必须是 Apple clang（Objective-C++ 用同一个编译器、同一套 libc++），否则配置时报错——conda 激活的环境会设置 `CC`／`CXX`，conda 的 clang 编译不了 SDK 的 Foundation 头文件（复核时在本机默认 shell 里遇到），只改 `CMAKE_OBJCXX_COMPILER` 也不行（两种编译器的 libc++ 头文件不同） |
+| `tests/physics/sc_ellipsoid.cpp` | `--metal`：SPICNIC / PICNIC 的分配、求解、插值在 Metal 上重做 |
+
+第一阶段的 Metal 后端 = emu 设备（粒子在 CPU 上，fp64，多线程）+ Metal 上的空间电荷网格工作（fp32）。所以：没有空间电荷的算例与 CPU 逐字节相同；
+有空间电荷时只有网格部分是 fp32，与 CPU 的差别来自 fp32 的分配权重、求和与插值。
+
+### 4. 检查结果（Apple M2）
+
+- **`run_gpu.py --device metal`**（184 个默认模式算例）：无空间电荷的 154 个与 CPU **逐字节相同**；有空间电荷的 30 个重跑**逐字节相同**；
+  与 CPU 的差别（fp32 的网格部分）：DataSet 最大为列最大值的 1e-8～7e-6（SPICNIC 约 1e-6，PICNIC 1e-7～1e-6，FFT 只有分配与插值在 GPU 上，0～7e-6），
+  dst 粒子坐标 3e-10～2e-7 rms。误差研究（ER*）、硬边元件段、二次粒子、边界、lpboundary、导入空间电荷场等算例都在 Metal 设备上跑通。
+- **与 emu fp32 能否逐位相同**：本阶段粒子在 CPU 上（fp64），emu 没有 fp32 档，所以没有可比的对象；网格部分只用加减乘除、sqrt、floor、rint、ldexp，
+  关闭收缩后与 CPU 上同样的 float 运算逐位相同（探针核实），将来 fp32 粒子推进用 float 版可移植数学函数即可与 CPU 的 fp32 参照逐位一致。
+- **物理检验**：`avas_engine_physics --metal`（SPICNIC、PICNIC 在 Metal 上）与 CPU 的四位有效数字相同，阈值全部通过；DC KV（`AVAS_ENGINE_DEVICE=metal`）
+  SPICNIC 40³ 0.993、PICNIC 24³ 0.984，通过。
+- emu 的推进与归约改为多线程后，emu（2 个分片）与 CPU 仍逐字节相同。
+- **CPU 与 CUDA 不受影响**：Mac 不开 Metal 的构建全套通过（见第 6 节）；A100 上 CUDA 构建（GCC 12 + nvcc 12.4，无新警告，`nm -D` 7 个接口、GLIBC_2.14）
+  `run_gpu.py --gpus2 0,1 --mpi` 全部通过，154/154 逐字节相同，空间电荷算例重跑、双卡、MPI 逐字节相同（按正常 Slurm 申请 2 块空闲 GPU，未动用户的 7888_* 作业）。
+
+### 5. 性能（M2，hwr010 两周期线，`perf_gpu.py`，推进 + 空间电荷每步时间）
+
+| 配置 | 1e5 无 SC | 1e6 无 SC | 1e5 SPICNIC | 1e6 SPICNIC | 1e5 PICNIC | 1e6 PICNIC |
+|---|---|---|---|---|---|---|
+| CPU（8 线程） | 3.42 ms | 34.4 ms | 18.0 ms | 192 ms | 33.9 ms | 311 ms |
+| Metal 第一阶段 | 4.94 ms | 49.8 ms | 9.57 ms | 73.8 ms | 8.66 ms | 78.5 ms |
+
+- 有空间电荷时 Metal 快 1.9×（1e5）到 2.6×（1e6，SPICNIC）、4×（1e6，PICNIC）：网格求和与分配 / 插值在 GPU 上。
+- 没有空间电荷时慢约 1.45×：粒子在 emu 设备里推进（多线程，但每步多一份拷贝与组归约），GPU 不参与。粒子推进移到 GPU 之前，Metal 只在有空间电荷时有用。
+- 1e7 粒子没有测：emu 设备与主机各持一份 fp64 粒子数组（约 6.4 GB），16 GB 机器上接近内存上限。
+
+### 6. Mac 全套（不开 Metal 的构建）
+
+单元测试、`run_all.py`（compat=dll 最大差 3.44e-11 不变，inData 23/23 不变，libPIC 关键字检查通过）、`run_physics.py`、`tools_check.py`、`ruff` 通过；Clang 无新警告。
+
+### 7. 不能运行或受限的项（第一阶段）
+
+| 项 | 现状 |
+|---|---|
+| 粒子推进（t-code 场图 / Boris / 损失 / 事件面）、z-code、二次粒子、边界 | 在 CPU 上（emu 设备，fp64），不在 GPU 上 |
+| FFT 求解 | 在 CPU 上（emu 设备的直接变换，双精度）；只有分配与插值在 GPU 上 |
+| SPICNIC 修正表、格林函数表 | 在 CPU 上建（与 CPU 引擎同一张表），GPU 上 float 求和 |
+| 统计量 | 在 CPU 上（双精度、固定次序） |
+| `precision`、`gpus` 选项 | 对 Metal 无意义（固定 fp32 网格、只有一块 GPU） |
+| `device=auto` | 不选 Metal |
+| compat=dll | 只在 CPU |
+
+### 8. 未完成
+
+- **粒子推进移到 Metal**（fp32 档，相对同步粒子坐标）：要把 `kernels.h`、`physics.h`、`secondary.h` 中设备代码的全部指针与引用加地址空间宏、去掉 lambda、
+  把 CUDA fp32 档仍用 double 的部分（时间、RF 相位、记录重建、统计和、z-code、FFT、二次粒子）改为主机计算或 float-float，并写 float 版可移植数学函数。
+  本段只完成了空间电荷网格部分与基础设施（运行时编译、地址空间宏、统一内存、64 位定点原子），推进的移植没有做。
+- 1e7 粒子的性能、L40S / lyc-pc / XPS 上的 M6a 欠账（三台机器开始与结束时都无法连接）。
+
+### 9. 待用户决定（每项附推荐）
+
+1. **是否继续第二阶段（粒子推进移到 Metal）**：推荐继续，但先确定范围——只做 t-code 推进与统计（z-code、FFT、二次粒子留在 CPU），预计改动 `kernels.h` 的设备函数签名（只加空宏，CPU / CUDA 结果不变）。
+2. **数学函数**：推荐 fp32 档用 float 版的可移植实现（与 CPU 参照逐位一致）；另一选择是 Metal 内建 precise 函数（快，但只能保证 1–2 ulp）。
+3. **运行时编译**：推荐保持运行时编译（用户机器多半只有 CLT；每次启动约 0.3 s，可加磁盘缓存）；另一选择是要求安装完整 Xcode 离线编译 `.metallib`。
+4. **metal-cpp**：推荐不引入（Objective-C++ 直接调用 Metal.framework 已经足够，不增加第三方文件与许可证；metal-cpp 是 Apple 以 Apache-2.0 发布的头文件包，本段未下载）。
+5. **`AVAS_WITH_METAL` 的默认值**：推荐在 macOS 上默认打开（只依赖系统框架，不开时没有任何代价），但 `device` 的默认仍是 cpu。
+6. **`device=auto` 在 Mac 上**：推荐第一阶段仍选 CPU（无空间电荷时 Metal 更慢）；第二阶段完成后改为有空间电荷时选 Metal。
+7. **统计量放在哪里**（第二阶段）：推荐 GPU 上用定点整数累加每组的和（与次序无关、可重复），主机只合并组；另一选择是主机直接读统一内存求和（简单，但限制加速）。
+
+### 10. 临时数据
+
+Mac 上的探针程序、两套构建、run_gpu / 性能 / parity 运行目录已删除；A100 的 `~/avas_engine_work/tmp_m6d` 已删除，工具链保留；L40S、lyc-pc、XPS 未能登录。

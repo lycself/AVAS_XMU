@@ -15,6 +15,15 @@ std::unique_ptr<DeviceBackend> make_device_backend(long long nParticles, bool sp
         say("Device: " + be->describe());
         return be;
     }
+    if (o.device == Device::Metal) {
+        if (compat_dll()) throw EngineError("compat=dll is only available on the CPU (device metal was requested)");
+        std::string why;
+        std::unique_ptr<ScAccel> acc = make_metal_accel(why);
+        if (!acc) throw EngineError("device metal: " + why);
+        std::unique_ptr<DeviceBackend> be = make_emu_backend(std::move(acc));
+        say("Device: " + be->describe());
+        return be;
+    }
     const bool required = o.device == Device::Cuda;
     if (compat_dll()) {
         if (required) throw EngineError("compat=dll is only available on the CPU (device cuda was requested)");

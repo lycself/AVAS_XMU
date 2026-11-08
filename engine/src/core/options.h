@@ -5,13 +5,13 @@
 namespace avas {
 
 enum class Compat { None, Dll };
-enum class Device { Cpu, Cuda, Auto, Emu };  // Emu: test device (device back end on the CPU)
+enum class Device { Cpu, Cuda, Auto, Emu, Metal };  // Emu: test device (device back end on the CPU); Metal: macOS
 enum class Precision { Auto, Fp64, Fp32 };
 
 struct Options {
     Compat compat = Compat::None;  // None: defects corrected; Dll: reproduce AVAS.dll
     int threads = 0;               // 0 = std::thread::hardware_concurrency()
-    Device device = Device::Cpu;   // cpu (default), cuda (required), auto (GPU when usable)
+    Device device = Device::Cpu;   // cpu (default), cuda (required), auto (CUDA GPU when usable), metal (macOS)
     Precision precision = Precision::Auto;
     std::string gpus;              // "" = first visible GPU, "all", or a list "0,1"
     bool gpuAtomic = false;        // measurement only: non-deterministic atomic sums on the GPU

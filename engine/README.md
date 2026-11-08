@@ -45,6 +45,14 @@ M6b 决定（默认模式，compat=dll 不变）：`scmethod` 不区分大小写
 
 测试脚本的临时目录：`run_all.py`、`run_gpu.py` 不给 `--work` 时在 `$TMPDIR` 建临时目录并在结束时删除（`run_all.py --keep` 保留），给了 `--work` 的目录由使用者删除。
 
+## Metal（M6c，macOS GPU）
+
+构建：`CC=/usr/bin/clang CXX=/usr/bin/clang++ cmake -S engine -B build -DAVAS_WITH_METAL=ON && cmake --build build`（必须用 Apple 的 clang：conda 等环境设置的 `CC`／`CXX` 编译不了 SDK 的 Foundation 头文件，CMake 会直接报错；只需 Command Line Tools：
+Metal 着色器在运行时编译，源代码在构建时嵌入库中；需要支持 Metal 3 的 GPU（Apple 芯片等）与 macOS 13 以上）。默认 `AVAS_WITH_METAL=OFF`。
+运行：`AVAS_ENGINE_DEVICE=metal`（或 `avas_set_option("device", "metal")`）。第一阶段只把空间电荷的网格工作（电荷分配、PICNIC / SPICNIC 求和、插值）放在 GPU 上（fp32），
+粒子推进仍在 CPU 上（fp64，多线程）；没有空间电荷时结果与 CPU 逐字节相同。检查：`run_gpu.py --device metal`、`avas_engine_physics --metal`。
+设计、结果与限制见 [docs/engine/M6-notes.md](../docs/engine/M6-notes.md) 的 M6c 一节。
+
 ## 工具链检查结果（2026-11-07）
 
 用 CUDA 12.4 编译 sm_61/75/80/86/89/90 的机器码并附 compute_90 的 PTX，CUDA 运行库静态链接；Linux 版只依赖 GLIBC_2.14 和系统 libgomp。

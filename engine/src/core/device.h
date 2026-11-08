@@ -151,8 +151,32 @@ std::unique_ptr<DeviceBackend> make_device_backend(long long nParticles, bool sp
 // Only the CUDA build: the back end itself (null and a reason when no usable GPU).
 std::unique_ptr<DeviceBackend> make_cuda_backend(long long nParticles, bool spaceCharge, bool required,
                                                  std::string& why);
-// Test device "emu" (device_emu.cpp): the device back end on the CPU.
-std::unique_ptr<DeviceBackend> make_emu_backend();
+// Space-charge mesh work on an accelerator without fp64 (Metal, M6c phase 1): the particles stay in
+// the device back end of the CPU (emu, fp64) and only the deposit, the PICNIC / SPICNIC sums and the
+// interpolation run on the accelerator in fp32.  x, y, z are the rel coordinates of the particles.
+class ScAccel {
+public:
+    virtual ~ScAccel() = default;
+    virtual std::string describe() const = 0;
+    // Adds the fixed-point deposit of n particles to acc (64-bit integer sums, order independent).
+    virtual void deposit(const kern::MeshV& M, int n, const double* x, const double* y, const double* z,
+                         const double* q, const int* lost, std::vector<long long>& acc) = 0;
+    // PICNIC / SPICNIC on the accelerator (Green table and correction list from the host); false:
+    // not handled (FFT), the caller solves on the CPU.
+    virtual bool solve(const ScSolveIn& in, const double* G, const int* corr, const double* dval, long long nc,
+                       std::vector<double>& ex, std::vector<double>& ey, std::vector<double>& ez) = 0;
+    // Field at the particles from the mesh field ex, ey, ez (sc = 0 for lost particles).
+    virtual void interp(const kern::MeshV& M, const double* ex, const double* ey, const double* ez, int n,
+                        const double* x, const double* y, const double* z, const int* lost, double* scx, double* scy,
+                        double* scz) = 0;
+};
+
+// Test device "emu" (device_emu.cpp): the device back end on the CPU; with an accelerator for the
+// space-charge mesh work (Metal).
+std::unique_ptr<DeviceBackend> make_emu_backend(std::unique_ptr<ScAccel> accel = nullptr);
+// Metal (src/metal/, AVAS_WITH_METAL): the accelerator, or null and a reason.
+std::unique_ptr<ScAccel> make_metal_accel(std::string& why);
+bool metal_compiled();
 // Compiled with CUDA support?
 bool cuda_compiled();
 

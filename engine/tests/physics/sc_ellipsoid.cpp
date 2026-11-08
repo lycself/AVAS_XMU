@@ -7,8 +7,10 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <string>
 #include <vector>
 
+#include "core/device.h"
 #include "core/rng.h"
 #include "core/spacecharge.h"
 
@@ -27,6 +29,49 @@ static double kappa(int i) {
     }
     return kQ * 8987551787.368176 * 1.5 * sum;
 }
+
+// Metal (M6c): the deposit, the PICNIC / SPICNIC sums and the interpolation again on the GPU (fp32),
+// with the mesh and the Green table of the CPU solve; null when there is no Metal accelerator.
+static ScAccel* metal_accel() {
+    static std::unique_ptr<ScAccel> acc;
+    static bool tried = false;
+    if (!tried) {
+        tried = true;
+        std::string why;
+        if (metal_compiled()) acc = make_metal_accel(why);
+    }
+    return acc.get();
+}
+
+static void metal_redo(SpaceCharge& sc, Beam& b, int method) {
+    ScAccel* acc = metal_accel();
+    kern::MeshV M = sc.mesh_view(b);
+    std::vector<long long> fix(static_cast<size_t>(sc.nx()) * sc.ny() * sc.nz(), 0);
+    std::vector<double> scz(b.n);
+    acc->deposit(M, b.n, b.rel[0].data(), b.rel[2].data(), b.rel[4].data(), b.charge.data(), b.lost.data(), fix);
+    sc.set_rho(fix, 1.0);
+    ScSolveIn in{};
+    in.method = method;
+    in.nx = sc.nx();
+    in.ny = sc.ny();
+    in.nz = sc.nz();
+    in.mx = sc.mx();
+    in.my = sc.my();
+    in.mz = sc.mz();
+    in.rho = sc.rho().data();
+    in.dx = M.dx;
+    in.dy = M.dy;
+    in.dz = M.dz;
+    std::vector<int> corr;
+    std::vector<double> dval;
+    if (method == 1) sc.spicnic_prepare(corr, dval, in.thr);
+    acc->solve(in, sc.green().data(), corr.data(), dval.data(), static_cast<long long>(dval.size()), sc.ex(), sc.ey(), sc.ez());
+    M.Q = sc.total_charge();
+    acc->interp(M, sc.ex().data(), sc.ey().data(), sc.ez().data(), b.n, b.rel[0].data(), b.rel[2].data(), b.rel[4].data(),
+                b.lost.data(), b.scx.data(), b.scy.data(), b.scz.data());
+}
+
+static bool g_metal = false;
 
 // slope / analytic for the three axes, particles inside r_norm < rfit
 static void run(int method, int grid, double meshrms, int n, double rfit, const double kap[3], double out[3]) {
@@ -58,6 +103,7 @@ static void run(int method, int grid, double meshrms, int n, double rfit, const 
     b.rms = {kAx[0] / std::sqrt(5.0), kAx[1] / std::sqrt(5.0), kAx[2] / std::sqrt(5.0)};
     SpaceCharge sc(p, n);
     sc.solve(b, 1.0);
+    if (g_metal && method != 0) metal_redo(sc, b, method);
     const std::vector<double>* f[3] = {&b.scx, &b.scy, &b.scz};
     const std::vector<double>* q[3] = {&b.rel[0], &b.rel[2], &b.rel[4]};
     for (int a = 0; a < 3; ++a) {
@@ -72,7 +118,14 @@ static void run(int method, int grid, double meshrms, int n, double rfit, const 
     }
 }
 
-int main() {
+int main(int argc, char** argv) {
+    // --metal: SPICNIC and PICNIC on the Metal GPU (fp32); FFT stays on the CPU
+    g_metal = argc > 1 && std::string(argv[1]) == "--metal";
+    if (g_metal && !metal_accel()) {
+        std::printf("no Metal accelerator (build with AVAS_WITH_METAL=ON on macOS)\n");
+        return 1;
+    }
+    if (g_metal) std::printf("Metal: %s\n", metal_accel()->describe().c_str());
     double kap[3];
     for (int i = 0; i < 3; ++i) kap[i] = kappa(i);
     const double rfit = 0.8;

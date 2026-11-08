@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cmath>
 #include <sstream>
+#include <thread>
 
 #include "core/device.h"
 #include "core/errors.h"
@@ -30,6 +31,24 @@ struct EmuShard {
     std::vector<double> xs, ys, zs, ex3, ey3, ez3;
 };
 
+// Runs f(0..n-1) on the CPU threads (options threads, default all cores).  Every index writes its own
+// output (a reduction group), so the result does not depend on the thread count.
+template <class F>
+void par_for(int n, F&& f) {
+    int nt = options().threads > 0 ? options().threads : static_cast<int>(std::thread::hardware_concurrency());
+    nt = std::max(1, std::min(nt, n));
+    if (nt <= 1) {
+        for (int i = 0; i < n; ++i) f(i);
+        return;
+    }
+    std::vector<std::thread> th;
+    for (int t = 0; t < nt; ++t)
+        th.emplace_back([&, t] {
+            for (int i = t; i < n; i += nt) f(i);
+        });
+    for (auto& x : th) x.join();
+}
+
 template <class V>
 void cp_in(V& dst, const V& src, int lo, int n, int per = 1) {
     dst.assign(src.begin() + static_cast<long>(lo) * per, src.begin() + static_cast<long>(lo + n) * per);
@@ -37,8 +56,9 @@ void cp_in(V& dst, const V& src, int lo, int n, int per = 1) {
 
 class EmuBackend : public DeviceBackend {
 public:
-    explicit EmuBackend(int nDev) : nDev_(nDev) {}
+    EmuBackend(int nDev, std::unique_ptr<ScAccel> accel) : nDev_(nDev), accel_(std::move(accel)) {}
     std::string describe() const override {
+        if (accel_) return accel_->describe();
         return "emu (device back end on the CPU, " + std::to_string(nDev_) + " shard" + (nDev_ > 1 ? "s" : "") + ")";
     }
     bool fp32() const override { return false; }
@@ -126,8 +146,13 @@ public:
         kern::StepArgs a = a0;
         a.events = events.data();
         const kern::RfSrc src{rf.data(), a.tEnd};
-        for (EmuShard& s : sh_) {
-            for (int g = 0; g < red_groups(s.n()); ++g) {
+        std::vector<std::pair<int, int>> work;  // (shard, group)
+        for (int k = 0; k < static_cast<int>(sh_.size()); ++k)
+            for (int g = 0; g < red_groups(sh_[static_cast<size_t>(k)].n()); ++g) work.push_back({k, g});
+        par_for(static_cast<int>(work.size()), [&](int w) {
+            {
+                EmuShard& s = sh_[static_cast<size_t>(work[static_cast<size_t>(w)].first)];
+                const int g = work[static_cast<size_t>(w)].second;
                 StepGroup& o = out[static_cast<size_t>(s.lo / kRedGroup + g)];
                 for (int j = 0; j < 6; ++j) o.mx[j] = 0.0;
                 o.zmin = 1e10;
@@ -145,9 +170,11 @@ public:
                     o.sp += ct.sp;
                     if (s.rec[8 * static_cast<size_t>(i) + 7] == 1.0) o.rec += 1.0;
                 }, o.s);
-                spCount += static_cast<long long>(o.sp);
-                recCount += static_cast<long long>(o.rec);
             }
+        });
+        for (const StepGroup& o : out) {
+            spCount += static_cast<long long>(o.sp);
+            recCount += static_cast<long long>(o.rec);
         }
     }
 
@@ -220,6 +247,10 @@ public:
             M.xs = s.xs.data();
             M.ys = s.ys.data();
             M.zs = s.zs.data();
+            if (accel_) {
+                accel_->deposit(M, s.n(), s.rel[0].data(), s.rel[2].data(), s.rel[4].data(), s.charge.data(), s.lost.data(), acc);
+                continue;
+            }
             for (int p = s.n() - 1; p >= 0; --p) {  // any order: integer sums
                 if (s.lost[p] == 1) continue;
                 int i, j, k;
@@ -251,6 +282,13 @@ public:
                 sck::green_cell(g, F.data(), in.vol, static_cast<int>(e / (g.my * g.mz)), static_cast<int>((e / g.mz) % g.my),
                                 static_cast<int>(e % g.mz), G_.data());
         }
+        if (accel_ && (in.method == 1 || in.method == 2)) {
+            // accelerator: the sums in fp32 there; table and correction list from the host (fp64)
+            std::vector<int> corr;
+            std::vector<double> dval;
+            if (in.method == 1) corr_list(g, in, corr, dval);
+            if (accel_->solve(in, G_.data(), corr.data(), dval.data(), static_cast<long long>(dval.size()), ex_, ey_, ez_)) return;
+        }
         if (in.method == 2) {
             for (long long id = n3 - 1; id >= 0; --id) {
                 g.ijk(id, i, j, k);
@@ -260,17 +298,8 @@ public:
         if (in.method == 1) {
             std::vector<int> corr;
             std::vector<double> dval;
+            corr_list(g, in, corr, dval);
             const long long nt = g.n_targets();
-            for (long long q = 0; q < 8 * nt; ++q) {
-                int I, J, K;
-                const double d = sck::corr_value(g, in.rho, in.thr, q / 8, static_cast<int>(q % 8), I, J, K);
-                if (d != 0.0) {
-                    corr.push_back(I);
-                    corr.push_back(J);
-                    corr.push_back(K);
-                    dval.push_back(d);
-                }
-            }
             const long long nc = static_cast<long long>(dval.size());
             for (long long id = nt - 1; id >= 0; --id) {  // any order: independent targets
                 g.target(id, i, j, k);
@@ -324,6 +353,20 @@ public:
             sck::grad_fft_node(g, phi_.data(), hx, hy, hz, i, j, k, ex_.data(), ey_.data(), ez_.data());
         }
     }
+    // SPICNIC correction list in the order of the GPU (sck::corr_value).
+    static void corr_list(const sck::SpGrid& g, const ScSolveIn& in, std::vector<int>& corr, std::vector<double>& dval) {
+        const long long nt = g.n_targets();
+        for (long long q = 0; q < 8 * nt; ++q) {
+            int I, J, K;
+            const double d = sck::corr_value(g, in.rho, in.thr, q / 8, static_cast<int>(q % 8), I, J, K);
+            if (d != 0.0) {
+                corr.push_back(I);
+                corr.push_back(J);
+                corr.push_back(K);
+                dval.push_back(d);
+            }
+        }
+    }
     void sc_fields(std::vector<double>& ex, std::vector<double>& ey, std::vector<double>& ez) override {
         ex = ex_;
         ey = ey_;
@@ -335,6 +378,11 @@ public:
             M.xs = s.xs.data();
             M.ys = s.ys.data();
             M.zs = s.zs.data();
+            if (accel_) {
+                accel_->interp(M, ex_.data(), ey_.data(), ez_.data(), s.n(), s.rel[0].data(), s.rel[2].data(), s.rel[4].data(),
+                               s.lost.data(), s.scx.data(), s.scy.data(), s.scz.data());
+                continue;
+            }
             for (int p = 0; p < s.n(); ++p) kern::mesh_interp(M, s.P, p, ex_.data(), ey_.data(), ez_.data(), sck::kE);
         }
     }
@@ -404,6 +452,7 @@ private:
     LatScalars sc_{};
     std::vector<EmuShard> sh_;
     std::vector<double> G_, phi_, ex_, ey_, ez_;
+    std::unique_ptr<ScAccel> accel_;
 
     void set_scalars(const LatScalars& ls) {
         lat_ = L_->view(Lattice());
@@ -440,20 +489,25 @@ private:
     void reduce(F&& f, double* out) {
         const int ng = red_groups(n_);
         std::vector<double> all(static_cast<size_t>(std::max(ng, 1)) * K, 0.0);
-        for (EmuShard& s : sh_)
-            for (int g = 0; g < red_groups(s.n()); ++g)
-                group_sum<K>(g * kRedGroup, s.n(), [&](int i, double* c) { f(s, i, c); },
-                             all.data() + static_cast<size_t>(s.lo / kRedGroup + g) * K);
+        std::vector<std::pair<int, int>> work;  // (shard, group), in parallel: one output slot each
+        for (int k = 0; k < static_cast<int>(sh_.size()); ++k)
+            for (int g = 0; g < red_groups(sh_[static_cast<size_t>(k)].n()); ++g) work.push_back({k, g});
+        par_for(static_cast<int>(work.size()), [&](int w) {
+            EmuShard& s = sh_[static_cast<size_t>(work[static_cast<size_t>(w)].first)];
+            const int g = work[static_cast<size_t>(w)].second;
+            group_sum<K>(g * kRedGroup, s.n(), [&](int i, double* c) { f(s, i, c); },
+                         all.data() + static_cast<size_t>(s.lo / kRedGroup + g) * K);
+        });
         sum_groups<K>(all.data(), ng, out);
     }
 };
 
 }  // namespace
 
-std::unique_ptr<DeviceBackend> make_emu_backend() {
+std::unique_ptr<DeviceBackend> make_emu_backend(std::unique_ptr<ScAccel> accel) {
     const std::string& g = options().gpus;
-    const int n = g.empty() ? 1 : static_cast<int>(std::count(g.begin(), g.end(), ',')) + 1;
-    return std::make_unique<EmuBackend>(n);
+    const int n = accel || g.empty() ? 1 : static_cast<int>(std::count(g.begin(), g.end(), ',')) + 1;
+    return std::make_unique<EmuBackend>(n, std::move(accel));
 }
 
 }  // namespace avas

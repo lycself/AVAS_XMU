@@ -34,6 +34,7 @@ int set_option(const std::string& key, const std::string& value) {
         else if (value == "cuda" || value == "gpu") options().device = Device::Cuda;
         else if (value == "auto") options().device = Device::Auto;
         else if (value == "emu") options().device = Device::Emu;
+        else if (value == "metal") options().device = Device::Metal;
         else return -2;
         return 0;
     }

@@ -8,37 +8,41 @@
 //            same function, so CPU and GPU agree bit for bit.
 //   Green table and SPICNIC correction list: computed per entry here, on the host (CPU engine) and on
 //            the device (GPU back ends) with the same code.
+//   Metal: SpGrid and the PICNIC / SPICNIC sums are compiled as MSL (float, see hd.h); the rest of
+//          this file is host / CUDA only.
 #pragma once
+#include "core/hd.h"
+#ifndef AVAS_METAL
 #include <cmath>
 #include <vector>
 
-#include "core/hd.h"
 #include "core/pmath.h"
+#endif
 
 namespace avas {
 namespace sck {
 
-constexpr double kE = 8987551787.368176;  // 1/(4 pi eps0)
+AVAS_PCONST constexpr double kE = 8987551787.368176;  // 1/(4 pi eps0)
 
 struct SpGrid {
     int nx, ny, nz, mx, my, mz;
-    AVAS_HD long long n3() const { return static_cast<long long>(nx) * ny * nz; }
-    AVAS_HD long long at(int i, int j, int k) const { return (static_cast<long long>(i) * ny + j) * nz + k; }
-    AVAS_HD long long gat(int a, int b, int c) const {
-        return (static_cast<long long>(a) * (2 * ny + 1) + b) * (2 * nz + 1) + c;
+    AVAS_HD avas_i64 n3() const { return static_cast<avas_i64>(nx) * ny * nz; }
+    AVAS_HD avas_i64 at(int i, int j, int k) const { return (static_cast<avas_i64>(i) * ny + j) * nz + k; }
+    AVAS_HD avas_i64 gat(int a, int b, int c) const {
+        return (static_cast<avas_i64>(a) * (2 * ny + 1) + b) * (2 * nz + 1) + c;
     }
-    AVAS_HD void ijk(long long id, int& i, int& j, int& k) const {
-        i = static_cast<int>(id / (static_cast<long long>(ny) * nz));
+    AVAS_HD void ijk(avas_i64 id, AVAS_T int& i, AVAS_T int& j, AVAS_T int& k) const {
+        i = static_cast<int>(id / (static_cast<avas_i64>(ny) * nz));
         j = static_cast<int>((id / nz) % ny);
         k = static_cast<int>(id % nz);
     }
     // upper octant targets
-    AVAS_HD long long n_targets() const {
-        return static_cast<long long>(nx - nx / 2) * (ny - ny / 2) * (nz - nz / 2);
+    AVAS_HD avas_i64 n_targets() const {
+        return static_cast<avas_i64>(nx - nx / 2) * (ny - ny / 2) * (nz - nz / 2);
     }
-    AVAS_HD void target(long long id, int& i, int& j, int& k) const {
+    AVAS_HD void target(avas_i64 id, AVAS_T int& i, AVAS_T int& j, AVAS_T int& k) const {
         const int nj = ny - ny / 2, nk = nz - nz / 2;
-        i = nx / 2 + static_cast<int>(id / (static_cast<long long>(nj) * nk));
+        i = nx / 2 + static_cast<int>(id / (static_cast<avas_i64>(nj) * nk));
         j = ny / 2 + static_cast<int>((id / nk) % nj);
         k = nz / 2 + static_cast<int>(id % nk);
     }
@@ -50,7 +54,8 @@ AVAS_HD inline int imin(int a, int b) { return a < b ? a : b; }
 // Potential of the octant charge mirrored into the 8 octants at target (i, j, k), times 1/(4 pi eps0),
 // written to the 8 mirror nodes.
 template <class T>
-AVAS_HD inline void sym_target(const SpGrid& g, const T* rho, const T* G, T thr, int i, int j, int k, double* phi) {
+AVAS_HD inline void sym_target(AVAS_T const SpGrid& g, const AVAS_G T* rho, const AVAS_G T* G, T thr, int i, int j, int k,
+                               AVAS_G double* phi) {
     const int nx = g.nx, ny = g.ny, nz = g.nz, mx = g.mx, my = g.my, mz = g.mz;
     const int seg[3][2][2] = {
         {{imax(0, i - mx), imin(imin(nx, i + mx), (nx + 1) / 2)}, {imax(imax(0, i - mx), nx / 2), imin(nx, i + mx)}},
@@ -80,14 +85,15 @@ AVAS_HD inline void sym_target(const SpGrid& g, const T* rho, const T* G, T thr,
 
 // Asymmetric part of the charge at node (a, bb, c): sum over the correction list, added to phi.
 template <class T>
-AVAS_HD inline void corr_node(const SpGrid& g, const T* G, const int* corr, const T* dval, long long nc, int a, int bb,
-                              int c, double* phi) {
+AVAS_HD inline void corr_node(AVAS_T const SpGrid& g, const AVAS_G T* G, const AVAS_G int* corr, const AVAS_G T* dval, avas_i64 nc,
+                              int a, int bb, int c, AVAS_G double* phi) {
     T s = T(0);
-    for (long long q = 0; q < nc; ++q)
+    for (avas_i64 q = 0; q < nc; ++q)
         s = G[g.gat(g.nx + corr[3 * q] - a, g.ny + corr[3 * q + 1] - bb, g.nz + corr[3 * q + 2] - c)] * dval[q] + s;
     phi[g.at(a, bb, c)] = static_cast<double>(s) * kE + phi[g.at(a, bb, c)];
 }
 
+#ifndef AVAS_METAL
 // ---- Green table of the corrected SPICNIC and of PICNIC: exact cell average of 1/r ----
 // Antiderivative F(x, y, z) of 1/r (portable log / atan: the same bits on the host and the GPU).
 AVAS_HD inline double box_F(double x, double y, double z) {
@@ -116,7 +122,7 @@ AVAS_HD inline void green_cell(const SpGrid& g, const double* F, double vol, int
         for (int j = 0; j < 2; ++j)
             for (int k = 0; k < 2; ++k) {
                 const double sign = ((i + j + k) % 2 == 0) ? -1.0 : 1.0;  // + at (x1, y1, z1)
-                sum += sign * F[(static_cast<long long>(a + i) * ay + (bb + j)) * az + (c + k)];
+                sum += sign * F[(static_cast<avas_i64>(a + i) * ay + (bb + j)) * az + (c + k)];
             }
     const double v = sum / vol;
     for (int sa = -1; sa <= 1; sa += 2)
@@ -126,7 +132,7 @@ AVAS_HD inline void green_cell(const SpGrid& g, const double* F, double vol, int
 
 // SPICNIC asymmetric correction of the upper-octant target t (index of SpGrid::target), mirror m
 // (0..7 in the order I, J, K of spicnic_prepare): the charge difference, or 0 when it is dropped.
-AVAS_HD inline double corr_value(const SpGrid& g, const double* rho, double thr, long long t, int m, int& I, int& J,
+AVAS_HD inline double corr_value(const SpGrid& g, const double* rho, double thr, avas_i64 t, int m, int& I, int& J,
                                  int& K) {
     int i, j, k;
     g.target(t, i, j, k);
@@ -137,17 +143,19 @@ AVAS_HD inline double corr_value(const SpGrid& g, const double* rho, double thr,
     return (d != 0.0 && (thr <= d || d <= -thr)) ? d : 0.0;
 }
 
+#endif  // AVAS_METAL
+
 // ---- PICNIC (libPIC.so): direct sum of the whole mesh charge with the Green table ----
 // Potential at node (i, j, k) times 1/(4 pi eps0): every source node in the order of the mesh
 // (x, then y, then z innermost); empty nodes add nothing (skipping them keeps the bits).
 template <class T>
-AVAS_HD inline double picnic_node(const SpGrid& g, const T* rho, const T* G, int i, int j, int k) {
+AVAS_HD inline double picnic_node(AVAS_T const SpGrid& g, const AVAS_G T* rho, const AVAS_G T* G, int i, int j, int k) {
     const int nx = g.nx, ny = g.ny, nz = g.nz;
     T S = T(0);
     for (int a = 0; a < nx; ++a)
         for (int bb = 0; bb < ny; ++bb) {
-            const T* row = rho + g.at(a, bb, 0);
-            const T* grow = G + g.gat(nx - i + a, ny - j + bb, nz - k);
+            const AVAS_G T* row = rho + g.at(a, bb, 0);
+            const AVAS_G T* grow = G + g.gat(nx - i + a, ny - j + bb, nz - k);
             for (int c = 0; c < nz; ++c) {
                 const T r = row[c];
                 if (r != T(0)) S = r * grow[c] + S;
@@ -162,15 +170,16 @@ AVAS_HD inline double sp_grad(int i, int n, double pm, double p0, double pp, dou
     return -(pp - pm) * h;
 }
 
-AVAS_HD inline void grad_spicnic_node(const SpGrid& g, const double* phi, double hx, double hy, double hz, int i, int j,
-                                      int k, double* ex, double* ey, double* ez) {
-    const long long id = g.at(i, j, k);
+AVAS_HD inline void grad_spicnic_node(AVAS_T const SpGrid& g, const AVAS_G double* phi, double hx, double hy, double hz, int i,
+                                      int j, int k, AVAS_G double* ex, AVAS_G double* ey, AVAS_G double* ez) {
+    const avas_i64 id = g.at(i, j, k);
     const double p0 = phi[id];
     ex[id] = sp_grad(i, g.nx, i > 0 ? phi[g.at(i - 1, j, k)] : 0.0, p0, i + 1 < g.nx ? phi[g.at(i + 1, j, k)] : 0.0, hx);
     ey[id] = sp_grad(j, g.ny, j > 0 ? phi[g.at(i, j - 1, k)] : 0.0, p0, j + 1 < g.ny ? phi[g.at(i, j + 1, k)] : 0.0, hy);
     ez[id] = sp_grad(k, g.nz, k > 0 ? phi[g.at(i, j, k - 1)] : 0.0, p0, k + 1 < g.nz ? phi[g.at(i, j, k + 1)] : 0.0, hz);
 }
 
+#ifndef AVAS_METAL
 // DST-I along axis 0 (x) or 1 (y) at node (i, j, k); sinTab[q] = sin(pi q / (N + 1)).
 AVAS_HD inline double dst_node(const SpGrid& g, int axis, const double* in, const double* sinTab, int i, int j, int k) {
     const int N = axis == 0 ? g.nx : g.ny;
@@ -187,11 +196,11 @@ AVAS_HD inline double dst_node(const SpGrid& g, int axis, const double* in, cons
 // Complex DFT along z at node (i, j, k): sign -1 forward, +1 backward (im may be null: real input).
 AVAS_HD inline void dft_z_node(const SpGrid& g, const double* re, const double* im, const double* cosTab, const double* sinTab,
                                double sign, int i, int j, int k, double& ore, double& oim) {
-    const long long base = g.at(i, j, 0);
+    const avas_i64 base = g.at(i, j, 0);
     const int N = g.nz;
     double sr = 0.0, si = 0.0;
     for (int m = 0; m < N; ++m) {
-        const int q = static_cast<int>((static_cast<long long>(m) * k) % N);
+        const int q = static_cast<int>((static_cast<avas_i64>(m) * k) % N);
         const double c = cosTab[q], s = sign * sinTab[q];
         const double xr = re[base + m], xi = im ? im[base + m] : 0.0;
         sr = sr + (xr * c - xi * s);
@@ -207,7 +216,7 @@ AVAS_HD inline double green_factor(const double* lx, const double* ly, const dou
 
 AVAS_HD inline void grad_fft_node(const SpGrid& g, const double* phi, double hx, double hy, double hz, int i, int j, int k,
                                   double* ex, double* ey, double* ez) {
-    const long long id = g.at(i, j, k);
+    const avas_i64 id = g.at(i, j, k);
     const double xp = i + 1 < g.nx ? phi[g.at(i + 1, j, k)] : 0.0;
     const double xm = i > 0 ? phi[g.at(i - 1, j, k)] : 0.0;
     const double yp = j + 1 < g.ny ? phi[g.at(i, j + 1, k)] : 0.0;
@@ -240,6 +249,8 @@ inline FftTables fft_tables(int nx, int ny, int nz) {
     }
     return t;
 }
+
+#endif  // AVAS_METAL
 
 }  // namespace sck
 }  // namespace avas

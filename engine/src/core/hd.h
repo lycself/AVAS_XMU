@@ -1,10 +1,37 @@
-// Device-neutral annotations for the physics code shared by the CPU, CUDA (and later Metal) builds.
+// Device-neutral annotations for the physics code shared by the CPU, CUDA and Metal builds.
 //
 // The physics headers (physics.h, pmath.h, kernels.h, reduce.h) only use the macros below and the
 // math wrappers in namespace avas::hm; nothing in them is specific to one device API.  The CUDA
 // back end (src/cuda/) compiles the same headers with nvcc, where AVAS_HD becomes
 // __host__ __device__.  Memory management, kernel launches and streams live in the back end only.
 #pragma once
+
+#if defined(__METAL_VERSION__)
+// ---- Metal (MSL, compiled at run time by the Metal back end, src/metal/) ----
+// MSL has no double, no long long and needs an address space on every pointer and reference:
+// the back end defines `double` as float before this header; AVAS_G / AVAS_T mark device and
+// thread memory, avas_i64 is the 64-bit integer.  Only the headers listed in metal_backend.mm
+// are compiled for Metal.
+#include <metal_stdlib>
+#define AVAS_HD
+#define AVAS_RESTRICT
+#define AVAS_G device
+#define AVAS_T thread
+#define AVAS_PCONST constant  // program-scope constants
+#define AVAS_DEVICE_COMPILE 1
+#define AVAS_METAL 1
+typedef long avas_i64;
+
+namespace avas {
+namespace hm {
+inline float sqrt(float x) { return metal::precise::sqrt(x); }
+inline float fabs(float x) { return metal::fabs(x); }
+inline float ceil(float x) { return metal::ceil(x); }
+inline float floor(float x) { return metal::floor(x); }
+}  // namespace hm
+}  // namespace avas
+
+#else
 #include <math.h>
 
 #include <cmath>
@@ -20,6 +47,12 @@
 #define AVAS_HD
 #endif
 #endif
+
+// Address spaces of the Metal build (empty on the CPU and in CUDA).
+#define AVAS_G
+#define AVAS_T
+#define AVAS_PCONST
+typedef long long avas_i64;
 
 // Restrict-qualified pointers where the back end can use them (no effect on the results).
 #if defined(__CUDACC__) || defined(__GNUC__) || defined(__clang__)
@@ -66,3 +99,5 @@ AVAS_HD inline double dfrom(std::uint64_t u) {
 
 }  // namespace hm
 }  // namespace avas
+
+#endif  // __METAL_VERSION__

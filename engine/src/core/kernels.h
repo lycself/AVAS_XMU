@@ -15,6 +15,7 @@
 #include <cstdint>
 
 #include "core/hd.h"
+#include "core/mesh_kernels.h"
 #include "core/physics.h"
 #include "core/pmath.h"
 #include "core/reduce.h"
@@ -982,99 +983,10 @@ AVAS_HD inline void hesc_pass2(const PartV& b, int i, const double* cen, double 
     c[2] = az * az;
 }
 
-// ---- space-charge mesh: CIC deposit cell and weights, interpolation (PIC::Weight / Allocate) ----
-
-struct MeshV {
-    int nx, ny, nz;
-    double dx, dy, dz, vol, gamma, igamma;
-    double c0, c2, c4;    // centroid x, y, z
-    int lpRel;            // lpboundary: stretch about the synchronous particle
-    int lpc;              // lpboundary: out-of-mesh distance from the mesh centre
-    int compat;
-    const double* xs;     // node coordinates
-    const double* ys;
-    const double* zs;
-    double Q;             // total mesh charge (for particles outside the mesh)
-    int rotMode;
-    double rs, rc;
-    long long fixScaleExp;  // corrected engine: fixed-point deposit, charge * 2^fixScaleExp
-};
-
-// Cell (i, j, k) and the 8 CIC weights of a particle at rel = (x, y, z4); true inside the mesh.
-template <class R>
-AVAS_HD inline bool mesh_cell_t(const MeshV& M, R x, R y, R z4, int& i, int& j, int& k, R* w) {
-    // lpboundary 1: AVAS.dll stretches about the synchronous particle only in the threaded deposit,
-    // the serial one about the centroid; the corrected engine always about the synchronous particle
-    const R g = R(M.gamma), c4 = R(M.c4);
-    const R zr = M.lpRel ? (M.compat ? z4 * g + c4 : z4 * g) : (z4 - c4) * g + c4;
-    i = static_cast<int>(hm::floor((x - R(M.xs[0])) / R(M.dx)));
-    j = static_cast<int>(hm::floor((y - R(M.ys[0])) / R(M.dy)));
-    k = static_cast<int>(hm::floor((zr - R(M.zs[0])) / R(M.dz)));
-    if (0 <= i && i < M.nx - 1 && 0 <= j && j < M.ny - 1 && 0 <= k && k < M.nz - 1) {
-        for (int m = 0; m < 8; ++m) {
-            const int ii = i + ((m & 1) ^ 1);
-            const int jj = j + (((m & 3) == 1 || (m & 3) == 0) ? 1 : 0);
-            const int kk = k + (m < 4 ? 1 : 0);
-            w[m] = hm::fabs(x - R(M.xs[ii])) * hm::fabs(y - R(M.ys[jj])) * hm::fabs(zr - R(M.zs[kk])) / R(M.vol);
-        }
-        return true;
-    }
-    for (int m = 0; m < 8; ++m) w[m] = R(0);
-    return false;
-}
+// ---- space-charge mesh: MeshV and the per-particle mesh functions are in mesh_kernels.h ----
 
 AVAS_HD inline bool mesh_cell(const MeshV& M, const PartV& b, int p, int& i, int& j, int& k, double* w) {
     return mesh_cell_t<double>(M, b.rel[0][p], b.rel[2][p], b.rel[4][p], i, j, k, w);
-}
-
-AVAS_HD inline long long mesh_at(const MeshV& M, int i, int j, int k) {
-    return (static_cast<long long>(i) * M.ny + j) * M.nz + k;
-}
-
-// Node of corner m of cell (i, j, k), in the order of the deposit.
-AVAS_HD inline long long mesh_corner(const MeshV& M, int i, int j, int k, int m) {
-    const int di = m & 1, dj = (m >> 1) & 1, dk = (m >> 2) & 1;
-    return mesh_at(M, i + di, j + dj, k + dk);
-}
-
-// Space-charge field of a particle at rel = (x, y, z4) from the mesh field (lab frame, E_perp / gamma).
-template <class R>
-AVAS_HD inline void mesh_interp_t(const MeshV& M, R x, R y, R z4, const double* ex, const double* ey, const double* ez,
-                                  double kE, R* sc) {
-    int i, j, k;
-    R w[8];
-    if (mesh_cell_t<R>(M, x, y, z4, i, j, k, w)) {
-        auto interp = [&](const double* g) {
-            return R(g[mesh_at(M, i, j, k)]) * w[0] + R(g[mesh_at(M, i + 1, j, k)]) * w[1] +
-                   R(g[mesh_at(M, i, j + 1, k)]) * w[2] + R(g[mesh_at(M, i + 1, j + 1, k)]) * w[3] +
-                   R(g[mesh_at(M, i, j, k + 1)]) * w[4] + R(g[mesh_at(M, i + 1, j, k + 1)]) * w[5] +
-                   R(g[mesh_at(M, i, j + 1, k + 1)]) * w[6] + R(g[mesh_at(M, i + 1, j + 1, k + 1)]) * w[7];
-        };
-        const R Ez = interp(ez), Ey = interp(ey), Ex = interp(ex);
-        R sx = Ex * R(M.igamma), sy = Ey * R(M.igamma), sz = Ez;
-        const R rc = R(M.rc), rs = R(M.rs);
-        if (M.rotMode == 1) {
-            const R ny = sy * rc - sz * rs, nz = sy * rs + sz * rc;
-            sy = ny;
-            sz = nz;
-        } else if (M.rotMode != 0) {
-            const R nx = sx * rc + sz * rs, nz = sz * rc - sx * rs;
-            sx = nx;
-            sz = nz;
-        }
-        sc[0] = sx;
-        sc[1] = sy;
-        sc[2] = sz;
-    } else {
-        const R ddx = M.lpc ? x : x - R(M.c0);
-        const R ddy = M.lpc ? y : y - R(M.c2);
-        const R ddz = M.lpc ? z4 : z4 - R(M.c4);
-        const R r = hm::sqrt(ddx * ddx + ddy * ddy + ddz * ddz);
-        const R f = (((R(M.Q) * R(kE)) / r) / r) / r * R(M.igamma);
-        sc[0] = ddx * f;
-        sc[1] = ddy * f;
-        sc[2] = f * ddz * R(M.gamma);
-    }
 }
 
 AVAS_HD inline void mesh_interp(const MeshV& M, const PartV& b, int p, const double* ex, const double* ey,
