@@ -899,3 +899,11 @@ L40S 的 5 号卡测试时另有进程占用 70～80 %，数字只作参考；�
 **临时数据**：Mac 的构建 / 运行目录（scratchpad，含第四阶段对照构建）已删除，`$TMPDIR` 下没有 `avas_*` 目录；L40S 的 `/data/public/lycself/avas_m7tmp`
 （含 manylinux 构建输出）与 lyc-pc 的 `~/avas_m7tmp` 已删除，L40S 上原有的 `avas-engine-build:cuda12.4-manylinux2014` 镜像保留（工具链）。
 A100 的 `~/avas_engine_work/tmp_m7` 在作业 7963 完成后已删除（两个失效的排队作业 7950、7957 运行时即失败退出）。工具链 `~/avas_engine_work/toolchains` 保留。
+
+### 18. 用户决定（2026-11-11）
+第 17 节的 3 个待定点全部按推荐：
+1. 多卡 fp32 暂不完全去掉托管内存，等需要 Windows 多卡时再做。
+2. SPICNIC 求和暂不按固定分段并行，fp32 的 SPICNIC 结果保持现状；用户的典型网格变大、求解时间明显超过推进时再做（届时所有 fp32 设备一起改，末位变化要在开发记录中说明）。
+3. importSCF 不放到设备上。
+
+M6c 到此结束。仍欠的验收：XPS 可以连接后补做 Windows MSVC strict parity、`test_error_study` 三种方式、MSVC CUDA 构建与 GTX 1650 上的 fp32 / fp64 比对和性能（含单卡不用托管内存的 WDDM 路径）。
