@@ -315,6 +315,9 @@ public:
         }
     }
     void sc_solve(const ScSolveIn& in) override {
+        // the accelerator solves on its own and keeps the field (fetched by fields() when the host needs it)
+        accelField_ = accel_ && accel_->solve_mesh(in);
+        if (accelField_) return;
         const sck::SpGrid g{in.nx, in.ny, in.nz, in.mx, in.my, in.mz};
         const long long n3 = g.n3();
         phi_.assign(static_cast<size_t>(n3), 0.0);
@@ -341,13 +344,6 @@ public:
                     sck::green_cell(g, F.data(), in.vol, static_cast<int>(e / (g.my * g.mz)), static_cast<int>((e / g.mz) % g.my),
                                     static_cast<int>(e % g.mz), G_.data());
             });
-        }
-        if (accel_ && (in.method == 1 || in.method == 2)) {
-            // accelerator: the sums in fp32 there; table and correction list from the host (fp64)
-            std::vector<int> corr;
-            std::vector<double> dval;
-            if (in.method == 1) corr_list(g, in, corr, dval);
-            if (accel_->solve(in, G_.data(), corr.data(), dval.data(), static_cast<long long>(dval.size()), ex_, ey_, ez_)) return;
         }
         if (in.method == 2) {
             for (long long id = n3 - 1; id >= 0; --id) {
@@ -427,16 +423,25 @@ public:
             }
         }
     }
+    // the accelerator's field into ex_, ey_, ez_ (once per solve)
+    void host_fields() {
+        if (!accelField_) return;
+        accel_->fields(ex_, ey_, ez_);
+        accelField_ = false;
+    }
     void sc_fields(std::vector<double>& ex, std::vector<double>& ey, std::vector<double>& ez) override {
+        host_fields();
         ex = ex_;
         ey = ey_;
         ez = ez_;
     }
     void sc_interp(const kern::MeshV& M0) override {
         if (accel_ && accel_->authoritative()) {
-            accel_->interp_state(M0, ex_.data(), ey_.data(), ez_.data(), sh_[0].n());
+            if (accelField_) accel_->interp_state(M0, nullptr, nullptr, nullptr, sh_[0].n());
+            else accel_->interp_state(M0, ex_.data(), ey_.data(), ez_.data(), sh_[0].n());
             return;
         }
+        host_fields();
         for (EmuShard& s : sh_) {
             kern::MeshV M = M0;
             M.xs = s.xs.data();
@@ -470,10 +475,12 @@ public:
         }
     }
     void lp_fold(double zs, double full, double half) override {
+        if (acc1() && accel_->lp_fold(zs, full, half)) return;
         host_mod(false);
         each([&](EmuShard& s, int i) { kern::lp_fold_particle(s.P, i, zs, full, half); });
     }
     void long_loss(double zs, double ws, double dW, double dzMax) override {
+        if (acc1() && accel_->long_loss(zs, ws, dW, dzMax)) return;
         host_mod(false);
         each([&](EmuShard& s, int i) { kern::long_loss_particle(s.P, i, s.restMass.data(), zs, ws, dW, dzMax, false); });
     }
@@ -522,6 +529,7 @@ private:
     LatScalars sc_{};
     std::vector<EmuShard> sh_;
     std::vector<double> G_, phi_, ex_, ey_, ez_;
+    bool accelField_ = false;  // the field of the last solve is on the accelerator
     std::unique_ptr<ScAccel> accel_;
 
     void set_scalars(const LatScalars& ls) {
@@ -547,6 +555,7 @@ private:
         P.spOutZ0 = s.spOutZ0.data(); P.spOutZ1 = s.spOutZ1.data();
         P.old = s.old.data(); P.rec = s.rec.data(); P.spRec = s.spRec.data(); P.t = s.t.data(); P.dt = s.dt.data();
         P.sync = -1;
+        P.restMass = s.restMass.data();
     }
 
     template <class F>

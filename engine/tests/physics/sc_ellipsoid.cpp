@@ -31,7 +31,7 @@ static double kappa(int i) {
 }
 
 // Metal (M6c): the deposit, the PICNIC / SPICNIC sums and the interpolation again on the GPU (fp32),
-// with the mesh and the Green table of the CPU solve; null when there is no Metal accelerator.
+// with the mesh of the CPU solve; null when there is no Metal accelerator.
 static ScAccel* metal_accel() {
     static std::unique_ptr<ScAccel> acc;
     static bool tried = false;
@@ -62,10 +62,10 @@ static void metal_redo(SpaceCharge& sc, Beam& b, int method) {
     in.dx = M.dx;
     in.dy = M.dy;
     in.dz = M.dz;
-    std::vector<int> corr;
-    std::vector<double> dval;
-    if (method == 1) sc.spicnic_prepare(corr, dval, in.thr);
-    acc->solve(in, sc.green().data(), corr.data(), dval.data(), static_cast<long long>(dval.size()), sc.ex(), sc.ey(), sc.ez());
+    in.vol = sc.cell_volume();
+    in.thr = method == 1 ? sc.spicnic_threshold() : 0.0;
+    acc->solve_mesh(in);  // Green table and correction list by the accelerator (phase 5)
+    acc->fields(sc.ex(), sc.ey(), sc.ez());
     M.Q = sc.total_charge();
     acc->interp(M, sc.ex().data(), sc.ey().data(), sc.ez().data(), b.n, b.rel[0].data(), b.rel[2].data(), b.rel[4].data(),
                 b.lost.data(), b.scx.data(), b.scy.data(), b.scz.data());

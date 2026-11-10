@@ -8,9 +8,11 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "core/errors.h"
+#include "core/options.h"
 #include "core/format.h"
 #include "core/kernels.h"
 #include "core/lattice.h"
@@ -79,7 +81,12 @@ struct PartFH {  // PartF of kernels.metal
     std::uint64_t lost, elemIndex, nextPlane, boundaryMode, recFlag, spFlag, geomIndex, spOutCount, C, Mx, oldS, crossCount,
         crossIdx, spIdx, bdIdx;
     std::uint64_t row[8], qm;
-    std::uint64_t cSnap, cNp, sSnap, sElem, aIdx, aRow, scTmp;
+    std::uint64_t cSnap, cNp, sSnap, sElem, aIdx, aRow, scTmp, bEnt, rm;
+};
+struct FftPH {  // f32::FftP
+    std::uint64_t rho, A, B, C, D, sx, sy, cz, sz, lx, ly, lz, phi, ex, ey, ez;
+    int pass;
+    float scale, norm, hx, hy, hz;
 };
 struct StepUH {  // StepU of kernels.metal
     float hEs[3], usm[3], gsm, Ks[9], usp[3], gsp, cdt;
@@ -107,7 +114,8 @@ struct ZArgsH {  // f32::ZArgs
     float shift, t, zpl, uzs, gc, wx, wy, len;
     float off[6], cen[6];
 };
-enum : int { kZHet = 1, kZKick = 2, kZTref = 3, kZHesc1 = 4, kZHesc2 = 5, kZTot = 6, kZUbp1 = 7, kZUbp2 = 8, kZApply = 9, kZClear = 10, kZSc = 11 };
+enum : int { kZHet = 1, kZKick = 2, kZTref = 3, kZHesc1 = 4, kZHesc2 = 5, kZTot = 6, kZUbp1 = 7, kZUbp2 = 8, kZApply = 9, kZClear = 10, kZSc = 11,
+             kZLp = 12, kZLong = 13 };
 
 // The synchronous particle's push of a step.
 struct SyncH {
@@ -126,7 +134,7 @@ public:
         D_->sizes(s);
         if (s[0] != sizeof(MeshF) || s[1] != sizeof(sck::SpGrid) || s[2] != sizeof(LatVF) || s[3] != sizeof(ElemVF) ||
             s[4] != sizeof(MapView<float, float>) || s[5] != sizeof(PartFH) || s[6] != sizeof(StepUH) || s[7] != sizeof(SubVF) ||
-            s[8] != sizeof(GeomFH) || s[9] != sizeof(BoundUH) || s[10] != sizeof(ZArgsH)) {
+            s[8] != sizeof(GeomFH) || s[9] != sizeof(BoundUH) || s[10] != sizeof(ZArgsH) || s[11] != sizeof(FftPH)) {
             why = "fp32 kernel structure layout mismatch (MeshV " + std::to_string(s[0]) + " / " + std::to_string(sizeof(MeshF)) + ")";
             return false;
         }
@@ -140,14 +148,14 @@ public:
         if (n <= 0) return;
         {
             const size_t n3 = static_cast<size_t>(M.nx) * M.ny * M.nz;
-            float* fx = fl(bx_, n, x);
-            (void)fx;
-            fl(by_, n, y);
-            fl(bz_, n, z);
-            fl(bq_, n, q);
+            flu(bx_, n, x);
+            flu(by_, n, y);
+            flu(bz_, n, z);
+            flu(bq_, n, q);
             std::memcpy(buf(blost_, n * 4).host, lost, static_cast<size_t>(n) * 4);
-            F32Buf& lo = buf(blo_, n3 * 4);
-            F32Buf& hi = buf(bhi_, n3 * 4);
+            D_->upload(blost_, 0, static_cast<size_t>(n) * 4);
+            F32Buf& lo = shared(blo_, n3 * 4);
+            F32Buf& hi = shared(bhi_, n3 * 4);
             std::memset(lo.host, 0, n3 * 4);
             std::memset(hi.host, 0, n3 * 4);
             MeshF F = mesh(M);
@@ -162,38 +170,186 @@ public:
         }
     }
 
-    bool solve(const ScSolveIn& in, const double* G, const int* corr, const double* dval, long long nc,
-               std::vector<double>& ex, std::vector<double>& ey, std::vector<double>& ez) override {
+    // PICNIC / SPICNIC on the device (phase 5): the charge goes up in double and becomes float there, the Green
+    // table and the correction list are made by the device in fp64 where it can (CUDA; else here, the same
+    // numbers), and the field stays on the device for interp_state (fields() fetches it when needed).
+    bool solve_mesh(const ScSolveIn& in) override {
+        Timer timer{tSolve_, now()};
+        if (in.method == 0) return solve_fft(in);
         if (in.method != 1 && in.method != 2) return false;
-        {
-            const sck::SpGrid g{in.nx, in.ny, in.nz, in.mx, in.my, in.mz};
-            const size_t n3 = static_cast<size_t>(g.n3());
-            const size_t nG = static_cast<size_t>(2 * in.nx + 1) * (2 * in.ny + 1) * (2 * in.nz + 1);
-            fl(brho_, n3, in.rho);
-            fl(bG_, nG, G);
-            F32Buf& phi = buf(bphi_, n3 * 4);
-            std::memset(phi.host, 0, n3 * 4);
-            if (in.method == 2) {
-                D_->picnic(&g, SL(brho_, 0), SL(bG_, 0), SL(phi, 0));
-            } else {
-                const float thr = static_cast<float>(in.thr);
-                D_->sym(&g, SL(brho_, 0), SL(bG_, 0), thr, SL(phi, 0));
-                if (nc > 0) {
-                    std::memcpy(buf(bcorr_, static_cast<size_t>(3 * nc) * 4).host, corr, static_cast<size_t>(3 * nc) * 4);
-                    fl(bdval_, static_cast<size_t>(nc), dval);
-                    D_->corr(&g, SL(bG_, 0), SL(bcorr_, 0), SL(bdval_, 0), nc, SL(phi, 0));
+        const sck::SpGrid g{in.nx, in.ny, in.nz, in.mx, in.my, in.mz};
+        const size_t n3 = static_cast<size_t>(g.n3());
+        const size_t nG = static_cast<size_t>(2 * in.nx + 1) * (2 * in.ny + 1) * (2 * in.nz + 1);
+        const long long nq = in.method == 1 ? 8 * g.n_targets() : 0;
+        F32Buf& rd = buf(brhod_, n3 * 8);
+        std::memcpy(rd.host, in.rho, n3 * 8);
+        D_->upload(rd, 0, n3 * 8);
+        F32Buf& rf = buf(brho_, n3 * 4);
+        F32Buf& cr = buf(bcorr_, static_cast<size_t>(std::max<long long>(3 * nq, 1)) * 4);
+        F32Buf& dv = buf(bdval_, static_cast<size_t>(std::max<long long>(nq, 1)) * 4);
+        long long nc = 0;
+        const double tc0 = now();
+        if (!D_->rho_corr(&g, SL(rd, 0), SL(rf, 0), static_cast<long long>(n3), in.method == 1, in.thr, SL(cr, 0), SL(dv, 0), nc)) {
+            float* f = static_cast<float*>(rf.host);
+            for (size_t e = 0; e < n3; ++e) f[e] = static_cast<float>(in.rho[e]);
+            D_->upload(rf, 0, n3 * 4);
+            if (in.method == 1) {
+                int* c = static_cast<int*>(cr.host);
+                float* d = static_cast<float*>(dv.host);
+                for (long long q = 0; q < nq; ++q) {  // the order of the GPU's stable compaction
+                    int I, J, K;
+                    const double v = sck::corr_value(g, in.rho, in.thr, q / 8, static_cast<int>(q % 8), I, J, K);
+                    if (v == 0.0) continue;
+                    c[3 * nc] = I;
+                    c[3 * nc + 1] = J;
+                    c[3 * nc + 2] = K;
+                    d[nc] = static_cast<float>(v);
+                    ++nc;
                 }
+                D_->upload(cr, 0, static_cast<size_t>(3 * nc) * 4);
+                D_->upload(dv, 0, static_cast<size_t>(nc) * 4);
             }
-            const float h[3] = {static_cast<float>(1.0 / (in.dx + in.dx)), static_cast<float>(1.0 / (in.dy + in.dy)),
-                                static_cast<float>(1.0 / (in.dz + in.dz))};
-            F32Buf& fe = buf(bfield_, 3 * n3 * 4);
-            D_->grad(&g, SL(phi, 0), h, SL(fe, 0), SL(fe, n3 * 4), SL(fe, 2 * n3 * 4));
-            const float* f = static_cast<const float*>(fe.host);
-            ex.assign(f, f + n3);
-            ey.assign(f + n3, f + 2 * n3);
-            ez.assign(f + 2 * n3, f + 3 * n3);
         }
+        const double tc1 = now();
+        tCharge_ += tc1 - tc0;
+        F32Buf& G = buf(bG_, nG * 4);
+        if (!D_->green(&g, in.dx, in.dy, in.dz, in.vol, SL(G, 0))) {
+            host_green(g, in, static_cast<float*>(G.host));
+            D_->upload(G, 0, nG * 4);
+        }
+        const double tc2 = now();
+        tGreen_ += tc2 - tc1;
+        F32Buf& phi = buf(bphi_, n3 * 4);
+        std::memset(phi.host, 0, n3 * 4);
+        D_->upload(phi, 0, n3 * 4);
+        const double tc3 = now();
+        tPhi0_ += tc3 - tc2;
+        const float h[3] = {static_cast<float>(1.0 / (in.dx + in.dx)), static_cast<float>(1.0 / (in.dy + in.dy)),
+                            static_cast<float>(1.0 / (in.dz + in.dz))};
+        F32Buf& fe = buf(bfield_, 3 * n3 * 4);
+        D_->batch_begin();  // potential and field: one submission
+        if (in.method == 2) {
+            D_->picnic(&g, SL(rf, 0), SL(G, 0), SL(phi, 0));
+        } else {
+            D_->sym(&g, SL(rf, 0), SL(G, 0), static_cast<float>(in.thr), SL(phi, 0));
+            if (nc > 0) D_->corr(&g, SL(G, 0), SL(cr, 0), SL(dv, 0), nc, SL(phi, 0));
+        }
+        D_->grad(&g, SL(phi, 0), h, SL(fe, 0), SL(fe, n3 * 4), SL(fe, 2 * n3 * 4));
+        D_->batch_end();
+        tKern_ += now() - tc3;
+        fieldN3_ = n3;
+        ++nSolve_;
         return true;
+    }
+
+    // FFT on the device (phase 5): the direct transforms of the device back end in float, passes 0 .. 9 of
+    // f32::fft_node; the tables come from the host (sck::fft_tables, lx / ly / lz of the solve)
+    bool solve_fft(const ScSolveIn& in) {
+        const sck::SpGrid g{in.nx, in.ny, in.nz, in.mx, in.my, in.mz};
+        const size_t n3 = static_cast<size_t>(g.n3());
+        F32Buf& rd = buf(brhod_, n3 * 8);
+        std::memcpy(rd.host, in.rho, n3 * 8);
+        D_->upload(rd, 0, n3 * 8);
+        F32Buf& rf = buf(brho_, n3 * 4);
+        long long nc = 0;
+        if (!D_->rho_corr(&g, SL(rd, 0), SL(rf, 0), static_cast<long long>(n3), false, 0.0, SL(rf, 0), SL(rf, 0), nc)) {
+            float* f = static_cast<float*>(rf.host);
+            for (size_t e = 0; e < n3; ++e) f[e] = static_cast<float>(in.rho[e]);
+            D_->upload(rf, 0, n3 * 4);
+        }
+        const size_t nsx = 2 * static_cast<size_t>(in.nx + 1), nsy = 2 * static_cast<size_t>(in.ny + 1), nz = static_cast<size_t>(in.nz);
+        F32Buf& tb = buf(bfft_, (nsx + nsy + 2 * nz + in.nx + in.ny + in.nz) * 4);
+        float* t = static_cast<float*>(tb.host);
+        if (fftKey_[0] != in.nx || fftKey_[1] != in.ny || fftKey_[2] != in.nz) {
+            const sck::FftTables T = sck::fft_tables(in.nx, in.ny, in.nz);
+            for (size_t q = 0; q < nsx; ++q) t[q] = static_cast<float>(T.sx[q]);
+            for (size_t q = 0; q < nsy; ++q) t[nsx + q] = static_cast<float>(T.sy[q]);
+            for (size_t q = 0; q < nz; ++q) {
+                t[nsx + nsy + q] = static_cast<float>(T.cz[q]);
+                t[nsx + nsy + nz + q] = static_cast<float>(T.sz[q]);
+            }
+            D_->tables(tb);
+            D_->upload(tb, 0, (nsx + nsy + 2 * nz) * 4);
+            fftKey_[0] = in.nx;
+            fftKey_[1] = in.ny;
+            fftKey_[2] = in.nz;
+        }
+        const size_t lo = nsx + nsy + 2 * nz;
+        for (int q = 0; q < in.nx; ++q) t[lo + q] = static_cast<float>(in.lx[q]);
+        for (int q = 0; q < in.ny; ++q) t[lo + in.nx + q] = static_cast<float>(in.ly[q]);
+        for (int q = 0; q < in.nz; ++q) t[lo + in.nx + in.ny + q] = static_cast<float>(in.lz[q]);
+        D_->upload(tb, lo * 4, static_cast<size_t>(in.nx + in.ny + in.nz) * 4);
+        F32Buf& w = buf(bwork_, 4 * n3 * 4);
+        F32Buf& phi = buf(bphi_, n3 * 4);
+        F32Buf& fe = buf(bfield_, 3 * n3 * 4);
+        FftPH P{};
+        const std::uint64_t td = tb.dev;
+        P.rho = rf.dev;
+        P.A = w.dev;
+        P.B = w.dev + n3 * 4;
+        P.C = w.dev + 2 * n3 * 4;
+        P.D = w.dev + 3 * n3 * 4;
+        P.sx = td;
+        P.sy = td + nsx * 4;
+        P.cz = td + (nsx + nsy) * 4;
+        P.sz = td + (nsx + nsy + nz) * 4;
+        P.lx = td + lo * 4;
+        P.ly = td + (lo + in.nx) * 4;
+        P.lz = td + (lo + in.nx + in.ny) * 4;
+        P.phi = phi.dev;
+        P.ex = fe.dev;
+        P.ey = fe.dev + n3 * 4;
+        P.ez = fe.dev + 2 * n3 * 4;
+        P.scale = static_cast<float>(in.scale);
+        P.norm = static_cast<float>(in.norm);
+        P.hx = static_cast<float>(1.0 / (in.dx + in.dx));
+        P.hy = static_cast<float>(1.0 / (in.dy + in.dy));
+        P.hz = static_cast<float>(1.0 / (in.dz + in.dz));
+        D_->batch_begin();  // the ten passes: one submission
+        for (int pass = 0; pass <= 9; ++pass) {
+            P.pass = pass;
+            D_->fft(&g, &P, static_cast<long long>(n3));
+        }
+        D_->batch_end();
+        fieldN3_ = n3;
+        ++nSolve_;
+        return true;
+    }
+
+    // lpboundary / longlimits on the device (phase 5), relative to the synchronous particle zs
+    bool lp_fold(double zs, double full, double half) override {
+        if (!auth_) return false;
+        ZArgsH A = zargs(kZLp);
+        A.off[4] = static_cast<float>(ref_.post[4] - zs);
+        A.wx = static_cast<float>(full);
+        A.wy = static_cast<float>(half);
+        D_->zrow(&A, &pf_, n_);
+        hostCurrent_ = false;
+        ++nLp_;
+        return true;
+    }
+    bool long_loss(double zs, double ws, double dW, double dzMax) override {
+        if (!auth_) return false;
+        ZArgsH A = zargs(kZLong);
+        A.off[4] = static_cast<float>(ref_.post[4] - zs);
+        for (int j = 0; j < 3; ++j) A.cen[2 * j + 1] = static_cast<float>(ref_.post[2 * j + 1]);
+        A.t = static_cast<float>(ws);
+        A.wx = static_cast<float>(dW);
+        A.wy = static_cast<float>(dzMax);
+        D_->zrow(&A, &pf_, n_);
+        hostCurrent_ = false;
+        ++nLp_;
+        return true;
+    }
+
+    // the field of the last solve_mesh on the host (space-charge records, the interpolation of fp64 arrays)
+    void fields(std::vector<double>& ex, std::vector<double>& ey, std::vector<double>& ez) override {
+        const size_t n3 = fieldN3_;
+        D_->download(bfield_, 0, 3 * n3 * 4);
+        const float* f = static_cast<const float*>(bfield_.host);
+        ex.assign(f, f + n3);
+        ey.assign(f + n3, f + 2 * n3);
+        ez.assign(f + 2 * n3, f + 3 * n3);
     }
 
     void interp(const kern::MeshV& M, const double* ex, const double* ey, const double* ez, int n, const double* x,
@@ -201,21 +357,17 @@ public:
         if (n <= 0) return;
         {
             const size_t n3 = static_cast<size_t>(M.nx) * M.ny * M.nz;
-            fl(bx_, n, x);
-            fl(by_, n, y);
-            fl(bz_, n, z);
+            flu(bx_, n, x);
+            flu(by_, n, y);
+            flu(bz_, n, z);
             std::memcpy(buf(blost_, n * 4).host, lost, static_cast<size_t>(n) * 4);
-            F32Buf& fe = buf(bmf_, 3 * n3 * 4);
-            float* f = static_cast<float*>(fe.host);
-            for (size_t e = 0; e < n3; ++e) {
-                f[e] = static_cast<float>(ex[e]);
-                f[n3 + e] = static_cast<float>(ey[e]);
-                f[2 * n3 + e] = static_cast<float>(ez[e]);
-            }
+            D_->upload(blost_, 0, static_cast<size_t>(n) * 4);
+            F32Buf& fe = field_up(ex, ey, ez, n3);
             F32Buf& sc = buf(bsc_, static_cast<size_t>(n) * 12);
             MeshF F = mesh(M);
             D_->interp(&F, SL(bx_, 0), SL(by_, 0), SL(bz_, 0), SL(blost_, 0), SL(fe, 0), SL(fe, n3 * 4),
                                      SL(fe, 2 * n3 * 4), SL(sc, 0), n);
+            D_->download(sc, 0, static_cast<size_t>(n) * 12);
             const float* s = static_cast<const float*>(sc.host);
             for (int p = 0; p < n; ++p) {
                 scx[p] = s[3 * p];
@@ -268,18 +420,22 @@ public:
                 mv[q] = g;
                 o += cnt;
             }
+            D_->tables(bmapd_);
+            D_->tables(bmaps_);
+            D_->upload(bmapd_, 0, tot * 4);
+            D_->upload(bmaps_, 0, L.maps.size() * sizeof(MapView<float, float>));
             latZ_ = &L;
             // particle state: one shared buffer, slices
             // column length n (a length padded to whole reduction groups puts the ~80 columns of a particle
             // 16 KiB apart, in the same cache sets: the step kernel was 25 % slower on the M2)
             m_ = static_cast<size_t>(std::max(n, 1));
             const size_t m = m_;
-            const size_t floats = 26 * m + 21 * m + 8 * m + 6 * m + 8 * m + m;
+            const size_t floats = 26 * m + 21 * m + 8 * m + 6 * m + 8 * m + m + m;
             buf(bstate_, floats * 4);
             buf(bints_, 8 * m * 4);
             D_->particles(bstate_, m * 4, n);
             D_->particles(bints_, m * 4, n);
-            buf(bcross_, (3 * m + 4) * 4);
+            shared(bcross_, (3 * m + 4) * 4);
             const std::uint64_t fa = bstate_.dev, ia = bints_.dev, ca = bcross_.dev;
             auto fs = [&](size_t k) { return fa + k * m * 4; };
             PartFH& P = pf_;
@@ -301,15 +457,17 @@ public:
             P.oldS = fs(26 + 21 + 8);
             for (int j = 0; j < 8; ++j) P.row[j] = fs(kRow + j);
             P.qm = fs(kRow + 8);
+            P.rm = fs(kRow + 9);
             // compact candidate entries and the host's results (capacity: every particle)
-            buf(bcand_, m * (12 + 1 + 12 + 1 + 1 + 8) * 4);
+            shared(bcand_, m * kCand * 4);
             const std::uint64_t ka = bcand_.dev;
             P.cSnap = ka;
             P.cNp = ka + 12 * m * 4;
             P.sSnap = ka + 13 * m * 4;
             P.sElem = ka + 25 * m * 4;
-            P.aIdx = ka + 26 * m * 4;
-            P.aRow = ka + 27 * m * 4;
+            P.aIdx = ka + 26 * m * 4;  // 2 m entries: a step can record a plane and a superposeout exit
+            P.aRow = ka + 28 * m * 4;
+            P.bEnt = ka + 44 * m * 4;
             P.lost = ia;
             P.elemIndex = ia + m * 4;
             P.nextPlane = ia + 2 * m * 4;
@@ -386,6 +544,10 @@ public:
                 br[q] = L.bndR1[q];
                 br[nb + q] = L.bndR2[q];
             }
+            for (F32Buf* b : {&belems_, &beff_, &bsubs_, &bgeom_, &bseg_, &bbndz_, &bbndr_}) {
+                D_->tables(*b);
+                D_->upload(*b, 0, b->len);
+            }
         }
     }
 
@@ -417,11 +579,9 @@ public:
             const SyncH S = sync_step(a);
             if (!auth_) {
                 const double tc = now();
-                D_->host_side(bstate_);
-                D_->host_side(bints_);
                 from64(P, n, S, a.dt);
-                D_->device_side(bstate_);
-                D_->device_side(bints_);
+                D_->upload(bstate_, 0, bstate_.len);
+                D_->upload(bints_, 0, bints_.len);
                 tConv_ += now() - tc;
                 ++nFrom_;
             }
@@ -441,8 +601,12 @@ public:
             for (double e : events) o.push_back(e <= ls.spExit ? 1.0f : 0.0f);
             o.push_back(0.0f);
             std::memcpy(buf(boff_, o.size() * 4).host, o.data(), o.size() * 4);
+            D_->tables(boff_);
+            D_->upload(boff_, 0, o.size() * 4);
             float* rt = static_cast<float*>(buf(brf_, std::max<size_t>(rf.size(), 1) * 4).host);
             for (size_t q = 0; q < rf.size(); ++q) rt[q] = static_cast<float>(rf[q]);
+            D_->tables(brf_);
+            D_->upload(brf_, 0, rf.size() * 4);
             const int sizes[4] = {static_cast<int>(nE), static_cast<int>(nS), static_cast<int>(nEv), 0};
             StepUH U{};
             for (int j = 0; j < 3; ++j) {
@@ -490,9 +654,9 @@ public:
             t1 = now();
             // statistics per reduction group (fixed point on the GPU, merged in double here)
             const int ng = red_groups(n);
-            F32Buf& gs = buf(bgs_, static_cast<size_t>(ng) * 21 * 8);
-            F32Buf& ge = buf(bge_, static_cast<size_t>(ng) * 21 * 4);
-            F32Buf& gm = buf(bgm_, static_cast<size_t>(ng) * 8 * 4);
+            F32Buf& gs = shared(bgs_, static_cast<size_t>(ng) * 21 * 8);
+            F32Buf& ge = shared(bge_, static_cast<size_t>(ng) * 21 * 4);
+            F32Buf& gm = shared(bgm_, static_cast<size_t>(ng) * 8 * 4);
             {
                 D_->group(SL(bstate_, 26 * m_ * 4), SL(bstate_, (26 + 21) * m_ * 4), SL(gs, 0), SL(ge, 0), SL(gm, 0), n, static_cast<int>(m_),
                           21, 8, 6);
@@ -523,9 +687,11 @@ public:
             const float* sSnap = reinterpret_cast<const float*>(cb + 13 * m_ * 4);
             const int* sElem = reinterpret_cast<const int*>(cb + 25 * m_ * 4);
             int* aIdx = reinterpret_cast<int*>(cb + 26 * m_ * 4);
-            float* aRow = reinterpret_cast<float*>(cb + 27 * m_ * 4);
-            int nApply = 0;
-            for (std::uint32_t c = 0; c < nc; ++c) {
+            float* aRow = reinterpret_cast<float*>(cb + 28 * m_ * 4);
+            // pass 1 (independent candidates, in parallel when there are many): the record in double
+            std::vector<unsigned char>& ok = okBuf_;
+            ok.assign(nc, 0);
+            auto complete = [&](long long c) {
                 const int i = static_cast<int>(idx[c]);
                 const float* sn = cSnap + 12 * static_cast<size_t>(c);
                 double cur[6], old[6];
@@ -536,25 +702,42 @@ public:
                     old[2 * j + 1] = S.pre[2 * j + 1] + static_cast<double>(sn[3 + j]);
                 }
                 const double pl = events[static_cast<size_t>(cNp[c])];
-                if (pl <= cur[4]) {
-                    const double r = (pl - old[4]) / (cur[4] - old[4]);
-                    double* rec = P.rec + 8 * static_cast<long long>(i);
-                    for (int j = 0; j < 6; ++j) rec[j] = (cur[j] - old[j]) * r + old[j];
-                    kern::interp_momentum_norm(rec, old, cur, r);
-                    rec[6] = (r - 1.0) * a.dt + a.tEnd;
-                    if (rec[7] != 1.0) out[static_cast<size_t>(i / kRedGroup)].rec += 1.0;
-                    rec[7] = 1.0;
-                    // record flag, next plane and the z-code row in float (time relative to T0, the end of the
-                    // first recording step) are written on the device (kZApply)
-                    if (!rowsT0Set_) {
-                        T0_ = a.tEnd;
-                        rowsT0Set_ = true;
-                    }
-                    aIdx[nApply] = 2 * i;
-                    for (int j = 0; j < 8; ++j) aRow[8 * nApply + j] = static_cast<float>(j == 6 ? rec[6] - T0_ : rec[j]);
-                    ++nApply;
-                }
+                if (!(pl <= cur[4])) return;
+                const double r = (pl - old[4]) / (cur[4] - old[4]);
+                double* rec = P.rec + 8 * static_cast<long long>(i);
+                for (int j = 0; j < 6; ++j) rec[j] = (cur[j] - old[j]) * r + old[j];
+                kern::interp_momentum_norm(rec, old, cur, r);
+                rec[6] = (r - 1.0) * a.dt + a.tEnd;
+                ok[c] = rec[7] != 1.0 ? 2 : 1;  // 2: a new record
+                rec[7] = 1.0;
+            };
+            if (nc >= 16384) par(nc, complete);
+            else for (std::uint32_t c = 0; c < nc; ++c) complete(c);
+            // record flag, next plane and the z-code row in float (time relative to T0, the end of the first
+            // recording step) are written on the device (kZApply); slot c, -1 where nothing is recorded
+            bool any = false;
+            for (std::uint32_t c = 0; c < nc; ++c) {
+                if (!ok[c]) continue;
+                any = true;
+                if (ok[c] == 2) out[static_cast<size_t>(idx[c] / kRedGroup)].rec += 1.0;
             }
+            if (any && !rowsT0Set_) {
+                T0_ = a.tEnd;
+                rowsT0Set_ = true;
+            }
+            auto row = [&](long long c) {
+                const int i = static_cast<int>(idx[c]);
+                if (!ok[c]) {
+                    aIdx[c] = -1;
+                    return;
+                }
+                const double* rec = P.rec + 8 * static_cast<long long>(i);
+                aIdx[c] = 4 * i;
+                for (int j = 0; j < 8; ++j) aRow[8 * c + j] = static_cast<float>(j == 6 ? rec[6] - T0_ : rec[j]);
+            };
+            if (nc >= 16384) par(nc, row);
+            else for (std::uint32_t c = 0; c < nc; ++c) row(c);
+            int nApply = any ? static_cast<int>(nc) : 0;
             // superposeout exits: the candidates of the GPU decided and recorded in double
             const std::uint32_t ns = static_cast<const std::uint32_t*>(bcross_.host)[1];
             const std::uint32_t* sidx = static_cast<const std::uint32_t*>(bcross_.host) + 4 + m_;
@@ -581,7 +764,7 @@ public:
                     kern::interp_momentum_norm(sr, lp, lc, r);
                     sr[6] = (r - 1.0) * a.dt + a.tEnd;
                     sr[7] = 1.0;
-                    aIdx[nApply++] = 2 * i + 1;
+                    aIdx[nApply++] = 4 * i + 1;
                     out[static_cast<size_t>(i / kRedGroup)].sp += 1.0;
                 }
             }
@@ -613,13 +796,8 @@ public:
         if (!auth_ || hostCurrent_) return;
         ++nTo_;
         struct T { double& acc; double t0; ~T() { acc += now() - t0; } } timer{tConv_, now()};
-        struct Side {  // the pages to the host for the bulk read, back afterwards
-            F32Device& d;
-            F32Buf& a;
-            F32Buf& b;
-            Side(F32Device& dd, F32Buf& aa, F32Buf& bb) : d(dd), a(aa), b(bb) { d.host_side(a); d.host_side(b); }
-            ~Side() { d.device_side(a); d.device_side(b); }
-        } side(*D_, bstate_, bints_);
+        D_->download(bstate_, 0, bstate_.len);
+        D_->download(bints_, 0, bints_.len);
         const size_t m = m_;
         const float* f = static_cast<const float*>(bstate_.host);
         const int* iv = static_cast<const int*>(bints_.host);
@@ -658,6 +836,7 @@ public:
     void rec_to_host(const kern::PartV& P, int n) override {
         if (!recStale_ || !P.rec) return;
         ++nRecTo_;
+        D_->download(bstate_, kRow * m_ * 4, 8 * m_ * 4);
         const float* rw = static_cast<const float*>(bstate_.host) + kRow * m_;
         for (int i = 0; i < n; ++i) {
             double* r = P.rec + 8 * static_cast<long long>(i);
@@ -818,28 +997,32 @@ public:
             D_->bound(&U, &pf_, SL(bgeom_, 0), SL(bseg_, 0), SL(bseg_, ns * 4), SL(bbndz_, 0),
                                     SL(bbndr_, 0), SL(bbndr_, nb * 4), n_);
             const std::uint32_t nc = static_cast<const std::uint32_t*>(bcross_.host)[2];
-            std::vector<std::uint32_t> cand(static_cast<const std::uint32_t*>(bcross_.host) + 4 + 2 * m,
-                                            static_cast<const std::uint32_t*>(bcross_.host) + 4 + 2 * m + nc);
+            const std::uint32_t* bidx = static_cast<const std::uint32_t*>(bcross_.host) + 4 + 2 * m;
+            std::vector<std::pair<std::uint32_t, std::uint32_t>> cand(nc);  // (particle, slot of its entry)
+            for (std::uint32_t c = 0; c < nc; ++c) cand[c] = {bidx[c], c};
             std::sort(cand.begin(), cand.end());  // hits in particle order, as on the CPU
+            const float* bEnt = reinterpret_cast<const float*>(static_cast<const char*>(bcand_.host) + 44 * m * 4);
+            int* aIdx = reinterpret_cast<int*>(static_cast<char*>(bcand_.host) + 26 * m * 4);
+            float* aRow = reinterpret_cast<float*>(static_cast<char*>(bcand_.host) + 28 * m * 4);
+            int nApply = 0;
             kern::LatV LV = L.view(Lattice());
             LV.spOutCur = ls.spOutCur;
             LV.spOutCount = ls.spOutCount;
             LV.spOutSize = ls.spOutSize;
             LV.totalLength = ls.totalLength;
             LV.spExit = ls.spExit;
-            const float* f = static_cast<const float*>(bstate_.host);
-            int* iv = static_cast<int*>(bints_.host);
             hits.clear();
             const kern::PartV& PH = hostP_;
-            for (std::uint32_t c : cand) {
-                const size_t i = c;
+            for (const auto& cs : cand) {
+                const size_t i = cs.first;
+                const float* e = bEnt + 16 * static_cast<size_t>(cs.second);  // d, du, old, lost, spOutCount, geomIndex
                 double x[6], old[6], spz0 = PH.spOutZ0[i];
-                int lost = iv[i], spc = iv[7 * m + i], gi = iv[6 * m + i];
+                int lost = static_cast<int>(e[12]), spc = static_cast<int>(e[13]), gi = static_cast<int>(e[14]);
                 for (int j = 0; j < 3; ++j) {
-                    x[2 * j] = ref_.post[2 * j] + static_cast<double>(f[j * m + i]);
-                    x[2 * j + 1] = ref_.post[2 * j + 1] + static_cast<double>(f[(3 + j) * m + i]);
+                    x[2 * j] = ref_.post[2 * j] + static_cast<double>(e[j]);
+                    x[2 * j + 1] = ref_.post[2 * j + 1] + static_cast<double>(e[3 + j]);
                 }
-                const float* os = f + (26 + 21 + 8) * m + 6 * i;
+                const float* os = e + 6;
                 for (int j = 0; j < 6; ++j) old[j] = oldValid_ ? oldPre_[j] + static_cast<double>(os[j]) : PH.old[6 * i + j];
                 kern::PartV T{};
                 T.x = &x[0];
@@ -857,13 +1040,20 @@ public:
                 BoundaryHit h{};
                 h.tHit = t;
                 const int code = kern::boundary_particle<PortableMath>(LV, T, 0, t, dt, false, h.geom, h.P, h.tHit);
-                iv[6 * m + i] = gi;
-                iv[i] = lost;
+                // geometry index and loss back on the device (kZApply)
+                aIdx[nApply] = 4 * static_cast<int>(i) + 2;
+                aRow[8 * nApply] = static_cast<float>(gi);
+                aRow[8 * nApply + 1] = static_cast<float>(code == 1 ? 1 : lost);
+                ++nApply;
                 if (code == 0) continue;
-                if (code == 1) iv[i] = 1;
                 h.i = static_cast<int>(i);
                 h.code = code;
                 hits.push_back(h);
+            }
+            if (nApply > 0) {
+                ZArgsH A = zargs(kZApply);
+                A.n = nApply;
+                D_->zrow(&A, &pf_, nApply);
             }
             ++nBound_;
             nCand_ += nc;
@@ -872,16 +1062,20 @@ public:
     }
 
     void deposit_state(const kern::MeshV& M, int n, std::vector<long long>& acc) override {
+        Timer timer{tDep_, now()};
+        ++nDep_;
         {
             const size_t m = m_;
             const size_t n3 = static_cast<size_t>(M.nx) * M.ny * M.nz;
             if (qDirty_ || !bqs_.host) {  // the charges change only with the fp64 arrays (from64)
                 float* q = static_cast<float*>(buf(bqs_, static_cast<size_t>(n) * 4).host);
                 for (int i = 0; i < n; ++i) q[i] = charge_[static_cast<size_t>(i)];
+                D_->upload(bqs_, 0, static_cast<size_t>(n) * 4);
+                D_->particles(bqs_, static_cast<size_t>(n) * 4, n);
                 qDirty_ = false;
             }
-            F32Buf& lo = buf(blo_, n3 * 4);
-            F32Buf& hi = buf(bhi_, n3 * 4);
+            F32Buf& lo = shared(blo_, n3 * 4);
+            F32Buf& hi = shared(bhi_, n3 * 4);
             std::memset(lo.host, 0, n3 * 4);
             std::memset(hi.host, 0, n3 * 4);
             MeshF F = mesh(M);
@@ -897,25 +1091,26 @@ public:
     }
 
     void interp_state(const kern::MeshV& M, const double* ex, const double* ey, const double* ez, int n) override {
+        Timer timer{tInterp_, now()};
         hostCurrent_ = false;
         {
             const size_t m = m_;
             const size_t n3 = static_cast<size_t>(M.nx) * M.ny * M.nz;
-            F32Buf& fe = buf(bmf_, 3 * n3 * 4);
-            float* f = static_cast<float*>(fe.host);
-            for (size_t e = 0; e < n3; ++e) {
-                f[e] = static_cast<float>(ex[e]);
-                f[n3 + e] = static_cast<float>(ey[e]);
-                f[2 * n3 + e] = static_cast<float>(ez[e]);
-            }
+            F32Buf& fe = field_up(ex, ey, ez, n3);  // ex null: the field of solve_mesh, already on the device
             F32Buf& sc = buf(bsc_, static_cast<size_t>(n) * 12);
+            if (scHinted_ != sc.dev) {  // per particle: on the GPU of the particle
+                D_->particles(sc, static_cast<size_t>(n) * 12, n, 12);
+                scHinted_ = sc.dev;
+            }
             MeshF F = mesh(M);
+            D_->batch_begin();  // interpolation and the write into the particles: one submission
             D_->interp(&F, SL(bstate_, 15 * m * 4), SL(bstate_, 17 * m * 4), SL(bstate_, 19 * m * 4),
                                      SL(bints_, 0), SL(fe, 0), SL(fe, n3 * 4), SL(fe, 2 * n3 * 4), SL(sc, 0), n);
             // into the state columns on the device (the host does not touch the particle pages)
             pf_.scTmp = sc.dev;
             ZArgsH A = zargs(kZSc);
             D_->zrow(&A, &pf_, n_);
+            D_->batch_end();
         }
     }
 
@@ -927,8 +1122,15 @@ public:
         if (prof_ && (nStep_ > 0 || nRows_ > 0))
             std::fprintf(stderr, "[fp32 profile] z-code on the GPU: %lld row operations, %lld zTotcode, %lld beam-parameter "
                          "passes; %lld row uploads (fp64 records -> float rows), %lld record downloads; %lld synchronous "
-                         "rebases; %.3f s in row kernels and their sums, %.3f s in fp32<->fp64 conversions\n", nRows_, nZtot_, nUbp_,
-                         nRowsConv_, nRecTo_, nRebase_, tZ_, tConv_);
+                         "rebases; %.3f s in row kernels and their sums, %.3f s in fp32<->fp64 conversions; %lld mesh solves, "
+                         "%lld lpboundary / longlimits passes on the GPU\n", nRows_, nZtot_, nUbp_, nRowsConv_, nRecTo_, nRebase_, tZ_,
+                         tConv_, nSolve_, nLp_);
+        if (prof_ && nDep_ > 0)
+            std::fprintf(stderr, "[fp32 profile] space charge: %lld deposits, %.3f ms per deposit, %.3f ms per mesh solve (charge and "
+                         "correction list %.3f ms, Green table %.3f ms, zero potential %.3f ms, potential %.3f ms), %.3f ms per field interpolation\n",
+                         nDep_, 1e3 * tDep_ / nDep_, nSolve_ ? 1e3 * tSolve_ / nSolve_ : 0.0, nSolve_ ? 1e3 * tCharge_ / nSolve_ : 0.0,
+                         nSolve_ ? 1e3 * tGreen_ / nSolve_ : 0.0, nSolve_ ? 1e3 * tPhi0_ / nSolve_ : 0.0,
+                         nSolve_ ? 1e3 * tKern_ / nSolve_ : 0.0, 1e3 * tInterp_ / nDep_);
     }
 
 private:
@@ -950,6 +1152,10 @@ private:
     double T0_ = 0.0;           // time origin of the float rows
     float pend_ = 0.0f;         // shift of the row times to the reference time, applied by the next transfer
     double tStep_ = 0, tGroup_ = 0, tHost_ = 0;
+    double tDep_ = 0, tSolve_ = 0, tInterp_ = 0, tCharge_ = 0, tGreen_ = 0, tPhi0_ = 0, tKern_ = 0;  // space charge (profile)
+    long long nDep_ = 0;
+    std::uint64_t scHinted_ = 0;
+    struct Timer { double& acc; double t0; ~Timer() { acc += now() - t0; } };
     static double now() { return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count(); }
     bool auth_ = false, stepOk_ = false, warned_ = false, hasEff_ = false, errOn_ = false, oldValid_ = false;
     kern::PartV hostP_{};
@@ -962,6 +1168,7 @@ private:
     PartFH pf_{};
     SyncH ref_{};
     std::vector<float> charge_;
+    std::vector<unsigned char> okBuf_;
     bool qDirty_ = true;
     F32Buf bqs_;  // charges of the float state (deposit_state)
     F32Buf beff_, bsubs_, bgeom_, bseg_, bbndz_, bbndr_;
@@ -1088,6 +1295,7 @@ private:
             f[24 * m + i] = static_cast<float>(P.spOutZ0[i]);
             f[25 * m + i] = static_cast<float>(P.spOutZ1[i]);
             f[(kRow + 8) * m + i] = static_cast<float>(P.qOverM[i]);
+            f[(kRow + 9) * m + i] = static_cast<float>(P.restMass[i]);
             iv[i] = P.lost[i];
             iv[m + i] = P.elemIndex[i];
             iv[2 * m + i] = P.nextPlane[i];
@@ -1100,12 +1308,70 @@ private:
         }
     }
 
-    F32Buf sz_, bx_, by_, bz_, bq_, blost_, blo_, bhi_, bnodes_, brho_, bG_, bphi_, bfield_, bmf_, bsc_, bcorr_, bdval_;
+    F32Buf sz_, bx_, by_, bz_, bq_, blost_, blo_, bhi_, bnodes_, brho_, brhod_, bG_, bphi_, bfield_, bmf_, bsc_, bcorr_, bdval_;
+    size_t fieldN3_ = 0;
+    long long nSolve_ = 0, nLp_ = 0;
+    F32Buf bfft_, bwork_;
+    int fftKey_[3] = {0, 0, 0};
+    // compact candidate entries (words per particle): cSnap 12, cNp 1, sSnap 12, sElem 1, aIdx 2, aRow 16, bEnt 16
+    static constexpr size_t kCand = 60;
 
-    // shared (host-visible) buffer of at least `bytes`, kept for the next call
+    // device buffer (with its host copy) of at least `bytes`, kept for the next call
     F32Buf& buf(F32Buf& b, size_t bytes) {
         D_->ensure(b, bytes == 0 ? 4 : bytes);
         return b;
+    }
+    // memory the host and the kernels both use directly
+    F32Buf& shared(F32Buf& b, size_t bytes) {
+        D_->ensure_shared(b, bytes == 0 ? 4 : bytes);
+        return b;
+    }
+    // double -> float into a buffer, uploaded
+    void flu(F32Buf& b, size_t n, const double* v) {
+        fl(b, n, v);
+        D_->upload(b, 0, n * 4);
+    }
+    // the mesh field for an interpolation: given (double, converted and uploaded) or the device's own
+    F32Buf& field_up(const double* ex, const double* ey, const double* ez, size_t n3) {
+        if (!ex) return bfield_;
+        F32Buf& fe = buf(bmf_, 3 * n3 * 4);
+        float* f = static_cast<float*>(fe.host);
+        for (size_t e = 0; e < n3; ++e) {
+            f[e] = static_cast<float>(ex[e]);
+            f[n3 + e] = static_cast<float>(ey[e]);
+            f[2 * n3 + e] = static_cast<float>(ez[e]);
+        }
+        D_->upload(fe, 0, 3 * n3 * 4);
+        return fe;
+    }
+    // The fp64 Green table on the host (the device back end's numbers: sck::green_corner / green_cell, every
+    // entry on its own, so in parallel) as float.
+    void host_green(const sck::SpGrid& g, const ScSolveIn& in, float* out) {
+        const int ax = g.mx + 1, ay = g.my + 1, az = g.mz + 1;
+        std::vector<double> F(static_cast<size_t>(ax) * ay * az);
+        const size_t nG = static_cast<size_t>(2 * g.nx + 1) * (2 * g.ny + 1) * (2 * g.nz + 1);
+        std::vector<double> G(nG, 0.0);
+        const long long nF = static_cast<long long>(F.size()), nC = static_cast<long long>(g.mx) * g.my * g.mz;
+        par(nF, [&](long long e) {
+            F[static_cast<size_t>(e)] = sck::green_corner(static_cast<int>(e / (ay * az)), static_cast<int>((e / az) % ay),
+                                                          static_cast<int>(e % az), in.dx, in.dy, in.dz);
+        });
+        par(nC, [&](long long e) {
+            sck::green_cell(g, F.data(), in.vol, static_cast<int>(e / (g.my * g.mz)), static_cast<int>((e / g.mz) % g.my),
+                            static_cast<int>(e % g.mz), G.data());
+        });
+        for (size_t e = 0; e < nG; ++e) out[e] = static_cast<float>(G[e]);
+    }
+    template <class Fn>
+    static void par(long long n, Fn&& fn) {
+        int nt = options().threads > 0 ? options().threads : static_cast<int>(std::thread::hardware_concurrency());
+        nt = static_cast<int>(std::max<long long>(1, std::min<long long>(nt, n / 1024 + 1)));
+        std::vector<std::thread> th;
+        for (int t = 0; t < nt; ++t)
+            th.emplace_back([&, t] {
+                for (long long e = n * t / nt; e < n * (t + 1) / nt; ++e) fn(e);
+            });
+        for (auto& x : th) x.join();
     }
     // double -> float into a buffer
     float* fl(F32Buf& b, size_t n, const double* v) {
@@ -1151,8 +1417,7 @@ private:
     void ensure_rows(const kern::PartV& P, int n) {
         if (rowsValid_) return;
         ++nRowsConv_;
-        D_->host_side(bstate_);
-        struct Back { F32Device& d; F32Buf& b; ~Back() { d.device_side(b); } } back{*D_, bstate_};
+        struct Up { F32Device& d; F32Buf& b; size_t off, len; ~Up() { d.upload(b, off, len); } } up{*D_, bstate_, kRow * m_ * 4, 8 * m_ * 4};
         float* rw = static_cast<float*>(bstate_.host) + kRow * m_;
         rowsT0Set_ = false;
         T0_ = 0.0;
@@ -1176,9 +1441,9 @@ private:
     void gsum(int ncol, int nmx, int nmx0, double* out, float* mxOut) {
         const int ng = red_groups(n_);
         const double t0 = now();
-        F32Buf& gs = buf(bgs_, static_cast<size_t>(ng) * 21 * 8);
-        F32Buf& ge = buf(bge_, static_cast<size_t>(ng) * 21 * 4);
-        F32Buf& gm = buf(bgm_, static_cast<size_t>(ng) * 8 * 4);
+        F32Buf& gs = shared(bgs_, static_cast<size_t>(ng) * 21 * 8);
+        F32Buf& ge = shared(bge_, static_cast<size_t>(ng) * 21 * 4);
+        F32Buf& gm = shared(bgm_, static_cast<size_t>(ng) * 8 * 4);
         struct T { double& acc; double t0; ~T() { acc += now() - t0; } } timer{tZ_, t0};
         D_->group(SL(bstate_, 26 * m_ * 4), SL(bstate_, (26 + 21) * m_ * 4), SL(gs, 0), SL(ge, 0), SL(gm, 0), n_,
                   static_cast<int>(m_), ncol, nmx, nmx0);
@@ -1201,6 +1466,7 @@ private:
         for (int i = 0; i < M.nx; ++i) f[i] = static_cast<float>(M.xs[i]);
         for (int j = 0; j < M.ny; ++j) f[M.nx + j] = static_cast<float>(M.ys[j]);
         for (int k = 0; k < M.nz; ++k) f[M.nx + M.ny + k] = static_cast<float>(M.zs[k]);
+        D_->upload(b, 0, static_cast<size_t>(M.nx + M.ny + M.nz) * 4);
         MeshF F{};
         F.nx = M.nx;
         F.ny = M.ny;

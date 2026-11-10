@@ -192,6 +192,7 @@ struct PartV {
     double* t;      // own time (secondary particles)
     double* dt;     // own time step (secondary particles)
     int sync;       // index of the synchronous particle in this view, -1 when it is not part of it
+    double* restMass = nullptr;  // rest mass (MeV); set by the device back end for the fp32 tier
 };
 
 #endif  // AVAS_FLOAT_ONLY

@@ -166,6 +166,13 @@ kernel void k_zrow(constant f32::ZArgs& Ac [[buffer(0)]], constant f32::PartF& F
     f32::zrow_particle(A, F, int(i));
 }
 
+// one pass of the FFT solve (f32::fft_node)
+kernel void k_fft(constant sck::SpGrid& gc [[buffer(0)]], constant f32::FftP& Pc [[buffer(1)]], uint id [[thread_position_in_grid]]) {
+    const sck::SpGrid g = gc;
+    const f32::FftP P = Pc;
+    f32::fft_node(g, P, int(id));
+}
+
 kernel void k_sizes(device uint* o [[buffer(0)]]) {
     o[0] = sizeof(kern::MeshV);
     o[1] = sizeof(sck::SpGrid);
@@ -173,6 +180,7 @@ kernel void k_sizes(device uint* o [[buffer(0)]]) {
     o[3] = sizeof(kern::ElemV);
     o[7] = sizeof(kern::SubV);
     o[10] = sizeof(f32::ZArgs);
+    o[11] = sizeof(f32::FftP);
     o[8] = sizeof(f32::GeomF);
     o[9] = sizeof(f32::BoundU);
     o[4] = sizeof(MapView<float, float>);

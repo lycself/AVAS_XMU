@@ -69,10 +69,24 @@ AVAS_HD inline void sym_target(AVAS_T const SpGrid& g, const AVAS_G T* rho, cons
                     const int ra = si == 0 ? nx - 1 - a : a;
                     for (int bb = seg[1][sj][0]; bb < seg[1][sj][1]; ++bb) {
                         const int rb = sj == 0 ? ny - 1 - bb : bb;
-                        for (int c = seg[2][sk][0]; c < seg[2][sk][1]; ++c) {
-                            const int rc = sk == 0 ? nz - 1 - c : c;
-                            const T r = rho[g.at(ra, rb, rc)];
-                            if (r > thr) S = r * G[g.gat(nx - i + a, ny - j + bb, nz - k + c)] + S;
+                        // the loads of four nodes first, then the sums in order (the same bits as one
+                        // node at a time; on a GPU with one target per thread the loads overlap)
+                        const AVAS_G T* rrow = rho + g.at(ra, rb, 0);
+                        const AVAS_G T* grow = G + g.gat(nx - i + a, ny - j + bb, nz - k);
+                        const int c1 = seg[2][sk][1], rev = sk == 0 ? nz - 1 : 0, dir = sk == 0 ? -1 : 1;
+                        int c = seg[2][sk][0];
+                        for (; c + 4 <= c1; c += 4) {
+                            const T r0 = rrow[rev + dir * c], r1 = rrow[rev + dir * (c + 1)], r2 = rrow[rev + dir * (c + 2)],
+                                    r3 = rrow[rev + dir * (c + 3)];
+                            const T g0 = grow[c], g1 = grow[c + 1], g2 = grow[c + 2], g3 = grow[c + 3];
+                            if (r0 > thr) S = r0 * g0 + S;
+                            if (r1 > thr) S = r1 * g1 + S;
+                            if (r2 > thr) S = r2 * g2 + S;
+                            if (r3 > thr) S = r3 * g3 + S;
+                        }
+                        for (; c < c1; ++c) {
+                            const T r = rrow[rev + dir * c];
+                            if (r > thr) S = r * grow[c] + S;
                         }
                     }
                 }
@@ -179,30 +193,33 @@ AVAS_HD inline void grad_spicnic_node(AVAS_T const SpGrid& g, const AVAS_G doubl
     ez[id] = sp_grad(k, g.nz, k > 0 ? phi[g.at(i, j, k - 1)] : 0.0, p0, k + 1 < g.nz ? phi[g.at(i, j, k + 1)] : 0.0, hz);
 }
 
-#ifndef AVAS_FLOAT_ONLY
+// FFT direct transforms (also the fp32 tier of Metal, CUDA and emu since M6c phase 5; literals are written
+// double(...) so that they are float there).
 // DST-I along axis 0 (x) or 1 (y) at node (i, j, k); sinTab[q] = sin(pi q / (N + 1)).
-AVAS_HD inline double dst_node(const SpGrid& g, int axis, const double* in, const double* sinTab, int i, int j, int k) {
+AVAS_HD inline double dst_node(AVAS_T const SpGrid& g, int axis, const AVAS_G double* in, const AVAS_G double* sinTab, int i, int j,
+                               int k) {
     const int N = axis == 0 ? g.nx : g.ny;
     const int kk = axis == 0 ? i : j;
     const int period = 2 * (N + 1);
-    double s = 0.0;
+    double s = double(0);
     for (int m = 0; m < N; ++m) {
         const double v = axis == 0 ? in[g.at(m, j, k)] : in[g.at(i, m, k)];
         s = s + v * sinTab[((m + 1) * (kk + 1)) % period];
     }
-    return 2.0 * s;
+    return double(2) * s;
 }
 
 // Complex DFT along z at node (i, j, k): sign -1 forward, +1 backward (im may be null: real input).
-AVAS_HD inline void dft_z_node(const SpGrid& g, const double* re, const double* im, const double* cosTab, const double* sinTab,
-                               double sign, int i, int j, int k, double& ore, double& oim) {
+AVAS_HD inline void dft_z_node(AVAS_T const SpGrid& g, const AVAS_G double* re, const AVAS_G double* im, const AVAS_G double* cosTab,
+                               const AVAS_G double* sinTab, double sign, int i, int j, int k, AVAS_T double& ore,
+                               AVAS_T double& oim) {
     const avas_i64 base = g.at(i, j, 0);
     const int N = g.nz;
-    double sr = 0.0, si = 0.0;
+    double sr = double(0), si = double(0);
     for (int m = 0; m < N; ++m) {
         const int q = static_cast<int>((static_cast<avas_i64>(m) * k) % N);
         const double c = cosTab[q], s = sign * sinTab[q];
-        const double xr = re[base + m], xi = im ? im[base + m] : 0.0;
+        const double xr = re[base + m], xi = im ? im[base + m] : double(0);
         sr = sr + (xr * c - xi * s);
         si = si + (xr * s + xi * c);
     }
@@ -210,17 +227,17 @@ AVAS_HD inline void dft_z_node(const SpGrid& g, const double* re, const double* 
     oim = si;
 }
 
-AVAS_HD inline double green_factor(const double* lx, const double* ly, const double* lz, int i, int j, int k) {
-    return 112940906683.72818 / ((lx[i] + ly[j]) + lz[k]);
+AVAS_HD inline double green_factor(const AVAS_G double* lx, const AVAS_G double* ly, const AVAS_G double* lz, int i, int j, int k) {
+    return double(112940906683.72818) / ((lx[i] + ly[j]) + lz[k]);
 }
 
-AVAS_HD inline void grad_fft_node(const SpGrid& g, const double* phi, double hx, double hy, double hz, int i, int j, int k,
-                                  double* ex, double* ey, double* ez) {
+AVAS_HD inline void grad_fft_node(AVAS_T const SpGrid& g, const AVAS_G double* phi, double hx, double hy, double hz, int i, int j,
+                                  int k, AVAS_G double* ex, AVAS_G double* ey, AVAS_G double* ez) {
     const avas_i64 id = g.at(i, j, k);
-    const double xp = i + 1 < g.nx ? phi[g.at(i + 1, j, k)] : 0.0;
-    const double xm = i > 0 ? phi[g.at(i - 1, j, k)] : 0.0;
-    const double yp = j + 1 < g.ny ? phi[g.at(i, j + 1, k)] : 0.0;
-    const double ym = j > 0 ? phi[g.at(i, j - 1, k)] : 0.0;
+    const double xp = i + 1 < g.nx ? phi[g.at(i + 1, j, k)] : double(0);
+    const double xm = i > 0 ? phi[g.at(i - 1, j, k)] : double(0);
+    const double yp = j + 1 < g.ny ? phi[g.at(i, j + 1, k)] : double(0);
+    const double ym = j > 0 ? phi[g.at(i, j - 1, k)] : double(0);
     const double zp = phi[g.at(i, j, (k + 1) % g.nz)];
     const double zm = phi[g.at(i, j, (k + g.nz - 1) % g.nz)];
     ex[id] = -(xp - xm) * hx;
@@ -228,6 +245,7 @@ AVAS_HD inline void grad_fft_node(const SpGrid& g, const double* phi, double hx,
     ez[id] = -(zp - zm) * hz;
 }
 
+#ifndef AVAS_FLOAT_ONLY
 // Host tables of the direct transforms (the same values on the CPU emulation and the GPUs).
 struct FftTables {
     std::vector<double> sx, sy, cz, sz;

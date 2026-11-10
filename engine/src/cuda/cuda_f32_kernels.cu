@@ -102,11 +102,23 @@ __global__ void k_zrow(f32::ZArgs A, f32::PartF F, int lo, int hi) {
     f32::zrow_particle(A, F, i);
 }
 
-__global__ void k_deposit(kern::MeshV M, const float* x, const float* y, const float* z, const float* q, const int* lost,
-                          unsigned* lo, unsigned* hi, int p0, int p1) {
+__global__ void k_fft(sck::SpGrid g, f32::FftP P, long long n3) {
+    const long long id = static_cast<long long>(blockIdx.x) * blockDim.x + threadIdx.x;
+    if (id >= n3) return;
+    f32::fft_node(g, P, static_cast<int>(id));
+}
+
+// The same deposit with native 64-bit atomics (the sums modulo 2^64 equal those of add64's two words)
+__global__ void k_deposit64(kern::MeshV M, const float* x, const float* y, const float* z, const float* q, const int* lost,
+                            unsigned long long* acc, int p0, int p1) {
     const int p = p0 + static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
-    if (p >= p1) return;
-    f32::deposit_particle(M, x, y, z, q, lost, lo, hi, p);
+    if (p >= p1 || lost[p] == 1) return;
+    int i, j, k;
+    float w[8];
+    if (!kern::mesh_cell_t<float>(M, x[p], y[p], z[p], i, j, k, w)) return;
+    for (int m = 0; m < 8; ++m)
+        atomicAdd(acc + kern::mesh_corner(M, i, j, k, m),
+                  static_cast<unsigned long long>(f32::fix_charge_f(w[m] * q[p], M.fixScaleExp)));
 }
 
 __global__ void k_interp(kern::MeshV M, const float* x, const float* y, const float* z, const int* lost, const float* ex,
@@ -177,6 +189,7 @@ void sizes(unsigned* o) {
     o[8] = sizeof(f32::GeomF);
     o[9] = sizeof(f32::BoundU);
     o[10] = sizeof(f32::ZArgs);
+    o[11] = sizeof(f32::FftP);
 }
 
 // byte offsets of the candidate counters, lists and entries in PartF (every GPU gets its own in device memory)
@@ -189,6 +202,7 @@ void partf_lists(size_t* o) {
     o[5] = offsetof(f32::PartF, cNp);
     o[6] = offsetof(f32::PartF, sSnap);
     o[7] = offsetof(f32::PartF, sElem);
+    o[8] = offsetof(f32::PartF, bEnt);
 }
 
 void step(const void* L, const void* U, const void* F, const float* off, const float* rft, const int* sz, int lo, int hi) {
@@ -211,15 +225,19 @@ void group(const float* C, const float* Mx, long long* sums, int* exps, float* m
     cuk::k_group<<<static_cast<unsigned>(g1 - g0), 256>>>(C, Mx, sums, exps, mx, n, stride, ncol, nmx, nmx0, g0);
 }
 
+void fft(const void* g, const void* P, long long n3) {
+    cuk::k_fft<<<cuk::blocks(n3, 128), 128>>>(cuk::from<sck::SpGrid>(g), cuk::from<f32::FftP>(P), n3);
+}
+
 void zrow(const void* A, const void* F, int lo, int hi) {
     if (hi <= lo) return;
     cuk::k_zrow<<<cuk::blocks(hi - lo, 128), 128>>>(cuk::from<f32::ZArgs>(A), cuk::from<f32::PartF>(F), lo, hi);
 }
 
-void deposit(const void* M, const float* x, const float* y, const float* z, const float* q, const int* lost, unsigned* lo,
-             unsigned* hi, int p0, int p1) {
+void deposit64(const void* M, const float* x, const float* y, const float* z, const float* q, const int* lost,
+               unsigned long long* acc, int p0, int p1) {
     if (p1 <= p0) return;
-    cuk::k_deposit<<<cuk::blocks(p1 - p0, 256), 256>>>(cuk::from<kern::MeshV>(M), x, y, z, q, lost, lo, hi, p0, p1);
+    cuk::k_deposit64<<<cuk::blocks(p1 - p0, 256), 256>>>(cuk::from<kern::MeshV>(M), x, y, z, q, lost, acc, p0, p1);
 }
 
 void interp(const void* M, const float* x, const float* y, const float* z, const int* lost, const float* ex, const float* ey,

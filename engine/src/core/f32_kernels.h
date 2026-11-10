@@ -115,9 +115,11 @@ struct PartF {
     AVAS_G int* cNp;      // next plane of the crossing
     AVAS_G float* sSnap;  // 12 per superposeout candidate
     AVAS_G int* sElem;    // element index of the candidate
-    AVAS_G int* aIdx;     // host results applied by kZApply: 2 i + kind (0 plane record, 1 superposeout record)
+    AVAS_G int* aIdx;     // host results applied by kZApply: 4 i + kind (0 plane record, 1 superposeout record, 2 boundary)
     AVAS_G float* aRow;   // 8 per entry: the float row of a plane record
     AVAS_G float* scTmp;  // 3 per particle: the interpolated space-charge field (kZSc copies it into sc)
+    AVAS_G float* bEnt;   // 16 per boundary.txt candidate: d, du, old (6), lost, spOutCount, geomIndex
+    AVAS_G float* rm;     // rest mass (MeV, longlimits)
 };
 
 struct StepU {
@@ -349,20 +351,35 @@ struct BoundU {
 
 AVAS_HD inline bool near_f(float a, float b) { return hm::fabs(a - b) <= 1e-5f * avas_maxf(1.0f, hm::fabs(b)) + 1e-9f; }
 
+// a boundary.txt candidate: its index and what the host needs of it (compact entry)
+AVAS_HD inline void bound_cand(AVAS_T const PartF& F, int i) {
+    const unsigned c = avas_fetch_add(F.crossCount + 2, 1u);
+    F.bdIdx[c] = unsigned(i);
+    AVAS_G float* e = F.bEnt + 16 * c;
+    for (int j = 0; j < 3; ++j) {
+        e[j] = F.d[j][i];
+        e[3 + j] = F.du[j][i];
+    }
+    for (int j = 0; j < 6; ++j) e[6 + j] = F.oldS[6 * i + j];
+    e[12] = float(F.lost[i]);
+    e[13] = float(F.spOutCount[i]);
+    e[14] = float(F.geomIndex[i]);
+    e[15] = 0.0f;
+}
+
 // boundary.txt pre-selection of one particle (see BoundU).
 AVAS_HD inline void bound_particle(AVAS_T const BoundU& U, AVAS_T const PartF& F, const AVAS_G GeomF* geoms,
                                    const AVAS_G float* segStart, const AVAS_G float* segEnd, const AVAS_G float* bndZ,
                                    const AVAS_G int* bndR1, const AVAS_G int* bndR2, int i) {
 
     if (int(i) >= U.n || F.lost[i] != 0) return;
-    AVAS_G avas_atomic_u32* cnt = F.crossCount + 2;
     const float z = U.zs + F.d[2][i];
     const float spz = F.spz0[i];
     bool cand = near_f(z, 0.0f) || near_f(z, spz) || near_f(z, U.segEndLast);
     if (!cand && (z < 0.0f || z >= U.segEndLast || z < spz)) {
         // lost = 2 past the lattice end is decided on the host
         if (z > U.totalLength - 1e-5f * avas_maxf(1.0f, U.totalLength) && U.spOutCur == U.spOutSize)
-            F.bdIdx[avas_fetch_add(cnt, 1u)] = i;
+            bound_cand(F, i);
         return;
     }
     if (!cand) {
@@ -419,7 +436,7 @@ AVAS_HD inline void bound_particle(AVAS_T const BoundU& U, AVAS_T const PartF& F
             }
         }
     }
-    if (cand) F.bdIdx[avas_fetch_add(cnt, 1u)] = i;
+    if (cand) bound_cand(F, i);
 }
 
 // Fixed-point CIC deposit of one particle (64-bit integers as two 32-bit words with carry).
@@ -455,7 +472,7 @@ AVAS_HD inline void interp_particle(AVAS_T const kern::MeshV& M, const AVAS_G fl
 // reference time after every element, `shift`); the transfers are the shared kern::het_row /
 // kick_row / ztot_row in the float world.  Sums over particles go through the C / Mx columns and the
 // fixed-point group sums like the t-code statistics.
-enum : int { kZHet = 1, kZKick = 2, kZTref = 3, kZHesc1 = 4, kZHesc2 = 5, kZTot = 6, kZUbp1 = 7, kZUbp2 = 8, kZApply = 9, kZClear = 10, kZSc = 11 };
+enum : int { kZHet = 1, kZKick = 2, kZTref = 3, kZHesc1 = 4, kZHesc2 = 5, kZTot = 6, kZUbp1 = 7, kZUbp2 = 8, kZApply = 9, kZClear = 10, kZSc = 11, kZLp = 12, kZLong = 13 };
 
 struct ZArgs {
     kern::RowOp op;
@@ -467,14 +484,42 @@ struct ZArgs {
 AVAS_HD inline void zrow_particle(AVAS_T const ZArgs& A, AVAS_T const PartF& F, int i) {
     if (i >= A.n) return;
     if (A.code == kZApply) {  // i: entry of the host's result list (each particle at most once per kind)
-        const int e = F.aIdx[i], p = e >> 1;
-        if ((e & 1) == 0) {
+        const int e = F.aIdx[i];
+        if (e < 0) return;  // a slot without a result
+        const int p = e >> 2, kind = e & 3;
+        if (kind == 0) {
             F.recFlag[p] = 1;
             F.nextPlane[p] = F.nextPlane[p] + 1;
             for (int j = 0; j < 8; ++j) F.row[j][p] = F.aRow[8 * i + j];
-        } else {
+        } else if (kind == 1) {
             F.spFlag[p] = 1;
+        } else {
+            F.geomIndex[p] = int(F.aRow[8 * i]);
+            F.lost[p] = int(F.aRow[8 * i + 1]);
         }
+        return;
+    }
+    if (A.code == kZLp) {  // lpboundary (kern::lp_fold_particle): z folded into one period around the reference
+        if (F.lost[i] != 0) return;
+        float d = F.d[2][i];
+        const float o = A.off[4], full = A.wx, hf = A.wy;  // ("half" is a type in MSL)
+        while (true) {
+            while (d + o > hf) d = d - full;
+            if (-hf <= d + o) break;
+            d = d + full;
+        }
+        F.d[2][i] = d;
+        return;
+    }
+    if (A.code == kZLong) {  // longlimits (kern::long_loss_particle); gamma - 1 = p^2 / (gamma + 1) without cancellation
+        float p2 = 0.0f;
+        for (int j = 0; j < 3; ++j) {
+            const float u = A.cen[2 * j + 1] + F.du[j][i];
+            p2 = p2 + u * u;
+        }
+        const float gm1 = p2 / (hm::sqrt(p2 + 1.0f) + 1.0f);
+        if (hm::fabs(gm1 * F.rm[i] - A.t) > A.wx) F.lost[i] = 1;
+        if (hm::fabs(F.d[2][i] + A.off[4]) > A.wy) F.lost[i] = 1;
         return;
     }
     if (A.code == kZSc) {
@@ -602,6 +647,62 @@ AVAS_HD inline void zrow_particle(AVAS_T const ZArgs& A, AVAS_T const PartF& F, 
         F.C[0 * nn + i] = w * ax * ax;
         F.C[1 * nn + i] = w * ay * ay;
         F.C[2 * nn + i] = w * az * az;
+    }
+}
+
+// ---- FFT solve on the device (M6c phase 5): the direct transforms of sc_kernels.h, one pass per call ----
+struct FftP {
+    AVAS_G float* rho;
+    AVAS_G float* A;
+    AVAS_G float* B;
+    AVAS_G float* C;
+    AVAS_G float* D;
+    AVAS_G float* sx;
+    AVAS_G float* sy;
+    AVAS_G float* cz;
+    AVAS_G float* sz;
+    AVAS_G float* lx;
+    AVAS_G float* ly;
+    AVAS_G float* lz;
+    AVAS_G float* phi;
+    AVAS_G float* ex;
+    AVAS_G float* ey;
+    AVAS_G float* ez;
+    int pass;
+    float scale, norm, hx, hy, hz;
+};
+
+// passes 0 .. 9 in the order of the device back end (device_emu.cpp): scale, DST x, DST y, DFT z, Green
+// factor, inverse DFT z, DST x, DST y, normalisation, gradient
+AVAS_HD inline void fft_node(AVAS_T const sck::SpGrid& g, AVAS_T const FftP& P, int id) {
+    if (id >= int(g.n3())) return;
+    int i, j, k;
+    g.ijk(id, i, j, k);
+    float re, im;
+    switch (P.pass) {
+        case 0: P.A[id] = P.rho[id] * P.scale; break;
+        case 1: P.B[id] = sck::dst_node(g, 0, P.A, P.sx, i, j, k); break;
+        case 2: P.A[id] = sck::dst_node(g, 1, P.B, P.sy, i, j, k); break;
+        case 3:
+            sck::dft_z_node(g, P.A, nullptr, P.cz, P.sz, -1.0f, i, j, k, re, im);
+            P.C[id] = re;
+            P.D[id] = im;
+            break;
+        case 4: {
+            const float f = sck::green_factor(P.lx, P.ly, P.lz, i, j, k);
+            P.C[id] = P.C[id] * f;
+            P.D[id] = P.D[id] * f;
+            break;
+        }
+        case 5:
+            sck::dft_z_node(g, P.C, P.D, P.cz, P.sz, 1.0f, i, j, k, re, im);
+            P.A[id] = re;
+            P.B[id] = im;
+            break;
+        case 6: P.C[id] = sck::dst_node(g, 0, P.A, P.sx, i, j, k); break;
+        case 7: P.D[id] = sck::dst_node(g, 1, P.C, P.sy, i, j, k); break;
+        case 8: P.phi[id] = P.D[id] * P.norm; break;
+        default: sck::grad_fft_node(g, P.phi, P.hx, P.hy, P.hz, i, j, k, P.ex, P.ey, P.ez); break;
     }
 }
 

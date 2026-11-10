@@ -1479,8 +1479,8 @@ std::unique_ptr<DeviceBackend> make_cuda_backend(long long nParticles, bool spac
     if (fp32) {
         // the fp32 tier (M6c phase 4): the device back end on the host with the fp32 kernels of
         // core/f32_kernels.h on the GPUs, as Metal; every MPI rank computes all particles
-        full << ": t-code push, z-code rows, statistics, boundary.txt and space-charge mesh work on the GPU in fp32 "
-                "(FFT solve, secondary particles on the CPU)";
+        full << ": t-code push, z-code rows, statistics, boundary.txt, lpboundary / longlimits and the space-charge mesh "
+                "work (PICNIC, SPICNIC, FFT) on the GPU in fp32 (secondary particles on the CPU)";
         if (world.size > 1) full << "; every MPI rank computes all particles";
         std::unique_ptr<ScAccel> acc = make_cuda_f32_accel(devs, full.str(), why);
         if (!acc) return nullptr;

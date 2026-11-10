@@ -75,7 +75,8 @@ public:
             group_ = pipe("k_group");
             bound_ = pipe("k_bound");
             zrow_ = pipe("k_zrow");
-            if (!sizes_ || !dep_ || !interp_ || !picnic_ || !sym_ || !corr_ || !grad_ || !step_ || !group_ || !bound_ || !zrow_)
+            fft_ = pipe("k_fft");
+            if (!sizes_ || !dep_ || !interp_ || !picnic_ || !sym_ || !corr_ || !grad_ || !step_ || !group_ || !bound_ || !zrow_ || !fft_)
                 return false;
             queue_ = [dev_ newCommandQueue];
             name_ = [[dev_ name] UTF8String];
@@ -85,8 +86,8 @@ public:
     }
 
     std::string describe() const override {
-        return "Metal, " + name_ + ": t-code push, z-code rows, statistics, boundary.txt and space-charge mesh work on the GPU "
-               "in fp32 (FFT solve, secondary particles on the CPU)";
+        return "Metal, " + name_ + ": t-code push, z-code rows, statistics, boundary.txt, lpboundary / longlimits and the "
+               "space-charge mesh work (PICNIC, SPICNIC, FFT) on the GPU in fp32 (secondary particles on the CPU)";
     }
 
     void ensure(F32Buf& b, size_t bytes) override {
@@ -110,7 +111,7 @@ public:
         F32Buf b;
         ensure(b, 64);
         run(sizes_, 1, [&](id<MTLComputeCommandEncoder> enc) { set(enc, F32Slice{&b, 0}, 0); });
-        std::memcpy(o, b.host, 11 * 4);
+        std::memcpy(o, b.host, 12 * 4);
         live_.erase(std::find(live_.begin(), live_.end(), b.impl));
         CFRelease(b.impl);
     }
@@ -126,6 +127,29 @@ public:
         });
     }
 
+    void batch_begin() override {
+        if (benc_) return;
+        bcb_ = [queue_ commandBuffer];
+        benc_ = [bcb_ computeCommandEncoder];
+    }
+    void batch_end() override {
+        if (!benc_) return;
+        [benc_ endEncoding];
+        [bcb_ commit];
+        [bcb_ waitUntilCompleted];
+        const bool failed = [bcb_ status] == MTLCommandBufferStatusError;
+        const std::string why = failed ? std::string([[[bcb_ error] localizedDescription] UTF8String]) : std::string();
+        benc_ = nil;
+        bcb_ = nil;
+        if (failed) throw EngineError("Metal command failed: " + why);
+    }
+
+    void fft(const void* g, const void* P, long long n3) override {
+        run(fft_, static_cast<size_t>(n3), [&](id<MTLComputeCommandEncoder> enc) {
+            [enc setBytes:g length:sz_[1] atIndex:0];
+            [enc setBytes:P length:sz_[11] atIndex:1];
+        });
+    }
     void zrow(const void* A, const void* F, int n) override {
         run(zrow_, static_cast<size_t>(n), [&](id<MTLComputeCommandEncoder> enc) {
             [enc setBytes:A length:sz_[10] atIndex:0];
@@ -255,16 +279,28 @@ private:
     id<MTLDevice> dev_ = nil;
     id<MTLCommandQueue> queue_ = nil;
     id<MTLComputePipelineState> sizes_ = nil, dep_ = nil, interp_ = nil, picnic_ = nil, sym_ = nil, corr_ = nil, grad_ = nil,
-                                step_ = nil, group_ = nil, bound_ = nil, zrow_ = nil;
+                                step_ = nil, group_ = nil, bound_ = nil, zrow_ = nil, fft_ = nil;
     std::vector<void*> live_;  // every buffer: made resident for each dispatch (structures hold GPU addresses)
     std::string name_;
 
     static void set(id<MTLComputeCommandEncoder> enc, F32Slice s, NSUInteger idx) {
         [enc setBuffer:(__bridge id<MTLBuffer>)s.b->impl offset:s.off atIndex:idx];
     }
+    id<MTLCommandBuffer> bcb_ = nil;  // open batch (batch_begin .. batch_end)
+    id<MTLComputeCommandEncoder> benc_ = nil;
+
     template <class Setup>
     void run(id<MTLComputePipelineState> ps, size_t threads, Setup&& setup) {
         if (threads == 0) return;
+        if (benc_) {  // in a batch: queued in the open encoder, ordered by a buffer barrier
+            [benc_ setComputePipelineState:ps];
+            setup(benc_);
+            for (void* r : live_) [benc_ useResource:(__bridge id<MTLBuffer>)r usage:MTLResourceUsageRead | MTLResourceUsageWrite];
+            const NSUInteger tg = std::min<NSUInteger>(256, [ps maxTotalThreadsPerThreadgroup]);
+            [benc_ dispatchThreads:MTLSizeMake(threads, 1, 1) threadsPerThreadgroup:MTLSizeMake(tg, 1, 1)];
+            [benc_ memoryBarrierWithScope:MTLBarrierScopeBuffers];
+            return;
+        }
         @autoreleasepool {
             id<MTLCommandBuffer> cb = [queue_ commandBuffer];
             id<MTLComputeCommandEncoder> enc = [cb computeCommandEncoder];

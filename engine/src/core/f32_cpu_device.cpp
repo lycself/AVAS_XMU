@@ -26,6 +26,7 @@ void corr(const void* g, const float* G, const int* corr, const float* dval, lon
 void grad(const void* g, const float* phi, const float* h, float* ex, float* ey, float* ez);
 void group(const float* C, const float* Mx, long long* sums, int* exps, float* mx, int n, int stride, int ncol, int nmx, int nmx0);
 void zrow(const void* A, const void* F, int n);
+void fft(const void* g, const void* P, long long n3);
 }  // namespace f32cpu
 
 namespace {
@@ -64,6 +65,7 @@ public:
         f32cpu::group(C.ptr<float>(), Mx.ptr<float>(), sums.ptr<long long>(), exps.ptr<int>(), mx.ptr<float>(), n, stride, ncol, nmx,
                       nmx0);
     }
+    void fft(const void* g, const void* P, long long n3) override { f32cpu::fft(g, P, n3); }
     void zrow(const void* A, const void* F, int n) override {
         f32cpu::zrow(A, F, n);
     }

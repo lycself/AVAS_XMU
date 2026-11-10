@@ -163,10 +163,11 @@ public:
     // Adds the fixed-point deposit of n particles to acc (64-bit integer sums, order independent).
     virtual void deposit(const kern::MeshV& M, int n, const double* x, const double* y, const double* z,
                          const double* q, const int* lost, std::vector<long long>& acc) = 0;
-    // PICNIC / SPICNIC on the accelerator (Green table and correction list from the host); false:
-    // not handled (FFT), the caller solves on the CPU.
-    virtual bool solve(const ScSolveIn& in, const double* G, const int* corr, const double* dval, long long nc,
-                       std::vector<double>& ex, std::vector<double>& ey, std::vector<double>& ez) = 0;
+    // The mesh solve on the accelerator from the charge in.rho (PICNIC / SPICNIC: Green table, correction
+    // list, sums and gradient there); the field stays there (interp_state with null arrays, fields() on the
+    // host).  false: not handled, the caller solves on the CPU.
+    virtual bool solve_mesh(const ScSolveIn& in) = 0;
+    virtual void fields(std::vector<double>& ex, std::vector<double>& ey, std::vector<double>& ez) = 0;
     // Field at the particles from the mesh field ex, ey, ez (sc = 0 for lost particles).
     virtual void interp(const kern::MeshV& M, const double* ex, const double* ey, const double* ez, int n,
                         const double* x, const double* y, const double* z, const int* lost, double* scx, double* scy,
@@ -223,10 +224,17 @@ public:
         return false;
     }
     virtual void rec_to_host(const kern::PartV& P, int n) { (void)P; (void)n; }
+    // lpboundary / longlimits on the accelerator (authoritative only; false: the caller does it)
+    virtual bool lp_fold(double zs, double full, double half) { (void)zs; (void)full; (void)half; return false; }
+    virtual bool long_loss(double zs, double ws, double dW, double dzMax) {
+        (void)zs; (void)ws; (void)dW; (void)dzMax;
+        return false;
+    }
     // the host changed P.rec (upload): the float rows are rebuilt before their next use
     virtual void invalidate_rows() {}
     // Deposit / interpolation from the float state (authoritative only).
     virtual void deposit_state(const kern::MeshV& M, int n, std::vector<long long>& acc) { (void)M; (void)n; (void)acc; }
+    // (ex null: the field of the last solve_mesh)
     virtual void interp_state(const kern::MeshV& M, const double* ex, const double* ey, const double* ez, int n) {
         (void)M; (void)ex; (void)ey; (void)ez; (void)n;
     }

@@ -42,6 +42,7 @@ void sizes(unsigned* o) {
     o[8] = sizeof(f32::GeomF);
     o[9] = sizeof(f32::BoundU);
     o[10] = sizeof(f32::ZArgs);
+    o[11] = sizeof(f32::FftP);
 }
 
 void step(const void* L, const void* U, const void* F, const float* off, const float* rft, const int* sizes, int n) {
@@ -111,6 +112,12 @@ void grad(const void* g, const float* phi, const float* h, float* ex, float* ey,
 // The group sums of k_group: per column the largest |value| of the group fixes e with |v| 2^e < 2^50,
 // the values are summed as 64-bit integers; the maxima in float.  Max and integer sums do not depend
 // on the order, so this sequential loop gives the threadgroup tree's result.
+void fft(const void* g, const void* P, long long n3) {
+    const auto& S = *static_cast<const sck::SpGrid*>(g);
+    const auto& PV = *static_cast<const f32::FftP*>(P);
+    for (long long id = 0; id < n3; ++id) f32::fft_node(S, PV, static_cast<int>(id));
+}
+
 void zrow(const void* A, const void* F, int n) {
     const auto& AV = *static_cast<const f32::ZArgs*>(A);
     const auto& FV = *static_cast<const f32::PartF*>(F);

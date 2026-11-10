@@ -765,3 +765,135 @@ C++ 中按 Metal 的方式编译——先包含标准库，再 `#define avas ava
    结果仍逐字节相同），电荷与场的转换放到设备；(b) CUDA 设备改用显式显存加批量复制（`F32Device` 增加读写区段的接口），不再依赖托管内存的页迁移。推荐：下一步先做 (a)，
    再做 (b)。在此之前 **auto 精度在非 HPC 卡上仍选 fp32**，有空间电荷的运行会比旧版本慢；可以选择暂时让 CUDA 的 auto 改选 fp64（消费级卡 fp64 慢，但不受上述主机开销影响）——
    需用户决定，推荐先保持 fp32、尽快做 (a)。
+
+### 17. 用户决定（2026-11-10）与第五阶段
+
+第 16 节四个待定点全部按推荐：
+1. z-code 行改为增量形式：暂不做（需要时用 `AVAS_ENGINE_F32_ZCODE=0`）。
+2. MPI 下 fp32 档按进程分粒子：暂不做。
+3. FFT 求解、lpboundary / longlimits 放到 fp32 设备：在第 4 项之后做，先 FFT，再 lpboundary / longlimits。
+4. CUDA fp32 性能：先 (a) 网格格林函数表与 SPICNIC 修正表在设备上计算、电荷与场的 float / double 转换放到设备，再 (b) CUDA 设备改用显式显存加批量复制，不再依赖托管内存的页迁移。
+   auto 精度在非 HPC 卡上保持 fp32。
+
+实施顺序 4(a) → 4(b) → FFT → lpboundary / longlimits；importSCF 没有顺手做（见受限项）。
+
+**设计**
+
+- **内存模型**（`core/f32_host.h`）：`F32Device::ensure()` 是设备缓冲区加一份主机副本，二者只经 `upload()` / `download()`（按字节区段）交换——Metal 与 CPU 上主机与设备共用内存，
+  这两个调用是空操作；`ensure_shared()` 是主机与内核都直接读写的内存（主机的候选表、结果表、组和、电荷网格的两个字），CUDA 上是映射到设备的锁页主机内存
+  （`cudaHostAlloc` Mapped | Portable）。另有两个只影响放置的提示：`tables()`（只读的表：每张卡一份）与 `particles()`（按粒子的列：每段放在该段的卡上，可指定每个粒子的字节数）。
+  `F32Accel` 只在这些调用处交换数据：开始时整体上传粒子状态与表，每步上传偏移表与 RF 表，候选与结果走共享内存，结束 / 需要主机记录时下载。
+- **CUDA 设备**（`src/cuda/cuda_f32_device.cu` 重写）：单卡时 `ensure()` 是 `cudaMalloc` 加主机副本，**完全不用托管内存**；多卡时每个缓冲区仍是一块托管内存，但只当作各卡共用的地址
+  （首选位置第一张卡、各卡 AccessedBy；表设 read-mostly，粒子列按卡的段设首选位置并预取），主机从不直接读写它，数据只经显式复制移动。
+- **4(a) 网格表与转换在设备上**：
+  - SPICNIC / PICNIC 的格林函数表（`sck::green_corner` / `green_cell`）与 SPICNIC 修正表（`sck::corr_value`，cub `DeviceSelect::Flagged` 稳定压缩，保持 CPU 的次序）
+    在 CUDA 上用 fp64 内核计算，再在设备上转成 float——与 fp64 档同一份可移植代码（`p_log` / `p_atan`，`--fmad=false`），与主机算出的数逐位相同。
+  - Metal 与 CPU 设备在主机上算同一张表（`host_green` 按条目并行，修正表按 GPU 压缩的次序），然后上传。**所以 fp32 结果没有因为表改在设备上算而变化**
+    （下面“与第四阶段的差别”中 SPICNIC / PICNIC 算例全部逐字节不变）。
+  - 电荷：CUDA 的分配改用原生 64 位原子加（`k_deposit64`，模 2^64 的和与 Metal / CPU 的两个 32 位字加进位相同），各卡的网格下载后在主机按模 2^64 相加，
+    电荷以 double 上传、在设备上转 float；场留在设备上（`bfield_`），插值直接用它，只有主机需要时（`recscfield` 记录）才由 `fields()` 下载。
+    多卡时插值前把场复制一份到其余各卡（`cudaMemcpyAsync`，每步 3·n³ 个 float），不再跨卡读托管内存。
+- **4(b)**：上面的显式缓冲区之外，主机侧的工作也改成只碰紧凑数据：`boundary.txt` 的候选改成与平面穿越相同的紧凑表（`bEnt`）加结果表（`kZApply` 第 2 类）；
+  主机补全平面穿越在候选多（≥ 16384）时并行（第一遍按粒子在 double 中记录、设 T0，第二遍按槽写结果行，与次序无关）。
+- **FFT 在设备上**：`f32::fft_node` 的 10 遍（缩放、x / y 的 DST、z 的 DFT、乘格林因子、反 DFT、反 DST、归一化、梯度），用 `sc_kernels.h` 中原有的直接变换
+  （`dst_node`、`dft_z_node`、`green_factor`、`grad_fft_node` 改为 float 世界也能编译，字面量写成 `double(…)`）；变换表来自主机的 `sck::fft_tables`（按网格缓存），
+  lx / ly / lz 每次上传。CUDA、Metal、CPU 三种设备逐字节相同；与 CPU fp64 的 pocketfft 差别见下。
+- **lpboundary / longlimits 在设备上**：`kZLp`（纵向周期折回，按同步粒子的相对位置）与 `kZLong`（纵向能量 / 位置损失）两个 `zrow` 内核；粒子状态新增静止质量列。
+  这些算例因此只有开始 1 次 fp64→fp32、结束 1 次 fp32→fp64 转换。
+- **Metal 合并提交**：`F32Device` 新增 `batch_begin()` / `batch_end()`，其间的内核只排队（Metal：同一个命令缓冲区，每次分派后加缓冲区屏障），`batch_end()` 返回时都已完成；
+  用于 FFT 的 10 遍、SPICNIC / PICNIC 的求和 + 修正 + 梯度、插值 + 写回粒子。CUDA 与 CPU 上为空操作。
+- **SPICNIC 求和的访存**：`sck::sym_target` 的最内层循环先取 4 个节点的电荷与格林函数值，再按原次序累加（每个目标点一个线程，目标点只有 n³/8 个，
+  大 GPU 上每个 SM 只有一两个 warp，原来每次迭代都等一次访存）。运算与次序不变，fp64 / fp32、CPU / GPU 的结果逐位不变（CPU 默认模式 12 个 SPICNIC 算例逐字节核对）。
+- `AVAS_ENGINE_PROFILE=1` 的 `[fp32 profile]` 增加网格求解与 lpboundary / longlimits 在 GPU 上的次数，以及每次电荷分配、网格求解（电荷与修正表、格林函数表、
+  势清零、求和）、插值的耗时。
+
+**与第四阶段的差别（emu fp32，Mac，184 个算例）**：176 个逐字节不变（全部 SPICNIC / PICNIC、t-code、z-code、boundary、LP1、LL1）；变化的 8 个都是 FFT 求解
+（包括 LP2、LP3：lpboundary 下按周期边界一律走 FFT），原因是 FFT 从主机 fp64 的 pocketfft（结果再转 float）改为设备上 float 的直接变换：
+DataSet 最大 7.0e-6（列最大值的比例，SC11），dst 最大 3.65e-5 rms（SC11），其余 DataSet ≤ 5e-6、dst ≤ 4.7e-6 rms。与 CPU fp64 的差别：FFT 算例 DataSet 3e-5～8e-5、
+dst ≤ 8e-5 rms（SC2 3.3e-5 / 1.4e-5，SC11 6.8e-5 / 8.0e-5，LP1 3.1e-5 / 1.6e-5，LL1 2.8e-5 / 7.0e-5），与 t-code 算例的 fp32 差别同一量级。
+
+**检查**
+- Mac（Apple M2，AppleClang 含 Metal）：`run_gpu.py --device metal` 184 个算例（最终构建）：重跑全部逐字节相同，**Metal 与 emu fp32 逐字节相同 184/184**；emu fp32 与 CPU 的输出和本阶段中途的构建逐字节相同（只差时间戳）；单元测试、`run_all.py`（inData 23/23，compat=dll 与 AVAS.dll 最大差 3.44e-11，均不变）、
+  `run_physics.py`、`tools_check.py`、`ruff`（`avas`、`engine/tests`、`engine/tools`）通过。Metal 上的物理检验：椭球 SPICNIC 40³ 最大偏差 0.34 %、PICNIC 32³ 0.19 %、
+  FFT 128³ 0.99 %（FFT 现在也在 Metal 上）；DC KV SPICNIC 40³ 增长比 0.993 / 0.994、PICNIC 24³ 0.984。conda clang 的构建（不含 Metal）编译通过、无新警告，
+  emu fp32 的 SC2 / LP1 / LL1 / SC5 与 AppleClang 构建逐字节相同。
+- A100（GCC 12 + nvcc 12.4，`--fmad=false`；每个构建都无新警告，`nm -D` 7 个接口，只依赖 GLIBC_2.14；按正常 Slurm 申请，未动用户的 7933_* 作业）：
+  - 含 4(a)(b) 的构建（b1）与再加上 FFT / lpboundary / longlimits 的构建（b2）各跑 17 个代表算例（空间电荷、FFT、PICNIC、z-code、误差、superposeout、boundary、单粒子、
+    LP1、LL1）：fp64 9/9 与 CPU 逐字节相同，fp32 重跑 / 双卡 / MPI 47/47 逐字节相同，与 emu fp32 17/17 逐字节相同。
+  - **最终构建的全套（fp64 154 + 空间电荷 30 的重跑 / 双卡 / MPI，fp32 184 与 emu、重跑、双卡、MPI）与性能表的作业（7963）已提交，交回时仍在排队**：
+    gn1 的 8 块 GPU 被用户的 4 个 7933_* 作业和另一用户的数组作业（每个 1～4 小时，优先级更高）占满，等了两个多小时没有轮到。
+    最终构建与 b2 的差别只有 CUDA 的 64 位原子分配、多卡插值前复制场、两块缓冲区的放置提示、SPICNIC 求和的取数顺序与 Metal 的合并提交；
+    这些改动已在 L40S（sm_89）与 1080Ti（sm_61，双卡）上用最终构建跑完全套（见下），Metal 与 emu 也已核对。
+  - 中途构建的性能（1 卡，`perf_gpu.py`，推进 + 空间电荷 / 跟踪总时间，秒；“旧”为 c534785 的 CUDA fp32，同一作业中交替测得）：
+
+| 运行 | 旧 CUDA fp32 | CUDA fp64（第 16 节） | 第四阶段 CUDA fp32，1 卡 | 本阶段中途，1 卡 | 本阶段中途，2 卡 |
+|---|---|---|---|---|---|
+| hwr010 两周期，1e6，无 SC | 0.82–0.85 / 4.32–4.39 | 0.97 / 4.30 | 1.00 / 4.79 | 0.74–0.78 / 4.91–4.97 | — |
+| hwr010 两周期，1e6，SPICNIC | 2.38–2.44 / 5.74–5.98 | 2.79 / 6.13 | 55 / 59 | 2.64 / 6.97 | — |
+| 四极段，1e6，无 SC | 1.70–1.79 / 5.36–5.51 | 2.04 / 5.49 | 6.1–40 / 10–44 | 2.08–2.18 / 6.51–6.75 | 2.54 / 7.45 |
+| 四极段，1e6，SPICNIC | 5.76–5.83 / 9.27–9.52 | 6.28 / 9.82 | 125–128 / 130–133 | 6.46 / 11.02 | 11.3 / 16.1 |
+
+    “本阶段中途”是 64 位原子分配之后、SPICNIC 取数改动与多卡插值 / 放置改动之前的构建（b5；2 卡一列为 b3）。有空间电荷时从第四阶段的慢 15～25 倍回到旧 CUDA fp32 的
+    1.1 倍左右；每步分解（`AVAS_ENGINE_PROFILE`，hwr010 1e6 SPICNIC 30³）：电荷分配 0.73 ms（两字加进位时 1.03 ms）、网格求解 1.58 ms（其中电荷与修正表 0.06 ms、
+    格林函数表 0.03 ms，其余是 SPICNIC 求和）、插值 0.09 ms。四极段无 SC 单卡在多次运行中稳定在 2.08–2.18 s（第四阶段 6–40 s），比旧版仍慢约 0.3 s，
+    是主机补全平面穿越（每步约 0.5 ms）。2 卡有空间电荷时插值曾因跨卡读托管内存中的场要 2.6 ms，最终构建改为先复制场。
+- L40S（5 号卡，与他人共用：测试期间该卡另有进程占用 70～80 %）与 lyc-pc（2 × GTX 1080 Ti），用 A100 上构建的全架构 `.so`（sm_60/61/70/75/80/86/89 + compute_90，无 MPI）
+  分别跑了本阶段中途的构建和最终构建，两次结果相同：
+  - L40S：fp64 154/154 与 CPU 逐字节相同，30 个空间电荷算例重跑逐字节相同；fp32 重跑 184/184、与 emu fp32 184/184 逐字节相同。
+  - 1080Ti：fp64 154/154，30 个空间电荷算例重跑 / 双卡（`0,1`）逐字节相同；fp32 重跑 + 双卡 368/368、与 emu fp32 184/184 逐字节相同。
+  - 两台机器上 `AVAS_ENGINE_PRECISION=auto` 都选 fp32（设备行：“precision fp32 (auto: fp64 is slow on this GPU …)”），A100 上 auto 选 fp64（同前）。
+- manylinux2014 容器构建（L40S 上已有的 `avas-engine-build:cuda12.4-manylinux2014` 镜像，`tools/build_cuda_linux.sh`，GCC 10.2 + CUDA 12.4，全部默认架构）：
+  编译无警告，`libavas_engine.so` 只依赖 GLIBC_2.14 / GLIBCXX_3.4.19，`nm -D` 7 个接口；用它在 L40S 上跑 10 个代表算例：fp64 5/5 与 CPU 逐字节相同、空间电荷算例重跑相同，
+  fp32 重跑与 emu fp32 10/10 逐字节相同。（不同平台之间 CPU fp64 不要求逐位相同：Linux 与 Mac 的同步粒子数据因系统数学库末位不同，emu fp32 的输出也随之不同。）
+
+**Metal 性能（M2；“之前”为第四阶段 d08ade4 的构建，与现在的构建交替运行）**：
+- 测试算例（5260 个粒子，每步毫秒，三轮）：FFT 算例 SC2（64³）88–96 → 16–17，PX2（64³）89–90 → 16–18，SC8 / SC11（32³）7.8–8.3 → 3.7–5.8，SC13 / SC14（32³，含记录）
+  11–13 → 8.6–10.6；LP2（lpboundary + FFT 32³）7.9–8.4 → 3.8–6.8；LP1、LP3（14³）、LL1 在起伏之内（2.0 / 2.9 / 2.0 左右，粒子少、每步只有几个小内核）。
+  `AVAS_ENGINE_PROFILE` 证实这些算例在第四阶段每步各转换一次（LP1–3 147 / 147 次、LL1 252 / 252 次），现在只有开始、结束各 1 次（147 次网格求解、146 次 lpboundary 在 GPU 上）；
+  设备描述行由 “… on the GPU in fp32 (FFT solve, secondary particles on the CPU)” 变为 “… lpboundary / longlimits and the space-charge mesh work (PICNIC, SPICNIC, FFT)
+  on the GPU in fp32 (secondary particles on the CPU)”。现在仍每步转换的只有 importSCF（LS1）。
+- hwr010 两周期线，FFT 64³（`perf_gpu.py --scmethod FFT`，推进 + 空间电荷每步时间）：1e5 粒子 88.3 → 17.1 ms，1e6 粒子 103.9 → 26.2 ms（第二轮测量时本机有其他程序占满 CPU，负载约 100，结果作废）。
+  现在每步网格求解（10 遍直接变换）约 13.7 ms，是 FFT 运行的主要部分。
+
+**L40S 与 GTX 1080 Ti 的性能（`perf_gpu.py`，推进 + 空间电荷 / 跟踪总时间，秒；全架构 `.so` 为本阶段中途的构建，不含最后的 SPICNIC 访存与多卡提示两项改动；
+L40S 的 5 号卡测试时另有进程占用 70～80 %，数字只作参考；最终构建复测 hwr010 1e6 SPICNIC：L40S 4.41 / 7.05、1080Ti 5.70 / 7.23，四极段 1e6 SPICNIC 10.05 / 13.78、
+12.45 / 14.35，在起伏之内）**：
+
+| 运行 | L40S fp64 | L40S fp32（auto） | 1080Ti fp64 | 1080Ti fp32（auto） |
+|---|---|---|---|---|
+| hwr010，1e5，无 SC | 0.56 / 0.99 | 0.70 / 1.18 | 0.69 / 0.88 | 0.25 / 0.45 |
+| hwr010，1e6，无 SC | 1.60 / 3.73 | 1.34 / 4.07 | 5.81 / 7.10 | 1.86 / 3.42 |
+| hwr010，1e5，SPICNIC | 2.09 / 2.53 | 2.92 / 3.41 | 1.90 / 2.08 | 1.17 / 1.38 |
+| hwr010，1e6，SPICNIC | 5.37 / 7.47 | 4.16 / 6.83 | 10.48 / 11.75 | 5.41 / 6.96 |
+| 四极段，1e6，无 SC | 3.19 / 5.63 | 3.27 / 6.27 | 12.03 / 13.49 | 3.98 / 5.81 |
+| 四极段，1e6，SPICNIC | 12.11 / 14.61 | 9.85 / 13.52 | 23.05 / 24.66 | 11.81 / 13.72 |
+
+- 1080Ti 双卡（hwr010 1e6）：fp64 无 SC 3.12 / 4.69、SPICNIC 7.56 / 9.14；fp32 无 SC 1.85 / 3.85，SPICNIC 起初 93.9 / 95.8——电荷列与插值的临时数组没有按卡放置，
+  而 1080Ti 之间的托管内存只能整页迁移，每步来回搬运。给这两块缓冲区加上按粒子段的放置提示（`particles()` 的新参数）后为 6.48 / 8.45（最终构建复测 6.46 / 8.44；
+  网格求解只在第一张卡上，双卡有空间电荷时仍不如单卡）。
+- CPU：L40S（限 32 线程）hwr010 1e5 无 SC 1.09 / 1.48、1e5 SPICNIC 20.6 / 21.2、1e6 无 SC 8.68 / 15.0；i7-12700K（20 线程）1e5 无 SC 1.06 / 1.54、1e5 SPICNIC 10.8 / 11.3、
+  1e6 无 SC 16.5 / 21.7。
+- 消费级卡上 fp32 档普遍快于 fp64（1080Ti 1e6 无 SC 3.1 倍、四极段 3 倍）；L40S 的 fp64 吞吐量虽只有 fp32 的 1/60，hwr010 的推进主要受访存限制，两档相近，
+  L40S 1e5 SPICNIC 时 fp32 反而慢（每步网格往返的固定开销，fp64 档整个在 GPU 上），1e6 时 fp32 快 23 %。
+
+**受限 / 未完成**：
+- importSCF（`impscfield 1`，LS1）仍在主机上，按记录的场逐粒子插值，每步整体转换一次（使用很少，没有顺手做）；二次粒子仍在主机上；dump / 单粒子输出仍读取主机记录。
+- MPI 下 fp32 档每个进程计算全部粒子（按第 16 节决定不改）。
+- 多卡 fp32 仍用托管内存作为各卡共用的地址（数据只经显式复制和放置提示移动，A100 与 1080Ti 上已验证）；Windows（WDDM）上单卡完全不用托管内存，多卡未实测。
+- 网格求解（PICNIC / SPICNIC / FFT）只在第一张卡上，所以有空间电荷时双卡不如单卡；SPICNIC 每个目标点一个线程（30³ 网格只有 3375 个线程），大 GPU 上占用率低，
+  改成多线程分段求和会改变 float 的累加次序（见待定点 2）。
+- FFT 用设备上的直接变换（与 fp64 档同一做法），64³ 时 Metal 上每次求解约 13.7 ms，比 SPICNIC 慢。
+- XPS（Windows、GTX 1650）在本段开始与结束时都无法连接（ssh：Network is unreachable），Windows 上的 CUDA fp32 与 MSVC 构建未测。
+
+**新的待定点（附推荐）**：
+1. **多卡 fp32 完全去掉托管内存**（每张卡自己的粒子段缓冲区，指针按卡替换）：推荐暂不做——单卡已不用托管内存，多卡的放置提示在 A100 与 1080Ti 上有效；
+   等需要 Windows 多卡时再做。
+2. **SPICNIC 求和在 fp32 档按固定分段并行**（每个目标点由多个线程各求一段、再按固定次序相加；所有 fp32 设备同时改，结果仍逐字节相同，但 fp32 的 SPICNIC 结果会在末位变化，
+   fp64 档不变）：大网格 / 大 GPU 上可把求解时间降到几分之一。推荐：先不做，现在 SPICNIC 每步约 1.4 ms（A100，30³），与推进相当；用户的典型网格变大时再做。
+3. **importSCF 放到设备**：推荐不做（功能很少用，逐粒子按记录时间插值，搬到设备的工作量与收益不成比例）。
+
+**临时数据**：Mac 的构建 / 运行目录（scratchpad，含第四阶段对照构建）已删除，`$TMPDIR` 下没有 `avas_*` 目录；L40S 的 `/data/public/lycself/avas_m7tmp`
+（含 manylinux 构建输出）与 lyc-pc 的 `~/avas_m7tmp` 已删除，L40S 上原有的 `avas-engine-build:cuda12.4-manylinux2014` 镜像保留（工具链）。
+A100 的 `~/avas_engine_work/tmp_m7` 因作业 7963 仍在排队而保留（只剩源码、最终构建 b8、旧 fp32 对照构建、四极段 lattice 与作业脚本，95 MB）；
+作业完成后结果在其中的 `final_f8.log`，读完后删除整个目录即可。另有两个已失效的排队作业 7950、7957（所用构建目录已删，运行时立即失败退出，不占 GPU 时间）。
+工具链 `~/avas_engine_work/toolchains` 保留。
