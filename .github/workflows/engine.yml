@@ -1,0 +1,252 @@
+# New kernel (engine/): build the prebuilt libraries of Windows, Linux and macOS, compare them with the
+# AVAS.dll references, and publish them as one artifact "avas-engine-new-<source hash>" with
+# build-stamp.json.  The libraries are committed by hand: python engine/tools/fetch_ci_engine.py
+# (CONTRIBUTING.md, "New kernel").  The runners have no GPU: the GPU code path is checked with the emu
+# device (the device back end on the CPU); real GPUs are checked by hand (engine/tests/gpu/run_gpu.py).
+name: Engine
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [engine-rebuild, main]
+    paths:
+      - "engine/**"
+      - ".github/workflows/engine.yml"
+  pull_request:
+    paths:
+      - "engine/**"
+      - ".github/workflows/engine.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: engine-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  PYTHONUTF8: "1"
+  PYTHONIOENCODING: utf-8
+
+jobs:
+  windows:
+    # windows-2022 (not -latest): VS 2022 / MSVC 19.4x, which CUDA 12.4 supports; the image decides the compiler
+    # of the released DLL, so it changes only on purpose
+    runs-on: windows-2022
+    timeout-minutes: 150
+    env:
+      CUDA: ${{ github.workspace }}\..\cuda-12.4.1
+      BUILD: ${{ github.workspace }}\..\engine-build
+      WORK: ${{ github.workspace }}\..\engine-work
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install CUDA 12.4.1 (nvcc, cudart, cccl from NVIDIA's redistributable archives)
+        shell: pwsh
+        run: |
+          # only what nvcc and the static runtime need (about 70 MB, 1-2 min); SHA-256 from redistrib_12.4.1.json
+          $base = "https://developer.download.nvidia.com/compute/cuda/redist"
+          $parts = @(
+            @("cuda_nvcc/windows-x86_64/cuda_nvcc-windows-x86_64-12.4.131-archive.zip", "3b14cf8dd9dda4a3b1a9682270d46eef775f018e17650187a8a448a06111f2b8"),
+            @("cuda_cudart/windows-x86_64/cuda_cudart-windows-x86_64-12.4.127-archive.zip", "6a1c32e68ee1a95ca17334691ff9ad1ffe7f352c24a083d55e4c96b8063b2bcb"),
+            @("cuda_cccl/windows-x86_64/cuda_cccl-windows-x86_64-12.4.127-archive.zip", "908742d8f3c6fdd6d1d6316a7b919b5c506474f9551f491aa7335cb4f50bffbd"))
+          $tmp = Join-Path $env:RUNNER_TEMP "cuda-zips"
+          New-Item -ItemType Directory -Force $tmp, $env:CUDA | Out-Null
+          foreach ($p in $parts) {
+            $zip = Join-Path $tmp (Split-Path $p[0] -Leaf)
+            Invoke-WebRequest -Uri "$base/$($p[0])" -OutFile $zip
+            $got = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLower()
+            if ($got -ne $p[1]) { throw "SHA-256 of $zip is $got, expected $($p[1])" }
+            tar -xf $zip -C $tmp
+            if ($LASTEXITCODE -ne 0) { throw "cannot unpack $zip" }
+            $dir = Join-Path $tmp ((Split-Path $p[0] -Leaf) -replace '\.zip$', '')
+            Copy-Item -Recurse -Force (Join-Path $dir "*") $env:CUDA
+          }
+          & (Join-Path $env:CUDA "bin\nvcc.exe") --version
+      - name: Build (engine/tools/build_cuda_windows.bat)
+        shell: cmd
+        run: call engine\tools\build_cuda_windows.bat "%GITHUB_WORKSPACE%\engine" "%BUILD%" "%CUDA%"
+      - name: Unit tests
+        run: '& "$env:BUILD\avas_engine_unit.exe"'
+      - name: Exported symbols and DLL dependencies
+        run: |
+          python engine/tools/ci_engine.py exports "$env:BUILD\avas_engine.dll"
+          if ($LASTEXITCODE -ne 0) { throw "exports" }
+          python engine/tools/ci_engine.py deps "$env:BUILD\avas_engine.dll"
+      - name: Parity, compat=dll byte for byte against the AVAS.dll references (strict)
+        run: |
+          python engine/tests/parity/run_all.py --lib "$env:BUILD\avas_engine.dll" --work "$env:WORK\parity" --strict
+          if ($LASTEXITCODE -ne 0) { throw "parity" }
+      - name: DLL tools (sampling, meshing, dataprocess) byte for byte against AVAS.dll
+        run: |
+          python engine/tests/parity/tools_check.py --lib avas\engine\AVAS.dll --work "$env:WORK\tools_dll"
+          if ($LASTEXITCODE -ne 0) { throw "AVAS.dll tools" }
+          python engine/tests/parity/tools_check.py --lib "$env:BUILD\avas_engine.dll" --compat dll --work "$env:WORK\tools_new" --ref "$env:WORK\tools_dll"
+          if ($LASTEXITCODE -ne 0) { throw "tools" }
+      - name: Device back end on the CPU (emu fp64 and fp32)
+        run: |
+          python engine/tests/gpu/run_gpu.py --lib "$env:BUILD\avas_engine.dll" --device emu --fp32 --work "$env:WORK\emu"
+          if ($LASTEXITCODE -ne 0) { throw "emu" }
+      - name: Build record
+        run: |
+          New-Item -ItemType Directory -Force "$env:WORK\artifact" | Out-Null
+          Copy-Item "$env:BUILD\avas_engine.dll" "$env:WORK\artifact\"
+          python engine/tools/ci_engine.py build-info --lib "$env:WORK\artifact\avas_engine.dll" --platform windows-x86_64 `
+            --out "$env:WORK\artifact\build-info.json" --check unit=passed --check exports=passed `
+            --check "parity=compat=dll byte-identical to AVAS.dll (strict)" --check "tools=byte-identical to AVAS.dll" `
+            --check "emu=fp64 and fp32 passed"
+          if ($LASTEXITCODE -ne 0) { throw "build-info" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: engine-windows-x86_64
+          path: ${{ env.WORK }}\artifact\*
+          retention-days: 14
+          if-no-files-found: error
+
+  linux:
+    # manylinux2014 container (glibc 2.17, CentOS 7 clusters); the checks also run in it
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      IMAGE: avas-engine-build:ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image (manylinux2014 + CUDA 12.4; layers cached between runs)
+        uses: docker/build-push-action@v6
+        with:
+          context: engine/docker
+          file: engine/docker/manylinux2014-cuda12.4.Dockerfile
+          tags: ${{ env.IMAGE }}
+          load: true
+          cache-from: type=gha,scope=engine-build-image
+          cache-to: type=gha,scope=engine-build-image,mode=max
+      - name: Prepare
+        run: |
+          mkdir -p "$RUNNER_TEMP/build" "$RUNNER_TEMP/work/artifact"
+          cat > "$RUNNER_TEMP/in-image" <<'EOF'
+          #!/bin/bash
+          exec docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -e JOBS="$(nproc)" -e PYTHONUTF8=1 \
+            -e GITHUB_SERVER_URL -e GITHUB_REPOSITORY -e GITHUB_RUN_ID -e GITHUB_RUN_NUMBER -e GITHUB_RUN_ATTEMPT \
+            -e GITHUB_SHA -e GITHUB_REF_NAME -e GITHUB_WORKFLOW -e ImageOS -e ImageVersion \
+            -v "$GITHUB_WORKSPACE:/src" -v "$RUNNER_TEMP/build:/out" -v "$RUNNER_TEMP/work:/work" -w /src "$IMAGE" "$@"
+          EOF
+          chmod +x "$RUNNER_TEMP/in-image"
+          echo "PY=/opt/python/cp311-cp311/bin/python" >> "$GITHUB_ENV"
+      - name: Build (engine/tools/build_cuda_linux.sh)
+        run: '"$RUNNER_TEMP/in-image" bash engine/tools/build_cuda_linux.sh'
+      - name: Unit tests
+        run: '"$RUNNER_TEMP/in-image" /out/avas_engine_unit'
+      - name: Exported symbols (C API only) and glibc 2.17
+        run: |
+          "$RUNNER_TEMP/in-image" $PY engine/tools/ci_engine.py exports /out/libavas_engine.so
+          "$RUNNER_TEMP/in-image" $PY engine/tools/ci_engine.py glibc /out/libavas_engine.so
+          "$RUNNER_TEMP/in-image" $PY engine/tools/ci_engine.py deps /out/libavas_engine.so
+      - name: Parity against the AVAS.dll references (within the libm tolerance)
+        run: '"$RUNNER_TEMP/in-image" $PY engine/tests/parity/run_all.py --lib /out/libavas_engine.so --work /work/parity'
+      - name: Device back end on the CPU (emu fp64 and fp32)
+        run: '"$RUNNER_TEMP/in-image" $PY engine/tests/gpu/run_gpu.py --lib /out/libavas_engine.so --device emu --fp32 --work /work/emu'
+      - name: Build record
+        run: |
+          cp "$RUNNER_TEMP/build/libavas_engine.so" "$RUNNER_TEMP/work/artifact/"
+          "$RUNNER_TEMP/in-image" $PY engine/tools/ci_engine.py build-info --lib /work/artifact/libavas_engine.so \
+            --platform linux-x86_64 --out /work/artifact/build-info.json --check unit=passed \
+            --check "exports=C API only" --check "glibc=<= 2.17" --check "parity=within 1e-10 of AVAS.dll" \
+            --check "emu=fp64 and fp32 passed"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: engine-linux-x86_64
+          path: ${{ runner.temp }}/work/artifact/*
+          retention-days: 14
+          if-no-files-found: error
+
+  macos:
+    # universal2 (arm64 + x86_64) with Metal; the x86_64 slice is tested under Rosetta.  CI Macs are virtual
+    # machines: Metal is checked only when a Metal 3 device is usable there (the log says so otherwise)
+    runs-on: macos-14
+    timeout-minutes: 120
+    env:
+      BUILD: ${{ github.workspace }}/../engine-build
+      WORK: ${{ github.workspace }}/../engine-work
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Build (Apple clang, Metal, arm64 + x86_64, macOS 13 or newer)
+        run: |
+          cmake -S engine -B "$BUILD" -DCMAKE_BUILD_TYPE=Release "-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64" \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0
+          cmake --build "$BUILD" -j "$(sysctl -n hw.ncpu)"
+          lipo -info "$BUILD/libavas_engine.dylib"
+      - name: Rosetta (for the x86_64 slice)
+        id: rosetta
+        run: |
+          if arch -x86_64 /usr/bin/true 2>/dev/null; then echo "usable=true" >> "$GITHUB_OUTPUT"
+          else echo "usable=false" >> "$GITHUB_OUTPUT"; echo "Rosetta is not available: the x86_64 slice is NOT tested"; fi
+      - name: Unit tests (arm64, and x86_64 under Rosetta)
+        run: |
+          "$BUILD/avas_engine_unit"
+          if [ "${{ steps.rosetta.outputs.usable }}" = true ]; then arch -x86_64 "$BUILD/avas_engine_unit"; fi
+      - name: Exported symbols
+        run: |
+          python engine/tools/ci_engine.py exports "$BUILD/libavas_engine.dylib"
+          python engine/tools/ci_engine.py deps "$BUILD/libavas_engine.dylib"
+      - name: Parity against the AVAS.dll references (arm64, within the libm tolerance)
+        run: python engine/tests/parity/run_all.py --lib "$BUILD/libavas_engine.dylib" --work "$WORK/parity"
+      - name: Parity of the x86_64 slice (Rosetta, the system's universal Python)
+        if: steps.rosetta.outputs.usable == 'true'
+        run: arch -x86_64 /usr/bin/python3 engine/tests/parity/run_all.py --lib "$BUILD/libavas_engine.dylib" --work "$WORK/parity_x86_64"
+      - name: Device back end on the CPU (emu fp64 and fp32)
+        run: python engine/tests/gpu/run_gpu.py --lib "$BUILD/libavas_engine.dylib" --device emu --fp32 --work "$WORK/emu"
+      - name: Metal device
+        id: metal
+        run: python engine/tools/ci_engine.py metal "$BUILD/libavas_engine.dylib"
+      - name: Metal against the CPU and emu fp32
+        if: steps.metal.outputs.usable == 'true'
+        run: python engine/tests/gpu/run_gpu.py --lib "$BUILD/libavas_engine.dylib" --device metal --work "$WORK/metal"
+      - name: Build record
+        run: |
+          mkdir -p "$WORK/artifact"
+          cp "$BUILD/libavas_engine.dylib" "$WORK/artifact/"
+          if [ "${{ steps.metal.outputs.usable }}" = true ]; then metal="passed"; else metal="skipped: no Metal 3 device on the runner"; fi
+          if [ "${{ steps.rosetta.outputs.usable }}" = true ]; then x86="unit and parity passed under Rosetta"; else x86="not tested (no Rosetta)"; fi
+          python engine/tools/ci_engine.py build-info --lib "$WORK/artifact/libavas_engine.dylib" --platform macos-universal2 \
+            --out "$WORK/artifact/build-info.json" --check unit=passed --check "exports=C API only" \
+            --check "parity=within 1e-10 of AVAS.dll" --check "emu=fp64 and fp32 passed" --check "metal=$metal" \
+            --check "x86_64=$x86"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: engine-macos-universal2
+          path: ${{ env.WORK }}/artifact/*
+          retention-days: 14
+          if-no-files-found: error
+
+  stamp:
+    # one artifact with the three libraries and build-stamp.json: what fetch_ci_engine.py installs
+    needs: [windows, linux, macos]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: engine-*
+          path: ${{ runner.temp }}/parts
+      - name: Check the three builds and write build-stamp.json
+        id: stamp
+        run: >
+          python engine/tools/ci_engine.py stamp --out "$RUNNER_TEMP/avas-engine-new"
+          --require windows-x86_64,linux-x86_64,macos-universal2
+          "$RUNNER_TEMP"/parts/engine-*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.stamp.outputs.name }}
+          path: ${{ runner.temp }}/avas-engine-new/*
+          retention-days: 90
+          if-no-files-found: error

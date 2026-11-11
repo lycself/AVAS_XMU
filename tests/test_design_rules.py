@@ -7,8 +7,12 @@
   ``frontend/src/i18n/zh_CN.json``.
 * The committed build ``avas/gui/web`` was made from the current front-end
   sources (the Vite build writes ``source-hash.json``; see vite.config.ts).
+* The prebuilt libraries of the new kernel in ``avas/engine/new`` were built by
+  CI from the current ``engine/`` sources (``build-stamp.json``; fetched with
+  ``engine/tools/fetch_ci_engine.py``).
 """
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -19,6 +23,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FRONTEND = os.path.join(ROOT, "frontend")
 SRC = os.path.join(FRONTEND, "src")
 WEB = os.path.join(ROOT, "avas", "gui", "web")
+NEW_ENGINE = os.path.join(ROOT, "avas", "engine", "new")
+ENGINE_TOOLS = os.path.join(ROOT, "engine", "tools", "ci_engine.py")
 
 # files that may hold literal colours, and why
 COLOUR_FILES = {
@@ -119,3 +125,52 @@ def test_no_stale_translations():
     corpus = "\n".join(text)
     stale = [k for k in zh if k not in corpus and json.dumps(k, ensure_ascii=False) not in corpus]
     assert not stale, "zh_CN.json entries whose English text no longer exists in the sources (remove them):\n" + "\n".join(repr(k) for k in stale)
+
+
+def _ci_engine():
+    spec = importlib.util.spec_from_file_location("avas_ci_engine_rules", ENGINE_TOOLS)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_new_engine_libraries_are_current():
+    """avas/engine/new holds CI builds of the current engine sources (or nothing yet)."""
+    if not os.path.isfile(ENGINE_TOOLS):
+        pytest.skip("engine sources not present")
+    ci = _ci_engine()
+    present = sorted(n for n in os.listdir(NEW_ENGINE) if n in ci.LIBRARY_NAMES) if os.path.isdir(NEW_ENGINE) else []
+    if not present:
+        # before the first fetch: no stamp, or an empty one (M7: required before merging to main)
+        assert not ci.read_stamp(NEW_ENGINE), "avas/engine/new/build-stamp.json without libraries: remove it or fetch them"
+        return
+    from avas.engines import engine_source_hash
+    problems = ci.verify_stamp(NEW_ENGINE, engine_source_hash(os.path.join(ROOT, "engine")))
+    assert not problems, ("avas/engine/new does not match the engine sources (engine/ changed after the libraries were "
+                          "built?): run the engine workflow on this commit, then python engine/tools/fetch_ci_engine.py "
+                          "and commit avas/engine/new\n" + "\n".join(problems))
+
+
+def test_new_engine_stamp_check(tmp_path):
+    """The stamp check itself, on fake libraries."""
+    if not os.path.isfile(ENGINE_TOOLS):
+        pytest.skip("engine sources not present")
+    ci = _ci_engine()
+    files = {}
+    for plat, name in ci.LIBRARIES.items():
+        (tmp_path / name).write_bytes(b"\0lib " + name.encode())
+        files[name] = {"platform": plat, "sha256": ci.sha256(str(tmp_path / name)), "size": (tmp_path / name).stat().st_size}
+    stamp = {"schema": ci.SCHEMA, "source_hash": "a" * 64, "version": "a" * 16, "files": files}
+    (tmp_path / ci.STAMP_NAME).write_text(json.dumps(stamp), encoding="utf-8")
+    assert ci.verify_stamp(str(tmp_path), "a" * 64, sorted(ci.LIBRARIES)) == []
+    assert any("source hash" in p for p in ci.verify_stamp(str(tmp_path), "b" * 64))
+    (tmp_path / "libavas_engine.so").write_bytes(b"\0lib changed")
+    assert any("SHA-256" in p for p in ci.verify_stamp(str(tmp_path), "a" * 64))
+    (tmp_path / "libavas_engine.so").unlink()
+    assert any("missing" in p for p in ci.verify_stamp(str(tmp_path), "a" * 64))
+    del stamp["files"]["libavas_engine.so"]
+    (tmp_path / ci.STAMP_NAME).write_text(json.dumps(stamp), encoding="utf-8")
+    assert ci.verify_stamp(str(tmp_path), "a" * 64) == []
+    assert any("linux-x86_64" in p for p in ci.verify_stamp(str(tmp_path), "a" * 64, ["linux-x86_64"]))
+    (tmp_path / ci.STAMP_NAME).write_text("", encoding="utf-8")
+    assert any("without build-stamp.json" in p for p in ci.verify_stamp(str(tmp_path)))

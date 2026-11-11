@@ -10,7 +10,8 @@
 
 - `CMakeLists.txt`、`include/`、`src/`、`tests/`：新内核本体（M1：漂移段与场图元件、同步相位、单粒子与 `.dst` 读入、全部常规输出；M2：z-code 硬边元件 quad / solenoid / bend / edge、steerer、superpose / superposeout、multipole；M3：初始分布生成与随机数；M4：空间电荷 FFT / SPICNIC，FFT 用 `third_party/pocketfft`）。构建 `cmake -S engine -B engine/build && cmake --build engine/build`；从源码运行时 `avas run --engine new`（或 `AVAS_ENGINE=new`、项目 ini.ini 的 `[engine] kernel = new`）让 `avas run` 使用它，`--compat dll`（`AVAS_ENGINE_COMPAT=dll`）复现原 AVAS.dll；见下文“接入 AVAS（M7a）”。与原内核的比对：`python3 engine/tests/parity/run_all.py`（参考输出在 `tests/parity/refs/`，由 Windows AVAS.dll 生成）。Windows MSVC 构建在 `compat=dll` 下与 DLL 逐字符一致，macOS 构建相差约 1e-14～1e-11（系统数学库末位）。macOS 上若 shell 带着 Anaconda 的 `CXXFLAGS` / `CPPFLAGS`，配置前先 `unset` 它们；Command Line Tools 残留的空 `usr/include/c++/v1` 会让 clang 找不到 `<string>`，CMakeLists 已检测并改用 SDK 中的 libc++ 头文件（根治办法是重装 Command Line Tools）。实现记录、兼容开关和比对结果见 [docs/engine/M1-notes.md](../docs/engine/M1-notes.md) 、[M2-notes.md](../docs/engine/M2-notes.md) 、[M3-notes.md](../docs/engine/M3-notes.md) 与 [M4-notes.md](../docs/engine/M4-notes.md)。
 
-- `docker/manylinux2014-cuda12.4.Dockerfile`：Linux 构建环境（glibc 2.17、devtoolset-10、CUDA 12.4）。服务器连不上 CentOS vault 源，CUDA rpm 从 NVIDIA 的 `.cn` 镜像下载后用 `--nodeps` 安装（`cuda-nvcc` 声明依赖系统 `gcc-c++`，实际使用 devtoolset 的编译器）。
+- `docker/manylinux2014-cuda12.4.Dockerfile`：Linux 构建环境（glibc 2.17、devtoolset-10、CUDA 12.4）。基础镜像固定到带日期的标签（构建参数 `MANYLINUX_IMAGE`），CUDA rpm 版本写全，用 `--nodeps` 安装（`cuda-nvcc` 声明依赖系统 `gcc-c++`，实际使用 devtoolset 的编译器；CentOS vault 源连不上也不影响）。NVIDIA 软件源的主机是构建参数 `CUDA_MIRROR`：CI 用官方的 `developer.download.nvidia.com`，L40S 等连不上的机器加 `--build-arg CUDA_MIRROR=developer.download.nvidia.cn`。
+- `tools/ci_engine.py`：CI 用的检查与构建记录（导出符号只有 C 接口、GLIBC 版本、依赖库、Metal 是否可用、`build-info.json`、汇总 `build-stamp.json`、`avas/engine/new/` 的冒烟测试）；`tools/fetch_ci_engine.py`：把 CI 产物校验后放进 `avas/engine/new/`。见下文“CI 与预编译库（M7c）”。
 - `tools/cu_probe.cu`、`build_probe_linux.sh`、`build_probe_windows.bat`：工具链检查程序，验证多架构机器码的选择、静态 CUDA 运行库在各版本驱动上的兼容性、fp32／fp64 吞吐量，以及同一份 `__host__ __device__` 代码在 CPU 与 GPU 上的结果。
 - `tools/oracle/`：原内核比对实验工具。`runner.py cases.json WORKDIR REPO` 经 `avas run --mode basic` 运行各算例（在示例 hwr010 上改 beam / input / lattice、加文件，带超时）；`direct.py` 绕过 Python 的 lattice 处理直接调用 `path()` / `main_agent()`（测试内核自己的误差处理等）。`batch1_*.json` 是第一批实验的算例，`batch1_platform_cases.json` 用到的 `win_in.dst` 取自 Windows 上 `g1_base` 算例的 inData.dst。结果见 docs/engine/90-experiments.md。
 - `tools/ExportDecomp.java`：Ghidra headless 脚本，导出非库函数的伪代码和调用关系（`index.tsv`）。导出的伪代码不放进仓库。
@@ -23,8 +24,10 @@
   （`docker run --rm -v 源码:/src -v 输出:/out 镜像 bash /src/engine/tools/build_cuda_linux.sh`）；也可以用 conda-forge 的 GCC（sysroot 2.17）加 NVIDIA 的 cuda-nvcc 12.4，
   `cmake -S engine -B build -DAVAS_WITH_CUDA=ON -DCMAKE_CUDA_COMPILER=…/nvcc -DCMAKE_CXX_COMPILER=…/g++ -DCMAKE_CUDA_HOST_COMPILER=…/g++ -DCMAKE_SHARED_LINKER_FLAGS="-static-libstdc++ -static-libgcc"`
   （`CMAKE_CUDA_HOST_COMPILER` 必须指向同一个 conda GCC，否则 nvcc 用系统的 GCC 4.8，在 CentOS 7 上编译 `.cu` 失败）。
-- Windows：VS 2022 Build Tools + CUDA 12.x，`tools\build_cuda_windows.bat engine源码 构建目录 [CUDA目录]`。
-- 机器码 sm_60/61/70/75/80/86/89/90 并附 compute_90 的 PTX，CUDA 运行库静态链接，nvcc `--fmad=false`。CUDA 13 不支持 Pascal，必须用 12.x。
+- Windows：Visual Studio 2022（任何版本或 Build Tools，经 vswhere 查找；CUDA 12.4 不接受更新版本的 MSVC）+ CUDA 12.x，`tools\build_cuda_windows.bat engine源码 构建目录 [CUDA目录]`，
+  有 Ninja 时用 Ninja 并行编译。CUDA 目录只需 nvcc、cudart、cccl：CI 把 NVIDIA 的三个 redist 压缩包（按 SHA-256 校验）解到同一个目录。
+- 机器码 sm_61/75/80/86/89/90 并附 compute_90 的 PTX（M7c 去掉了没有目标设备的 sm_60、sm_70：P100、V100 上探针核函数报 “no kernel image” 并提示加 `-DCMAKE_CUDA_ARCHITECTURES=60-real` 之类重新构建，
+  auto 改用 CPU），CUDA 运行库静态链接，nvcc `--fmad=false`。CUDA 13 不支持 Pascal，必须用 12.x。
 - `-DAVAS_WITH_MPI=ON` 加入跨进程（跨节点）的 MPI；`-DAVAS_CUDA_FMAD=ON` 只用于测量逐位一致的代价。
 
 运行（`avas_set_option` 或环境变量；默认 `device=cpu`）：`AVAS_ENGINE_DEVICE=cuda|auto|cpu`、`AVAS_ENGINE_PRECISION=auto|fp64|fp32`、
@@ -83,6 +86,21 @@ C 接口新增三个查询（JSON，见 `include/avas_engine.h`）：`avas_engin
 `third_party/` 下的源文件（.h .hpp .c .cc .cpp .cu .cuh .mm .metal .inc），跳过以 “.” 开头的名字；按相对路径（`/` 分隔）排序，每个文件先把 CRLF 换成 LF，
 哈希 = SHA-256(Σ "相对路径\n" + 文件 SHA-256 + "\n")。构建时由自定义命令重新计算（任何被哈希的文件改动后，下一次构建更新 `generated/avas_source_hash.h`，
 哈希不变时不重写，`capi.cpp` 也就不重编），新增文件经 `CONFIGURE_DEPENDS` 重新扫描。`tests/test_engines.py` 检查 `engine/build` 里的库报告的哈希与 Python 算的一致（库是旧的时会失败，提示重新构建）。
+
+## CI 与预编译库（M7c）
+
+`.github/workflows/engine.yml` 在 `engine/` 改动（推送到 `engine-rebuild` / `main`、PR）或手动触发时构建三个平台的库：
+
+| 作业 | 构建 | 检查 |
+|---|---|---|
+| `windows-2022` | MSVC（VS 2022）+ CUDA 12.4.1（redist 压缩包）、`tools\build_cuda_windows.bat` | 单元测试；导出符号；`run_all.py --strict`（compat=dll 与 AVAS.dll 参考逐字符相同）；`tools_check.py` 与仓库里的 AVAS.dll 逐字节比较；`run_gpu.py --device emu --fp32` |
+| `ubuntu-24.04` | manylinux2014 + CUDA 12.4 镜像（GitHub Actions 缓存镜像层）、`tools/build_cuda_linux.sh`，检查也在容器（glibc 2.17）里跑 | 单元测试；只导出 C 接口；GLIBC ≤ 2.17、GLIBCXX ≤ 3.4.19；`run_all.py`（容差 1e-10）；emu fp64 / fp32 |
+| `macos-14` | Apple clang + Metal，arm64 + x86_64（universal2，macOS 13 起） | 单元测试（x86_64 在 Rosetta 下）；导出符号；两个架构的 `run_all.py`；emu；有可用的 Metal 3 设备时 `run_gpu.py --device metal`，否则日志写明跳过 |
+
+每个作业上传库与 `build-info.json`（平台、源码哈希、编译器、CUDA 机器码、SHA-256、检查结果、工作流运行）；汇总作业核对三份源码哈希一致、等于检出的 `engine/`，
+写 `build-stamp.json`，上传产物 `avas-engine-new-<源码哈希前 16 位>`。`python engine/tools/fetch_ci_engine.py [--run ID]` 下载并校验后放进 `avas/engine/new/`，
+人工提交；`tests/test_design_rules.py` 检查 `avas/engine/new/` 与当前源码一致。步骤见 [CONTRIBUTING.md](../CONTRIBUTING.md) 的“新内核”一节，实现记录见
+[docs/engine/M7c-notes.md](../docs/engine/M7c-notes.md)。CI 没有 GPU：设备通路由 emu 覆盖，真卡比对仍手动做（`run_gpu.py`）。
 
 ## 工具链检查结果（2026-11-07）
 

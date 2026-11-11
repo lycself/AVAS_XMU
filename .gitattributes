@@ -4,6 +4,7 @@
 *.dll binary
 *.so binary
 *.so.* binary
+*.dylib binary
 *.lib binary
 *.dst binary
 *.plt binary

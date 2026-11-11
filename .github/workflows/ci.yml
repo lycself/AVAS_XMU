@@ -38,6 +38,8 @@ jobs:
           tests/test_design_rules.py tests/test_lattice_doc.py tests/test_run_diagnostics.py
           tests/test_live.py tests/test_ai.py tests/test_server.py tests/test_linear_optics.py
           tests/test_scan.py tests/test_smoke.py tests/test_updates.py tests/test_update_guard.py tests/test_release_notes.py tests/test_packaging.py
+      - name: New kernel smoke test (prebuilt avas/engine/new; skipped while it has no Windows library)
+        run: python engine/tools/ci_engine.py smoke
 
   frontend:
     runs-on: ubuntu-latest

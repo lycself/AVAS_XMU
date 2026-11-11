@@ -41,7 +41,7 @@ avas/
   sim/            模拟流程；linear_optics.py 线性包络预览（`avas.model` 之上的薄包装，并重新导出旧名称）；error.py 误差研究；scan.py 参数扫描（GUI 与命令行共用）
   post/           后处理（analysis/、plot/）
   core/ api/ utils/ engine/ static/ gpu/    api/basic.py 只有运行入口（惰性导入），api/plotting.py 是命令行画图；无人调用的旧代码在仓库外 archive/
-                  engine/ 是原内核二进制，engine/new/ 放新内核的预编译库（M7c 由 CI 构建后人工提交，目前为空）；core/MultiParticleEngine.py 按 `EngineChoice` 加载其中之一
+                  engine/ 是原内核二进制，engine/new/ 放新内核的预编译库（CI 构建、人工提交，带 build-stamp.json；见第 5.4 节“新内核的预编译库”）；core/MultiParticleEngine.py 按 `EngineChoice` 加载其中之一
                   utils/readfile.py 的 read_lattice_mulp* 只是 LatticeDocument 之上的适配层（tests/test_lattice_parsers.py 有逐字节金标准）；
                   utils/keywordconfig.py 让 BeamConfig / InputConfig 的键表和类型来自 schema.py，不要再手写键列表；constants.py 的关键字集合同样派生自 schema
 frontend/src/
@@ -58,6 +58,8 @@ tests/            pytest；test_gui.py 覆盖页面调用的每个接口；前�
 tools/            手动运行的开发工具（不属于快速 pytest）：compare_preview_engine.py 用真实内核对比新旧线性预览，compare_centroid_engine.py 用单粒子运行核对线性模型的质心，compare_response_engine.py 用小发射度多粒子束核对轨道响应矩阵（步骤见 CONTRIBUTING.md）
 engine/           新计算内核（重建中，原内核源码已丢失；在 engine-rebuild 分支开发，全部功能对齐前不合并 main，说明见 engine/README.md，规格在 docs/engine/）：src/ C++ 源码（CMake 构建），tests/parity/ 与原 AVAS.dll 的比对，docker/ Linux 构建环境（manylinux2014 + CUDA 12.4），tools/ 工具链检查、原内核比对实验与 Ghidra 导出脚本，cmake/source_hash.cmake 引擎源码哈希；逆向导出的伪代码不进仓库。从源码运行时 `avas run --engine new`（或 `AVAS_ENGINE=new`、ini.ini `[engine] kernel = new`）加载 engine/build 下的新库，`--compat dll` 复现原内核缺陷
 .github/workflows/ci.yml  CI：ruff + 快速 pytest（Windows，含 smoke）、npm test + build
+.github/workflows/engine.yml  新内核三平台（Windows、Linux、macOS）构建与比对，产物供 `engine/tools/fetch_ci_engine.py` 取用；engine/tools/ci_engine.py 是 CI 的检查与构建记录
+examples/cluster/ Linux 集群（Slurm）运行新内核的示例脚本
 examples/hwr010/  示例项目（跑一次约 10–30 秒）；examples/research/ 研究接口示例脚本（`# %%` 分格，VS Code / Jupyter 可逐格运行）
 docs/             使用说明（以 使用说明20260427.docx 为准，121 版已过时）、CHANGELOG
 scripts/          用户个人分析脚本，不属于软件本体，不要重构
@@ -194,6 +196,7 @@ packaging/        PyInstaller + Inno Setup 打包
   new-compat-dll；研究指纹的内核身份是原内核文件 SHA-1（与 M7 前相同，旧缓存仍有效）或新内核的（结果档，版本），线程数和 GPU 编号不进指纹；
   运行后把实际档写进 run.json，与预判不符时记警告。研究层 `workers > 1` 且用 CUDA 时每个 worker 绑定一张卡，worker 数不超过卡数，单卡或 Metal 降为 1 并写日志。
   device auto 的新内核运行在 `engine` 里另记 `reason`（内核计划给出的原因；计划的设备在运行时失败时注明），界面据此显示“实际：CPU（原因）”。
+- **新内核的预编译库**（M7c，2026-11-11，详见 docs/engine/M7c-notes.md）：`avas/engine/new/` 的三个库只能来自 `.github/workflows/engine.yml` 的同一次成功运行，用 `python engine/tools/fetch_ci_engine.py [--run ID]` 校验后放入，与 `build-stamp.json` 一起提交；不要提交本地构建的库，不要手改构建戳。`tests/test_design_rules.py` 检查构建戳的源码哈希等于 `engine_source_hash()`、文件 SHA-256 匹配，所以改了 `engine/`（CMakeLists.txt、include/、src/、third_party/ 的源文件）就要重新跑工作流并 fetch。M7 合并 main 前三个平台的库必须齐全。CUDA 机器码只在 `engine/CMakeLists.txt` 定义（默认 sm_61/75/80/86/89/90 + compute_90 PTX，构建脚本不另写；P100 / V100 因此不能用预编译库的 CUDA）；Windows 作业固定 `windows-2022`（发布库的 MSVC 由镜像决定，CUDA 12.4 不接受 MSVC 19.5x）。`ci_engine.py` 借用 `avas.engines.engine_source_hash`，因此 `avas/engines.py`、`avas/paths.py` 只能依赖标准库。`packaging/avas.spec` 只把本平台的新库和构建戳打进安装包；Windows 上加载新库时 `avas/engine/`（自带 MSVCP140.dll）也加入 DLL 搜索路径。
 - **界面中的计算内核**（M7b，2026-11-11）：模拟设置页“计算内核”分组（`pages/EngineSettings.tsx`）编辑 `[engine]`，随 `settings.save` 的 `engine` 参数保存，
   `kernels.save_settings` 只在与文件不同时写（kernel 显式写，其余键等于默认值时删掉），保存前 `validate_form` 校验组合，受运行锁约束；设备只列本机检测到的
   （`engine.info`，子进程查询并缓存，刷新按钮清缓存；壳层启动 5 秒后预取一次），auto 时用 `engine.preview` 显示本项目（按表单的空间电荷开关）会用什么；

@@ -50,7 +50,7 @@ avas-gui = "avas.gui.app:main"
 include = ["avas*"]
 
 [tool.setuptools.package-data]
-"avas.engine" = ["*.dll", "*.so", "*.so.*"]
+"avas.engine" = ["*.dll", "*.so", "*.so.*", "new/*.dll", "new/*.so", "new/*.dylib", "new/build-stamp.json"]
 "avas.static" = ["*.txt", "*.csv"]
 "avas.gui" = ["web/*", "web/assets/*", "redist/*"]
 

@@ -57,6 +57,64 @@ WebView2 安装程序），如果安装了 [Inno Setup 6](https://jrsoftware.org
 
 安装包中文翻译固定保存在 `packaging/languages/`（来源、版本与许可证见该目录），不依赖编译器附带中文文件。打包脚本在 PyInstaller 开始前检查翻译文件；更新翻译后须验证中英文安装脚本编译。
 
+### 新内核：构建、CI 与预编译库
+
+新内核的源码在 `engine/`（设计与实现记录见 [engine/README.md](engine/README.md) 和 `docs/engine/`）。用户不需要编译器：三个平台的库由 CI 构建，
+人工下载后提交到 `avas/engine/new/`（`avas_engine.dll`、`libavas_engine.so`、`libavas_engine.dylib` 与 `build-stamp.json`），做法与前端的 `avas/gui/web/` 相同。
+`build-stamp.json` 记录引擎源码哈希、每个文件的 SHA-256、编译器、CUDA 机器码和构建所在的工作流运行；`tests/test_design_rules.py` 检查它与当前 `engine/`
+一致——改了 `engine/` 而没有重新生成库，测试就会失败。打包（`packaging/avas.spec` 收集整个 `avas/engine/`）、更新清单和源码 ZIP 都自动包含这些文件。
+
+**发布新版本的库**：
+
+1. 提交 `engine/` 的改动并推送到 `engine-rebuild` 或 `main`（或在 Actions 页手动运行 **Engine** 工作流）。`.github/workflows/engine.yml` 在 `engine/` 有改动时运行，
+   三个作业：`windows-2022`（MSVC + CUDA 12.4，`compat=dll` 与 AVAS.dll 参考逐字符比较、DLL 工具逐字节比较）、`ubuntu-24.04`（manylinux2014 容器，检查只导出 C 接口、
+   GLIBC ≤ 2.17）、`macos-14`（Apple clang + Metal，arm64 + x86_64 双架构）；都跑单元测试、`run_all.py` 与 emu 设备的 fp64 / fp32 检查。CI 没有 GPU，真卡比对手动做。
+   汇总作业把三份库合成产物 `avas-engine-new-<源码哈希前 16 位>`（保留 90 天）。
+2. 运行成功后在仓库根目录执行（需要登录的 [GitHub CLI](https://cli.github.com)）：
+
+   ```bash
+   python engine/tools/fetch_ci_engine.py            # 当前分支最近一次成功的运行；或 --run <运行号>、--branch main
+   ```
+
+   脚本校验每个文件的 SHA-256、构建戳的源码哈希等于本地 `engine/` 的哈希、本平台的库能加载并报告同一哈希、三个平台齐全，任何一项不符就拒绝、不改动 `avas/engine/new/`。
+   已经下载的产物可以用 `--from-dir 目录`。
+3. `python -m pytest tests/test_design_rules.py`，再把 `avas/engine/new/` 和变更记录一起提交。不要提交自己本地构建的库（编译器与哈希都和 CI 不同）。
+
+**本地构建**（开发和调试；`avas run --engine new` 依次在 `AVAS_ENGINE_LIB`、`avas/engine/new/`、`engine/build/` 中找库）：
+
+- 只用 CPU（任何平台）：`cmake -S engine -B engine/build && cmake --build engine/build`。
+- macOS（Metal）：用 Apple 的 clang（shell 里有 conda 设置的 `CC`／`CXX`／`CXXFLAGS` 时先去掉）。与 CI 相同的双架构构建：
+  `cmake -S engine -B build -DCMAKE_BUILD_TYPE=Release "-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0`。
+- Windows（CUDA）：Visual Studio 2022（任何版本或 Build Tools）加 CUDA 12.4，`engine\tools\build_cuda_windows.bat engine 构建目录 [CUDA目录]`。
+  CUDA 只需 nvcc、cudart、cccl 三个组件：可以装完整工具包，也可以像 CI 那样把 NVIDIA 的三个 redist 压缩包解到同一个目录。
+- Linux（CUDA，glibc 2.17）：先构建镜像，再在容器里构建：
+
+  ```bash
+  docker build -f engine/docker/manylinux2014-cuda12.4.Dockerfile -t avas-engine-build:cuda12.4-manylinux2014 engine/docker
+  #   连不上 NVIDIA 官方源时加 --build-arg CUDA_MIRROR=developer.download.nvidia.cn
+  docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -v "$PWD/build-linux:/out" avas-engine-build:cuda12.4-manylinux2014 \
+      bash /src/engine/tools/build_cuda_linux.sh
+  ```
+
+  CUDA 机器码默认为 sm_61/75/80/86/89/90 加 compute_90 的 PTX（`engine/CMakeLists.txt`）；P100（sm_60）、V100（sm_70）等其他 GPU 加
+  `-DCMAKE_CUDA_ARCHITECTURES="60-real;70-real;…"`（`build_cuda_linux.sh` 把额外参数传给 cmake）。
+- **MPI 版**（多节点，不随包发布）：在集群上用集群的 MPI 构建，`-DAVAS_WITH_CUDA=ON -DAVAS_WITH_MPI=ON`；FindMPI 找不到或要用另一种主编译器（如 Intel MPI）时
+  改给 `-DAVAS_MPI_INCLUDE=… -DAVAS_MPI_LIBRARY=…/libmpi.so`。容器构建可在镜像里另装 MPICH / OpenMPI 后加同样的参数，但库要和集群运行时的 MPI 一致。
+  集群离线时可以用 conda 离线环境（conda-forge 的 GCC 12 + sysroot 2.17 与 NVIDIA 的 cuda-nvcc 12.4，见 engine/README.md）。运行方法见 `examples/cluster/avas_slurm.sh` 末尾。
+
+**检查**（库路径换成自己的；`run_all.py` 不给 `--work` 时用临时目录并在结束时删除）：
+
+```bash
+build/avas_engine_unit                                                     # 单元测试
+python engine/tests/parity/run_all.py --lib build/libavas_engine.dylib     # 与 AVAS.dll 参考比较；Windows MSVC 构建加 --strict（逐字符）
+python engine/tests/gpu/run_gpu.py --lib 库 --device emu --fp32           # 没有 GPU 时检查设备通路；有卡时去掉 --device emu
+python engine/tools/ci_engine.py exports 库                                # 只导出 C 接口
+```
+
+**Linux 集群**：预编译的 `libavas_engine.so` 只需要 GLIBC 2.14、GLIBCXX 3.4.19 和 NVIDIA 驱动（Linux ≥ 525.60.13），CentOS 7 / glibc 2.17 可直接用，
+不需要 `module load cuda`；Python 3.11 可用 Miniforge / conda 装在家目录。单节点多卡用 `avas run --engine new --device cuda --gpus all`（一个进程管理作业分到的全部 GPU），
+Slurm 示例见 [examples/cluster/avas_slurm.sh](examples/cluster/avas_slurm.sh)。
+
 ### 目录结构
 
 完整的目录地图（含每个模块的作用）见 [AGENTS.md 第 2 节](AGENTS.md#2-目录地图)，两处不重复维护。
@@ -167,6 +225,67 @@ rebuild after editing. `AVAS.exe doctor` checks an installation.
 
 The pinned Chinese installer translation is in `packaging/languages/`, with its provenance and license. It does not depend on a compiler-supplied Chinese file. The build checks it before PyInstaller starts; compile the bilingual installer after updating the translation.
 
+### New kernel: builds, CI and prebuilt libraries
+
+The new kernel's source is `engine/` (design and records: [engine/README.md](engine/README.md), `docs/engine/`). Users need no compiler: CI builds
+the libraries of the three platforms and they are committed by hand to `avas/engine/new/` (`avas_engine.dll`, `libavas_engine.so`,
+`libavas_engine.dylib`, `build-stamp.json`), like the front end's `avas/gui/web/`. `build-stamp.json` records the engine source hash, each file's
+SHA-256, the compiler, the CUDA machine code and the workflow run; `tests/test_design_rules.py` fails when `engine/` changed and the libraries were not
+rebuilt. Packaging (`packaging/avas.spec` collects all of `avas/engine/`), the update manifests and the source ZIP include them automatically.
+
+**Releasing new libraries**:
+
+1. Commit the `engine/` change and push it to `engine-rebuild` or `main` (or run the **Engine** workflow by hand). `.github/workflows/engine.yml` runs on
+   changes to `engine/` with three jobs: `windows-2022` (MSVC + CUDA 12.4; `compat=dll` compared character by character with the AVAS.dll references,
+   the DLL tools byte by byte), `ubuntu-24.04` (manylinux2014 container; only the C API exported, GLIBC ≤ 2.17) and `macos-14` (Apple clang + Metal,
+   arm64 + x86_64). All run the unit tests, `run_all.py` and the emu device's fp64 / fp32 checks; CI has no GPU, real GPUs are checked by hand. The summary
+   job combines the three libraries into the artifact `avas-engine-new-<first 16 digits of the source hash>` (kept 90 days).
+2. After a successful run, from the repository root (needs the logged-in [GitHub CLI](https://cli.github.com)):
+
+   ```bash
+   python engine/tools/fetch_ci_engine.py            # latest successful run of the current branch; or --run <id>, --branch main
+   ```
+
+   It checks every SHA-256, that the stamp's source hash equals the hash of your `engine/`, that this platform's library loads and reports the same hash,
+   and that all three platforms are present; otherwise it refuses and leaves `avas/engine/new/` alone. `--from-dir DIR` uses a downloaded artifact.
+3. `python -m pytest tests/test_design_rules.py`, then commit `avas/engine/new/` with a change record. Never commit a locally built library.
+
+**Local builds** (development; `avas run --engine new` looks in `AVAS_ENGINE_LIB`, `avas/engine/new/`, then `engine/build/`):
+
+- CPU only (any platform): `cmake -S engine -B engine/build && cmake --build engine/build`.
+- macOS (Metal): Apple's clang (unset conda's `CC` / `CXX` / `CXXFLAGS` first). The CI build:
+  `cmake -S engine -B build -DCMAKE_BUILD_TYPE=Release "-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0`.
+- Windows (CUDA): Visual Studio 2022 (any edition or the Build Tools) and CUDA 12.4, `engine\tools\build_cuda_windows.bat engine BUILD_DIR [CUDA_DIR]`.
+  nvcc, cudart and cccl are enough: a full tool kit, or NVIDIA's three redistributable archives unpacked into one folder as CI does.
+- Linux (CUDA, glibc 2.17): build the image, then build in the container:
+
+  ```bash
+  docker build -f engine/docker/manylinux2014-cuda12.4.Dockerfile -t avas-engine-build:cuda12.4-manylinux2014 engine/docker
+  #   without access to NVIDIA's servers add --build-arg CUDA_MIRROR=developer.download.nvidia.cn
+  docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -v "$PWD/build-linux:/out" avas-engine-build:cuda12.4-manylinux2014 \
+      bash /src/engine/tools/build_cuda_linux.sh
+  ```
+
+  The CUDA machine code is sm_61/75/80/86/89/90 plus compute_90 PTX by default (`engine/CMakeLists.txt`); for P100 (sm_60), V100 (sm_70) and other GPUs
+  add `-DCMAKE_CUDA_ARCHITECTURES="60-real;70-real;…"` (`build_cuda_linux.sh` passes extra arguments to cmake).
+- **MPI build** (several nodes, not shipped): build on the cluster with its MPI, `-DAVAS_WITH_CUDA=ON -DAVAS_WITH_MPI=ON`; when FindMPI fails or another
+  host compiler is needed (e.g. Intel MPI) give `-DAVAS_MPI_INCLUDE=… -DAVAS_MPI_LIBRARY=…/libmpi.so`. A container build needs MPICH / OpenMPI installed in
+  the image and must match the MPI used at run time. Offline clusters can use a conda environment (conda-forge GCC 12 with sysroot 2.17 and NVIDIA's
+  cuda-nvcc 12.4, see engine/README.md). How to run it: the end of `examples/cluster/avas_slurm.sh`.
+
+**Checks** (`run_all.py` without `--work` uses a temporary folder and removes it):
+
+```bash
+build/avas_engine_unit                                                     # unit tests
+python engine/tests/parity/run_all.py --lib build/libavas_engine.dylib     # against the AVAS.dll references; --strict for Windows MSVC builds
+python engine/tests/gpu/run_gpu.py --lib LIB --device emu --fp32          # the device path without a GPU; drop --device emu with a GPU
+python engine/tools/ci_engine.py exports LIB                               # only the C API is exported
+```
+
+**Linux clusters**: the prebuilt `libavas_engine.so` needs only GLIBC 2.14, GLIBCXX 3.4.19 and the NVIDIA driver (Linux ≥ 525.60.13), so it runs on
+CentOS 7 / glibc 2.17 without `module load cuda`; Python 3.11 can come from Miniforge / conda in the home directory. One node with several GPUs:
+`avas run --engine new --device cuda --gpus all` (one process drives all GPUs of the job). Slurm example: [examples/cluster/avas_slurm.sh](examples/cluster/avas_slurm.sh).
+
 ### Directory layout
 
 ```
@@ -184,11 +303,12 @@ avas/            Python package
   post/          post-processing: analysis/ data analysis, plot/ plotting
   data/          output file parsing (DataSet, BeamSet, dst, ...)
   utils/         I/O and configuration utilities
-  engine/        AVAS.dll / libAVAS.so and its dependencies
+  engine/        AVAS.dll / libAVAS.so and its dependencies; new/ the new kernel's prebuilt libraries (CI builds)
   static/        atomic mass table, field tables
   gpu/ hpc/      GPU engine and HPC job scripts
 frontend/        GUI front-end source (React + TypeScript)
-examples/        example project (hwr010); research/ example scripts of the research interface
+engine/          new kernel source (C++ / CUDA / Metal), its tests and build tools
+examples/        example project (hwr010); research/ example scripts of the research interface; cluster/ Slurm example
 tests/           pytest test suite
 tools/           developer tools run by hand (compare_preview_engine.py: linear preview vs engine;
                  compare_centroid_engine.py: linear-model centroid vs engine, single particle;

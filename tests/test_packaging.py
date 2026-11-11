@@ -94,3 +94,50 @@ def test_source_settings_ignore_installer_language(tmp_path, monkeypatch):
     monkeypatch.setattr(sys, "executable", str(tmp_path / "python.exe"))
     (tmp_path / "avas-install.ini").write_text("[UI]\nLanguage=zh_CN\n", encoding="utf-8")
     assert Settings(str(tmp_path / "gui.json")).get("ui/language") == "en"
+
+
+def _spec_engine_datas(root, platform):
+    """The avas/engine part of packaging/avas.spec run against *root* for *platform* (collect_data_files
+    replaced by a walk of root/avas/engine that, like PyInstaller on Windows, keeps every file)."""
+    import os
+    import types
+    text = (Path(build.ROOT) / "packaging/avas.spec").read_text(encoding="utf-8")
+    block = text[text.index("datas = []"):text.index('datas += collect_data_files("avas", subdir="static")')]
+
+    def collect(package, subdir):
+        base = os.path.join(root, package, subdir)
+        return [(os.path.join(d, f), os.path.relpath(d, root)) for d, _, fs in os.walk(base) for f in fs]
+    ns = {"os": os, "sys": types.SimpleNamespace(platform=platform), "ROOT": str(root), "collect_data_files": collect}
+    exec(block, ns)
+    return sorted((Path(src).relative_to(root).as_posix(), Path(dst).as_posix()) for src, dst in ns["datas"])
+
+
+def test_spec_bundles_the_new_kernel_of_the_platform(tmp_path):
+    new = tmp_path / "avas/engine/new"
+    new.mkdir(parents=True)
+    (tmp_path / "avas/engine/AVAS.dll").write_bytes(b"MZ")
+    for name in ("avas_engine.dll", "libavas_engine.so", "libavas_engine.dylib", "build-stamp.json"):
+        (new / name).write_bytes(b"x")
+    datas = _spec_engine_datas(tmp_path, "win32")
+    assert ("avas/engine/AVAS.dll", "avas/engine") in datas
+    assert [d for d in datas if d[1] == "avas/engine/new"] == [
+        ("avas/engine/new/avas_engine.dll", "avas/engine/new"), ("avas/engine/new/build-stamp.json", "avas/engine/new")]
+    linux = [d[0] for d in _spec_engine_datas(tmp_path, "linux") if d[1] == "avas/engine/new"]
+    assert linux == ["avas/engine/new/build-stamp.json", "avas/engine/new/libavas_engine.so"]
+    for name in ("avas_engine.dll", "libavas_engine.so", "libavas_engine.dylib", "build-stamp.json"):
+        (new / name).unlink()
+    assert not [d for d in _spec_engine_datas(tmp_path, "win32") if d[1] == "avas/engine/new"]
+
+
+def test_update_manifest_lists_the_new_kernel(tmp_path):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("avas_update_release_pkg", Path(build.ROOT) / "packaging/update_release.py")
+    publisher = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(publisher)
+    new = tmp_path / "_internal/avas/engine/new"
+    new.mkdir(parents=True)
+    (new / "avas_engine.dll").write_bytes(b"MZ new kernel")
+    (new / "build-stamp.json").write_text("{}", encoding="utf-8")
+    files = publisher.manifest(tmp_path, "0" * 40, "frozen")["files"]
+    assert files["_internal/avas/engine/new/avas_engine.dll"] == publisher.worker.digest(new / "avas_engine.dll")
+    assert "_internal/avas/engine/new/build-stamp.json" in files

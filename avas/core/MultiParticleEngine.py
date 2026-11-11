@@ -44,8 +44,13 @@ def _unbuffer_c_stdout():
 def _load(path):
     try:
         if _WINDOWS and hasattr(os, "add_dll_directory"):
-            # make libfftw3*.dll / MSVCP140.dll next to AVAS.dll resolvable
-            os.add_dll_directory(os.path.dirname(os.path.abspath(path)))
+            # make libfftw3*.dll / MSVCP140.dll next to AVAS.dll resolvable; the new kernel in
+            # avas/engine/new links the same dynamic MSVC runtime, so it also gets avas/engine
+            # (MSVCP140.dll) for machines without the VC++ redistributable
+            folder = os.path.dirname(os.path.abspath(path))
+            os.add_dll_directory(folder)
+            if os.path.normcase(folder) != os.path.normcase(os.path.abspath(ENGINE_DIR)) and os.path.isdir(ENGINE_DIR):
+                os.add_dll_directory(ENGINE_DIR)
         return ctypes.CDLL(path)
     except OSError as e:
         raise ValueError(f"Failed to load the simulation engine '{path}'. Reason: {e}") from e

@@ -62,11 +62,16 @@ if(AVAS_WITH_CUDA)
   if(CMAKE_VERSION VERSION_LESS 3.18)
     message(FATAL_ERROR "AVAS_WITH_CUDA needs CMake 3.18 or newer")
   endif()
-  # One CUDA 12.x tool kit builds sm_60 .. sm_90 (CUDA 13 dropped Pascal); the CUDA runtime is
+  # One CUDA 12.x tool kit builds sm_61 .. sm_90 (CUDA 13 dropped Pascal); the CUDA runtime is
   # linked statically.  --fmad=false: no FMA contraction, so that the fp64 particles are bit for bit
   # those of the CPU engine (corrected mode).
+  # Machine code for the GPUs the engine is used on (M7c): GTX 10x0 (61), GTX 16x0 / RTX 20x0 / T4 (75),
+  # A100 (80), RTX 30x0 / A40 (86), RTX 40x0 / L40S (89), H100 (90), plus compute_90 PTX that newer GPUs
+  # compile at load time.  sm_60 (P100) and sm_70 (V100) have no target device and were dropped: such a
+  # GPU fails the probe kernel ("no kernel image"), device auto then uses the CPU; build with
+  # -DCMAKE_CUDA_ARCHITECTURES=60-real or 70-real to add them.
   if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-    set(CMAKE_CUDA_ARCHITECTURES "60-real;61-real;70-real;75-real;80-real;86-real;89-real;90")
+    set(CMAKE_CUDA_ARCHITECTURES "61-real;75-real;80-real;86-real;89-real;90")
   endif()
   set(CMAKE_CUDA_RUNTIME_LIBRARY Static)
   enable_language(CUDA)
@@ -216,7 +221,7 @@ if(AVAS_WITH_MPI)
   target_link_libraries(avas_engine PRIVATE avas_mpi)
 endif()
 set_target_properties(avas_engine PROPERTIES CXX_VISIBILITY_PRESET hidden CUDA_VISIBILITY_PRESET hidden
-  VISIBILITY_INLINES_HIDDEN ON)
+  OBJCXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   # Symbols of statically linked archives (libstdc++ with -static-libstdc++, cudart_static) must not
   # be exported: a Python process that already loaded another libstdc++ would otherwise bind to ours

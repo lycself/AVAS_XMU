@@ -29,6 +29,12 @@
 #include "core/sc_kernels.h"
 #include "core/secondary.h"
 #include "cuda/cuda_mpi.h"
+#if __has_include("avas_build_config.h")
+#include "avas_build_config.h"
+#endif
+#ifndef AVAS_BUILD_CUDA_ARCHS
+#define AVAS_BUILD_CUDA_ARCHS ""
+#endif
 
 namespace avas {
 
@@ -1444,6 +1450,12 @@ bool cuda_plan(long long nParticles, bool spaceCharge, DevicePlan& plan, std::st
         if (pe != cudaSuccess || h != 61) {
             why = std::string("GPU ") + std::to_string(devs[k]) + " (" + p.name + ") cannot run the engine kernels (" +
                   cudaGetErrorString(pe) + ")";
+            if (pe == cudaErrorNoKernelImageForDevice) {
+                // the prebuilt library carries machine code for selected GPUs only (CMakeLists.txt)
+                const std::string sm = std::to_string(p.major) + std::to_string(p.minor);
+                why += "; this library has machine code for " AVAS_BUILD_CUDA_ARCHS " but not for sm_" + sm +
+                       ", build the engine with -DCMAKE_CUDA_ARCHITECTURES=" + sm + "-real";
+            }
             return false;
         }
         size_t fr = 0, tot = 0;
