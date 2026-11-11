@@ -7,7 +7,7 @@
 
 AVAS（Advanced Virtual Accelerator Software）是直线加速器束流动力学模拟程序：
 
-- C++ 计算内核：`avas/engine/AVAS.dll`（Linux 为 `libAVAS.so`），只有二进制，没有源码，不要修改。
+- C++ 计算内核：`avas/engine/AVAS.dll`（Linux 为 `libAVAS.so`），只有二进制，没有源码，不要修改。新内核（`engine/` 源码，预编译库将放在 `avas/engine/new/`）是可选内核，默认仍用原内核（`avas/engines.py`，见第 5.4 节“内核选择”）。
 - Python 包 `avas/`：模拟流程、前后处理、命令行 `avas run / plot / gui / serve / info / doctor`。
 - 界面：React 网页前端（`frontend/`）+ Python 后端（`avas/gui/services/`），二者只通过 HTTP / WebSocket 通信（`avas/gui/server.py`）。
   `avas gui` 把页面放进 pywebview + Edge WebView2 桌面窗口；`avas serve` 不开窗口，在浏览器里用同一个页面（将来部署到服务器的基础，
@@ -31,6 +31,8 @@ avas/
   dynamics/       基于线性模型的动力学与控制分析（notebook 使用，暂无界面）：period.py 周期 Floquet 分析与带空间电荷的匹配，envelope.py 包络映射雅可比，
                   kv.py 二维 KV 包络方程参考，grid.py 二维参数图，diagnostics.py 监测器与观测，response.py 旋钮与响应矩阵，systems.py 周期的 (A, B, C, D)，
                   control.py 可控性、可观性、模态分类与闭环，feedback.py 脉冲间反馈仿真，study.py 研究配置文件 study.json（监测器、旋钮、误差，不改 lattice）
+  engines.py      内核选择层：`EngineChoice`（kernel original / new，device、precision、gpus、threads、compat）、优先级（命令行 > 环境变量 > ini.ini `[engine]` > 默认）、
+                  新内核库的查找、结果档 `result_tier`、引擎源码哈希 `engine_source_hash`（与 engine/cmake/source_hash.cmake 同一算法）、avas_run.json 的 `engine` 字段
   research/       notebook / 脚本研究接口：variant.py 变体，study.py `Study`（运行、指纹缓存、记录、table），engine.py 内核子进程，runs.py 两种保真度的统一结果，
                   batch.py 批量与并行，scan.py 多维扫描与拉丁超立方，compare.py 线性模型对内核、多种子统计、内核响应矩阵，export.py npz/CSV，plots.py 作图
   learn/          加速器入门的后端：labs.py 交互实验（复用 linear_optics），tutorial.py 引导教程（示例场图搭 lattice、另存为项目）
@@ -39,6 +41,7 @@ avas/
   sim/            模拟流程；linear_optics.py 线性包络预览（`avas.model` 之上的薄包装，并重新导出旧名称）；error.py 误差研究；scan.py 参数扫描（GUI 与命令行共用）
   post/           后处理（analysis/、plot/）
   core/ api/ utils/ engine/ static/ gpu/    api/basic.py 只有运行入口（惰性导入），api/plotting.py 是命令行画图；无人调用的旧代码在仓库外 archive/
+                  engine/ 是原内核二进制，engine/new/ 放新内核的预编译库（M7c 由 CI 构建后人工提交，目前为空）；core/MultiParticleEngine.py 按 `EngineChoice` 加载其中之一
                   utils/readfile.py 的 read_lattice_mulp* 只是 LatticeDocument 之上的适配层（tests/test_lattice_parsers.py 有逐字节金标准）；
                   utils/keywordconfig.py 让 BeamConfig / InputConfig 的键表和类型来自 schema.py，不要再手写键列表；constants.py 的关键字集合同样派生自 schema
 frontend/src/
@@ -53,7 +56,7 @@ frontend/src/
   styles/tokens.css 全部颜色变量（浅色 + 深色）
 tests/            pytest；test_gui.py 覆盖页面调用的每个接口；前端 vitest（frontend/src/**/*.test.ts）
 tools/            手动运行的开发工具（不属于快速 pytest）：compare_preview_engine.py 用真实内核对比新旧线性预览，compare_centroid_engine.py 用单粒子运行核对线性模型的质心，compare_response_engine.py 用小发射度多粒子束核对轨道响应矩阵（步骤见 CONTRIBUTING.md）
-engine/           新计算内核（重建中，原内核源码已丢失；在 engine-rebuild 分支开发，全部功能对齐前不合并 main，说明见 engine/README.md，规格在 docs/engine/）：src/ C++ 源码（CMake 构建），tests/parity/ 与原 AVAS.dll 的比对，docker/ Linux 构建环境（manylinux2014 + CUDA 12.4），tools/ 工具链检查、原内核比对实验与 Ghidra 导出脚本；逆向导出的伪代码不进仓库。从源码运行时设 `AVAS_ENGINE=new` 让 `avas run` 加载 engine/build 下的新库，`AVAS_ENGINE_COMPAT=dll` 复现原内核缺陷
+engine/           新计算内核（重建中，原内核源码已丢失；在 engine-rebuild 分支开发，全部功能对齐前不合并 main，说明见 engine/README.md，规格在 docs/engine/）：src/ C++ 源码（CMake 构建），tests/parity/ 与原 AVAS.dll 的比对，docker/ Linux 构建环境（manylinux2014 + CUDA 12.4），tools/ 工具链检查、原内核比对实验与 Ghidra 导出脚本，cmake/source_hash.cmake 引擎源码哈希；逆向导出的伪代码不进仓库。从源码运行时 `avas run --engine new`（或 `AVAS_ENGINE=new`、ini.ini `[engine] kernel = new`）加载 engine/build 下的新库，`--compat dll` 复现原内核缺陷
 .github/workflows/ci.yml  CI：ruff + 快速 pytest（Windows，含 smoke）、npm test + build
 examples/hwr010/  示例项目（跑一次约 10–30 秒）；examples/research/ 研究接口示例脚本（`# %%` 分格，VS Code / Jupyter 可逐格运行）
 docs/             使用说明（以 使用说明20260427.docx 为准，121 版已过时）、CHANGELOG
@@ -172,6 +175,22 @@ packaging/        PyInstaller + Inno Setup 打包
 
 - 运行页束流实时／回放面板默认按元件分层高度加曲线空间自动增高（上限 720px，极多层仍可图内滚动），页面整体可滚动。视图底边可拖动调高（240–1200px，`avas.live.height` 持久化），双击或“自动调整视图高度”恢复自动。最大化只占运行页工作区，保留回放控制与统计，还原不丢失普通高度和回放状态；最大化状态不持久化。
 
+- **内核选择**（M7a，2026-11-11 用户决定，详见 docs/engine/M7-plan.md、M7-notes.md）：`avas/engines.py` 是唯一的选择层。每个键的优先级为命令行
+  （`avas run --engine original|new --device auto|cpu|cuda|metal --precision auto|fp64|fp32 --gpus all|0,1 --threads N --compat none|dll`）> 环境变量
+  （`AVAS_ENGINE`、`AVAS_ENGINE_DEVICE`、`AVAS_ENGINE_PRECISION`、`AVAS_ENGINE_GPUS`、`AVAS_ENGINE_THREADS`、`AVAS_ENGINE_COMPAT`）> 项目 ini.ini 的 `[engine]`
+  （键 `kernel device precision gpus threads compat`，`avas/utils/iniconfig.py` 的 `read_engine_settings` / `write_engine_settings`，保留其余段和键）> 默认（kernel original；
+  新内核 auto / auto / all / 0 / none）。原内核被选中时忽略其余键；旧的 `[input] device = gpu`（libPIC.so）只对原内核有效，保持不动。不写 input.txt（原内核要能读同一项目）。
+  新内核库的查找：`AVAS_ENGINE_LIB` > `avas/engine/new/` > `engine/build`（`Release`、`RelWithDebInfo`），路径来自 `avas.paths`。
+  所有内核运行都经 `avas run` 子进程，各入口拿到 `[engine]` 的方式：完整运行 / 误差研究直接用项目 InputFile；分段运行、AI 沙盒、参数扫描、入门教程复制的文本输入含 ini.ini；
+  研究层 `Study` 把解析好的选择写进每次运行的 `input/ini.ini [engine]`，并在子进程环境里去掉上述环境变量。
+  **选了 cuda / metal 而本机或这个构建没有时，运行前报错并提示改 auto 或 cpu，不得悄悄改用 CPU**（`MultiParticleEngine.check_device`，判断用新内核自己的
+  `avas_engine_devices()`，与 `main_agent` 同一段代码 `plan_device`）；compat dll 只能配 auto / cpu，Metal 只有 fp32，CPU 只有 fp64，组合不对时在解析阶段报错。
+  内核库只在 `avas run` / `avas info` 进程里用 ctypes 加载；其他进程（研究层、GUI）要知道 auto 会选什么时调用子进程 `avas info --engine-json`（`engines.query_subprocess`）。
+  **avas_run.json 的 `engine` 字段**：原内核 `{"kernel": "original", "file", "sha1", "tier"}`（libPIC.so 通路另记 `device: gpu`）；新内核另有 `version`（引擎源码哈希前 16 位）、
+  实际的 `device`、`precision`、`gpus`、`compat`、`threads`、`space_charge`（取自 `avas_engine_last_run()`）、`tier` 与 `requested`；误差研究等多次运行记最后一次；
+  旧记录没有该字段，读取时要容忍。**结果档**（`engines.result_tier`）：original、new-cpu-fp64、new-cuda-fp64（CUDA 与 emu 的 fp64）、new-fp32（CUDA / Metal / emu 的 fp32 逐字节相同）、
+  new-compat-dll；研究指纹的内核身份是原内核文件 SHA-1（与 M7 前相同，旧缓存仍有效）或新内核的（结果档，版本），线程数和 GPU 编号不进指纹；
+  运行后把实际档写进 run.json，与预判不符时记警告。研究层 `workers > 1` 且用 CUDA 时每个 worker 绑定一张卡，worker 数不超过卡数，单卡或 Metal 降为 1 并写日志。
 - 同一时间只运行一个任务：`avas/gui/services/runner.py` 的 `Job`（可含多个 `Stage`）。暂停是挂起整个子进程树（`avas/gui/proctree.py`），不是停止。
 - 开始运行前前端会先检查并保存所有有修改的页面（`actions.ts` 的 `prepareRun`）。
 - 分段运行（`avas/data/segment.py`、`services/segments.py`）结果写在 `<项目>/Segments/<名称>_<时间>/`，不改项目的 OutputFile。
@@ -273,7 +292,7 @@ packaging/        PyInstaller + Inno Setup 打包
 - **线性模型**（`avas/model/`，2026-11-03 由 linear_optics.py 拆出）：编辑器预览、入门实验、AI 工具和将来的分析层都用它，不要另写传输矩阵或空间电荷。`LinearModel(text, beam, field_dirs)` 构建一次，`evaluate(space_charge, knobs, errors, centroid0, beam)` 返回 `ModelResult`，一律国际单位（m、rad、MeV，δ = Δp/p）；`linear_preview` 是 `ModelResult.preview()`，输出与拆分前逐位相同（不跟踪质心、不用段缓存）。每一步是仿射映射 x → M·x + d：常数项 d 只来自校正铁、元件错位（`errors` 的 dx、dy、roll，参考轨道不变）和场图轴上横向场（`map_dipoles`，可关闭；示例场图有噪声，`sol` + HWR 一个周期约偏 0.04 mm），只推动质心；σ 是关于质心的二阶矩，线性空间电荷以束流中心为中心，不推动质心。改元件参数（`knobs`，经 `lattice_edit` 定位）属于设计改变，重算参考粒子；场图段按"语句参数 + 入口 z、能量（V3 = 2 时加入口时间）"缓存，场图文件改动后要新建模型。校正铁按 schema 在下一个元件全长上施加均匀场（写 7 个参数，最后是最大值）：磁 By > 0 使正粒子向 −x 偏，Bx > 0 向 +y，电 Ex（kind 1，单位 V/m）向 +x。superpose 块内场图先求和再切片，块内单个场图的错位不建模（报错）。`avas.paths.field_dirs()` 给出项目的场图目录（GUI 的 `Project.field_dirs` 也调用它）。
 - **线性模型的质心约定已用内核核实**（2026-11-03，`tools/compare_centroid_engine.py` 单粒子运行，`info["centroid_checked"]` 为 True；改动约定后要重新核对）：磁校正铁 By、Bx 与电校正铁 Ex 的方向、单位和作用长度（末端偏移内核 −1.2312／+1.2312／+7.2069 mm，模型 −1.2316／+1.2316／+7.2094 mm）；四极一阶传输与 `displacepos` 按 mm 读取（沿 z 相对差 1.5e-6）；HWR 离轴传输（0.9 %）；场图轴上横向场的偏转（教程一个 `sol` + HWR 周期，轴上粒子 y 末端 −0.0405 对 −0.0408 mm，0.5 %；不计时差 41 %）；螺线管转向。**离轴穿过示例 `sol` 场图的差别来自场图本身**：内核直接用场图里与 Bz 不自洽的 Bx、By 跟踪（按场图三维插值做 RK4 跟踪可复现内核：+1 mm 起点 x −1.294 对内核 −1.272，y 0.084 对 0.084），而该场图在 1.7 mm 横向网格尺度上不对称，+1 mm 与 −1 mm 起点的响应差约 30 %（内核 −1.272 与 +0.920 mm），且随偏移大小变化；线性模型用轴上中心差分，给出两侧的平均（±1.128 mm），任何线性模型都不能同时符合两侧。改用场图自身的径向梯度既不能消除差别（x −1.114），又使周期矩阵不辛（模 0.926／1.014），不采用；4 mm 切片平均对 ∫Bz² 只有 0.8 % 的影响。内核单粒子运行不稳定：同样的输入约三成整列质心为 NaN，脚本自动重跑；一次重跑后的静磁算例末端能量出现 1.584 MeV（应为 1.527），这类结果不可信。内核不接受梯度为 0 的四极。
 - **动力学与控制分析**（`avas/dynamics/`，2026-11-03）：一律建立在 `LinearModel` 之上，不另写传输矩阵；单位同模型（流强 mA）。周期取自 `lattice … lattice_end` 组或给定 z 范围。加速周期不严格周期性：一个周期的矩阵乘 √(βγ_出/βγ_入) 归一化，“匹配”指 Σ_出·βγ_出/βγ_入 = Σ_入；归一化后示例 `sol` + HWR 周期的特征值模为 0.9996～1.0004，所以稳定判据容差取 1e-3（`STABLE_TOL`，`control.modes` 的 `stable_tol` 同样 1e-3），带空间电荷的匹配以残差小于 max(1e-6, 4ε) 为收敛、包络映射以最大模不超过 1 + 1e-4 + 2ε 为稳定（ε = 归一化周期矩阵最大模 − 1；示例 sol + HWR 周期 ε ≈ 4.2e-4，0.18 mA 时残差约 8e-4、包络最大模 1.00085；2 mA 时 1.015 才是真实的包络不稳定）。零流强下不稳定的平面（无 RF 时的 z）不参与匹配，沿用入口束流的块；x、y 有耦合时一起匹配；耦合周期的匹配束按本征向量 Re(v·v†) 构造并按本征发射度缩放。带空间电荷的匹配用最小二乘同时满足 F(Σ) = Σ 与本征发射度不变（发射度守恒使 I − DF 有零空间，单纯 Newton 法会奇异）。包络雅可比在匹配束附近对匹配平面块的上三角做中心差分，零流强时本征值为 λiλj，三个 1 对应发射度。已核对：直流束 FODO 匹配包络与 `kv.py` 的二维 KV 方程相差 2e-5；σ₀ ≈ 95° 的 FODO 在流强把 σ 压到约 83° 时包络不稳定（最大模 1.061），σ₀ = 50° 或流强很小、很大时稳定（90° 失稳带）。响应矩阵对校正铁和错位是精确的（模型线性），对其他参数为中心差分。脉冲间积分反馈 u ← u − g·R⁺·y_{k−d} 的每个校正模态满足 z^{d+1} − z^d + g = 0（无延迟 g < 2、一个脉冲延迟 g < 1 才稳定）。**轨道响应矩阵已用内核核实**（2026-11-03，`tools/compare_response_engine.py`：S1、S2 两个校正铁的 By、Bx 对四个监测器 x、y，200 个宏粒子、发射度缩小 1000 倍、`randomseed 12345`）：固定种子后两次基准运行完全相同（噪声底 0，内核多线程也可重复）；只经过漂移段和 HWR 的 S2 元素与内核相差不超过最大元素的 0.06 %，连 S2 的 Bx 对 x 的微小交叉项也一致（1.121e-5 对 1.205e-5 m/T）；穿过示例 `sol` 场图的 S1 元素相差 0.1～2.7 %，内核聚焦略强（M4 的 x 对 S1 By：−0.4146 对 −0.4260 m/T），与离轴质心的结论一致，来自场图本身。不固定种子时每次运行重新抽样粒子，200 个粒子的平均位置起伏约 3.5 µm（每 1 mT 步长 0.0035 mm/mT），会在冲量上游的监测器上也显示出“响应”，比较内核结果时要固定种子。
-- **研究接口**（`avas/research/`，2026-11-03）：内核**必须在子进程里运行**（内核抛 C++ 异常会结束加载它的进程，notebook 不能跟着崩），命令同 `avas run --mode basic --field --lattice`，测试可替换为假内核（`tests/fake_research_engine.py`）。运行记录在 `<项目>/Research/<研究名>/runs/<指纹前 16 位>/`（`input/` 实际输入、`output/` 只保留 DataSet / avas_run.json / synData / Phase、`engine.log`、`run.json`），也可用 `root=` 放到项目外；绝不写项目的 InputFile / OutputFile。指纹包括全部输入文件（文本按换行规范化）、lattice 用到的场图（文件名、大小、修改时间；`strict=True` 用内容）和内核库的 SHA-1，不含 AVAS 提交号（只记录在 run.json）；指纹已存在且状态为 done / failed 时直接复用（失败也缓存，`force=True` 重跑；stopped 不缓存）。默认 `randomseed 12345`，固定种子时内核可重复，缓存才有意义；统计起伏用 `ensemble` 显式换种子。`workers > 1` 时去掉 input.txt 的 `multithreading`（每个内核单线程），指纹因此与多线程运行不同。线性保真度不落盘：lattice 参数走 `LinearModel` 的段缓存，beam / input 改动经临时复制后 `read_beam`，input.txt `spacecharge 0` 关闭模型的空间电荷。内核结果只有 rms 尺寸、rms 散角、x / y 质心和归一化发射度（其余为 NaN），`Diagnostics.read` 对内核结果在相邻行之间按 z 插值（行间距约一个步长）。内核侧只支持 lattice 参数和 beam / input 关键字的变体，确定性的元件错位只能用线性模型（`superposeout` 偏移尚未核实）。研究运行与 GUI 互不知晓：不显示在运行页，也不与 GUI 运行互斥。
+- **研究接口**（`avas/research/`，2026-11-03）：内核**必须在子进程里运行**（内核抛 C++ 异常会结束加载它的进程，notebook 不能跟着崩），命令同 `avas run --mode basic --field --lattice`，测试可替换为假内核（`tests/fake_research_engine.py`）。运行记录在 `<项目>/Research/<研究名>/runs/<指纹前 16 位>/`（`input/` 实际输入、`output/` 只保留 DataSet / avas_run.json / synData / Phase、`engine.log`、`run.json`），也可用 `root=` 放到项目外；绝不写项目的 InputFile / OutputFile。指纹包括全部输入文件（文本按换行规范化）、lattice 用到的场图（文件名、大小、修改时间；`strict=True` 用内容）和内核身份（原内核库的 SHA-1，或新内核的结果档与版本，见第 5.4 节“内核选择”；ini.ini 的 `[engine]` 段不进文件摘要），不含 AVAS 提交号（只记录在 run.json）；指纹已存在且状态为 done / failed 时直接复用（失败也缓存，`force=True` 重跑；stopped 不缓存）。默认 `randomseed 12345`，固定种子时内核可重复，缓存才有意义；统计起伏用 `ensemble` 显式换种子。`workers > 1` 时去掉 input.txt 的 `multithreading`（每个内核单线程），指纹因此与多线程运行不同。线性保真度不落盘：lattice 参数走 `LinearModel` 的段缓存，beam / input 改动经临时复制后 `read_beam`，input.txt `spacecharge 0` 关闭模型的空间电荷。内核结果只有 rms 尺寸、rms 散角、x / y 质心和归一化发射度（其余为 NaN），`Diagnostics.read` 对内核结果在相邻行之间按 z 插值（行间距约一个步长）。内核侧只支持 lattice 参数和 beam / input 关键字的变体，确定性的元件错位只能用线性模型（`superposeout` 偏移尚未核实）。研究运行与 GUI 互不知晓：不显示在运行页，也不与 GUI 运行互斥。
 - **线性包络预览**（`avas/sim/linear_optics.py`，模型见上一条）只作快速评估：轴上参考粒子的能量与内核同步粒子（synData.txt）相差约 0.01 %，rms 通常差 1–2 %，多粒子效应强时可到 13 %；最终以内核结果为准。**DataSet.txt 第 0 列是全部宏粒子的平均能量**，粒子离轴时在三维场图里感受到不同的 Ez：示例 `hwr010` 离轴 2 mm 处的增益比轴上高 4–6 %，按 σ 1–1.8 mm 的高斯束平均高 2.5–5 %，内核的平均增益比预览高 4.5 %（1.527 MeV，2026-11-02 Windows 核实：0.3556 对 0.3395 MeV）；0.5 MeV 时两个间隙几乎抵消，内核平均增益反而低约 20 %。比较能量要分清同步粒子与平均值；`tools/compare_preview_engine.py` 两者都给出。**多周期 rms 的已知差别**（2026-11-02，20000 个宏粒子、3 次运行核实）：单腔时预览与内核的 rms x、y 相差 < 1 %（2000 个宏粒子时内核自身起伏可达 6 %，不要据此下结论）；教程新默认的 8 周期线上内核横向发射度增长约 16 %（x、y 相近，纵向 56 %），质心偏离轴线最多约 0.44 mm（x）/ 0.22 mm（y），末端 rms y 预览比内核小约 10 %（x 小 1 %）。线性模型里去掉 `sol` 的斜四极项、把 HWR 的 x/y 梯度对称化、或改用按束流尺寸加权的梯度，都只让结果变化 1–3 %，所以这是线性预览的已知局限（无发射度增长、不跟踪质心），不是可以在预览里修正的错误。
 - **V3 = 0 的同步相位可能无解**（2026-11-02 用示例 hwr010 核实，Ke = 1.36、φs = −30°）：φs 定义为 atan2(∫E sinφ, ∫E cosφ)，在两个间隙几乎抵消的速度下，扫遍入口相位 φ0 得到的 φs 只覆盖一段角度（0.3 MeV 约 65°～107°，0.8 MeV 约 58°～136°，1.0 MeV 约 14°～144°）。按线性预览，加速的 −30° 解在 0.4–0.65 MeV 与 1.1 MeV 以上存在。**没有加速解时内核接受相差 180° 的解**（Windows 核实：0.7 MeV 入口相位 −107.7°、同步粒子减速 0.1129 MeV，synData.txt 仍记 φs = −29.92°，atan2 实为 150°；预览 −107.79°、−0.11286 MeV），按线性预览这发生在 0.7–0.75 MeV 与 1.05 MeV（1.05 MeV 也已核实：入口相位 −165.8°，同步粒子减速 0.095 MeV，预览相差 0.02°、0.005 %）；有多个根时内核取 φs(φ0) 上升分支上的那个。两种解都没有时（0.15–0.35、0.8–1.0 MeV）**内核拒绝运行**，报 “Initialisation stage error: … the scan phase to fail to find the corresponding RF phase”（核实：0.3、0.8、1.0 MeV）。线性预览先做不动点迭代（有解时都收敛），不收敛时扫描 φ0 并二分求根，依次找加速解、相差 180° 的解（给出“减速”警告），都没有时给出警告和可达范围、取最接近的 φs。
 - **弯转方向**：线性预览的 `bend_matrix` 对 α > 0 给出 R16 > 0（x 指向弯转外侧），即正粒子向 −x（竖直弯转向 −y）偏转；元件场示意图（`analyticField.ts` 的 `bendField`）按同一约定定轴上场符号，场梯度指数项 ∂By/∂x = −n·|B0|/ρ 与弯转方向无关并画出 Maxwell 伴随项。3D 视图（`beamline3dModel.ts` 的 `Orbit`）把 α > 0 画成向 +x 偏转，与之相反；手册没有说明内核的方向，尚未用内核核实（可用弯转后粒子 ⟨x·δ⟩ 的符号判定）。

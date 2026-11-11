@@ -7,6 +7,43 @@ import copy
 from avas.utils import exception as exce
 
 
+ENGINE_SECTION = "engine"
+
+
+def read_engine_settings(ini_path):
+    """``[engine]`` of an ini.ini as written (strings; empty when the file or section is missing)."""
+    cfg = configparser.ConfigParser()
+    cfg.optionxform = str
+    if os.path.isfile(ini_path):
+        cfg.read(ini_path, encoding="utf-8")
+    return dict(cfg.items(ENGINE_SECTION)) if cfg.has_section(ENGINE_SECTION) else {}
+
+
+def write_engine_settings(ini_path, values):
+    """Set ``[engine]`` keys of an ini.ini (``kernel device precision gpus threads compat``), keeping every
+    other section and key; a value None or "" removes the key, an empty section is removed.  Values are
+    checked and normalized by :func:`avas.engines.parse_value` (ValueError for an invalid one)."""
+    from avas.engines import KEYS, parse_value
+    cfg = configparser.ConfigParser()
+    cfg.optionxform = str
+    if os.path.isfile(ini_path):
+        cfg.read(ini_path, encoding="utf-8")
+    if not cfg.has_section(ENGINE_SECTION):
+        cfg.add_section(ENGINE_SECTION)
+    for key, value in values.items():
+        if key not in KEYS:
+            raise ValueError(f"unknown [engine] key {key!r} (expected {', '.join(KEYS)})")
+        if value is None or str(value).strip() == "":
+            cfg.remove_option(ENGINE_SECTION, key)
+        else:
+            cfg.set(ENGINE_SECTION, key, str(parse_value(key, value, f"[engine] {key}")))
+    if not cfg.items(ENGINE_SECTION):
+        cfg.remove_section(ENGINE_SECTION)
+    with open(ini_path, "w", encoding="utf-8") as fh:
+        cfg.write(fh)
+    return read_engine_settings(ini_path)
+
+
 class IniConfig():
     def __init__(self):
         self.ini_parameter = \
@@ -19,7 +56,10 @@ class IniConfig():
          "error": {"error_type": "", "seed": 0, "if_normal": 1},
          }
 
-        self.str_keys = ["sim_type", "project_path", "fieldSource",  "error_type",  "device", "source"]
+        # [engine] (kernel choice, avas.engines) is kept as read; it has no defaults here, so a
+        # project without the section keeps the original kernel and gets no section written
+        self.str_keys = ["sim_type", "project_path", "fieldSource",  "error_type",  "device", "source",
+                         "kernel", "precision", "gpus", "compat"]
     # def initialize_ini(self):
 
 
@@ -84,7 +124,14 @@ class IniConfig():
 
         try:
             for section, values in kwargs.items():
-                if section in self.ini_parameter:
+                if section == ENGINE_SECTION:
+                    target = self.ini_parameter.setdefault(ENGINE_SECTION, {})
+                    for key, value in values.items():
+                        if value in (None, ""):
+                            target.pop(key, None)
+                        else:
+                            target[key] = value
+                elif section in self.ini_parameter:
                     self.ini_parameter[section].update(values)
                 else:
                     print(89, f"{section} 不存在。")

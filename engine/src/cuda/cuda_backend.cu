@@ -1391,28 +1391,27 @@ ProcessRank process_rank() {
     return ProcessRank{};
 }
 
-std::unique_ptr<DeviceBackend> make_cuda_backend(long long nParticles, bool spaceCharge, bool required, std::string& why) {
-    (void)required;
+bool cuda_plan(long long nParticles, bool spaceCharge, DevicePlan& plan, std::string& why) {
     int count = 0;
     const cudaError_t e = cudaGetDeviceCount(&count);
     int drv = 0;
     cudaDriverGetVersion(&drv);
     if (drv == 0 && e != cudaSuccess) {
         why = std::string("no NVIDIA driver found (") + cudaGetErrorString(e) + ")";
-        return nullptr;
+        return false;
     }
     if (e == cudaErrorInsufficientDriver) {
         why = "the NVIDIA driver is too old (it supports CUDA " + std::to_string(drv / 1000) + "." +
               std::to_string((drv % 1000) / 10) + "; this engine needs a driver for CUDA 12, version 525.60 or later on "
               "Linux, 527.41 or later on Windows)";
-        return nullptr;
+        return false;
     }
     if (e != cudaSuccess || count == 0) {
         why = std::string("no usable NVIDIA GPU (") + (e != cudaSuccess ? cudaGetErrorString(e) : "no CUDA device") + ")";
-        return nullptr;
+        return false;
     }
     std::vector<int> devs = parse_gpus(options().gpus, count, why);
-    if (devs.empty()) return nullptr;
+    if (devs.empty()) return false;
     const cu::MpiWorld& world = cu::mpi_world();
     if (world.size > 1 && options().gpus.empty()) devs.assign(1, world.localRank % count);  // one GPU per rank
     std::ostringstream desc;
@@ -1422,16 +1421,16 @@ std::unique_ptr<DeviceBackend> make_cuda_backend(long long nParticles, bool spac
         cudaDeviceProp p{};
         if (cudaGetDeviceProperties(&p, devs[k]) != cudaSuccess) {
             why = "cannot read the properties of GPU " + std::to_string(devs[k]);
-            return nullptr;
+            return false;
         }
         if (p.major * 10 + p.minor < 60) {
             why = std::string("GPU ") + std::to_string(devs[k]) + " (" + p.name + ", sm_" + std::to_string(p.major) +
                   std::to_string(p.minor) + ") is older than Pascal; sm_60 or newer is needed";
-            return nullptr;
+            return false;
         }
         if (cudaSetDevice(devs[k]) != cudaSuccess) {
             why = "cannot use GPU " + std::to_string(devs[k]);
-            return nullptr;
+            return false;
         }
         int* d = nullptr;
         int h = 0;
@@ -1445,7 +1444,7 @@ std::unique_ptr<DeviceBackend> make_cuda_backend(long long nParticles, bool spac
         if (pe != cudaSuccess || h != 61) {
             why = std::string("GPU ") + std::to_string(devs[k]) + " (" + p.name + ") cannot run the engine kernels (" +
                   cudaGetErrorString(pe) + ")";
-            return nullptr;
+            return false;
         }
         size_t fr = 0, tot = 0;
         cudaMemGetInfo(&fr, &tot);
@@ -1461,21 +1460,38 @@ std::unique_ptr<DeviceBackend> make_cuda_backend(long long nParticles, bool spac
                          : allFull               ? "auto: full-rate fp64 GPU"
                                                  : "auto: fp64 is slow on this GPU, coordinates relative to the "
                                                    "synchronous particle in fp32";
-    // memory estimate per GPU: particle arrays (fp64, or the float state of the fp32 tier) and the mesh
-    const long long perGpu = (nParticles + static_cast<long long>(devs.size()) - 1) / static_cast<long long>(devs.size());
-    const double bytesPer = fp32 ? 4.0 * 94 : 8.0 * 50 + 4.0 * 6;  // fp32: 82 floats + 8 ints + candidate lists
-    const double need = bytesPer * static_cast<double>(perGpu) + (spaceCharge ? 64.0 * 1024 * 1024 : 0.0) + 32.0 * 1024 * 1024;
-    if (need > 0.92 * static_cast<double>(minFree)) {
-        char buf[200];
-        std::snprintf(buf, sizeof buf, "not enough GPU memory: %lld particles need about %.2f GB per GPU, %.2f GB free",
-                      nParticles, need / 1e9, static_cast<double>(minFree) / 1e9);
-        why = buf;
-        return nullptr;
+    if (nParticles > 0) {
+        // memory estimate per GPU: particle arrays (fp64, or the float state of the fp32 tier) and the mesh
+        const long long perGpu =
+            (nParticles + static_cast<long long>(devs.size()) - 1) / static_cast<long long>(devs.size());
+        const double bytesPer = fp32 ? 4.0 * 94 : 8.0 * 50 + 4.0 * 6;  // fp32: 82 floats + 8 ints + candidate lists
+        const double need =
+            bytesPer * static_cast<double>(perGpu) + (spaceCharge ? 64.0 * 1024 * 1024 : 0.0) + 32.0 * 1024 * 1024;
+        if (need > 0.92 * static_cast<double>(minFree)) {
+            char buf[200];
+            std::snprintf(buf, sizeof buf, "not enough GPU memory: %lld particles need about %.2f GB per GPU, %.2f GB free",
+                          nParticles, need / 1e9, static_cast<double>(minFree) / 1e9);
+            why = buf;
+            return false;
+        }
     }
+    plan.device = "cuda";
+    plan.precision = fp32 ? "fp32" : "fp64";
+    plan.gpus = devs;
+    plan.reason = reason;
+    plan.desc = desc.str();
+    plan.error.clear();
+    return true;
+}
+
+std::unique_ptr<DeviceBackend> make_cuda_backend(const DevicePlan& plan, std::string& why) {
+    const cu::MpiWorld& world = cu::mpi_world();
+    const bool fp32 = plan.precision == "fp32";
+    const std::vector<int>& devs = plan.gpus;
     std::ostringstream full;
     if (world.size > 1) full << "MPI rank " << world.rank << " of " << world.size << ", ";
-    full << "CUDA, " << devs.size() << " GPU" << (devs.size() > 1 ? "s" : "") << ": " << desc.str() << "; precision "
-         << (fp32 ? "fp32" : "fp64") << " (" << reason << ")";
+    full << "CUDA, " << devs.size() << " GPU" << (devs.size() > 1 ? "s" : "") << ": " << plan.desc << "; precision "
+         << (fp32 ? "fp32" : "fp64") << " (" << plan.reason << ")";
     if (fp32) {
         // the fp32 tier (M6c phase 4): the device back end on the host with the fp32 kernels of
         // core/f32_kernels.h on the GPUs, as Metal; every MPI rank computes all particles
@@ -1488,6 +1504,29 @@ std::unique_ptr<DeviceBackend> make_cuda_backend(long long nParticles, bool spac
     }
     if (options().gpuAtomic) full << "; MEASUREMENT MODE: atomic sums, results not reproducible";
     return std::make_unique<cu::CudaBackend>(devs, full.str());
+}
+
+std::vector<CudaDeviceInfo> cuda_devices(std::string& why) {
+    std::vector<CudaDeviceInfo> out;
+    int count = 0;
+    const cudaError_t e = cudaGetDeviceCount(&count);
+    if (e != cudaSuccess) {
+        why = cudaGetErrorString(e);
+        return out;
+    }
+    for (int i = 0; i < count; ++i) {
+        cudaDeviceProp p{};
+        if (cudaGetDeviceProperties(&p, i) != cudaSuccess) continue;
+        CudaDeviceInfo d;
+        d.index = i;
+        d.name = p.name;
+        d.major = p.major;
+        d.minor = p.minor;
+        d.fp64Full = full_rate_fp64(p);
+        d.memoryGB = static_cast<double>(p.totalGlobalMem) / 1e9;
+        out.push_back(d);
+    }
+    return out;
 }
 
 }  // namespace avas

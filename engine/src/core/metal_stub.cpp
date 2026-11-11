@@ -10,5 +10,9 @@ std::unique_ptr<ScAccel> make_metal_accel(std::string& why) {
     return nullptr;
 }
 
+bool metal_probe(std::string&, std::string& why) {
+    why = "this engine was built without Metal (AVAS_WITH_METAL=OFF)";
+    return false;
+}
 
 }  // namespace avas

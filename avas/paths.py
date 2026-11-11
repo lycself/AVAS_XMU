@@ -32,8 +32,13 @@ def engine_file(name):
     return os.path.join(ENGINE_DIR, name)
 
 
+# prebuilt libraries of the new kernel (avas_engine.dll / libavas_engine.so / libavas_engine.dylib)
+NEW_ENGINE_DIR = os.path.join(ENGINE_DIR, "new")
+
+
 def new_engine_build_dirs():
-    """Directories searched for the rebuilt engine library (``AVAS_ENGINE=new``)."""
+    """Build directories of the source tree searched for the new kernel's library (after
+    ``AVAS_ENGINE_LIB`` and :data:`NEW_ENGINE_DIR`, see :mod:`avas.engines`)."""
     build = os.path.join(SOURCE_ROOT, "engine", "build")
     return [build, os.path.join(build, "Release"), os.path.join(build, "RelWithDebInfo")]
 

@@ -1,16 +1,19 @@
-"""ctypes wrapper of the simulation engine (``AVAS.dll`` on Windows, ``libAVAS.so`` on Linux).
+"""ctypes wrapper of the simulation kernel.
 
-With the environment variable ``AVAS_ENGINE=new`` the rebuilt engine from ``engine/build`` is loaded
-instead (same C interface); ``AVAS_ENGINE_LIB`` overrides its path and ``AVAS_ENGINE_COMPAT=dll``
-makes it reproduce the original AVAS.dll.
+The original kernel is ``AVAS.dll`` (Windows) / ``libAVAS.so`` (Linux) in ``avas/engine``; the new
+kernel (``engine/``, same C interface plus options and queries) is chosen with
+:class:`avas.engines.EngineChoice` (``avas run --engine new``, ``AVAS_ENGINE=new`` or ini.ini
+``[engine] kernel = new``; see :mod:`avas.engines` for the priority and the library lookup).
 """
 import ctypes
+import json
 import os
 import platform
 import sys
 from ctypes import POINTER, c_char_p, c_int, c_wchar_p
 
-from avas.paths import ENGINE_DIR, new_engine_build_dirs
+from avas import engines
+from avas.paths import ENGINE_DIR
 
 _WINDOWS = platform.system() == "Windows"
 
@@ -38,55 +41,126 @@ def _unbuffer_c_stdout():
         pass
 
 
-def _new_engine_path():
-    """Library of the rebuilt engine when ``AVAS_ENGINE=new`` (engine/build of the source tree).
+def _load(path):
+    try:
+        if _WINDOWS and hasattr(os, "add_dll_directory"):
+            # make libfftw3*.dll / MSVCP140.dll next to AVAS.dll resolvable
+            os.add_dll_directory(os.path.dirname(os.path.abspath(path)))
+        return ctypes.CDLL(path)
+    except OSError as e:
+        raise ValueError(f"Failed to load the simulation engine '{path}'. Reason: {e}") from e
 
-    ``AVAS_ENGINE_LIB`` may name the library file directly.  Returns None when the original
-    kernel is to be used.
-    """
-    if os.environ.get("AVAS_ENGINE", "").strip().lower() != "new":
-        return None
-    explicit = os.environ.get("AVAS_ENGINE_LIB")
-    if explicit:
-        return explicit
-    names = {"Windows": "avas_engine.dll", "Darwin": "libavas_engine.dylib"}
-    name = names.get(platform.system(), "libavas_engine.so")
-    dirs = new_engine_build_dirs()
-    for d in dirs:
-        candidate = os.path.join(d, name)
-        if os.path.exists(candidate):
-            return candidate
-    raise ValueError(f"AVAS_ENGINE=new but {name} was not found under {dirs[0]}; build it "
-                     "(cmake -S engine -B engine/build && cmake --build engine/build) or set AVAS_ENGINE_LIB")
+
+class NewLibrary:
+    """Options and JSON queries of a loaded new-kernel library (no simulation)."""
+
+    QUERIES = ("avas_engine_version", "avas_engine_info", "avas_engine_devices", "avas_engine_last_run")
+
+    def __init__(self, library, path):
+        self.library = library
+        self.path = path
+        if hasattr(library, "avas_set_option"):
+            library.avas_set_option.argtypes = [c_char_p, c_char_p]
+            library.avas_set_option.restype = c_int
+        for name in self.QUERIES:
+            if hasattr(library, name):
+                getattr(library, name).restype = c_char_p
+
+    def set_options(self, options):
+        """``avas_set_option`` for every key; ValueError when the library rejects one."""
+        if not hasattr(self.library, "avas_set_option"):
+            raise ValueError(f"{self.path} has no avas_set_option (not the new kernel?)")
+        for key, value in options.items():
+            rc = self.library.avas_set_option(key.encode(), str(value).encode())
+            if rc != 0:
+                raise ValueError(f"the new kernel rejected option {key}={value} (code {rc})")
+
+    def _query(self, name):
+        if not hasattr(self.library, name):
+            return None
+        text = getattr(self.library, name)()
+        return json.loads(text.decode("utf-8")) if text else None
+
+    def version(self):
+        if not hasattr(self.library, "avas_engine_version"):
+            return None
+        return self.library.avas_engine_version().decode("utf-8", "replace")
+
+    def info(self):
+        return self._query("avas_engine_info")
+
+    def devices(self):
+        return self._query("avas_engine_devices")
+
+    def last_run(self):
+        return self._query("avas_engine_last_run")
+
+
+def load_new_library(path):
+    """:class:`NewLibrary` of the new kernel's library at *path* (queries only)."""
+    return NewLibrary(_load(path), path)
 
 
 class MultiParticleEngine:
-    """Loads the engine once; ``get_path`` sets the folders, ``main_agent`` runs (1) or stops (2) it.
+    """Loads the kernel once; ``get_path`` sets the folders, ``main_agent`` runs (1) or stops (2) it.
 
-    The loaded library is ``self.library`` on every platform.  The engine's
-    ``path`` takes three wide strings on Windows and three UTF-8 byte strings
-    on Linux; ``main_agent`` takes a pointer to an int and returns its status.
+    *choice*: :class:`avas.engines.EngineChoice` (default: the one of the running ``avas run``, else
+    from the environment).  The loaded library is ``self.library`` on every platform.  The engine's
+    ``path`` takes three wide strings on Windows and three UTF-8 byte strings elsewhere;
+    ``main_agent`` takes a pointer to an int and returns its status.
     """
 
-    def __init__(self):
+    _device_checked = set()
+
+    def __init__(self, choice=None):
         _unbuffer_c_stdout()
-        new_engine = _new_engine_path()
-        self.dll_dir = os.path.dirname(os.path.abspath(new_engine)) if new_engine else ENGINE_DIR
-        self.dll_path = new_engine or os.path.join(ENGINE_DIR, "AVAS.dll" if _WINDOWS else "libAVAS.so")
+        self.choice = choice or engines.active_choice()
+        self.kernel = self.choice.kernel
+        if self.kernel == "new":
+            self.dll_path = engines.new_library_path()
+        else:
+            self.dll_path = os.path.join(ENGINE_DIR, "AVAS.dll" if _WINDOWS else "libAVAS.so")
+        self.dll_dir = os.path.dirname(os.path.abspath(self.dll_path))
         self.so_path = self.dll_path                     # old name, kept for callers that print it
-        try:
-            if _WINDOWS and hasattr(os, "add_dll_directory"):
-                # make libfftw3*.dll / MSVCP140.dll next to AVAS.dll resolvable
-                os.add_dll_directory(self.dll_dir)
-            self.library = ctypes.CDLL(self.dll_path)
-        except OSError as e:
-            raise ValueError(f"Failed to load the simulation engine '{self.dll_path}'. Reason: {e}") from e
+        self.library = _load(self.dll_path)
         text = c_wchar_p if _WINDOWS else c_char_p
         self.library.path.argtypes = [text, text, text]
         self.library.path.restype = c_int
         self.library.main_agent.argtypes = [POINTER(c_int)]
         self.library.main_agent.restype = c_int
+        self.new = NewLibrary(self.library, self.dll_path) if self.kernel == "new" else None
+        if self.new is not None:
+            self.new.set_options(self.choice.engine_options())
+        engines.note_engine(self)
 
+    # ------------------------------------------------------------------ new kernel
+    def info(self):
+        return self.new.info() if self.new else None
+
+    def devices(self):
+        return self.new.devices() if self.new else None
+
+    def last_run(self):
+        return self.new.last_run() if self.new else None
+
+    def check_device(self):
+        """A device the choice requires (cuda, metal, emu) that this machine or build cannot give:
+        :class:`avas.engines.EngineChoiceError` before the run, never a silent fallback to the CPU."""
+        if self.new is None or self.choice.device in ("auto", "cpu"):
+            return
+        key = (self.dll_path, self.choice)
+        if key in self._device_checked:
+            return
+        devices = self.devices()
+        if devices is None:
+            raise engines.EngineChoiceError(f"{self.dll_path} cannot report its devices (library too old?); "
+                                            + engines.BUILD_HINT)
+        plan = (devices.get("selected") or {}).get("sc") or {}
+        if plan.get("error"):
+            raise engines.EngineChoiceError(engines.device_error(self.choice, plan["error"]))
+        self._device_checked.add(key)
+
+    # ------------------------------------------------------------------ C interface
     def get_path(self, inputfilepath, outputfilePath, fieldfilePath):
         """Tell the engine where to read the inputs / field maps and where to write; returns its status."""
         args = (str(inputfilepath), str(outputfilePath), str(fieldfilePath))
@@ -100,4 +174,7 @@ class MultiParticleEngine:
 
     def main_agent(self, value):
         """``value`` 1 = run, 2 = stop.  Returns the engine status (0 ok; 1 / 2 = error, see ErrorLog.txt)."""
+        if int(value) == 1 and self.new is not None:
+            self.new.set_options(self.choice.engine_options())     # Python's choice wins over the environment
+            self.check_device()
         return self.library.main_agent(ctypes.byref(c_int(int(value))))

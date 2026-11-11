@@ -8,7 +8,7 @@
 
 ## 目录
 
-- `CMakeLists.txt`、`include/`、`src/`、`tests/`：新内核本体（M1：漂移段与场图元件、同步相位、单粒子与 `.dst` 读入、全部常规输出；M2：z-code 硬边元件 quad / solenoid / bend / edge、steerer、superpose / superposeout、multipole；M3：初始分布生成与随机数；M4：空间电荷 FFT / SPICNIC，FFT 用 `third_party/pocketfft`）。构建 `cmake -S engine -B engine/build && cmake --build engine/build`；从源码运行时 `AVAS_ENGINE=new` 让 `avas run` 使用它，`AVAS_ENGINE_COMPAT=dll` 复现原 AVAS.dll。与原内核的比对：`python3 engine/tests/parity/run_all.py`（参考输出在 `tests/parity/refs/`，由 Windows AVAS.dll 生成）。Windows MSVC 构建在 `compat=dll` 下与 DLL 逐字符一致，macOS 构建相差约 1e-14～1e-11（系统数学库末位）。macOS 上若 shell 带着 Anaconda 的 `CXXFLAGS` / `CPPFLAGS`，配置前先 `unset` 它们；Command Line Tools 残留的空 `usr/include/c++/v1` 会让 clang 找不到 `<string>`，CMakeLists 已检测并改用 SDK 中的 libc++ 头文件（根治办法是重装 Command Line Tools）。实现记录、兼容开关和比对结果见 [docs/engine/M1-notes.md](../docs/engine/M1-notes.md) 、[M2-notes.md](../docs/engine/M2-notes.md) 、[M3-notes.md](../docs/engine/M3-notes.md) 与 [M4-notes.md](../docs/engine/M4-notes.md)。
+- `CMakeLists.txt`、`include/`、`src/`、`tests/`：新内核本体（M1：漂移段与场图元件、同步相位、单粒子与 `.dst` 读入、全部常规输出；M2：z-code 硬边元件 quad / solenoid / bend / edge、steerer、superpose / superposeout、multipole；M3：初始分布生成与随机数；M4：空间电荷 FFT / SPICNIC，FFT 用 `third_party/pocketfft`）。构建 `cmake -S engine -B engine/build && cmake --build engine/build`；从源码运行时 `avas run --engine new`（或 `AVAS_ENGINE=new`、项目 ini.ini 的 `[engine] kernel = new`）让 `avas run` 使用它，`--compat dll`（`AVAS_ENGINE_COMPAT=dll`）复现原 AVAS.dll；见下文“接入 AVAS（M7a）”。与原内核的比对：`python3 engine/tests/parity/run_all.py`（参考输出在 `tests/parity/refs/`，由 Windows AVAS.dll 生成）。Windows MSVC 构建在 `compat=dll` 下与 DLL 逐字符一致，macOS 构建相差约 1e-14～1e-11（系统数学库末位）。macOS 上若 shell 带着 Anaconda 的 `CXXFLAGS` / `CPPFLAGS`，配置前先 `unset` 它们；Command Line Tools 残留的空 `usr/include/c++/v1` 会让 clang 找不到 `<string>`，CMakeLists 已检测并改用 SDK 中的 libc++ 头文件（根治办法是重装 Command Line Tools）。实现记录、兼容开关和比对结果见 [docs/engine/M1-notes.md](../docs/engine/M1-notes.md) 、[M2-notes.md](../docs/engine/M2-notes.md) 、[M3-notes.md](../docs/engine/M3-notes.md) 与 [M4-notes.md](../docs/engine/M4-notes.md)。
 
 - `docker/manylinux2014-cuda12.4.Dockerfile`：Linux 构建环境（glibc 2.17、devtoolset-10、CUDA 12.4）。服务器连不上 CentOS vault 源，CUDA rpm 从 NVIDIA 的 `.cn` 镜像下载后用 `--nodeps` 安装（`cuda-nvcc` 声明依赖系统 `gcc-c++`，实际使用 devtoolset 的编译器）。
 - `tools/cu_probe.cu`、`build_probe_linux.sh`、`build_probe_windows.bat`：工具链检查程序，验证多架构机器码的选择、静态 CUDA 运行库在各版本驱动上的兼容性、fp32／fp64 吞吐量，以及同一份 `__host__ __device__` 代码在 CPU 与 GPU 上的结果。
@@ -61,6 +61,28 @@ CUDA fp32 档（M6c 第五阶段）用显式显存与批量复制，单卡不用
 检查：`run_gpu.py --device metal`（按 fp32 档与 CPU 比较，并与 emu fp32 逐字节比较）、`run_gpu.py --fp32`（CUDA：另与 emu fp32、重跑、双卡、MPI 逐字节比较）、
 `avas_engine_physics --metal`；`AVAS_ENGINE_PROFILE=1` 打印每步各部分耗时、z-code 在 GPU 上的次数与转换次数（`AVAS_ENGINE_F32_ZCODE=0` 让 z-code 回到主机，仅供测量）。
 设计、结果与限制见 [docs/engine/M6-notes.md](../docs/engine/M6-notes.md) 的 M6c 一节。
+
+## 接入 AVAS（M7a）
+
+新内核是**可选**内核，默认仍用原内核。Python 侧的选择层是 `avas/engines.py`（设计与检查结果见 [docs/engine/M7-notes.md](../docs/engine/M7-notes.md)）：
+
+- 每个设置的优先级：`avas run` 的命令行（`--engine original|new --device auto|cpu|cuda|metal --precision auto|fp64|fp32 --gpus all|0,1 --threads N --compat none|dll`）
+  > 环境变量（`AVAS_ENGINE`、`AVAS_ENGINE_DEVICE`、`AVAS_ENGINE_PRECISION`、`AVAS_ENGINE_GPUS`、`AVAS_ENGINE_THREADS`、`AVAS_ENGINE_COMPAT`）
+  > 项目 ini.ini 的 `[engine]`（`kernel device precision gpus threads compat`）> 默认（原内核；新内核 auto / auto / all / 0 / none）。
+  Python 在 `main_agent` 前用 `avas_set_option` 设置全部选项，所以它解析过的值优先于库自己读的环境变量。库本身的默认仍是 `device=cpu`、`gpus=""`（第一块卡）。
+- 库的查找：`AVAS_ENGINE_LIB` > `avas/engine/new/`（M7c 的预编译库）> `engine/build`、`engine/build/Release`、`engine/build/RelWithDebInfo`。
+- 选了 `cuda` / `metal` 而本机或这个构建没有时，`avas run` 在运行前报错并提示改用 auto 或 cpu，不会悄悄改用 CPU（`auto` 才会在没有 GPU 时用 CPU）。
+- `avas info`（项目里或 `--input DIR`）列出两个内核、新内核的构建选项、本机设备和 auto 的解析结果；`avas info --engine-json` 给出同样内容的 JSON（研究层用它在子进程里预判 auto）。
+  `avas_run.json` 的 `engine` 字段记录这次实际用的内核、版本、设备、精度、GPU、兼容模式、线程数与结果档。
+
+C 接口新增三个查询（JSON，见 `include/avas_engine.h`）：`avas_engine_info()`（源码哈希、CUDA / Metal / MPI、CUDA 机器码、编译器、平台）、
+`avas_engine_devices()`（CUDA 卡、Metal 设备、CPU 线程数，以及 `auto` 和当前选项在有 / 无空间电荷时会选什么——与 `main_agent` 共用 `src/core/device.cpp` 的 `plan_device`）、
+`avas_engine_last_run()`（上一次 `main_agent` 实际用的设备、精度、GPU、compat、线程数、是否有空间电荷、耗时与返回值）。`avas_engine_version()` 返回引擎源码哈希的前 16 位。
+
+**引擎源码哈希**（`cmake/source_hash.cmake`，Python 的 `avas.engines.engine_source_hash` 是同一算法）：输入为 `CMakeLists.txt`、`include/` 与 `src/` 下的全部文件、
+`third_party/` 下的源文件（.h .hpp .c .cc .cpp .cu .cuh .mm .metal .inc），跳过以 “.” 开头的名字；按相对路径（`/` 分隔）排序，每个文件先把 CRLF 换成 LF，
+哈希 = SHA-256(Σ "相对路径\n" + 文件 SHA-256 + "\n")。构建时由自定义命令重新计算（任何被哈希的文件改动后，下一次构建更新 `generated/avas_source_hash.h`，
+哈希不变时不重写，`capi.cpp` 也就不重编），新增文件经 `CONFIGURE_DEPENDS` 重新扫描。`tests/test_engines.py` 检查 `engine/build` 里的库报告的哈希与 Python 算的一致（库是旧的时会失败，提示重新构建）。
 
 ## 工具链检查结果（2026-11-07）
 

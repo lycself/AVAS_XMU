@@ -322,6 +322,22 @@ private:
 
 bool metal_compiled() { return true; }
 
+bool metal_probe(std::string& name, std::string& why) {
+    @autoreleasepool {
+        id<MTLDevice> dev = MTLCreateSystemDefaultDevice();
+        if (!dev) {
+            why = "no Metal device";
+            return false;
+        }
+        name = [[dev name] UTF8String];
+        if (![dev supportsFamily:MTLGPUFamilyMetal3]) {
+            why = "the GPU " + name + " does not support Metal 3 (GPU addresses)";
+            return false;
+        }
+        return true;
+    }
+}
+
 std::unique_ptr<ScAccel> make_metal_accel(std::string& why) {
     return make_f32_accel(std::make_unique<MetalF32Device>(), why);
 }

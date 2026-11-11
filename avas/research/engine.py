@@ -13,11 +13,13 @@ import threading
 import time
 
 from avas import paths
+from avas.engines import ENV as _ENGINE_ENV
 from avas.gui import proctree
 
 PROGRESS = re.compile(r"Simulate progress\s+([\d.]+)\s*%", re.IGNORECASE)
 KEEP_OUTPUT = ("DataSet.txt", "avas_run.json", "synData.txt", "Phase.txt")
-ENGINE_FILES = ("AVAS.dll", "libAVAS.so")
+ENGINE_FILES = ("AVAS.dll", "libAVAS.so")          # identity of the original kernel (order kept: cache keys)
+ENGINE_CHOICE_ENV = tuple(_ENGINE_ENV.values())
 _identity = {}
 
 
@@ -36,7 +38,10 @@ def default_command(input_dir, output_dir, field_dir, lattice):
 
 
 def identity():
-    """``{"file", "sha1"}`` of the engine library (cached per file size and time; None without one)."""
+    """``{"file", "sha1"}`` identifying the original kernel (cached per file size and time; None without
+    one).  The first of :data:`ENGINE_FILES` that exists, whatever the platform: the fingerprints of
+    original-kernel runs stay those of before M7.  The new kernel is identified by its result tier and
+    version (:meth:`Study.engine_profile`)."""
     for name in ENGINE_FILES:
         path = paths.engine_file(name)
         try:
@@ -63,6 +68,10 @@ def run(command, cwd, log_path, timeout=None, stop=None, progress=None):
     root = os.path.dirname(paths.PACKAGE_DIR)
     env["PYTHONPATH"] = root + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
     env.pop("AVAS_LATTICE", None)
+    # the study resolved the kernel (its arguments, this environment, the project) into the run's
+    # ini.ini [engine]; the child must not let the environment override that again
+    for name in ENGINE_CHOICE_ENV:
+        env.pop(name, None)
     flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
     tail = []
     with open(log_path, "w", encoding="utf-8") as log:

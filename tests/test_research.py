@@ -46,6 +46,7 @@ def calls(study):
 def make_study(project, **kwargs):
     root = str(project / "Research" / "t")
     counter = os.path.join(root, "calls.txt")
+    kwargs.setdefault("engine", "original")         # the stand-in engine, whatever AVAS_ENGINE says (see test_engines.py)
     return research.Study(str(project), name="t", engine_command=lambda inp, out, field, lat: [
         sys.executable, FAKE, inp, out, lat, counter], **kwargs)
 
@@ -71,7 +72,7 @@ def test_engine_run_record_cache_and_force(project):
     assert run.centroid[0, 0] == pytest.approx(research.study.DEFAULT_SEED * 1e-6)
     assert run.alive[0] == 777 and run.transmission == 1.0
     assert run.metrics["rms_x_max"] == pytest.approx(1.5)
-    assert sorted(os.listdir(run.output_dir)) == ["DataSet.txt"]                      # bulky outputs removed
+    assert sorted(os.listdir(run.output_dir)) == ["DataSet.txt", "avas_run.json"]     # bulky outputs removed
     assert "particlenumber 777" in (open(os.path.join(run.folder, "input", "beam.txt")).read())
     rec = run.record
     assert rec["status"] == "done" and rec["seed"] == research.study.DEFAULT_SEED and rec["variant"]["particles"] == 777

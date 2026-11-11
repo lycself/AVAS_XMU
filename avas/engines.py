@@ -1,0 +1,513 @@
+"""Choice of the simulation kernel: the original one (AVAS.dll / libAVAS.so) or the new one (engine/).
+
+Priority of every setting, highest first: the command line (``avas run --engine … --device …``), the
+environment (``AVAS_ENGINE``, ``AVAS_ENGINE_DEVICE``, ``AVAS_ENGINE_PRECISION``, ``AVAS_ENGINE_GPUS``,
+``AVAS_ENGINE_THREADS``, ``AVAS_ENGINE_COMPAT``), the project's ``ini.ini`` section ``[engine]``
+(keys ``kernel device precision gpus threads compat``), the defaults (kernel original; for the new
+kernel device auto, precision auto, gpus all, threads 0 = automatic, compat none).  With the original
+kernel the other keys are ignored.  input.txt is never changed (the original kernel reads the same
+project).
+
+The new kernel's library is found at ``AVAS_ENGINE_LIB``, then in ``avas/engine/new/`` (the prebuilt
+libraries), then in the source tree's ``engine/build`` (``Release``, ``RelWithDebInfo``).
+
+Results of the new kernel fall into *result tiers*: runs of one tier and one engine version give the
+same numbers whatever the thread count or the GPU model (``result_tier``).  The research cache keys
+on them.
+
+The engine library itself is only loaded in ``avas run`` / ``avas info`` processes (an exception in
+C++ ends the process that loaded it); other processes ask a child (:func:`query_subprocess`).
+"""
+import configparser
+import hashlib
+import json
+import os
+import platform
+import subprocess
+import sys
+from dataclasses import dataclass, field, replace
+
+from avas import paths
+
+KERNELS = ("original", "new")
+DEVICES = ("auto", "cpu", "cuda", "metal")
+DEV_DEVICES = ("emu",)                    # development only: the device back end on the CPU
+PRECISIONS = ("auto", "fp64", "fp32")
+COMPATS = ("none", "dll")
+KEYS = ("kernel", "device", "precision", "gpus", "threads", "compat")
+INI_SECTION = "engine"
+ENV = {"kernel": "AVAS_ENGINE", "device": "AVAS_ENGINE_DEVICE", "precision": "AVAS_ENGINE_PRECISION",
+       "gpus": "AVAS_ENGINE_GPUS", "threads": "AVAS_ENGINE_THREADS", "compat": "AVAS_ENGINE_COMPAT"}
+LIB_ENV = "AVAS_ENGINE_LIB"
+DEFAULTS = {"kernel": "original", "device": "auto", "precision": "auto", "gpus": "all", "threads": 0, "compat": "none"}
+NEW_LIB_NAMES = {"Windows": "avas_engine.dll", "Darwin": "libavas_engine.dylib"}
+BUILD_HINT = ("build it from the source tree (cmake -S engine -B engine/build && cmake --build engine/build; "
+              "on macOS with Apple's clang for Metal) or set AVAS_ENGINE_LIB to the library file")
+
+# result tiers
+TIER_ORIGINAL = "original"
+TIER_CPU = "new-cpu-fp64"
+TIER_CUDA64 = "new-cuda-fp64"
+TIER_FP32 = "new-fp32"
+TIER_DLL = "new-compat-dll"
+TIERS = (TIER_ORIGINAL, TIER_CPU, TIER_CUDA64, TIER_FP32, TIER_DLL)
+
+
+class EngineChoiceError(ValueError):
+    """An invalid kernel / device setting, a missing library or a device this machine does not have
+    (a message for the user)."""
+
+
+# --------------------------------------------------------------------------- the choice
+@dataclass(frozen=True)
+class EngineChoice:
+    """Kernel and, for the new kernel, its options.  *sources* tells where each value came from
+    (``cli``, ``env``, ``ini``, ``default``; not compared)."""
+    kernel: str = "original"
+    device: str = "auto"
+    precision: str = "auto"
+    gpus: str = "all"
+    threads: int = 0
+    compat: str = "none"
+    sources: dict = field(default_factory=dict, compare=False, hash=False, repr=False)
+
+    @property
+    def is_new(self):
+        return self.kernel == "new"
+
+    def engine_options(self):
+        """``avas_set_option`` key / value pairs of the new kernel (Python's values take precedence over
+        the environment the library would read itself)."""
+        return {"compat": self.compat, "threads": str(int(self.threads)), "device": self.device,
+                "precision": self.precision, "gpus": self.gpus}
+
+    def to_dict(self):
+        if not self.is_new:
+            return {"kernel": "original"}
+        return {"kernel": "new", "device": self.device, "precision": self.precision, "gpus": self.gpus,
+                "threads": int(self.threads), "compat": self.compat}
+
+    def cli_args(self):
+        """``avas run`` arguments that select exactly this choice."""
+        if not self.is_new:
+            return ["--engine", "original"]
+        return ["--engine", "new", "--device", self.device, "--precision", self.precision, "--gpus", self.gpus,
+                "--threads", str(int(self.threads)), "--compat", self.compat]
+
+    def label(self):
+        if not self.is_new:
+            return "original kernel"
+        parts = [self.device, self.precision] + (["compat=dll"] if self.compat == "dll" else [])
+        return "new kernel (" + ", ".join(parts) + ")"
+
+
+def _norm_gpus(value, origin):
+    if isinstance(value, int) and not isinstance(value, bool):
+        value = str(value)
+    if isinstance(value, (list, tuple)):
+        value = ",".join(str(int(v)) for v in value)
+    text = str(value).strip().lower().replace(" ", "")
+    if text in ("", "all"):
+        return "all"
+    out = []
+    for tok in text.split(","):
+        if not tok:
+            continue
+        if not tok.isdigit():
+            raise EngineChoiceError(f"{origin}: invalid gpus '{value}' (expected all or GPU numbers such as 0,1)")
+        if int(tok) not in out:
+            out.append(int(tok))
+    if not out:
+        raise EngineChoiceError(f"{origin}: invalid gpus '{value}' (expected all or GPU numbers such as 0,1)")
+    return ",".join(str(v) for v in out)
+
+
+def parse_value(key, value, origin="setting"):
+    """Normalized value of *key* (raises :class:`EngineChoiceError` for an invalid one)."""
+    if key == "gpus":
+        return _norm_gpus(value, origin)
+    if key == "threads":
+        try:
+            n = int(str(value).strip())
+        except ValueError:
+            n = -1
+        if n < 0:
+            raise EngineChoiceError(f"{origin}: invalid threads '{value}' (expected 0 = automatic or a positive number)")
+        return n
+    text = str(value).strip().lower()
+    allowed = {"kernel": KERNELS, "device": DEVICES + DEV_DEVICES, "precision": PRECISIONS, "compat": COMPATS}[key]
+    if key == "compat" and text == "default":
+        text = "none"
+    if text not in allowed:
+        shown = DEVICES if key == "device" else allowed
+        raise EngineChoiceError(f"{origin}: invalid {key} '{value}' (expected {' | '.join(shown)})")
+    return text
+
+
+def read_ini(input_dir):
+    """Raw ``[engine]`` values of ``<input_dir>/ini.ini`` (empty when there is none)."""
+    path = os.path.join(input_dir, "ini.ini") if input_dir else ""
+    if not path or not os.path.isfile(path):
+        return {}
+    cfg = configparser.ConfigParser()
+    cfg.optionxform = str
+    try:
+        cfg.read(path, encoding="utf-8")
+    except configparser.Error:
+        return {}
+    if not cfg.has_section(INI_SECTION):
+        return {}
+    return {k.strip().lower(): v for k, v in cfg.items(INI_SECTION) if k.strip().lower() in KEYS and str(v).strip() != ""}
+
+
+def resolve_choice(cli=None, input_dir=None, env=None):
+    """The :class:`EngineChoice` from *cli* (dict, None values ignored), the environment *env* (default
+    ``os.environ``) and ``[engine]`` of the project's ini.ini in *input_dir*."""
+    cli = {k: v for k, v in (cli or {}).items() if v is not None and k in KEYS}
+    env = os.environ if env is None else env
+    ini = read_ini(input_dir)
+    origins = {"cli": "command line", "env": "environment variable", "ini": "ini.ini [engine]"}
+
+    def raw(key):
+        if key in cli:
+            return cli[key], "cli", f"{origins['cli']} --{'engine' if key == 'kernel' else key}"
+        value = env.get(ENV[key], "")
+        if str(value).strip() != "":
+            return value, "env", f"{origins['env']} {ENV[key]}"
+        if key in ini:
+            return ini[key], "ini", f"{origins['ini']} {key}"
+        return DEFAULTS[key], "default", "default"
+
+    value, src, origin = raw("kernel")
+    kernel = parse_value("kernel", value, origin)
+    sources = {"kernel": src}
+    if kernel == "original":
+        return EngineChoice(kernel="original", sources=sources)
+    values = {}
+    for key in KEYS[1:]:
+        value, src, origin = raw(key)
+        values[key] = parse_value(key, value, origin)
+        sources[key] = src
+    choice = EngineChoice(kernel="new", sources=sources, **values)
+    validate(choice)
+    return choice
+
+
+def validate(choice):
+    """Combinations the new kernel cannot run (a clear error before the run)."""
+    if not choice.is_new:
+        return
+    if choice.compat == "dll" and choice.device not in ("auto", "cpu"):
+        raise EngineChoiceError(f"compat dll reproduces AVAS.dll on the CPU only; device '{choice.device}' cannot be "
+                                "used with it (choose device auto or cpu)")
+    if choice.device == "metal" and choice.precision == "fp64":
+        raise EngineChoiceError("Metal computes in fp32 only; choose precision auto or fp32 (or device cpu for fp64)")
+    if choice.device == "cpu" and choice.precision == "fp32":
+        raise EngineChoiceError("the CPU computes in fp64 only; choose precision auto or fp64 (fp32 runs on a GPU)")
+
+
+# the choice of the running `avas run` (set by the CLI; MultiParticleEngine uses it)
+_active = None
+
+
+def set_active(choice):
+    """Make *choice* the one :class:`~avas.core.MultiParticleEngine.MultiParticleEngine` loads; returns
+    the previous one (``None``: resolve from the environment)."""
+    global _active
+    previous, _active = _active, choice
+    return previous
+
+
+def active_choice():
+    return _active if _active is not None else resolve_choice()
+
+
+# --------------------------------------------------------------------------- libraries
+def new_library_name():
+    return NEW_LIB_NAMES.get(platform.system(), "libavas_engine.so")
+
+
+def original_library_path():
+    return paths.engine_file("AVAS.dll" if platform.system() == "Windows" else "libAVAS.so")
+
+
+def new_library_candidates():
+    name = new_library_name()
+    return [os.path.join(d, name) for d in [paths.NEW_ENGINE_DIR] + paths.new_engine_build_dirs()]
+
+
+def new_library_path(required=True):
+    """The new kernel's library: ``AVAS_ENGINE_LIB``, ``avas/engine/new/``, then ``engine/build``.
+    None (or :class:`EngineChoiceError` when *required*) when there is none."""
+    explicit = os.environ.get(LIB_ENV, "").strip()
+    if explicit:
+        if os.path.isfile(explicit) or not required:
+            return explicit if os.path.isfile(explicit) else None
+        raise EngineChoiceError(f"{LIB_ENV}={explicit} does not exist")
+    for candidate in new_library_candidates():
+        if os.path.isfile(candidate):
+            return candidate
+    if required:
+        raise EngineChoiceError(f"the new kernel's library {new_library_name()} was not found (looked in "
+                                f"{paths.NEW_ENGINE_DIR} and {paths.new_engine_build_dirs()[0]}); {BUILD_HINT}")
+    return None
+
+
+_sha1_cache = {}
+
+
+def file_sha1(path):
+    """SHA-1 of a file (cached per path, size and modification time); None when it does not exist."""
+    try:
+        st = os.stat(path)
+    except OSError:
+        return None
+    key = (os.path.abspath(path), st.st_size, st.st_mtime_ns)
+    if key not in _sha1_cache:
+        h = hashlib.sha1()
+        with open(path, "rb") as fh:
+            for block in iter(lambda: fh.read(1 << 20), b""):
+                h.update(block)
+        _sha1_cache[key] = h.hexdigest()
+    return _sha1_cache[key]
+
+
+# --------------------------------------------------------------------------- engine source hash
+THIRD_PARTY_SOURCE_EXT = (".h", ".hpp", ".c", ".cc", ".cpp", ".cu", ".cuh", ".mm", ".metal", ".inc")
+
+
+def engine_source_files(root):
+    """Relative paths ("/" separated, sorted) hashed by :func:`engine_source_hash` (the same files as
+    engine/cmake/source_hash.cmake)."""
+    rel = ["CMakeLists.txt"]
+    for sub in ("include", "src", "third_party"):
+        base = os.path.join(root, sub)
+        for dirpath, _dirs, files in os.walk(base):
+            for name in files:
+                r = os.path.relpath(os.path.join(dirpath, name), root).replace(os.sep, "/")
+                if sub == "third_party" and os.path.splitext(name)[1].lower() not in THIRD_PARTY_SOURCE_EXT:
+                    continue
+                rel.append(r)
+    rel = [r for r in rel if not any(part.startswith(".") for part in r.split("/"))]
+    return sorted(rel, key=lambda r: r.encode("utf-8"))
+
+
+def engine_source_hash(root=None):
+    """Engine source hash (64 hex digits) of the engine folder *root* (default: the source tree's
+    engine/): SHA-256 of "<path>\\n<SHA-256 of the file with CRLF -> LF>\\n" over the sorted files.
+    The library reports the first 16 digits as its version."""
+    root = root or os.path.join(paths.SOURCE_ROOT, "engine")
+    acc = hashlib.sha256()
+    for rel in engine_source_files(root):
+        with open(os.path.join(root, *rel.split("/")), "rb") as fh:
+            data = fh.read().replace(b"\r\n", b"\n")
+        acc.update(f"{rel}\n{hashlib.sha256(data).hexdigest()}\n".encode("utf-8"))
+    return acc.hexdigest()
+
+
+# --------------------------------------------------------------------------- result tiers
+def result_tier(kernel, device=None, precision=None, compat=None):
+    """Result tier of a run: original, new-compat-dll, new-fp32 (CUDA, Metal and emu fp32 are byte
+    identical), new-cpu-fp64, new-cuda-fp64 (the device back end in fp64: CUDA, and emu which
+    reproduces it on the CPU).  None when the device is unknown (the run tracked no particles)."""
+    if kernel != "new":
+        return TIER_ORIGINAL
+    if compat == "dll":
+        return TIER_DLL
+    if not device:
+        return None
+    if precision == "fp32" or device == "metal":
+        return TIER_FP32
+    if device == "cpu":
+        return TIER_CPU
+    return TIER_CUDA64
+
+
+def input_space_charge(input_dir):
+    """Whether a run of the inputs in *input_dir* has space charge (as the engine decides: input.txt
+    ``spacecharge``, ``secondarybeam``; beam.txt current 0 or one particle switch it off)."""
+    def keys(name):
+        out = {}
+        try:
+            with open(os.path.join(input_dir, name), encoding="utf-8", errors="replace") as fh:
+                for line in fh:
+                    parts = line.split("!", 1)[0].split()
+                    if len(parts) >= 2:
+                        out[parts[0].lower()] = parts[1]
+        except OSError:
+            pass
+        return out
+
+    def num(d, key, default):
+        try:
+            return float(d.get(key, default))
+        except ValueError:
+            return default
+
+    inp, beam = keys("input.txt"), keys("beam.txt")
+    if num(inp, "spacecharge", 1) != 1 or num(inp, "secondarybeam", 0) == 1:
+        return False
+    if num(beam, "current", 1) == 0 or num(beam, "particlenumber", 2) == 1:
+        return False
+    return True
+
+
+# --------------------------------------------------------------------------- queries
+def describe(choice=None, input_dir=None, load_new=True):
+    """Both kernels for ``avas info`` / ``avas doctor`` (this process loads the new library):
+    ``{"original": {file, path, exists, sha1}, "new": {path, sha1, info, devices, error}, "choice", "resolved"}``.
+    *resolved* is what a run of the choice gets with and without space charge (new kernel only)."""
+    orig = original_library_path()
+    out = {"original": {"file": os.path.basename(orig), "path": orig, "exists": os.path.isfile(orig),
+                        "sha1": file_sha1(orig)},
+           "new": {"path": None, "candidates": new_library_candidates(), "error": None},
+           "choice": choice.to_dict() if choice else None, "resolved": None}
+    try:
+        lib = new_library_path()
+    except EngineChoiceError as exc:
+        out["new"]["error"] = str(exc)
+        lib = None
+    if lib:
+        out["new"].update(path=lib, sha1=file_sha1(lib))
+    if lib and load_new:
+        from avas.core.MultiParticleEngine import load_new_library
+        try:
+            handle = load_new_library(lib)
+            out["new"]["info"] = handle.info()
+            opts = (choice if choice and choice.is_new else EngineChoice(kernel="new")).engine_options()
+            handle.set_options(opts)
+            devices = handle.devices()
+            out["new"]["devices"] = devices
+            if choice and choice.is_new and devices:
+                out["resolved"] = devices.get("selected")
+        except (OSError, ValueError) as exc:
+            out["new"]["error"] = f"cannot load {lib}: {exc}"
+    return out
+
+
+_query_cache = {}
+
+
+def query_command(choice):
+    """``avas info --engine-json`` of the installed program or of this source tree."""
+    args = ["info", "--engine-json"] + choice.cli_args()
+    if getattr(sys, "frozen", False):
+        console = os.path.join(os.path.dirname(sys.executable), "AVAS.exe")
+        return [console if os.path.isfile(console) else sys.executable] + args
+    return [sys.executable, "-m", "avas"] + args
+
+
+def query_subprocess(choice, timeout=120):
+    """:func:`describe` of *choice* computed in a child process (the library is never loaded here),
+    cached per library file (size, time) and choice."""
+    lib = new_library_path(required=False) if choice.is_new else None
+    try:
+        st = os.stat(lib) if lib else None
+    except OSError:
+        st = None
+    key = (lib, st.st_size if st else None, st.st_mtime_ns if st else None, choice)
+    if key in _query_cache:
+        return _query_cache[key]
+    env = {k: v for k, v in os.environ.items() if k not in ENV.values()}
+    root = os.path.dirname(paths.PACKAGE_DIR)
+    env["PYTHONPATH"] = root + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
+    env.pop("AVAS_LATTICE", None)
+    flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+    try:
+        res = subprocess.run(query_command(choice), capture_output=True, text=True, env=env, timeout=timeout,
+                             stdin=subprocess.DEVNULL, creationflags=flags)
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise EngineChoiceError(f"cannot query the new kernel: {exc}") from exc
+    text = res.stdout.strip()
+    start = text.find("{")
+    try:
+        data = json.loads(text[start:]) if start >= 0 else None
+    except ValueError:
+        data = None
+    if res.returncode != 0 or not isinstance(data, dict):
+        tail = (res.stderr.strip().splitlines() or res.stdout.strip().splitlines() or ["no output"])[-1]
+        raise EngineChoiceError(f"cannot query the new kernel: {tail}")
+    _query_cache[key] = data
+    return data
+
+
+def predicted_profile(choice, space_charge, query=None):
+    """``{"tier", "version", "device", "precision", "gpus"}`` a run of *choice* will have, or
+    :class:`EngineChoiceError` when such a run would fail (missing library, device).  *query*:
+    function choice -> :func:`describe` result (default :func:`query_subprocess`)."""
+    if not choice.is_new:
+        return {"tier": TIER_ORIGINAL, "version": None}
+    data = (query or query_subprocess)(choice)
+    new = data.get("new") or {}
+    if new.get("error"):
+        raise EngineChoiceError(new["error"])
+    resolved = (data.get("resolved") or {}).get("sc" if space_charge else "nosc")
+    if not resolved:
+        raise EngineChoiceError("the new kernel did not report its device choice (library too old?)")
+    if resolved.get("error"):
+        raise EngineChoiceError(device_error(choice, resolved["error"]))
+    return {"tier": result_tier("new", resolved["device"], resolved["precision"], choice.compat),
+            "version": (new.get("info") or {}).get("version"), "device": resolved["device"],
+            "precision": resolved["precision"], "gpus": resolved.get("gpus") or [],
+            "lib_sha1": new.get("sha1")}
+
+
+def device_error(choice, reason):
+    """The message for a device the new kernel cannot use (never silently replaced by the CPU)."""
+    prefix = f"device {choice.device}: "
+    if reason.startswith(prefix):
+        reason = reason[len(prefix):]
+    return (f"the new kernel cannot use device '{choice.device}': {reason}. "
+            "Choose device auto (the best available) or cpu")
+
+
+def gpu_count(data):
+    """Usable CUDA GPUs reported by a :func:`describe` result."""
+    devices = ((data.get("new") or {}).get("devices") or {}).get("cuda") or {}
+    return [d["index"] for d in devices.get("devices") or []]
+
+
+# --------------------------------------------------------------------------- run record
+_last_engine = None
+
+
+def note_engine(engine):
+    """Remember the engine object of this process (its last run goes into avas_run.json)."""
+    global _last_engine
+    _last_engine = engine
+
+
+def run_record(choice=None, legacy_device=None):
+    """The ``engine`` entry of avas_run.json: ``{"kernel": "original", "file", "sha1"}`` or, for the
+    new kernel, also ``version``, the ``device``, ``precision``, ``gpus``, ``compat``, ``threads`` and
+    ``space_charge`` of the last run (``avas_engine_last_run()``), the ``tier`` and the request."""
+    choice = choice or active_choice()
+    if legacy_device == "gpu" and not choice.is_new:
+        lib = paths.engine_file("libPIC.so")
+        return {"kernel": "original", "device": "gpu", "file": "libPIC.so", "sha1": file_sha1(lib)}
+    eng = _last_engine
+    if not choice.is_new:
+        path = eng.dll_path if eng is not None and getattr(eng, "kernel", "original") == "original" else original_library_path()
+        return {"kernel": "original", "file": os.path.basename(path), "sha1": file_sha1(path), "tier": TIER_ORIGINAL}
+    rec = {"kernel": "new", "file": None, "sha1": None, "version": None, "device": None, "precision": None,
+           "gpus": None, "compat": choice.compat, "threads": None, "space_charge": None, "tier": None,
+           "requested": choice.to_dict()}
+    if eng is None or getattr(eng, "kernel", None) != "new":
+        return rec
+    rec.update(file=eng.dll_path, sha1=file_sha1(eng.dll_path))
+    info = eng.info() or {}
+    rec["version"] = info.get("version")
+    last = eng.last_run() or {}
+    if last.get("ran"):
+        rec.update(device=last.get("device"), precision=last.get("precision"), gpus=last.get("gpus"),
+                   compat=last.get("compat"), threads=last.get("threads"), space_charge=last.get("space_charge"))
+        rec["tier"] = result_tier("new", rec["device"], rec["precision"], rec["compat"])
+    return rec
+
+
+def with_overrides(choice, **kwargs):
+    """*choice* with some values replaced (validated)."""
+    values = {k: parse_value(k, v, "override") for k, v in kwargs.items() if v is not None}
+    out = replace(choice, **values)
+    validate(out)
+    return out

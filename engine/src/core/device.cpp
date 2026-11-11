@@ -6,13 +6,102 @@
 
 namespace avas {
 
+namespace {
+
+DevicePlan g_used;
+
+DevicePlan cpu_plan(const std::string& reason) {
+    DevicePlan p;
+    p.reason = reason;
+    return p;
+}
+
+DevicePlan failed_plan(const std::string& error) {
+    DevicePlan p;
+    p.error = error;
+    return p;
+}
+
+}  // namespace
+
+DevicePlan plan_device(long long nParticles, bool spaceCharge) {
+    const Options& o = options();
+    if (o.device == Device::Cpu) return cpu_plan("requested");
+    if (o.device == Device::Emu) {
+        if (compat_dll()) return failed_plan("compat=dll is only available on the CPU (device emu was requested)");
+        DevicePlan p;
+        p.device = "emu";
+        p.precision = o.precision == Precision::Fp32 ? "fp32" : "fp64";
+        p.reason = "requested";
+        return p;
+    }
+    if (o.device == Device::Metal) {
+        if (compat_dll()) return failed_plan("compat=dll is only available on the CPU (device metal was requested)");
+        std::string name, why;
+        if (!metal_probe(name, why)) return failed_plan("device metal: " + why);
+        DevicePlan p;
+        p.device = "metal";
+        p.precision = "fp32";
+        p.reason = "requested";
+        p.desc = name;
+        return p;
+    }
+    const bool required = o.device == Device::Cuda;
+    if (compat_dll()) {
+        if (required) return failed_plan("compat=dll is only available on the CPU (device cuda was requested)");
+        return cpu_plan("auto: compat=dll runs on the CPU only");
+    }
+    if (!cuda_compiled() && !required && metal_compiled()) {
+        // auto on macOS (M6c decision 6): Metal when the run has space charge, else the CPU
+        if (!spaceCharge) return cpu_plan("auto: no space charge, Metal is used for runs with space charge");
+        std::string name, why;
+        if (!metal_probe(name, why)) return cpu_plan("auto: " + why);
+        DevicePlan p;
+        p.device = "metal";
+        p.precision = "fp32";
+        p.reason = "auto";
+        p.desc = name;
+        return p;
+    }
+    if (!cuda_compiled()) {
+        if (required) return failed_plan("device cuda: this engine was built without CUDA (AVAS_WITH_CUDA=OFF)");
+        return cpu_plan("auto: this engine was built without CUDA");
+    }
+    DevicePlan p;
+    std::string why;
+    if (!cuda_plan(nParticles, spaceCharge, p, why)) {
+        if (required) return failed_plan("device cuda: " + why);
+        return cpu_plan("auto: " + why);
+    }
+    return p;
+}
+
+const DevicePlan& used_device() { return g_used; }
+
+void reset_used_device() {
+    g_used = DevicePlan();
+    g_used.device.clear();
+    g_used.precision.clear();
+}
+
 std::unique_ptr<DeviceBackend> make_device_backend(long long nParticles, bool spaceCharge) {
     const Options& o = options();
-    if (o.device == Device::Cpu) return nullptr;
-    if (o.device == Device::Emu) {
-        if (compat_dll()) throw EngineError("compat=dll is only available on the CPU (device emu was requested)");
+    DevicePlan plan = plan_device(nParticles, spaceCharge);
+    if (!plan.error.empty()) throw EngineError(plan.error);
+    plan.spaceCharge = spaceCharge;
+    auto fallback = [&](const std::string& why) {
+        say("Device: CPU (auto: " + why + ")");
+        g_used = cpu_plan("auto: " + why);
+        g_used.spaceCharge = spaceCharge;
+    };
+    if (plan.device == "cpu") {
+        if (o.device != Device::Cpu) say("Device: CPU (" + plan.reason + ")");
+        g_used = plan;
+        return nullptr;
+    }
+    if (plan.device == "emu") {
         std::unique_ptr<ScAccel> acc;
-        if (o.precision == Precision::Fp32) {
+        if (plan.precision == "fp32") {
             // the fp32 reference of the Metal back end (M6c): its kernels on the CPU
             std::string why;
             acc = make_f32_cpu_accel(why);
@@ -20,52 +109,31 @@ std::unique_ptr<DeviceBackend> make_device_backend(long long nParticles, bool sp
         }
         std::unique_ptr<DeviceBackend> be = make_emu_backend(std::move(acc));
         say("Device: " + be->describe());
+        g_used = plan;
         return be;
     }
-    if (o.device == Device::Metal) {
-        if (compat_dll()) throw EngineError("compat=dll is only available on the CPU (device metal was requested)");
-        std::string why;
-        std::unique_ptr<ScAccel> acc = make_metal_accel(why);
-        if (!acc) throw EngineError("device metal: " + why);
-        std::unique_ptr<DeviceBackend> be = make_emu_backend(std::move(acc));
-        say("Device: " + be->describe());
-        return be;
-    }
-    const bool required = o.device == Device::Cuda;
-    if (compat_dll()) {
-        if (required) throw EngineError("compat=dll is only available on the CPU (device cuda was requested)");
-        say("Device: CPU (auto: compat=dll runs on the CPU only)");
-        return nullptr;
-    }
-    if (!cuda_compiled() && !required && metal_compiled()) {
-        // auto on macOS (M6c decision 6): Metal when the run has space charge, else the CPU
-        if (!spaceCharge) {
-            say("Device: CPU (auto: no space charge, Metal is used for runs with space charge)");
-            return nullptr;
-        }
+    if (plan.device == "metal") {
         std::string why;
         std::unique_ptr<ScAccel> acc = make_metal_accel(why);
         if (!acc) {
-            say("Device: CPU (auto: " + why + ")");
+            if (o.device == Device::Metal) throw EngineError("device metal: " + why);
+            fallback(why);
             return nullptr;
         }
         std::unique_ptr<DeviceBackend> be = make_emu_backend(std::move(acc));
-        say("Device: " + be->describe() + " (auto)");
+        say("Device: " + be->describe() + (o.device == Device::Metal ? "" : " (auto)"));
+        g_used = plan;
         return be;
     }
-    if (!cuda_compiled()) {
-        if (required) throw EngineError("device cuda: this engine was built without CUDA (AVAS_WITH_CUDA=OFF)");
-        say("Device: CPU (auto: this engine was built without CUDA)");
-        return nullptr;
-    }
     std::string why;
-    std::unique_ptr<DeviceBackend> be = make_cuda_backend(nParticles, spaceCharge, required, why);
+    std::unique_ptr<DeviceBackend> be = make_cuda_backend(plan, why);
     if (!be) {
-        if (required) throw EngineError("device cuda: " + why);
-        say("Device: CPU (auto: " + why + ")");
+        if (o.device == Device::Cuda) throw EngineError("device cuda: " + why);
+        fallback(why);
         return nullptr;
     }
     say("Device: " + be->describe());
+    g_used = plan;
     return be;
 }
 

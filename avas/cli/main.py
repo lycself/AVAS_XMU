@@ -2,13 +2,15 @@
 
 ::
 
-    avas run  --input DIR --output DIR [--field DIR] [--mode ...] [--device cpu|gpu]
+    avas run  --input DIR --output DIR [--field DIR] [--mode ...]
+              [--engine original|new] [--device auto|cpu|cuda|metal] [--precision auto|fp64|fp32]
+              [--gpus all|0,1] [--threads N] [--compat none|dll]
     avas plot TYPE --output DIR [--input DIR] [--save FILE] [--no-show]
     avas plot phase --dst FILE [--plane x-x1 --plane phi-w] [--save FILE]
     avas scan --input DIR --target Q1 --param G --values 10,12,14
     avas gui [--lang en|zh_CN]
     avas serve [--port 8765] [--host 127.0.0.1] [--open]
-    avas info
+    avas info [--input DIR] [--engine-json]
 
 ``avas --input DIR --output DIR`` (without the word ``run``) is accepted too, so
 ``python run_avas.py --input ... --output ...`` starts a simulation directly.
@@ -130,11 +132,47 @@ def cmd_run(args):
                 os.environ[LATTICE_ENV_VAR] = previous_override
 
 
+NEW_ONLY_DEVICES = ("auto", "cuda", "metal", "emu")
+RUN_DEVICES = ("auto", "cpu", "cuda", "metal", "gpu", "emu")
+
+
+def engine_choice_from_args(args, input_dir):
+    """``(EngineChoice, legacy device)`` of ``avas run`` / ``avas info``: the options of the command
+    line over the environment over ini.ini ``[engine]`` (see :mod:`avas.engines`).  The legacy device
+    is ``[input] device`` / ``--device cpu|gpu`` of the original kernel (gpu = libPIC.so, Linux)."""
+    from avas import engines
+    device = getattr(args, "device", None)
+    if device is not None and device not in RUN_DEVICES:
+        raise CliError(f"invalid --device '{device}' (expected auto | cpu | cuda | metal; gpu = the original "
+                       "kernel's libPIC.so)")
+    new_only = {k: getattr(args, k, None) for k in ("precision", "gpus", "threads", "compat")}
+    try:
+        kernel = engines.resolve_choice(cli={"kernel": getattr(args, "engine", None)}, input_dir=input_dir).kernel
+        if kernel == "new":
+            if device == "gpu":
+                raise CliError("--device gpu selects the original kernel's libPIC.so; for the new kernel use "
+                               "--device cuda (or auto)")
+            choice = engines.resolve_choice(cli=dict(new_only, kernel="new", device=device), input_dir=input_dir)
+            return choice, "cpu"
+        given = [f"--{k}" for k, v in new_only.items() if v is not None]
+        if device in NEW_ONLY_DEVICES:
+            given.insert(0, f"--device {device}")
+        if given:
+            raise CliError(f"{', '.join(given)} {'applies' if len(given) == 1 else 'apply'} only to the new kernel; "
+                           "add --engine new "
+                           "(or set kernel = new in ini.ini [engine])")
+        choice = engines.resolve_choice(cli={"kernel": "original"}, input_dir=input_dir)
+    except engines.EngineChoiceError as exc:
+        raise CliError(str(exc)) from exc
+    ini = read_ini(input_dir) if input_dir else {}
+    return choice, device or ini.get("input", {}).get("device") or "cpu"
+
+
 def _run(args, input_dir):
+    from avas import engines
     from avas.paths import lattice_source_name
     check_input_files(input_dir)
     output_dir = _abs(args.output)
-    os.makedirs(output_dir, exist_ok=True)
 
     ini = read_ini(input_dir)
     mode = args.mode
@@ -142,7 +180,15 @@ def _run(args, input_dir):
         mode = ini.get("error", {}).get("error_type") or "basic"
         if mode not in SIM_MODES:
             mode = "basic"
-    device = args.device or ini.get("input", {}).get("device") or "cpu"
+    choice, device = engine_choice_from_args(args, input_dir)
+    if choice.is_new:
+        # load the library and check a required device before anything is written
+        from avas.core.MultiParticleEngine import MultiParticleEngine
+        try:
+            MultiParticleEngine(choice).check_device()
+        except (engines.EngineChoiceError, ValueError) as exc:
+            raise CliError(str(exc)) from exc
+    os.makedirs(output_dir, exist_ok=True)
     seed = args.seed if args.seed is not None else int(ini.get("error", {}).get("seed", 50) or 50)
     if_normal = 0 if args.no_normal else int(ini.get("error", {}).get("if_normal", 1))
     field_dir = _abs(args.field) if args.field else (ini.get("project", {}).get("fieldSource") or None)
@@ -166,6 +212,7 @@ def _run(args, input_dir):
         "field_dir": field_dir,
         "mode": mode,
         "device": device,
+        "engine": engines.run_record(choice, device),
         "seed": seed,
         "lattice": lattice_source_name(input_dir),
         "lattice_sha1": _lattice_fingerprint(input_dir),
@@ -174,13 +221,16 @@ def _run(args, input_dir):
     }
     write_run_info(output_dir, info)
 
-    print(f"[avas] mode={mode} device={device}")
+    print(f"[avas] mode={mode} device={device}" if not choice.is_new else f"[avas] mode={mode}")
+    if choice.is_new:
+        print(f"[avas] engine: {choice.label()} {info['engine'].get('file') or ''}".rstrip())
     print(f"[avas] input : {input_dir}")
     print(f"[avas] lattice: {lattice_source_name(input_dir)}")
     print(f"[avas] output: {output_dir}")
 
     from avas.api import basic as api
     t0 = time.time()
+    previous_choice = engines.set_active(choice)
     try:
         if mode == "basic":
             api.basic_mulp(**item)
@@ -191,9 +241,19 @@ def _run(args, input_dir):
         elif mode == "stat_dyn":
             api.err_stat_dyn(**item)
     except Exception as exc:
-        info.update(status="failed", error=str(exc), finished=time.strftime("%Y-%m-%d %H:%M:%S"))
+        info.update(status="failed", error=str(exc), finished=time.strftime("%Y-%m-%d %H:%M:%S"),
+                    engine=engines.run_record(choice, device))
         write_run_info(output_dir, info)
+        if isinstance(exc, engines.EngineChoiceError):
+            raise CliError(str(exc)) from exc
         raise
+    finally:
+        engines.set_active(previous_choice)
+    info["engine"] = engines.run_record(choice, device)       # what the (last) run actually used
+    if choice.is_new and info["engine"].get("device"):
+        e = info["engine"]
+        print(f"[avas] engine used: {e['device']} {e['precision']}"
+              f"{' GPUs ' + ','.join(str(g) for g in e['gpus']) if e.get('gpus') else ''}, {e['tier']}")
     info.update(status="finished", finished=time.strftime("%Y-%m-%d %H:%M:%S"),
                 elapsed_s=round(time.time() - t0, 2))
     diagnostics = _diagnostics(output_dir) if mode == "basic" else None
@@ -322,7 +382,86 @@ def cmd_serve(args):
     return serve_main(args=args)
 
 
+def _info_input_dir(args):
+    """The project of ``avas info``: --input, else the current folder when it is one (or None)."""
+    if getattr(args, "input", None):
+        return resolve_input_dir(args.input)
+    cwd = os.getcwd()
+    for cand in (cwd, os.path.join(cwd, "InputFile")):
+        if os.path.isfile(os.path.join(cand, "input.txt")):
+            return cand
+    return None
+
+
+def _plan_text(plan):
+    if not plan:
+        return "?"
+    if plan.get("error"):
+        return f"fails: {plan['error']}"
+    gpus = plan.get("gpus") or []
+    return f"{plan['device']} {plan['precision']}" + (f" (GPUs {','.join(map(str, gpus))})" if gpus else "")
+
+
+def print_kernels(desc, input_dir=None, choice=None, indent="  "):
+    """The kernels, devices and the resolution of auto for ``avas info`` / ``avas doctor``."""
+    orig = desc["original"]
+    print(f"{indent}original kernel: {orig['path']}"
+          + (f"  sha1 {orig['sha1'][:12]}" if orig.get("sha1") else "  (missing)"))
+    new = desc["new"]
+    if new.get("path") and new.get("info"):
+        info = new["info"]
+        build = info.get("build") or {}
+        opts = [name for name in ("cuda", "metal", "mpi") if build.get(name)]
+        archs = ",".join(build.get("cuda_archs") or [])
+        print(f"{indent}new kernel     : {new['path']}  version {info.get('version')}  "
+              f"(CPU{''.join(' + ' + o.upper() if o != 'metal' else ' + Metal' for o in opts)}"
+              f"{'; CUDA ' + archs if archs else ''}; {info.get('compiler')})")
+    elif new.get("path"):
+        print(f"{indent}new kernel     : {new['path']}  ({new.get('error') or 'no build information'})")
+    else:
+        print(f"{indent}new kernel     : not found. {new.get('error') or ''}".rstrip())
+    devices = new.get("devices")
+    if devices:
+        cuda = devices.get("cuda") or {}
+        cards = cuda.get("devices") or []
+        if cards:
+            for d in cards:
+                print(f"{indent}  CUDA GPU {d['index']}: {d['name']} (sm {d['compute']}, "
+                      f"{'full-rate' if d.get('fp64_full') else 'slow'} fp64, {d['memory_gb']:.1f} GB)")
+        else:
+            print(f"{indent}  CUDA: none ({cuda.get('note') or 'no device'})")
+        metal = devices.get("metal") or {}
+        if metal.get("devices"):
+            for d in metal["devices"]:
+                print(f"{indent}  Metal: {d['name']}{'' if d.get('usable') else ' (not usable: ' + str(metal.get('note')) + ')'}")
+        else:
+            print(f"{indent}  Metal: none ({metal.get('note') or 'no device'})")
+        print(f"{indent}  CPU: {(devices.get('cpu') or {}).get('threads')} logical threads")
+        auto = devices.get("auto") or {}
+        print(f"{indent}  device auto: with space charge -> {_plan_text(auto.get('sc'))}; "
+              f"without -> {_plan_text(auto.get('nosc'))}")
+    if choice is not None:
+        where = f"project {input_dir}" if input_dir else "selected"
+        print(f"{indent}{where}: {choice.label()}")
+        if choice.is_new and desc.get("resolved"):
+            res = desc["resolved"]
+            print(f"{indent}  runs: with space charge -> {_plan_text(res.get('sc'))}; "
+                  f"without -> {_plan_text(res.get('nosc'))}")
+
+
 def cmd_info(args):
+    from avas import engines
+    input_dir = _info_input_dir(args)
+    try:
+        choice, _ = engine_choice_from_args(args, input_dir)
+    except CliError as exc:
+        if getattr(args, "engine_json", False):
+            raise
+        print(f"warning: {exc}", file=sys.stderr)        # still show the installation
+        choice = None
+    if getattr(args, "engine_json", False):
+        print(json.dumps(engines.describe(choice, input_dir), ensure_ascii=False))
+        return 0
     from avas.buildinfo import build_info
     from avas.paths import ENGINE_DIR, LOG_DIR, STATIC_DIR
     b = build_info()
@@ -334,6 +473,8 @@ def cmd_info(args):
     print(f"engine : {ENGINE_DIR}")
     print(f"static : {STATIC_DIR}")
     print(f"logs   : {LOG_DIR}")
+    print("kernels:")
+    print_kernels(engines.describe(choice, input_dir), input_dir, choice)
     return 0
 
 
@@ -369,7 +510,11 @@ def build_parser():
                             "else lattice_mulp.txt)")
     p_run.add_argument("-m", "--mode", choices=SIM_MODES, default="auto",
                        help="basic | stat | dyn | stat_dyn error study; auto = read ini.ini, else basic")
-    p_run.add_argument("-d", "--device", choices=["cpu", "gpu"], help="compute device (default: ini.ini or cpu)")
+    p_run.add_argument("-d", "--device", metavar="DEVICE",
+                       help="new kernel: auto | cpu | cuda | metal (default: ini.ini [engine] device, else auto; "
+                            "cuda / metal fail when the machine has no such GPU); original kernel: cpu | gpu "
+                            "(gpu = libPIC.so, Linux; default: ini.ini [input] device)")
+    engine_arguments(p_run)
     p_run.add_argument("--seed", type=int, help="random seed for error studies")
     p_run.add_argument("--no-normal", action="store_true", help="error study: skip the error-free reference run")
     p_run.set_defaults(func=cmd_run)
@@ -410,7 +555,15 @@ def build_parser():
     serve_arguments(p_serve)
     p_serve.set_defaults(func=cmd_serve)
 
-    p_info = sub.add_parser("info", help="show version and install locations")
+    p_info = sub.add_parser("info", help="show version, install locations, kernels and devices",
+                            description="Show the version, install locations, both kernels and the devices of "
+                                        "this machine; in a project (--input or the current folder) also what "
+                                        "its runs would use.")
+    p_info.add_argument("-i", "--input", metavar="DIR", help="project or input directory (default: the current "
+                                                              "folder when it is one)")
+    p_info.add_argument("--engine-json", action="store_true", help="print the kernels and devices as JSON")
+    p_info.add_argument("-d", "--device", metavar="DEVICE", help="new kernel device: auto | cpu | cuda | metal")
+    engine_arguments(p_info)
     p_info.set_defaults(func=cmd_info)
 
     from avas.cli.scan_cmd import add_parser as add_scan_parser
@@ -419,6 +572,22 @@ def build_parser():
     p_doctor = sub.add_parser("doctor", help="check this installation (engine, WebView2, GUI, assistant, preview)")
     p_doctor.set_defaults(func=cmd_doctor)
     return parser
+
+
+def engine_arguments(p):
+    """``--engine --precision --gpus --threads --compat`` (the new kernel's options; ``--device`` is
+    added by the command, since ``avas run --device`` also selects the original kernel's libPIC.so)."""
+    g = p.add_argument_group("kernel", "Priority: these options > environment variables (AVAS_ENGINE, "
+                                       "AVAS_ENGINE_DEVICE, ...) > ini.ini [engine] > defaults.")
+    g.add_argument("--engine", choices=["original", "new"],
+                   help="simulation kernel (default: ini.ini [engine] kernel, else original)")
+    g.add_argument("--precision", choices=["auto", "fp64", "fp32"],
+                   help="new kernel: auto = fp64 on full-rate fp64 GPUs and the CPU, fp32 on other GPUs and Metal")
+    g.add_argument("--gpus", metavar="LIST", help="new kernel: all (default) or GPU numbers such as 0,1")
+    g.add_argument("--threads", type=int, metavar="N", help="new kernel: CPU threads, 0 = automatic (default)")
+    g.add_argument("--compat", choices=["none", "dll"],
+                   help="new kernel: none = defects of the original corrected (default); dll = reproduce AVAS.dll "
+                        "(CPU only)")
 
 
 def cmd_doctor(args):
@@ -440,9 +609,27 @@ def cmd_doctor(args):
             if os.environ.get("AVAS_DEBUG"):
                 traceback.print_exc()
 
-    def engine():
+    from avas import engines
+    try:
+        selected = engines.resolve_choice(input_dir=_info_input_dir(args)).kernel
+    except (engines.EngineChoiceError, CliError):
+        selected = "original"
+
+    def original_engine():
         from avas.core.MultiParticleEngine import MultiParticleEngine
-        return MultiParticleEngine().dll_path
+        return MultiParticleEngine(engines.EngineChoice(kernel="original")).dll_path
+
+    def new_engine():
+        desc = engines.describe(engines.EngineChoice(kernel="new"))
+        new = desc["new"]
+        if not new.get("info"):
+            raise RuntimeError(new.get("error") or "the library reports no build information")
+        devices = new.get("devices") or {}
+        auto = devices.get("auto") or {}
+        build = new["info"].get("build") or {}
+        extras = "".join(f" + {n}" for n, k in (("CUDA", "cuda"), ("Metal", "metal"), ("MPI", "mpi")) if build.get(k))
+        return (f"{new['path']} (version {new['info'].get('version')}, CPU{extras}; auto: space charge -> "
+                f"{_plan_text(auto.get('sc'))}, none -> {_plan_text(auto.get('nosc'))})")
 
     def webview():
         if sys.platform != "win32":
@@ -492,7 +679,8 @@ def cmd_doctor(args):
     b = build_info()
     print(f"AVAS {__version__} ({'stand-alone' if b.get('frozen') else 'source'}"
           f"{', built ' + b['built'] if b.get('built') else ''}{', commit ' + b['commit'] if b.get('commit') else ''})")
-    check("simulation engine", engine)
+    check("simulation engine (original kernel)", original_engine, essential=selected == "original")
+    check("simulation engine (new kernel)", new_engine, essential=selected == "new")
     check("WebView2 runtime", webview)
     check("GUI services", gui_services)
     check("AI assistant", assistant)
@@ -521,9 +709,10 @@ def main(argv=None):
     if not getattr(args, "func", None):
         parser.print_help()
         return 1
+    from avas.engines import EngineChoiceError
     try:
         return args.func(args) or 0
-    except CliError as exc:
+    except (CliError, EngineChoiceError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 

@@ -18,6 +18,13 @@
 #include "core/format.h"
 #include "core/physics.h"
 #include "core/text.h"
+#include "avas_engine.h"
+#include "core/device.h"
+
+#include <cstdlib>
+#include <cstring>
+#include <filesystem>
+#include <fstream>
 
 static int failures = 0;
 #define CHECK(cond)                                                       \
@@ -396,6 +403,163 @@ static void test_reduce() {
     CHECK(s1 == s2);
 }
 
+// ---- C API queries (avas_engine_info / devices / last_run) ----
+
+// Minimal JSON reader for the checks: parses one value, returns false on a syntax error.
+struct Json {
+    const char* p;
+    bool ws() {
+        while (*p == ' ' || *p == '\n' || *p == '\t' || *p == '\r') ++p;
+        return true;
+    }
+    bool str() {
+        if (*p != '"') return false;
+        for (++p; *p && *p != '"'; ++p)
+            if (*p == '\\' && !*++p) return false;
+        if (*p != '"') return false;
+        ++p;
+        return true;
+    }
+    bool num() {
+        const char* s = p;
+        if (*p == '-') ++p;
+        while ((*p >= '0' && *p <= '9') || *p == '.' || *p == 'e' || *p == 'E' || *p == '+' || *p == '-') ++p;
+        return p > s;
+    }
+    bool lit(const char* w) {
+        const size_t n = std::strlen(w);
+        if (std::strncmp(p, w, n) != 0) return false;
+        p += n;
+        return true;
+    }
+    bool value() {
+        ws();
+        if (*p == '{') {
+            ++p;
+            ws();
+            if (*p == '}') return ++p, true;
+            for (;;) {
+                ws();
+                if (!str()) return false;
+                ws();
+                if (*p++ != ':') return false;
+                if (!value()) return false;
+                ws();
+                if (*p == ',') { ++p; continue; }
+                if (*p == '}') return ++p, true;
+                return false;
+            }
+        }
+        if (*p == '[') {
+            ++p;
+            ws();
+            if (*p == ']') return ++p, true;
+            for (;;) {
+                if (!value()) return false;
+                ws();
+                if (*p == ',') { ++p; continue; }
+                if (*p == ']') return ++p, true;
+                return false;
+            }
+        }
+        if (*p == '"') return str();
+        if (*p == 't') return lit("true");
+        if (*p == 'f') return lit("false");
+        if (*p == 'n') return lit("null");
+        return num();
+    }
+};
+
+static bool valid_json(const char* s) {
+    Json j{s};
+    return j.value() && j.ws() && *j.p == '\0';
+}
+
+static bool has(const char* json, const char* key) { return std::strstr(json, key) != nullptr; }
+
+static void write_text(const std::filesystem::path& f, const char* text) {
+    std::ofstream o(f, std::ios::binary);
+    o << text;
+}
+
+static void test_capi_queries() {
+    const char* v = avas_engine_version();
+    CHECK(std::strlen(v) == 16);
+    const char* info = avas_engine_info();
+    CHECK(valid_json(info));
+    for (const char* k : {"\"version\"", "\"source_hash\"", "\"build\"", "\"cuda\"", "\"metal\"", "\"mpi\"",
+                          "\"cuda_archs\"", "\"compiler\"", "\"platform\""})
+        CHECK(has(info, k));
+    CHECK(has(info, (std::string("\"version\":\"") + v + "\"").c_str()));
+
+    const char* last = avas_engine_last_run();
+    CHECK(valid_json(last));
+    CHECK(has(last, "\"ran\":false") && has(last, "\"device\":null") && has(last, "\"seconds\":null"));
+
+    CHECK(avas_set_option("device", "cpu") == 0);
+    std::string dev = avas_engine_devices();
+    CHECK(valid_json(dev.c_str()));
+    for (const char* k : {"\"cuda\"", "\"metal\"", "\"cpu\"", "\"threads\"", "\"options\"", "\"auto\"", "\"selected\"",
+                          "\"sc\"", "\"nosc\"", "\"devices\""})
+        CHECK(has(dev.c_str(), k));
+    CHECK(has(dev.c_str(), "\"selected\":{\"sc\":{\"device\":\"cpu\",\"precision\":\"fp64\""));
+    // a required device this build or machine cannot give: an error in the plan, not the CPU
+    CHECK(avas_set_option("device", "cuda") == 0);
+    if (!cuda_compiled()) {
+        dev = avas_engine_devices();
+        CHECK(valid_json(dev.c_str()));
+        CHECK(has(dev.c_str(), "\"selected\":{\"sc\":{\"device\":null"));
+        CHECK(has(dev.c_str(), "built without CUDA"));
+    }
+    CHECK(avas_set_option("device", "metal") == 0);
+    if (!metal_compiled()) {
+        dev = avas_engine_devices();
+        CHECK(has(dev.c_str(), "\"selected\":{\"sc\":{\"device\":null"));
+    }
+    // compat=dll: auto is the CPU
+    CHECK(avas_set_option("compat", "dll") == 0);
+    dev = avas_engine_devices();
+    CHECK(has(dev.c_str(), "\"auto\":{\"sc\":{\"device\":\"cpu\""));
+    CHECK(avas_set_option("compat", "none") == 0);
+    CHECK(avas_set_option("device", "cpu") == 0);
+    CHECK(avas_set_option("threads", "2") == 0);
+
+    // one small run: last_run reports it
+    namespace fs = std::filesystem;
+    const fs::path dir = fs::temp_directory_path() / ("avas_unit_capi_" + std::to_string(std::rand()));
+    fs::create_directories(dir / "out");
+    write_text(dir / "input.txt", "sim_type mulp\nspacecharge 1\nsteppercycle 20\ndumpperiodicity 0\nboundary 0\n"
+                                  "randomseed 7\nscmethod FFT\n");
+    write_text(dir / "beam.txt", "readparticledistribution unknown\nnumofcharge 1\nparticlerestmass 938.272088159928\n"
+                                 "current 0.1841\nparticlenumber 300\nfrequency 162500000.0\nkneticenergy 1.5270289036445652\n"
+                                 "use_dst 0\nbeamtype notdc\ntwissx -0.65785 0.37743 0.13768\n"
+                                 "twissy -0.6341 0.37292 0.14059\ntwissz 0.04275 0.37292 0.26506\ndistribution GS GS\n");
+    write_text(dir / "lattice.txt", "start\ndrift 0.02 0.02 0\nend\n");
+#if defined(_WIN32)
+    const std::wstring in = dir.wstring(), out = (dir / "out").wstring();
+#else
+    const std::string in = dir.string(), out = (dir / "out").string();
+#endif
+    path(in.c_str(), out.c_str(), in.c_str());
+    int state = 1;
+    const int rc = main_agent(&state);
+    CHECK(rc == 0);
+    last = avas_engine_last_run();
+    CHECK(valid_json(last));
+    CHECK(has(last, "\"ran\":true") && has(last, "\"device\":\"cpu\"") && has(last, "\"precision\":\"fp64\""));
+    CHECK(has(last, "\"compat\":\"none\"") && has(last, "\"threads\":2") && has(last, "\"space_charge\":true"));
+    CHECK(has(last, "\"status\":0") && !has(last, "\"seconds\":null"));
+    // a failing run (no lattice file) is recorded too, without a device
+    fs::remove(dir / "lattice.txt");
+    state = 1;
+    CHECK(main_agent(&state) != 0);
+    last = avas_engine_last_run();
+    CHECK(has(last, "\"ran\":true") && has(last, "\"device\":null") && !has(last, "\"status\":0"));
+    CHECK(avas_set_option("threads", "0") == 0);
+    std::error_code ec;
+    fs::remove_all(dir, ec);
+}
+
 int main() {
     test_split();
     test_numbers();
@@ -408,6 +572,7 @@ int main() {
     test_pmath();
     test_picnic();
     test_reduce();
+    test_capi_queries();
     std::printf("%s (%d failures)\n", failures ? "FAILED" : "OK", failures);
     return failures;
 }

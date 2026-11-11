@@ -3,26 +3,35 @@
 Engine runs live in ``<root>/runs/<fingerprint>/`` (``input/`` the inputs used, ``output/`` the kept
 outputs, ``engine.log``, ``run.json``).  The fingerprint covers every input file of the run, the
 field maps the lattice uses (name, size and time, or their contents with ``strict=True``) and the
-engine library, so a run whose fingerprint exists is not repeated: a stopped batch resumes, and a
-second notebook gets the same results.  With a fixed seed the engine is reproducible (checked
-2026-11-03), so a cached result is the result.  The project's own folders are never written.
+kernel: the original kernel's library, or the new kernel's *result tier* and version
+(:func:`avas.engines.result_tier`; the thread count and the GPU numbers are not part of it).  A run
+whose fingerprint exists is not repeated: a stopped batch resumes, and a second notebook gets the
+same results.  With a fixed seed the engine is reproducible (checked 2026-11-03), so a cached result
+is the result.  The project's own folders are never written.
+
+The kernel comes from the study's arguments over the environment over the project's ini.ini
+``[engine]`` (:func:`avas.engines.resolve_choice`); every run's ``input/ini.ini`` carries the
+resolved choice in ``[engine]`` (not part of the fingerprint), so ``avas run`` in the child uses it.
 """
 import datetime
 import hashlib
 import json
+import logging
 import os
 import re
 import shutil
 import subprocess
 import uuid
 
-from avas import paths
+from avas import engines, paths
 from avas.data.inputs import copy_text_inputs
 from avas.data.lattice_doc import LatticeDocument
 from avas.model import LinearModel, read_beam
-from avas.research import engine
+from avas.research import engine as engine_proc
 from avas.research.runs import EngineRun, LinearRun
 from avas.research.variant import Variant, apply
+
+log = logging.getLogger(__name__)
 
 DEFAULT_SEED = 12345
 RESEARCH_DIR = "Research"
@@ -37,10 +46,47 @@ def input_folder(project):
     return inp if os.path.isfile(os.path.join(inp, "beam.txt")) else project
 
 
-def _text_digest(path):
+def _text_digest(path, drop_section=None):
     with open(path, encoding="utf-8", errors="replace") as fh:
-        text = re.sub(r"\r\n?", "\n", fh.read().lstrip("﻿")).rstrip("\n")
+        text = re.sub(r"\r\n?", "\n", fh.read().lstrip("﻿"))
+    if drop_section:
+        text = strip_ini_section(text, drop_section)
+    text = text.rstrip("\n")
     return hashlib.sha1(text.encode("utf-8")).hexdigest()
+
+
+def strip_ini_section(text, section):
+    """*text* (an ini file, LF line ends) without the section ``[section]`` and its keys."""
+    out, skip = [], False
+    head = re.compile(r"^\s*\[([^\]]*)\]\s*$")
+    for line in text.split("\n"):
+        m = head.match(line)
+        if m:
+            skip = m.group(1).strip().lower() == section
+        if not skip:
+            out.append(line)
+    return "\n".join(out)
+
+
+def write_engine_section(input_dir, choice, gpus=None):
+    """Put *choice* into ``[engine]`` of ``<input_dir>/ini.ini`` (the rest of the text unchanged, so the
+    fingerprint of the other sections stays that of the project's file).  An original-kernel choice
+    needs no file of its own (the child's default)."""
+    path = os.path.join(input_dir, "ini.ini")
+    exists = os.path.isfile(path)
+    if not choice.is_new and not exists:
+        return
+    text = ""
+    if exists:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            text = re.sub(r"\r\n?", "\n", fh.read().lstrip("﻿"))
+        text = strip_ini_section(text, engines.INI_SECTION).rstrip("\n")
+    values = choice.to_dict()
+    if gpus is not None and choice.is_new:
+        values["gpus"] = engines.parse_value("gpus", gpus, "gpus")
+    block = "[engine]\n" + "".join(f"{k} = {v}\n" for k, v in values.items())
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write((text + "\n\n" if text else "") + block)
 
 
 def _file_digest(path):
@@ -70,19 +116,28 @@ class Study:
     *runner*: ``f(input_dir, output_dir, field_dir, lattice, log_path, stop, progress) -> seconds``
     replacing the plain child process (the GUI runs studies through its sandbox, so they can be
     paused and show on the Run page); it raises :class:`~avas.research.engine.EngineError`.
+    *engine*, *device*, *precision*, *gpus*, *compat*, *threads*: the kernel (``"original"`` /
+    ``"new"``) and the new kernel's options; None takes the environment, then the project's ini.ini
+    ``[engine]`` (:mod:`avas.engines`).  *engine_query*: ``f(choice) -> dict`` like
+    :func:`avas.engines.query_subprocess` (tests); the new kernel is never loaded in this process.
     """
 
     def __init__(self, project, name="study", root=None, seed=DEFAULT_SEED, strict=False, engine_command=None,
-                 timeout=None, runner=None):
+                 timeout=None, runner=None, engine=None, device=None, precision=None, gpus=None, compat=None,
+                 threads=None, engine_query=None):
         self.input_dir = input_folder(project)
         project_dir = os.path.dirname(self.input_dir) if os.path.basename(self.input_dir) == "InputFile" else self.input_dir
         self.root = os.path.abspath(root or os.path.join(project_dir, RESEARCH_DIR, re.sub(r"[^\w\-.]+", "_", name)))
         self.name = name
         self.seed = seed
         self.strict = strict
-        self.command = engine_command or engine.default_command
+        self.command = engine_command or engine_proc.default_command
         self.timeout = timeout
         self.runner = runner
+        self.engine_settings = {"kernel": engine, "device": device, "precision": precision, "gpus": gpus,
+                                "compat": compat, "threads": threads}
+        self.engine_query = engine_query
+        self._profiles = {}
         self.lattice_name = paths.lattice_source_name(self.input_dir)
         self.field_dirs = paths.field_dirs(self.input_dir)
         self._model = None
@@ -134,14 +189,70 @@ class Study:
                 shutil.rmtree(tmp, ignore_errors=True)
         return LinearRun(variant, res, {"status": "done", "fidelity": "linear", "variant": variant.to_dict()})
 
+    # ------------------------------------------------------------------ kernel
+    def engine_choice(self):
+        """The :class:`~avas.engines.EngineChoice` of the study's runs (arguments > environment > ini.ini)."""
+        return engines.resolve_choice(cli=self.engine_settings, input_dir=self.input_dir)
+
+    def engine_profile(self, space_charge=True, choice=None):
+        """``{"tier", "version", …}`` the runs will have (the new kernel resolves ``auto`` in a child
+        process, cached); :class:`~avas.engines.EngineChoiceError` when they cannot run."""
+        choice = choice or self.engine_choice()
+        key = (choice, bool(space_charge))
+        if key not in self._profiles:
+            if not choice.is_new:
+                ident = engine_proc.identity()
+                self._profiles[key] = {"tier": engines.TIER_ORIGINAL, "version": None, "sha1": ident["sha1"],
+                                       "file": ident["file"]}
+            else:
+                self._profiles[key] = engines.predicted_profile(choice, space_charge, self.engine_query)
+        return dict(self._profiles[key])
+
+    def parallel_plan(self, workers):
+        """``(workers, gpu slots)`` for *workers* parallel engine runs: GPU runs bind one GPU each (no
+        more workers than GPUs; one GPU or Metal: one run at a time); CPU runs: ``(workers, None)``."""
+        if workers <= 1:
+            return workers, None
+        choice = self.engine_choice()
+        if not choice.is_new or choice.device == "cpu" or choice.compat == "dll":
+            return workers, None
+        profile = self.engine_profile(True, choice)
+        if profile.get("device") == "metal":
+            log.info("study %s: Metal has one GPU, the runs go one at a time (workers 1 instead of %d)",
+                     self.name, workers)
+            return 1, None
+        if profile.get("device") != "cuda":
+            return workers, None
+        cards = list(profile.get("gpus") or [])
+        if len(cards) <= 1:
+            log.info("study %s: one GPU, the runs go one at a time (workers 1 instead of %d)", self.name, workers)
+            return 1, None
+        slots = [str(c) for c in cards[:workers]]
+        if len(slots) < workers:
+            log.info("study %s: %d GPUs, %d parallel runs instead of %d", self.name, len(slots), len(slots), workers)
+        return len(slots), slots
+
+    def _engine_part(self, choice, space_charge):
+        profile = self.engine_profile(space_charge, choice)
+        if profile["tier"] == engines.TIER_ORIGINAL:
+            return profile["sha1"]                 # as before M7: caches of the original kernel stay valid
+        return {"tier": profile["tier"], "version": profile["version"]}
+
     # ------------------------------------------------------------------ engine runs
-    def fingerprint(self, input_dir):
-        """Hash of the inputs in *input_dir*, the field maps its lattice uses and the engine library."""
-        parts = {"files": {}, "maps": {}, "engine": engine.identity()["sha1"]}
+    def fingerprint(self, input_dir, choice=None):
+        """Hash of the inputs in *input_dir*, the field maps its lattice uses and the kernel (the
+        original kernel's library, or the new kernel's result tier and version)."""
+        choice = choice or self.engine_choice()
+        sc = engines.input_space_charge(input_dir)
+        parts = {"files": {}, "maps": {}, "engine": self._engine_part(choice, sc)}
         for name in sorted(os.listdir(input_dir)):
             path = os.path.join(input_dir, name)
             if os.path.isfile(path):
-                parts["files"][name] = _text_digest(path) if name.lower().endswith(TEXT_SUFFIXES) else _file_digest(path)
+                if name.lower() == "ini.ini":       # [engine] is in parts["engine"] (without threads / GPUs)
+                    parts["files"][name] = _text_digest(path, drop_section=engines.INI_SECTION)
+                else:
+                    parts["files"][name] = (_text_digest(path) if name.lower().endswith(TEXT_SUFFIXES)
+                                            else _file_digest(path))
         with open(os.path.join(input_dir, self.lattice_name), encoding="utf-8", errors="replace") as fh:
             doc = LatticeDocument(fh.read())
         for base in sorted({st.param(8) for st in doc.statements if st.active and st.key == "field" and st.param(8)}):
@@ -157,20 +268,26 @@ class Study:
                     break
         return hashlib.sha1(json.dumps(parts, sort_keys=True).encode("utf-8")).hexdigest()
 
-    def _stage(self, variant, single_thread):
+    def _stage(self, variant, single_thread, choice=None, gpus=None):
         tmp = os.path.join(self.root, ".staging", uuid.uuid4().hex)
         inp = os.path.join(tmp, "input")
         copy_text_inputs(self.input_dir, inp)
         apply(variant, inp, self.lattice_name, self.model, self.seed, single_thread)
+        write_engine_section(inp, choice or self.engine_choice(), gpus)
         return tmp, inp
 
-    def engine(self, variant=None, force=False, single_thread=False, progress=None, stop=None):
+    def engine(self, variant=None, force=False, single_thread=False, progress=None, stop=None, gpus=None):
         """:class:`EngineRun` of *variant*: the cached one when its fingerprint exists (unless *force*),
-        else a new engine run.  A failed run is recorded (status "failed", the error) and returned."""
+        else a new engine run.  A failed run is recorded (status "failed", the error) and returned.
+        *gpus*: the new kernel's GPUs for this run (parallel batches bind one each; not part of the
+        fingerprint).  A kernel or device that cannot run raises :class:`~avas.engines.EngineChoiceError`."""
         variant = variant or Variant()
-        tmp, inp = self._stage(variant, single_thread)
+        choice = self.engine_choice()
+        tmp, inp = self._stage(variant, single_thread, choice, gpus)
         try:
-            fp = self.fingerprint(inp)
+            sc = engines.input_space_charge(inp)
+            profile = self.engine_profile(sc, choice)
+            fp = self.fingerprint(inp, choice)
             folder = os.path.join(self.root, "runs", fp[:16])
             record_path = os.path.join(folder, "run.json")
             if not force and os.path.isfile(record_path):
@@ -185,9 +302,12 @@ class Study:
         out = os.path.join(folder, "output")
         os.makedirs(out)
         field_dir = self.field_dirs[0] if self.field_dirs else self.input_dir
+        engine_rec = dict(profile, kernel=choice.kernel, requested=choice.to_dict(), space_charge=sc)
+        if gpus is not None:
+            engine_rec["bound_gpus"] = str(gpus)
         record = {"fingerprint": fp, "status": "running", "fidelity": "engine", "variant": variant.to_dict(),
                   "label": variant.label, "seed": variant.seed if variant.seed is not None else self.seed,
-                  "single_thread": single_thread, "engine": engine.identity(), "avas_commit": _avas_commit(),
+                  "single_thread": single_thread, "engine": engine_rec, "avas_commit": _avas_commit(),
                   "project": self.input_dir, "lattice": self.lattice_name, "field_dir": field_dir,
                   "started": datetime.datetime.now().isoformat(timespec="seconds")}
         _write(record_path, record)
@@ -198,18 +318,40 @@ class Study:
                                                 log_path, stop, progress)
             else:
                 command = self.command(os.path.join(folder, "input"), out, field_dir, self.lattice_name)
-                record["seconds"] = engine.run(command, folder, log_path, self.timeout, stop, progress)
-            engine.trim_output(out)
+                record["seconds"] = engine_proc.run(command, folder, log_path, self.timeout, stop, progress)
+            engine_proc.trim_output(out)
+            self._check_actual(record, out)
             from avas.post.analysis.run_diagnostics import dataset_metrics
             record["metrics"] = dataset_metrics(out) or {}
             record["status"] = "done" if record["metrics"] else "failed"
             if not record["metrics"]:
                 record["error"] = "no DataSet.txt"
-        except engine.EngineError as exc:
+        except engine_proc.EngineError as exc:
             record.update(status="failed" if str(exc) != "stopped" else "stopped", error=str(exc))
         record["finished"] = datetime.datetime.now().isoformat(timespec="seconds")
         _write(record_path, record)
         return EngineRun(variant, folder, record)
+
+    def _check_actual(self, record, out):
+        """The kernel / device the run actually used (its avas_run.json) into the record; a warning when
+        its result tier is not the predicted one."""
+        try:
+            with open(os.path.join(out, "avas_run.json"), encoding="utf-8") as fh:
+                used = json.load(fh).get("engine")
+        except (OSError, ValueError):
+            return
+        if not isinstance(used, dict):
+            return
+        tier = used.get("tier") or engines.result_tier(used.get("kernel"), used.get("device"), used.get("precision"),
+                                                        used.get("compat"))
+        record["engine"]["actual"] = {k: used.get(k) for k in ("kernel", "version", "device", "precision", "gpus",
+                                                               "compat", "threads", "space_charge")}
+        record["engine"]["actual"]["tier"] = tier
+        predicted = record["engine"].get("tier")
+        if tier and predicted and tier != predicted:
+            msg = f"the run used result tier {tier}, the study predicted {predicted} (its cache entry is filed under the prediction)"
+            record.setdefault("warnings", []).append(msg)
+            log.warning("study %s: %s", self.name, msg)
 
     def run(self, variant=None, fidelity="engine", **kwargs):
         """:meth:`engine` or :meth:`linear` by *fidelity*."""

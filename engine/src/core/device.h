@@ -145,14 +145,45 @@ struct ProcessRank {
 };
 ProcessRank process_rank();
 
+// The device a run gets from the options (device / precision / gpus / compat): plan_device() is the
+// only place that decides it, for main_agent (make_device_backend) and for the C API query
+// avas_engine_devices() (resolution of "auto" without running a simulation).
+struct DevicePlan {
+    std::string device = "cpu";      // "cpu", "cuda", "metal" or "emu"
+    std::string precision = "fp64";  // "fp64" or "fp32" (Metal: always fp32)
+    std::vector<int> gpus;           // CUDA devices of the run
+    std::string reason;              // why ("requested", "auto: ...")
+    std::string error;               // not empty: the run fails with this message (device required, unusable)
+    std::string desc;                // CUDA: the selected GPUs for the log line; Metal: the GPU name
+    bool spaceCharge = false;        // make_device_backend: the run it was set up for has space charge
+};
+// nParticles < 1: no memory estimate (query without a run).  The CUDA probe creates a context on
+// every selected GPU.
+DevicePlan plan_device(long long nParticles, bool spaceCharge);
+
 // Device chosen for a run (options device / precision / gpus, environment AVAS_ENGINE_DEVICE /
 // AVAS_ENGINE_PRECISION / AVAS_ENGINE_GPUS).  Returns null for the CPU; throws EngineError when a
-// GPU was required and cannot be used.  nParticles is used for the memory estimate.
+// GPU was required and cannot be used.  nParticles is used for the memory estimate.  The device
+// actually used (after a fallback of "auto" to the CPU) is kept for avas_engine_last_run().
 std::unique_ptr<DeviceBackend> make_device_backend(long long nParticles, bool spaceCharge);
+// The last device make_device_backend() set up (plan.device empty: none since reset_used_device()).
+const DevicePlan& used_device();
+void reset_used_device();
 
-// Only the CUDA build: the back end itself (null and a reason when no usable GPU).
-std::unique_ptr<DeviceBackend> make_cuda_backend(long long nParticles, bool spaceCharge, bool required,
-                                                 std::string& why);
+// Only the CUDA build.  cuda_plan: driver, GPUs of the option gpus, their kernels (probe), the
+// memory estimate (nParticles > 0) and the precision; false and a reason when no usable GPU.
+bool cuda_plan(long long nParticles, bool spaceCharge, DevicePlan& plan, std::string& why);
+// The back end of a plan from cuda_plan (null and a reason when it cannot be set up).
+std::unique_ptr<DeviceBackend> make_cuda_backend(const DevicePlan& plan, std::string& why);
+// CUDA devices of this machine for the C API query (empty without CUDA support or driver).
+struct CudaDeviceInfo {
+    int index = 0;
+    std::string name;
+    int major = 0, minor = 0;
+    bool fp64Full = false;  // HPC part with fp64 at half the fp32 rate (precision auto: fp64)
+    double memoryGB = 0.0;  // total memory, GB = 1e9 B
+};
+std::vector<CudaDeviceInfo> cuda_devices(std::string& why);
 // Space-charge mesh work on an accelerator without fp64 (Metal, M6c phase 1): the particles stay in
 // the device back end of the CPU (emu, fp64) and only the deposit, the PICNIC / SPICNIC sums and the
 // interpolation run on the accelerator in fp32.  x, y, z are the rel coordinates of the particles.
@@ -249,6 +280,8 @@ std::unique_ptr<ScAccel> make_metal_accel(std::string& why);
 // (core/f32_host.cpp) with their kernels run on the CPU (core/f32_cpu.cpp); every build.
 std::unique_ptr<ScAccel> make_f32_cpu_accel(std::string& why);
 bool metal_compiled();
+// The Metal device (Metal 3 needed) without compiling the kernels: false and a reason when there is none.
+bool metal_probe(std::string& name, std::string& why);
 // The CUDA fp32 tier (src/cuda/cuda_f32_device.cu): the accelerator on the given GPUs.
 std::unique_ptr<ScAccel> make_cuda_f32_accel(const std::vector<int>& devs, const std::string& desc, std::string& why);
 // Compiled with CUDA support?

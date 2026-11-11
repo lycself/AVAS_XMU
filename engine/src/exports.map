@@ -4,6 +4,7 @@
 {
   global:
     path; main_agent; sampling; meshing; dataprocess; avas_set_option; avas_engine_version;
+    avas_engine_info; avas_engine_devices; avas_engine_last_run;
   local:
     *;
 };
