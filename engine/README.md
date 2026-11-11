@@ -95,7 +95,7 @@ C 接口新增三个查询（JSON，见 `include/avas_engine.h`）：`avas_engin
 |---|---|---|
 | `windows-2022` | MSVC（VS 2022）+ CUDA 12.4.1（redist 压缩包）、`tools\build_cuda_windows.bat` | 单元测试；导出符号；`run_all.py --strict`（compat=dll 与 AVAS.dll 参考逐字符相同）；`tools_check.py` 与仓库里的 AVAS.dll 逐字节比较；`run_gpu.py --device emu --fp32` |
 | `ubuntu-24.04` | manylinux2014 + CUDA 12.4 镜像（GitHub Actions 缓存镜像层）、`tools/build_cuda_linux.sh`，检查也在容器（glibc 2.17）里跑 | 单元测试；只导出 C 接口；GLIBC ≤ 2.17、GLIBCXX ≤ 3.4.19；`run_all.py`（容差 1e-10）；emu fp64 / fp32 |
-| `macos-14` | Apple clang + Metal，arm64 + x86_64（universal2，macOS 13 起） | 单元测试（x86_64 在 Rosetta 下）；导出符号；两个架构的 `run_all.py`；emu；有可用的 Metal 3 设备时 `run_gpu.py --device metal`，否则日志写明跳过 |
+| `macos-15` | Apple clang + Metal，arm64 + x86_64（universal2，macOS 13 起） | 单元测试（x86_64 在 Rosetta 下）；导出符号；两个架构的 `run_all.py`；emu；有可用的 Metal 3 设备时 `run_gpu.py --device metal`，否则日志写明跳过 |
 
 每个作业上传库与 `build-info.json`（平台、源码哈希、编译器、CUDA 机器码、SHA-256、检查结果、工作流运行）；汇总作业核对三份源码哈希一致、等于检出的 `engine/`，
 写 `build-stamp.json`，上传产物 `avas-engine-new-<源码哈希前 16 位>`。`python engine/tools/fetch_ci_engine.py [--run ID]` 下载并校验后放进 `avas/engine/new/`，

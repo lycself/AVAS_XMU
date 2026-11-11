@@ -34,7 +34,7 @@
 |---|---|---|
 | `windows`（`windows-2022`） | 检出；Python 3.11；从 NVIDIA redist 下载 `cuda_nvcc 12.4.131`、`cuda_cudart 12.4.127`、`cuda_cccl 12.4.127` 三个 zip（共约 70 MB，按 `redistrib_12.4.1.json` 的 SHA-256 写死在工作流里校验），解到一个目录；`build_cuda_windows.bat`（VS 2022 + Ninja）；单元测试；`exports` 与 `deps`；`run_all.py --strict`；`tools_check.py` 先用仓库里的 AVAS.dll 跑出参考、再用新库 `--compat dll --ref` 逐字节比较；`run_gpu.py --device emu --fp32`；`build-info`；上传 `engine-windows-x86_64` | CUDA 1–2 min，构建 15–25 min（4 核，3 个 .cu × 6 种机器码 × 动态库与测试静态库两份），run_all 5–8 min，emu 25–40 min；合计约 1 小时，超时 150 min |
 | `linux`（`ubuntu-24.04`） | 检出；buildx 构建镜像（`cache-from/to: type=gha`，镜像层在运行之间缓存）；容器里（以 runner 的 uid、`HOME=/tmp`）`build_cuda_linux.sh`、单元测试、`exports`、`glibc`、`deps`、`run_all.py`（容差）、`run_gpu.py --device emu --fp32`、`build-info`；上传 `engine-linux-x86_64` | 镜像首次约 2 min（之后命中缓存），构建 6–10 min，run_all 4–6 min，emu 20–35 min；超时 120 min |
-| `macos`（`macos-14`） | 检出；Python 3.11；Apple clang、`CMAKE_OSX_ARCHITECTURES=arm64;x86_64`、`CMAKE_OSX_DEPLOYMENT_TARGET=13.0`；检测 Rosetta；单元测试（arm64，x86_64 在 Rosetta 下）；`exports`、`deps`；arm64 `run_all.py`；x86_64 `run_all.py`（`arch -x86_64 /usr/bin/python3`，系统自带的双架构 Python）；emu；`metal` 检测，可用时 `run_gpu.py --device metal`，否则日志写明跳过、不失败；`build-info` 记录 Metal 与 x86_64 是否检查过；上传 `engine-macos-universal2` | 构建 2–3 min，两次 run_all 5–8 min，emu 15–25 min；超时 120 min |
+| `macos`（`macos-15`） | 检出；Python 3.11；Apple clang、`CMAKE_OSX_ARCHITECTURES=arm64;x86_64`、`CMAKE_OSX_DEPLOYMENT_TARGET=13.0`；检测 Rosetta；单元测试（arm64，x86_64 在 Rosetta 下）；`exports`、`deps`；arm64 `run_all.py`；x86_64 `run_all.py`（`arch -x86_64 /usr/bin/python3`，系统自带的双架构 Python）；emu；`metal` 检测，可用时 `run_gpu.py --device metal`，否则日志写明跳过、不失败；`build-info` 记录 Metal 与 x86_64 是否检查过；上传 `engine-macos-universal2` | 构建 2–3 min，两次 run_all 5–8 min，emu 15–25 min；超时 120 min |
 | `stamp`（`ubuntu-24.04`，依赖前三个） | 检出；下载三个产物；`ci_engine.py stamp --require windows-x86_64,linux-x86_64,macos-universal2`：核对每个文件的 SHA-256、三份源码哈希和提交相同且等于检出的 `engine/`，写 `build-stamp.json`；上传 `avas-engine-new-<源码哈希前 16 位>`（保留 90 天，平台产物 14 天） | 1 min |
 
 `build-info.json`：平台、文件名、SHA-256、大小、源码哈希（库自己报告的必须等于检出的 `engine/`，否则失败——防止用了旧构建）、版本、构建选项（CUDA / Metal / MPI、机器码）、
@@ -129,7 +129,7 @@ Windows：
 
 Linux：`docker/build-push-action` 的 gha 缓存（首次运行写入约 1.5 GB，是否包含基础镜像层）；以 runner uid 运行容器时检出目录可读写。
 
-macOS：`macos-14` 上 Rosetta 与 `/usr/bin/python3` 是否可用（不可用时日志说明并跳过 x86_64）；Metal 在虚拟机里几乎肯定不可用（日志写“SKIPPED”，`build-info` 记“skipped”）；
+macOS：`macos-15` 上 Rosetta 与 `/usr/bin/python3` 是否可用（不可用时日志说明并跳过 x86_64）；Metal 在虚拟机里几乎肯定不可用（日志写“SKIPPED”，`build-info` 记“skipped”）；
 runner 的 Apple clang 版本（Xcode 15/16）与本机 17 不同，结果在容差内即可。
 
 汇总：`download-artifact` 的 `pattern` 把三个产物各放一个子目录；`stamp` 的 `name` 输出用于产物名。

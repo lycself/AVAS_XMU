@@ -68,7 +68,7 @@ WebView2 安装程序），如果安装了 [Inno Setup 6](https://jrsoftware.org
 
 1. 提交 `engine/` 的改动并推送到 `engine-rebuild` 或 `main`（或在 Actions 页手动运行 **Engine** 工作流）。`.github/workflows/engine.yml` 在 `engine/` 有改动时运行，
    三个作业：`windows-2022`（MSVC + CUDA 12.4，`compat=dll` 与 AVAS.dll 参考逐字符比较、DLL 工具逐字节比较）、`ubuntu-24.04`（manylinux2014 容器，检查只导出 C 接口、
-   GLIBC ≤ 2.17）、`macos-14`（Apple clang + Metal，arm64 + x86_64 双架构）；都跑单元测试、`run_all.py` 与 emu 设备的 fp64 / fp32 检查。CI 没有 GPU，真卡比对手动做。
+   GLIBC ≤ 2.17）、`macos-15`（Apple clang + Metal，arm64 + x86_64 双架构）；都跑单元测试、`run_all.py` 与 emu 设备的 fp64 / fp32 检查。CI 没有 GPU，真卡比对手动做。
    汇总作业把三份库合成产物 `avas-engine-new-<源码哈希前 16 位>`（保留 90 天）。
 2. 运行成功后在仓库根目录执行（需要登录的 [GitHub CLI](https://cli.github.com)）：
 
@@ -237,7 +237,7 @@ rebuilt. Packaging (`packaging/avas.spec` collects all of `avas/engine/`), the u
 
 1. Commit the `engine/` change and push it to `engine-rebuild` or `main` (or run the **Engine** workflow by hand). `.github/workflows/engine.yml` runs on
    changes to `engine/` with three jobs: `windows-2022` (MSVC + CUDA 12.4; `compat=dll` compared character by character with the AVAS.dll references,
-   the DLL tools byte by byte), `ubuntu-24.04` (manylinux2014 container; only the C API exported, GLIBC ≤ 2.17) and `macos-14` (Apple clang + Metal,
+   the DLL tools byte by byte), `ubuntu-24.04` (manylinux2014 container; only the C API exported, GLIBC ≤ 2.17) and `macos-15` (Apple clang + Metal,
    arm64 + x86_64). All run the unit tests, `run_all.py` and the emu device's fp64 / fp32 checks; CI has no GPU, real GPUs are checked by hand. The summary
    job combines the three libraries into the artifact `avas-engine-new-<first 16 digits of the source hash>` (kept 90 days).
 2. After a successful run, from the repository root (needs the logged-in [GitHub CLI](https://cli.github.com)):

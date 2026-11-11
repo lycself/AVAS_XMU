@@ -165,7 +165,7 @@ jobs:
   macos:
     # universal2 (arm64 + x86_64) with Metal; the x86_64 slice is tested under Rosetta.  CI Macs are virtual
     # machines: Metal is checked only when a Metal 3 device is usable there (the log says so otherwise)
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 120
     env:
       BUILD: ${{ github.workspace }}/../engine-build

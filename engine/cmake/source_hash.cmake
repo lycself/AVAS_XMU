@@ -9,6 +9,10 @@
 # Included by CMakeLists.txt for avas_hashed_files(); run as a script it writes the header:
 #   cmake -DROOT=<engine dir> -DOUT=<header> -P source_hash.cmake
 
+# Script mode (cmake -P) starts with every policy unset: CMake 3.x would read IN_LIST as a plain word
+# (CMake 4 no longer has the old behaviour).  Policies are recorded when a function is defined.
+cmake_policy(SET CMP0057 NEW)
+
 set(AVAS_THIRD_PARTY_SOURCE_EXT ".h;.hpp;.c;.cc;.cpp;.cu;.cuh;.mm;.metal;.inc")
 
 # Absolute paths of the hashed files, sorted by their relative path.
