@@ -140,12 +140,21 @@ def library_exports(lib):
     return {ln.split()[-1].split("@")[0] for ln in out.splitlines() if len(ln.split()) == 3}
 
 
+# Exports a library may have besides the C API.  The static CUDA runtime on Windows (cudart_static.lib)
+# exports NvOptimusEnablementCuda: on laptops with integrated and NVIDIA graphics (Optimus) it asks the
+# driver to wake the NVIDIA GPU for this process, which device=cuda needs.
+ALLOWED_EXTRA = {".dll": {"NvOptimusEnablementCuda"}}
+
+
 def cmd_exports(a):
     want, got = exported_api(), library_exports(a.lib)
-    extra, missing = sorted(got - want), sorted(want - got)
+    allowed = next((v for ext, v in ALLOWED_EXTRA.items() if a.lib.lower().endswith(ext)), set())
+    extra, missing = sorted(got - want - allowed), sorted(want - got)
     print(f"{a.lib}: {len(got)} exported symbols")
     for name in sorted(got & want):
         print(f"  {name}")
+    for name in sorted(got & allowed):
+        print(f"  {name} (allowed: from the static CUDA runtime)")
     if extra:
         print(f"NOT IN THE C API ({len(extra)}): " + " ".join(extra[:40]) + (" ..." if len(extra) > 40 else ""))
     if missing:
