@@ -195,3 +195,5 @@ runner 的 Apple clang 版本（Xcode 15/16）与本机 17 不同，结果在容
 - Linux：全部通过（单元测试、只导出 C 接口、glibc ≤ 2.17、与参考 1e-10 以内、emu fp64 / fp32 184 个算例逐字节可重复），库 12.9 MB；镜像层缓存第二次命中。
 - macOS：构建、Rosetta 下 x86_64 单元测试与比对、arm64 比对、emu 全部通过；Metal 在虚拟机里不可用（“Apple Paravirtual device does not support Metal 3”），按设计跳过并记入 build-info；库 2.97 MB。
 - 告警：`actions/checkout@v4` 等仍以 Node.js 20 为目标，GitHub 已强制改用 Node.js 24 运行，目前只是告警。
+- 第四次运行（42973557438，提交 f7423ab）全部通过。Windows strict：8 个算例 18 处与参考不同（`.dst` 少数粒子末位、LT1 的 BeamSet.plt / PCHistogram.dat），在 runner 上重跑 AVAS.dll 后全部与新内核逐字节相同；其余输出直接与参考逐字符一致；DLL 工具逐字节一致。Windows 库 11.3 MB。
+- `fetch_ci_engine.py --run 42973557438` 校验后装入 `avas/engine/new/`（dll 6cacb6bc…、so 8cc96be7…、dylib 3382681f…）；macOS 库与第二次运行的构建逐字节相同。Mac 上默认改用这个库，`test_design_rules.py` 等通过。

@@ -1,0 +1,108 @@
+{
+ "schema": 1,
+ "source_hash": "f4c772d899026e527287987f77b3c72a621dc92ff0deec8a6087e1c06b30ed5c",
+ "version": "f4c772d899026e52",
+ "commit": "f7423aba37036f1a912d366a25109f59129ac9a7",
+ "ref": "engine-rebuild",
+ "repository": "lycself/AVAS_XMU",
+ "workflow_run": {
+  "workflow": "Engine",
+  "id": "42973557438",
+  "number": "4",
+  "attempt": "1",
+  "url": "https://github.com/lycself/AVAS_XMU/actions/runs/42973557438"
+ },
+ "created": "2026-11-11T06:59:45+00:00",
+ "files": {
+  "libavas_engine.so": {
+   "platform": "linux-x86_64",
+   "sha256": "8cc96be7831f63bee0ee23f17c215a60daa368197c8bd102eeffbaa34097bdfe",
+   "size": 12872344,
+   "version": "f4c772d899026e52",
+   "build": {
+    "cuda": true,
+    "metal": false,
+    "mpi": false,
+    "cuda_archs": [
+     "61-real",
+     "75-real",
+     "80-real",
+     "86-real",
+     "89-real",
+     "90"
+    ],
+    "build_type": "Release"
+   },
+   "compiler": "gcc 10.2.1 20210130 (Red Hat 10.2.1-11)",
+   "cmake_compiler": "GNU 10.2.1",
+   "cuda_compiler": "NVIDIA 12.4.131",
+   "runner": "ubuntu24 20261101.360.1",
+   "built": "2026-11-11T06:49:28+00:00",
+   "checks": {
+    "unit": "passed",
+    "exports": "C API only",
+    "glibc": "<= 2.17",
+    "parity": "within 1e-10 of AVAS.dll",
+    "emu": "fp64 and fp32 passed"
+   }
+  },
+  "libavas_engine.dylib": {
+   "platform": "macos-universal2",
+   "sha256": "3382681fcf39777f747d96da28e90d76262bd2f66b858ef258894853002e69e4",
+   "size": 2973656,
+   "version": "f4c772d899026e52",
+   "build": {
+    "cuda": false,
+    "metal": true,
+    "mpi": false,
+    "cuda_archs": [],
+    "build_type": "Release"
+   },
+   "compiler": "clang 17.0.0 (clang-1700.0.13.5)",
+   "cmake_compiler": "AppleClang 17.0.0.17000013",
+   "cuda_compiler": "",
+   "runner": "macos15 20261104.0514.1",
+   "built": "2026-11-11T06:47:40+00:00",
+   "checks": {
+    "unit": "passed",
+    "exports": "C API only",
+    "parity": "within 1e-10 of AVAS.dll",
+    "emu": "fp64 and fp32 passed",
+    "metal": "skipped: no Metal 3 device on the runner",
+    "x86_64": "unit and parity passed under Rosetta"
+   }
+  },
+  "avas_engine.dll": {
+   "platform": "windows-x86_64",
+   "sha256": "6cacb6bc8fc65c0dd90a6b6789be262721da701178dd8f04e7704e104c6e7658",
+   "size": 11291136,
+   "version": "f4c772d899026e52",
+   "build": {
+    "cuda": true,
+    "metal": false,
+    "mpi": false,
+    "cuda_archs": [
+     "61-real",
+     "75-real",
+     "80-real",
+     "86-real",
+     "89-real",
+     "90"
+    ],
+    "build_type": "Release"
+   },
+   "compiler": "MSVC 194435229",
+   "cmake_compiler": "MSVC 19.44.35229.0",
+   "cuda_compiler": "NVIDIA 12.4.131",
+   "runner": "win22 20261101.353.1",
+   "built": "2026-11-11T06:59:30+00:00",
+   "checks": {
+    "unit": "passed",
+    "exports": "passed",
+    "parity": "compat=dll byte-identical to AVAS.dll (strict)",
+    "tools": "byte-identical to AVAS.dll",
+    "emu": "fp64 and fp32 passed"
+   }
+  }
+ }
+}
