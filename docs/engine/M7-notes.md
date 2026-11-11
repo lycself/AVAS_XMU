@@ -169,3 +169,92 @@ Mac：`$TMPDIR/claude-…/scratchpad/m7a/` 下的两种新构建、两份对照�
 （建 venv 时下载的包留在 uv 的全局缓存里）。
 `engine/build`（开发者自己的构建目录，不提交）已用新代码重新构建。L40S：`/data/public/lycself/m7a_tmp`（源码、两份 CUDA 构建、比对工作目录、示例运行）与当天新建的
 `~/.local/share/AVAS/updates/installation-68ca….lock` 两个锁文件已删除；没有新建 docker 镜像。L40S 上的设备查询按要求用 5 号卡；为看多卡下 `--gpus 1` 的解析，有一次查询以 `CUDA_VISIBLE_DEVICES=5,6` 运行，在 6 号卡上建立过一次上下文（只有探针核函数，没有计算）。
+
+## M7b：界面接入（2026-11-11，Mac M2）
+
+### 1. 改动的文件
+
+| 文件 | 内容 |
+|---|---|
+| `avas/engines.py` | 平台默认：`original_available()`（只认 Windows / Linux 的 x86-64）、`default_kernel()`（有原内核 original，否则 new）、`platform_label()`、`check_platform()`（没有原内核的平台上显式选原内核时报错，说明来源 ini / 命令行 / 环境变量）；`describe()` 加 `platform` 与 `original.available`；`input_keywords()`、`input_space_charge(…, spacecharge=)`（表单未保存的开关）；`clear_query_cache()`；auto 运行的 `engine.reason`（`_auto_reason`：运行后取内核计划的原因，计划的设备与实际不同时注明“运行时不能用”） |
+| `avas/cli/main.py` | `avas run` 在写输出目录前调用 `check_platform`（退出码 2）；原内核分支保留 kernel 的来源；`avas info` 在没有原内核的平台写“not available on macOS arm64 (only the new kernel; it is the default here)”；`--engine` 帮助文字 |
+| `avas/gui/services/kernels.py`（新） | `engine.info`（子进程查询，`refresh` 清缓存）、`engine.preview`（表单的选择对本项目 sc / nosc 的计划）、`engine.check` 与 `require_ready(input_dir)`（运行前检查：设置无效、原内核平台、原内核 + PICNIC、新内核库、设备与组合）、`summary` / `read_summary`（avas_run.json 的 `engine` → 标签数据，旧记录 None）、`settings_form` / `validate_form` / `save_settings`（`[engine]` 表单） |
+| `avas/gui/bridge.py`、`frontend/src/bridge.ts` | `UserError(template, **params)`：回复带 `template` 与 `params`，前端 `t(template, params)` 翻译，带变量的错误也能翻译；没有参数时与原来完全相同 |
+| `avas/gui/services/simsettings.py` | `settings.load` 返回 `engine`；`settings.save(…, engine=)` 写任何文件前先校验，最后只在与文件不同时写 `[engine]` |
+| `avas/gui/services/runner.py` | `run.check` 返回预计的内核（并检查），`run.start` 把它放进 `Job.engine`；阶段结束后读该阶段 avas_run.json 换成实际值；运行状态与 `run.finished` 带 `engine` |
+| `avas/gui/services/segments.py`、`study.py`、`analysis.py`、`avas/ai/sandbox.py` | 分段运行、研究页内核扫描、内核响应矩阵、AI 沙盒（`Sandbox.run_in`，每次内核运行）在启动前 `require_ready`；沙盒 activity 带 `engine`（预计 → 实际）；`results.sources` 每条带 `engine`（OutputFile、Runs/、Research/、Segments/） |
+| `avas/gui/services/live.py` | `run.replay` 带 `engine` |
+| `avas/ai/avas_prompt.py`、`avas/gui/services/assistant.py` | 提示词：两个内核、`[engine]`、沙盒沿用项目选择、PICNIC / scanphase、比较不同内核或结果档时的注意事项；项目事实加一行“本项目的内核 + 上次运行用了什么” |
+| `frontend/src/engine.ts`（新）、`engine.test.ts` | 选项与组合规则（`deviceChoices`、`precisionProblem`、`compatProblem`、`formProblems`）、ini 行（`iniLines`）、标签（`engineLabel`、`engineShort`、`autoReason`）、关于窗口的文字（`kernelLines`）；17 个 vitest |
+| `frontend/src/pages/EngineSettings.tsx`（新）、`SettingsPage.tsx` | 模拟设置页“计算内核”分组；PICNIC 选项与原内核下的提示（运行前 `validate` 也拦下）；scanphase 注明两个内核都不读、scanData 表默认收起 |
+| `frontend/src/components/EngineBadge.tsx`（新）、`store/engine.ts`（新） | 标签组件；`engine.info` 的共享缓存（壳层启动 5 秒后预取一次） |
+| `frontend/src/pages/RunPage.tsx`、`lattice/LiveBeamPanel.tsx`、`shell/Shell.tsx`、`pages/ResultsPage.tsx`、`results/CompareTab.tsx`、`store/app.ts`、`store/live.ts`、`actions.ts` | 运行页信息区“内核”一行、实时面板标题、运行记录每行、状态栏（运行中为本次运行，空闲时为本项目上次运行）、结果页来源列表与当前来源下方一行、运行对比的勾选列表与图例；关于窗口与“复制版本信息”的“计算内核”段；非 Windows 的关于窗口不再写“WebView2 –”（macOS 写 WKWebView） |
+| `frontend/src/i18n/zh_CN.json`、`styles/pages.css` | 新文字的中文（88 条，删掉不再使用的“相位扫描模式 2 需要 scanData.txt”一条）；颜色只用已有变量 |
+| `README.md`、`frontend/src/help/manual.{zh,en}.md`、`AGENTS.md` | 第 2 节 |
+| `tests/test_gui_engine.py`（新）、`tests/test_engines.py`、`tests/test_study_gui.py`、`tests/test_assistant.py` | 第 4 节 |
+
+### 2. 设计要点
+
+- **平台默认**：`[engine] kernel` 未写时，有原内核的平台用原内核（M7 的“默认仍用原内核”针对的就是这些平台），没有原内核的平台（macOS、ARM Linux）用新内核。
+  `avas info`、设置页（“本平台只有新内核”）、运行记录都按这个默认。显式选原内核在运行前报错（CLI `check_platform`，GUI `require_ready`，设置页的 `validate` 也拦下）。
+- **设置页**：设备只列本机检测到的（`engine.info`，子进程 `avas info --engine-json`，按库文件与选择缓存）；auto 时用 `engine.preview` 按表单的空间电荷开关显示本项目会用什么，
+  同时给出另一种情况（有 / 无空间电荷）。不合法的组合（Metal + fp64、CPU + fp32、复现 AVAS.dll + GPU）禁用并说明，规则与后端 `engines.validate` 相同；
+  新内核库缺失时“新内核”不可选并说明如何获得；本机没有 ini 里写的设备时保留显示并警告。GPU 多选只在多张 NVIDIA 卡时出现；“高级”里是线程数（默认 0）与兼容模式，
+  并显示将写入的 `[engine]` 行。环境变量 `AVAS_ENGINE*` 覆盖 ini 时提示。保存规则：kernel 显式写，其余键等于默认值时删掉，表单与文件相同时不写。
+- **运行前检查**：所有 GUI 运行入口调 `require_ready`。它与子进程解析选择的方式相同（命令行没有参数，环境变量 > ini > 默认），失败时是带参数的 `UserError`，
+  模板有中文翻译（细节保留内核给出的英文原因）。AI 沙盒的检查在每次 `run_in` 前（查询有缓存，只有第一次需要约 1–3 s）。
+- **标签**：数据只来自 avas_run.json 的 `engine`；运行中显示 `run.check` 的预计值（斜体，提示“按设置预计”），阶段结束换成实际值。auto 落到 CPU 时标签写
+  “实际：CPU（自动：…）”，原因按内核的英文原因归为几类翻译（无空间电荷、兼容模式、构建不含 GPU、运行时失败、本机没有可用 GPU），完整原因在悬停提示里。
+- **scanphase / scanData.txt**：只改显示（注明不读、表格默认收起），不删文件、不改保存逻辑；去掉了“相位扫描 = 2 且表格为空时不能运行”的检查——两个内核都不读，这个检查只会挡住运行。
+
+### 3. 与方案不同或方案未写明的地方
+
+1. **macOS 默认新内核**：方案只写“默认 original”，本次按任务说明在没有原内核的平台默认 new（理由见上）。`tests/test_engines.py` 里依赖“默认 original”的两处改为显式设定平台或 ini。
+2. **带参数的 UserError**：为翻译带变量的提示新增（模板 + params）；只是多两个字段，旧调用不变。
+3. **关于窗口按需查询**：方案写“列出两个内核与本机设备”；查询是子进程（Mac 上约 1–3 s），所以壳层启动 5 秒后在后台预取一次，关于窗口直接用缓存。
+4. **研究页内核运行的 GUI 检查**：研究层 `Study` 本来就在设备不可用时抛 `EngineChoiceError`；GUI 另在 `study.start` / `analysis.responseEngineStart` 开始前检查一次，失败时整个扫描不开始，而不是每行报错。
+
+### 4. 检查结果（Mac M2）
+
+新内核库：Apple clang 17 构建到临时目录（含 Metal），用 `AVAS_ENGINE_LIB` 指向；Mac 上没有写 `[engine]` 的项目默认就用新内核（auto：有空间电荷 → Metal fp32），
+所以下面的全套 pytest 就是“新内核下跑真正运行内核的测试”。
+
+| 检查 | 结果 |
+|---|---|
+| 全套 pytest（`AVAS_ENGINE_LIB=… python -m pytest`） | 524 passed、5 skipped、3 failed；失败只有既有项（`test_run_path::test_stage_inputs…` 要求示例目录有生成的 `lattice.txt`；`test_updates::…[frozen]` 打包更新只支持 Windows）与 `test_engines::test_library_reports_the_source_hash_of_this_tree`（M7c 同时在改 `engine/` 源码，临时库按改动前的源码构建，属预期） |
+| `tests/test_gui_engine.py`（新，15 项） | 全部通过：UserError 模板、`engine.info` 形状 / 失败不抛异常 / 真实 `query_subprocess` 的缓存与 refresh、平台默认、只在变化时写 `[engine]`、保留 ini 其余段、无效组合在写任何文件前拒绝、无效项与环境变量提示、运行锁、`engine.preview`、`engine.check` / `run.check` 的各种失败、AI 沙盒带上 `[engine]` 并在设备不可用时拒绝、`summary`、`results.sources` 的 `engine`（含旧记录为 None）、runner 状态的预计 → 实际 |
+| `tests/test_engines.py` | 新增平台默认与 `check_platform`、表单空间电荷、Mac 上显式原内核的 CLI 报错（只在没有原内核的平台运行） |
+| `tests/test_assistant.py::test_sandbox_study_shows_on_the_run_page…` | 原来在 Mac 新内核下失败：Metal 跑完示例只要约 1 s，而进度行每 3 s 才打印一次（与原内核相同），测试等不到进度。新内核时把这次扫描的粒子数临时调到 150 万，通过；原内核行为不变 |
+| vitest `npm test` | 23 个文件 146 项通过 |
+| `npm run build` | 成功，`avas/gui/web/` 已更新 |
+| ruff 0.6.9 | All checks passed |
+| `git diff --check` | 无输出 |
+
+浏览器面板（`avas serve --token dev`，示例副本）：设置页计算内核分组（深色 / 浅色、中文）、本平台只有新内核的说明、ini 写原内核时的警告与禁用、Metal 下 fp64 禁用、
+auto 的解析（“自动，本项目（有空间电荷）：Metal fp32；无空间电荷时：CPU fp64”）、PICNIC 与 scanData 提示、原内核 + PICNIC 的“无法运行”对话框、
+Metal 运行后运行页 / 运行记录 / 实时面板 / 状态栏的标签、关闭空间电荷后 auto 落到 CPU 的标签（“实际：CPU（自动：无空间电荷，GPU 只用于有空间电荷的运行）”）、
+结果页来源与运行对比（图例带“[new kernel Metal fp32]”）、关于窗口。保存后的 ini：`[engine] kernel = new, device = metal`，其余段不变。
+
+Mac 真窗口（`avas gui`，pywebview Cocoa，脚本给 `webview.start` 打补丁驱动、`screencapture -l` 按窗口截图）：页面正常加载（中文），设置页显示正确；
+原生文件夹对话框经 `dialog.openFolder` 打开、取消后返回 None；150 万粒子的 Metal 运行：暂停后进度停在 85.36 %（5 s 内不变，内核报告的墙钟时间含暂停的 5 s），
+继续后完成，标签为“新内核（预览）· Metal fp32”；第二次运行在 90 % 时停止，记录为 stopped，运行页显示预计的标签、状态栏显示“请求：自动”。日志中没有错误。
+
+### 5. Mac 上发现的问题
+
+- 已改：关于窗口在 macOS 写“WebView2 –”，现在写 WKWebView（其他非 Windows 平台写“系统网页视图”）。
+- 未改（不属于 M7b 文件范围或较大）：
+  1. （M7c 已在 `pyproject.toml` 的 `package-data` 加入 `avas/engine/new/` 的库与构建戳，`pip install .` 也会带上新内核库。）
+  2. 新内核短于 3 s 的运行没有进度行（与原内核相同的 3 s 间隔），运行页在这期间显示 0 %；不影响结果，Metal 上的小算例常见。
+  3. 原生文件对话框是独立窗口（不是附着在主窗口上的 sheet），按窗口截图看不到它；功能正常。
+  4. `examples/hwr010` 的 `beam.txt` 让两个内核都打印 “beam.txt Contains unknown keywords”，与本次无关。
+
+### 6. 新的待定点（每项附推荐）
+
+1. **进度行间隔**：新内核沿用 3 s；GPU 上多数算例几秒内结束，运行页长时间显示 0 %。推荐新内核在非 compat 模式下改为“1 s 或 5 % 先到者”（日志格式不变，只影响频率），M7c 之后再定。
+2. **auto 原因的翻译**：现在按关键字把内核的英文原因归为五类。推荐 C 接口在 `avas_engine_last_run()` 里直接报告原因代码（如 `no_space_charge`、`no_gpu`、`compat_dll`），界面按代码翻译，不再匹配英文。
+3. **状态栏空闲时显示什么**：现在显示本项目上次运行的内核（点击打开模拟设置）。推荐保持；若用户觉得与当前设置混淆，可改为“当前设置 + 上次运行”两段。
+
+### 7. 临时数据
+
+`scratchpad/m7b/` 下的新内核构建、Python 3.11 venv、两个示例项目副本、`avas serve` 与真窗口的临时设置、测试输出，结束时删除（截图除外，留给报告）；
+测试在 worktree 生成的 `tests/_output*` 与本次 `avas serve` / 真窗口写进 `~/.local/share/AVAS/logs/20261111.log` 的日志已删除（没有新建安装锁文件）。`frontend/node_modules` 是本次 `npm ci` 安装的（被 .gitignore 忽略），留给后续构建。`engine/build` 未动。

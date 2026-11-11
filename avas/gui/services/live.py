@@ -343,7 +343,7 @@ def replay_record(outputDir):
 
     *outputDir* is OutputFile/, an archived run (Runs/<record>/) or a segment run's
     OutputFile.  Returns ``{kind, label, started, mode, outputDir, zOffset, lattice,
-    rows, losses, particles0}``: the lattice the run was made from (the ``inputs/``
+    rows, losses, particles0, engine}``: the lattice the run was made from (the ``inputs/``
     snapshot of a full run; a segment run is drawn on the project's lattice at its
     z offset, like a live segment run) and the envelope from DataSet.txt as blobs.
     """
@@ -395,5 +395,7 @@ def replay_record(outputDir):
     if z_offset:
         rows["z"] = rows["z"] + z_offset
     losses = [{"z": float(l["z"]) + z_offset, "n": l["n"]} for l in env.get("losses", [])]
+    from avas.gui.services.kernels import read_summary
     return {"kind": kind, "label": label, "started": started, "mode": mode, "outputDir": folder, "zOffset": z_offset,
-            "lattice": lattice, "rows": _blobs(rows), "losses": losses, "particles0": env.get("particles")}
+            "lattice": lattice, "rows": _blobs(rows), "losses": losses, "particles0": env.get("particles"),
+            "engine": read_summary(folder)}

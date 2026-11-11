@@ -41,7 +41,22 @@ MAX_BLOBS = 64
 
 
 class UserError(Exception):
-    """An expected problem whose message is shown to the user as is."""
+    """An expected problem whose message is shown to the user as is.
+
+    With keyword arguments the message is a template (``"… {name} …"``): ``str()`` is the filled-in text,
+    and the page translates the template and fills in the same values (``t(template, params)``), so a
+    message with variable parts is still translated."""
+
+    def __init__(self, message="", **params):
+        self.template = str(message)
+        self.params = {k: ("" if v is None else v if isinstance(v, (int, float)) else str(v)) for k, v in params.items()}
+        text = self.template
+        if self.params:
+            try:
+                text = self.template.format(**self.params)
+            except (KeyError, IndexError, ValueError):
+                pass
+        super().__init__(text)
 
 
 def rpc(name):
@@ -111,7 +126,10 @@ def dispatch(method, params=None):
         result = fn(**(params or {}))
         return dumps({"ok": True, "result": result})
     except UserError as exc:
-        return dumps({"ok": False, "error": str(exc), "user": True})
+        reply = {"ok": False, "error": str(exc), "user": True}
+        if getattr(exc, "params", None):
+            reply.update(template=exc.template, params=exc.params)
+        return dumps(reply)
     except Exception as exc:  # noqa: BLE001 - reported to the page
         detail = traceback.format_exc()
         log.error("%s failed: %s", method, exc)

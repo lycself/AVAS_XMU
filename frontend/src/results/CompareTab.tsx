@@ -6,8 +6,10 @@ import { Checkbox, Icon, IconButton, Select, Spinner } from "../components/ui";
 import { useT } from "../i18n";
 import { useApp } from "../store/app";
 import type { LinesFig } from "./figures";
+import { EngineBadge } from "../components/EngineBadge";
+import { engineShort } from "../engine";
 
-export type CompareSource = { kind: string; label: string; outputDir: string; status?: string | null; time?: string | null; zStart?: number | null };
+export type CompareSource = { kind: string; label: string; outputDir: string; status?: string | null; time?: string | null; zStart?: number | null; engine?: unknown };
 
 const PALETTE = ["#1f77b4", "#d62728", "#2ca02c", "#ff7f0e", "#9467bd", "#8c564b", "#e377c2", "#17becf"]; // design:allow-colour Plotly series palette, one colour per run
 
@@ -71,6 +73,8 @@ export function CompareTab({
       ylabel = fig.ylabel;
       const shift = alignZ && src.kind === "segment" && src.zStart ? src.zStart : 0;
       const color = PALETTE[i % PALETTE.length];
+      const kernel = engineShort(src.engine);
+      const name = kernel ? `${sourceName(src, t)} [${kernel}]` : sourceName(src, t);
       fig.traces.forEach((tr, j) => {
         const x = shift ? Array.from(tr.x, (v) => v + shift) : tr.x;
         data.push({
@@ -78,11 +82,11 @@ export function CompareTab({
           mode: "lines",
           x,
           y: tr.y,
-          name: fig.traces.length > 1 ? `${sourceName(src, t)} · ${tr.name ?? j + 1}` : sourceName(src, t),
+          name: fig.traces.length > 1 ? `${name} · ${tr.name ?? j + 1}` : name,
           legendgroup: dir,
           showlegend: true,
           line: { color: j === 0 ? color : seriesColor(tr.color ?? undefined, dark), width: 1.6, dash: j === 0 ? "solid" : j === 1 ? "dash" : "dot" },
-          hovertemplate: `%{x:.6g}, %{y:.6g}<extra>${sourceName(src, t)}${tr.name ? " · " + tr.name : ""}</extra>`,
+          hovertemplate: `%{x:.6g}, %{y:.6g}<extra>${name}${tr.name ? " · " + tr.name : ""}</extra>`,
         });
       });
     });
@@ -121,6 +125,7 @@ export function CompareTab({
                 <span className="compare-source-label">
                   <span>{sourceName(s, t)}</span>
                   {s.time && <span className="muted"> {s.time}</span>}
+                  <EngineBadge engine={s.engine} />
                 </span>
               }
             />

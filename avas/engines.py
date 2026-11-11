@@ -3,9 +3,11 @@
 Priority of every setting, highest first: the command line (``avas run --engine … --device …``), the
 environment (``AVAS_ENGINE``, ``AVAS_ENGINE_DEVICE``, ``AVAS_ENGINE_PRECISION``, ``AVAS_ENGINE_GPUS``,
 ``AVAS_ENGINE_THREADS``, ``AVAS_ENGINE_COMPAT``), the project's ``ini.ini`` section ``[engine]``
-(keys ``kernel device precision gpus threads compat``), the defaults (kernel original; for the new
-kernel device auto, precision auto, gpus all, threads 0 = automatic, compat none).  With the original
-kernel the other keys are ignored.  input.txt is never changed (the original kernel reads the same
+(keys ``kernel device precision gpus threads compat``), the defaults (kernel original where the
+original kernel exists -- Windows and Linux on x86-64 --, else new (macOS, ARM: :func:`default_kernel`);
+for the new kernel device auto, precision auto, gpus all, threads 0 = automatic, compat none).  With the
+original kernel the other keys are ignored; choosing it explicitly on a platform without it is an error
+before the run (:func:`check_platform`).  input.txt is never changed (the original kernel reads the same
 project).
 
 The new kernel's library is found at ``AVAS_ENGINE_LIB``, then in ``avas/engine/new/`` (the prebuilt
@@ -51,6 +53,29 @@ TIER_CUDA64 = "new-cuda-fp64"
 TIER_FP32 = "new-fp32"
 TIER_DLL = "new-compat-dll"
 TIERS = (TIER_ORIGINAL, TIER_CPU, TIER_CUDA64, TIER_FP32, TIER_DLL)
+
+
+ORIGINAL_SYSTEMS = ("Windows", "Linux")
+ORIGINAL_MACHINES = ("x86_64", "amd64", "x64")
+
+
+def original_available(system=None, machine=None):
+    """Whether the original kernel (AVAS.dll / libAVAS.so, x86-64 binaries) can run on this platform."""
+    system = platform.system() if system is None else system
+    machine = (platform.machine() if machine is None else machine).lower()
+    return system in ORIGINAL_SYSTEMS and machine in ORIGINAL_MACHINES
+
+
+def default_kernel():
+    """The kernel used when nothing selects one: the original kernel where it exists, else the new one."""
+    return "original" if original_available() else "new"
+
+
+def platform_label(system=None, machine=None):
+    system = platform.system() if system is None else system
+    machine = platform.machine() if machine is None else machine
+    name = {"Darwin": "macOS"}.get(system, system)
+    return f"{name} {machine}".strip()
 
 
 class EngineChoiceError(ValueError):
@@ -176,7 +201,7 @@ def resolve_choice(cli=None, input_dir=None, env=None):
             return value, "env", f"{origins['env']} {ENV[key]}"
         if key in ini:
             return ini[key], "ini", f"{origins['ini']} {key}"
-        return DEFAULTS[key], "default", "default"
+        return (default_kernel() if key == "kernel" else DEFAULTS[key]), "default", "default"
 
     value, src, origin = raw("kernel")
     kernel = parse_value("kernel", value, origin)
@@ -204,6 +229,16 @@ def validate(choice):
         raise EngineChoiceError("Metal computes in fp32 only; choose precision auto or fp32 (or device cpu for fp64)")
     if choice.device == "cpu" and choice.precision == "fp32":
         raise EngineChoiceError("the CPU computes in fp64 only; choose precision auto or fp64 (fp32 runs on a GPU)")
+
+
+def check_platform(choice):
+    """The original kernel chosen on a platform that does not have it: a clear error before the run."""
+    if not choice.is_new and not original_available():
+        how = {"ini": " (ini.ini [engine] kernel = original)", "cli": " (--engine original)",
+               "env": " (environment variable AVAS_ENGINE)"}.get(choice.sources.get("kernel"), "")
+        raise EngineChoiceError(f"the original kernel (AVAS.dll / libAVAS.so) does not run on {platform_label()}; it was "
+                                f"chosen explicitly{how}. Use the new kernel: kernel = new in ini.ini [engine], "
+                                "--engine new, or the Simulation settings page")
 
 
 # the choice of the running `avas run` (set by the CLI; MultiParticleEngine uses it)
@@ -323,29 +358,33 @@ def result_tier(kernel, device=None, precision=None, compat=None):
     return TIER_CUDA64
 
 
-def input_space_charge(input_dir):
-    """Whether a run of the inputs in *input_dir* has space charge (as the engine decides: input.txt
-    ``spacecharge``, ``secondarybeam``; beam.txt current 0 or one particle switch it off)."""
-    def keys(name):
-        out = {}
-        try:
-            with open(os.path.join(input_dir, name), encoding="utf-8", errors="replace") as fh:
-                for line in fh:
-                    parts = line.split("!", 1)[0].split()
-                    if len(parts) >= 2:
-                        out[parts[0].lower()] = parts[1]
-        except OSError:
-            pass
-        return out
+def input_keywords(input_dir, name):
+    """First value of every keyword of a text input file (``{keyword: value}``, keywords lower case)."""
+    out = {}
+    try:
+        with open(os.path.join(input_dir, name), encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                parts = line.split("!", 1)[0].split()
+                if len(parts) >= 2:
+                    out[parts[0].lower()] = parts[1]
+    except OSError:
+        pass
+    return out
 
+
+def input_space_charge(input_dir, spacecharge=None):
+    """Whether a run of the inputs in *input_dir* has space charge (as the engine decides: input.txt
+    ``spacecharge``, ``secondarybeam``; beam.txt current 0 or one particle switch it off).  *spacecharge*
+    (bool) replaces the value of input.txt (a form that is not saved yet)."""
     def num(d, key, default):
         try:
             return float(d.get(key, default))
         except ValueError:
             return default
 
-    inp, beam = keys("input.txt"), keys("beam.txt")
-    if num(inp, "spacecharge", 1) != 1 or num(inp, "secondarybeam", 0) == 1:
+    inp, beam = input_keywords(input_dir, "input.txt"), input_keywords(input_dir, "beam.txt")
+    sc_on = num(inp, "spacecharge", 1) == 1 if spacecharge is None else bool(spacecharge)
+    if not sc_on or num(inp, "secondarybeam", 0) == 1:
         return False
     if num(beam, "current", 1) == 0 or num(beam, "particlenumber", 2) == 1:
         return False
@@ -359,7 +398,9 @@ def describe(choice=None, input_dir=None, load_new=True):
     *resolved* is what a run of the choice gets with and without space charge (new kernel only)."""
     orig = original_library_path()
     out = {"original": {"file": os.path.basename(orig), "path": orig, "exists": os.path.isfile(orig),
-                        "sha1": file_sha1(orig)},
+                        "sha1": file_sha1(orig), "available": original_available()},
+           "platform": {"label": platform_label(), "system": platform.system(), "machine": platform.machine(),
+                        "default_kernel": default_kernel()},
            "new": {"path": None, "candidates": new_library_candidates(), "error": None},
            "choice": choice.to_dict() if choice else None, "resolved": None}
     try:
@@ -386,6 +427,11 @@ def describe(choice=None, input_dir=None, load_new=True):
 
 
 _query_cache = {}
+
+
+def clear_query_cache():
+    """Forget the results of :func:`query_subprocess` (devices may have changed: driver, eGPU, new build)."""
+    _query_cache.clear()
 
 
 def query_command(choice):
@@ -502,7 +548,21 @@ def run_record(choice=None, legacy_device=None):
         rec.update(device=last.get("device"), precision=last.get("precision"), gpus=last.get("gpus"),
                    compat=last.get("compat"), threads=last.get("threads"), space_charge=last.get("space_charge"))
         rec["tier"] = result_tier("new", rec["device"], rec["precision"], rec["compat"])
+        if choice.device == "auto" and rec["device"]:
+            rec["reason"] = _auto_reason(eng, rec["device"], rec["space_charge"])
     return rec
+
+
+def _auto_reason(eng, device, space_charge):
+    """Why device auto ran on *device* (the engine's plan; a device that failed at run time is named)."""
+    try:
+        plans = (eng.devices() or {}).get("selected") or {}
+    except (OSError, ValueError):
+        return None
+    plan = plans.get("nosc" if space_charge is False else "sc") or {}
+    if plan.get("device") and plan["device"] != device:
+        return f"auto: {plan['device']} could not be used at run time (see the log)"
+    return plan.get("reason")
 
 
 def with_overrides(choice, **kwargs):

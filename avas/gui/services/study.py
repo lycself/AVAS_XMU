@@ -173,6 +173,8 @@ def start(axes, values, fidelity="linear", metrics=None, label=""):
         if fidelity == "engine":
             if runner.any_active():
                 raise UserError("A simulation is already running; wait for it to finish.")
+            from avas.gui.services import kernels
+            kernels.require_ready(p.input_dir)
             from avas.ai.sandbox import Sandbox, SandboxError
             box = Sandbox(p, f"study_{os.path.basename(path)[:-5]}",
                           root=os.path.join(p.path, "Research", STUDY_NAME, ".sandbox", os.path.basename(path)[:-5]))

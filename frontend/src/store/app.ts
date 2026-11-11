@@ -67,6 +67,8 @@ export type RunState = {
   ok?: boolean;
   message?: string;
   stopped?: boolean;
+  /** the kernel of the run: expected (predicted) until it finishes, then what avas_run.json records (engine.ts) */
+  engine?: unknown;
 };
 
 /**

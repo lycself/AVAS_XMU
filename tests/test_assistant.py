@@ -311,6 +311,16 @@ def test_sandbox_study_shows_on_the_run_page_and_can_be_paused_and_stopped(proje
         except ToolError as exc:
             outcome["error"] = str(exc)
 
+    # the new kernel on a GPU finishes the example's runs in a second, before its first progress line (printed every
+    # 3 s): give it enough particles to be caught running (the original kernel keeps the example's beam)
+    from avas import engines
+    beam_path = os.path.join(project, "InputFile", "beam.txt")
+    with open(beam_path, encoding="utf-8") as fh:
+        beam_text = fh.read()
+    if engines.resolve_choice(input_dir=os.path.join(project, "InputFile")).is_new:
+        with open(beam_path, "w", encoding="utf-8") as fh:
+            fh.write("\n".join("particlenumber 1500000" if ln.split()[:1] == ["particlenumber"] else ln
+                               for ln in beam_text.splitlines()) + "\n")
     thread = threading.Thread(target=work)
     thread.start()
     try:
@@ -335,6 +345,8 @@ def test_sandbox_study_shows_on_the_run_page_and_can_be_paused_and_stopped(proje
     finally:
         stop.set()
         thread.join(60)
+        with open(beam_path, "w", encoding="utf-8") as fh:
+            fh.write(beam_text)
 
 
 def test_segment_run_results_can_be_read_back(project):

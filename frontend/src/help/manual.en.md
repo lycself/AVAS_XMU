@@ -40,11 +40,31 @@ The Periods tab of Text + Structure analyses the periods marked by `lattice n 1`
 
 ## Simulation settings
 
-The Simulation settings page manages simulation options in input.txt with undo and redo. See the input reference entries for individual fields. With “Apply boundary (boundary.txt)” checked, the loss boundary table is edited below it; with phase scan “from scanData.txt”, the entry phase and time of each RF cavity are edited below it, one row per cavity in lattice order. The tables are saved with the page; an empty table does not create a file. “History” lists the saved versions of input.txt and restores them as on the Beam page.
+The Simulation settings page manages simulation options in input.txt and the computing kernel in ini.ini (see Computing kernels) with undo and redo. See the input reference entries for individual fields. With “Apply boundary (boundary.txt)” checked, the loss boundary table is edited below it. Neither kernel reads `scanphase` or scanData.txt: the Phase scan row says so, and the entry-phase table under “from scanData.txt” is folded by default; unfolded it can still be edited and is saved with the page, the file stays in the project, and the RF phases come from V3 of the field lines. The tables are saved with the page; an empty table does not create a file. “History” lists the saved versions of input.txt and restores them as on the Beam page.
 
 CPU multithreading writes multithreading 1 when enabled and removes the line when disabled. Do not manually write multithreading 0: the engine loses all particles at the start with that value.
 
 Resolve lattice errors and missing field maps before running. The linear envelope preview is a quick estimate; use engine results for final conclusions.
+
+## Computing kernels {#guide-kernels}
+
+AVAS has two computing kernels. The **original kernel** (AVAS.dll / libAVAS.so) exists for Windows and Linux x86-64 only; the **new kernel (preview)** is the rebuilt kernel, computing on the CPU, NVIDIA GPUs (CUDA) and Mac GPUs (Metal), and supports the PICNIC space-charge solver. The kernel is chosen per project and stored in the `[engine]` section of ini.ini; the original kernel still reads the same project (input.txt does not change).
+
+Choose it in **Simulation settings → Computing kernel**:
+
+- **Kernel**: the original kernel or the new kernel (preview). Platforms with the original kernel use it by default; platforms without it, such as macOS, default to the new kernel, and the page says that this platform only has the new kernel. When the new kernel's library is missing, the option cannot be chosen and the page explains how to get it.
+- **Device**: Automatic, CPU, and the NVIDIA GPU or Mac GPU detected on this computer; the refresh button at the top right detects them again. With Automatic, the line below shows what this project's runs will use: CUDA when an NVIDIA GPU is present; on a Mac, Metal for runs with space charge and the CPU without; otherwise the CPU.
+- **Precision**: Automatic, fp64 or fp32. Metal computes in fp32 only and the CPU in fp64 only; invalid combinations cannot be chosen. Automatic means fp64 on the CPU and on GPUs with full-rate fp64, fp32 on other GPUs and on Metal.
+- **GPUs**: shown when the computer has several NVIDIA GPUs; with no GPU ticked, all are used.
+- **Advanced**: CPU threads (0 = automatic; only the speed changes, results of the new kernel do not depend on the thread count); the compatibility mode “Reproduce AVAS.dll” reproduces the original kernel bit for bit (its defects included, CPU only) for comparisons; the default fixes the original kernel's defects.
+
+With the original kernel, device, precision and the advanced options are disabled: they apply only to the new kernel. The settings are saved with the page, `[engine]` is written only when it changed, and the run lock applies. `avas run --engine … --device …` and the `AVAS_ENGINE*` environment variables take precedence over ini.ini; the page warns when such variables are set.
+
+Before a run starts (the Run page, segment runs, error studies, engine scans and response matrices of the Study page, the assistant's trial runs), AVAS checks that the chosen device exists and the combination is valid and says so at once, instead of switching to the CPU silently. With the original kernel, choosing PICNIC shows “Only the new kernel supports PICNIC” next to the solver, and the run is stopped before it starts.
+
+The kernel each run actually used is recorded in the `engine` entry of avas_run.json. The Run page (run details, live panel, run records), the status bar, the sources of the Results page and run comparison show it as a label such as “New kernel (preview) · Metal fp32” or “Original kernel”; when Automatic fell back to the CPU the label reads “actual: CPU (reason)”. During a run the expected device is shown, replaced by the actual one when it finishes; older records without this information show no label. Run comparison compares original-kernel and new-kernel runs of the same project directly. Different kernels and result tiers (original, new CPU fp64, CUDA fp64, fp32, reproduce AVAS.dll) use different random-number streams and arithmetic, so their results differ within statistical noise; only runs of the same tier and seed compare value by value.
+
+**Help → About AVAS** lists both kernels' versions, the new kernel's build options and this computer's devices; Copy version information includes them.
 
 ## Running and keeping results
 

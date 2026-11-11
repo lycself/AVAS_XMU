@@ -33,7 +33,8 @@ def _write_ini(folder, text):
 
 
 # --------------------------------------------------------------------------- choice and priority
-def test_defaults_and_priority_cli_env_ini(tmp_path):
+def test_defaults_and_priority_cli_env_ini(tmp_path, monkeypatch):
+    monkeypatch.setattr(engines, "original_available", lambda system=None, machine=None: True)
     assert engines.resolve_choice(env={}) == engines.EngineChoice()
     assert engines.resolve_choice(env={}).kernel == "original"
     _write_ini(str(tmp_path), "[engine]\nkernel = new\ndevice = cpu\nthreads = 3\ngpus = 1, 0\nunknown = x\n")
@@ -50,6 +51,33 @@ def test_defaults_and_priority_cli_env_ini(tmp_path):
     c = engines.resolve_choice(cli={"kernel": "original"}, input_dir=str(tmp_path), env={"AVAS_ENGINE_DEVICE": "bad"})
     assert c == engines.EngineChoice(kernel="original") and c.to_dict() == {"kernel": "original"}
     assert engines.resolve_choice(env={"AVAS_ENGINE": "NEW"}).device == "auto"           # new-kernel defaults
+
+
+def test_default_kernel_follows_the_platform(monkeypatch):
+    """The original kernel exists on Windows / Linux x86-64 only; elsewhere the new kernel is the default and an
+    explicit original kernel is refused before the run."""
+    assert engines.original_available("Windows", "AMD64") and engines.original_available("Linux", "x86_64")
+    assert not engines.original_available("Darwin", "arm64") and not engines.original_available("Darwin", "x86_64")
+    assert not engines.original_available("Linux", "aarch64")
+    assert engines.platform_label("Darwin", "arm64") == "macOS arm64"
+    monkeypatch.setattr(engines, "original_available", lambda system=None, machine=None: False)
+    c = engines.resolve_choice(env={})
+    assert c.kernel == "new" and c.device == "auto" and c.sources["kernel"] == "default"
+    engines.check_platform(c)                                              # the new kernel: fine
+    explicit = engines.resolve_choice(cli={"kernel": "original"}, env={})
+    with pytest.raises(engines.EngineChoiceError, match=r"does not run on .*--engine original"):
+        engines.check_platform(explicit)
+    monkeypatch.setattr(engines, "original_available", lambda system=None, machine=None: True)
+    assert engines.resolve_choice(env={}).kernel == "original"
+    engines.check_platform(explicit)
+
+
+def test_input_space_charge_with_a_form_value(tmp_path):
+    (tmp_path / "input.txt").write_text("spacecharge 0\n")
+    (tmp_path / "beam.txt").write_text("current 1\nparticlenumber 1000\n")
+    assert engines.input_space_charge(str(tmp_path)) is False
+    assert engines.input_space_charge(str(tmp_path), spacecharge=True) is True
+    assert engines.input_keywords(str(tmp_path), "beam.txt") == {"current": "1", "particlenumber": "1000"}
 
 
 @pytest.mark.parametrize("cli,env,message", [
@@ -215,6 +243,8 @@ def project(tmp_path):
 
 def test_run_options_of_the_wrong_kernel_are_refused(project, tmp_path):
     out = tmp_path / "out"
+    # the original kernel selected in ini.ini (where there is no original kernel, the default would be the new one)
+    write_engine_settings(str(project / "InputFile" / "ini.ini"), {"kernel": "original"})
     res = _run_cli("run", "-i", str(project), "-o", str(out), "--device", "metal")
     assert res.returncode == 2 and "applies only to the new kernel" in res.stderr and not out.exists()
     res = _run_cli("run", "-i", str(project), "-o", str(out), "--precision", "fp32", "--threads", "2")
@@ -223,6 +253,17 @@ def test_run_options_of_the_wrong_kernel_are_refused(project, tmp_path):
     assert res.returncode == 2 and "--device cuda" in res.stderr
     res = _run_cli("run", "-i", str(project), "-o", str(out), "--engine", "new", "--device", "warp")
     assert res.returncode == 2 and "invalid --device" in res.stderr and "Traceback" not in res.stderr
+
+
+@pytest.mark.skipif(engines.original_available(), reason="this platform has the original kernel")
+def test_explicit_original_kernel_is_refused_where_it_does_not_run(project, tmp_path):
+    write_engine_settings(str(project / "InputFile" / "ini.ini"), {"kernel": "original"})
+    out = tmp_path / "out"
+    res = _run_cli("run", "-i", str(project), "-o", str(out))
+    assert res.returncode == 2 and "does not run on" in res.stderr and "kernel = original" in res.stderr
+    assert not out.exists() and "Traceback" not in res.stderr
+    res = _run_cli("info", "-i", str(project))
+    assert res.returncode == 0 and "original kernel: not available on" in res.stdout
 
 
 def test_run_record_of_the_original_kernel():

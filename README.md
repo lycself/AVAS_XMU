@@ -40,12 +40,15 @@ Windows 安装版和便携版无需 Python、Git 或 GitHub 账户。请保留�
 | 项目 Project | 新建、打开项目，查看输入与上次运行摘要 |
 | 束流 Beam | 配置粒子、能量、分布、Twiss 参数；读取 `.dst` 粒子文件并显示其粒子分布；二次粒子开关与 SeParticle.txt |
 | 结构 Lattice | 文本与参数联动编辑、关键字检查、二维布局与三维束线视图 |
-| 模拟设置 Simulation settings | 配置模拟类型、步长、空间电荷、多线程与误差研究；编辑损失边界 boundary.txt 与各腔入口相位 scanData.txt |
+| 模拟设置 Simulation settings | 选择计算内核、设备与精度；配置模拟类型、步长、空间电荷、多线程与误差研究；编辑损失边界 boundary.txt（scanData.txt 只保留，内核不读取） |
 | 文件 Files | InputFile 的文件浏览器：原始文本、场图曲线与切片、粒子文件，导入、复制、重命名 |
 | 运行 Run | 启动、暂停、停止模拟，查看实时包络、运行记录与回放 |
 | 结果 Results | 分析包络、发射度、损失、能量等，对比运行并导出 PNG／PDF／SVG |
 | 研究 Study | 参数扫描（线性模型或内核，一维／二维热图）、周期稳定区图谱、响应矩阵与可控性、反馈仿真 |
 | 入门 Primer | 加速器原理、各元件的物理与参数、交互实验和引导教程，无需打开项目 |
+
+#### 计算内核
+AVAS 有两个计算内核：原内核（`AVAS.dll`／`libAVAS.so`，只有 Windows 与 Linux x86-64）和重建的**新内核（预览）**，后者可在 CPU、NVIDIA GPU（CUDA）和 Mac GPU（Metal）上计算，并支持 `scmethod PICNIC`。在 **模拟设置 → 计算内核** 中按项目选择，保存在 `ini.ini` 的 `[engine]` 段；设备只列出本机检测到的，选“自动”时显示本项目的运行会用什么（有 NVIDIA 卡用 CUDA，Mac 上有空间电荷时用 Metal，否则 CPU），精度可选自动／fp64／fp32。有原内核的平台默认仍用原内核；macOS 等没有原内核的平台默认用新内核。开始运行前检查所选设备与组合，不可用时直接提示。运行页、状态栏、结果页与运行对比标注每次运行实际使用的内核和设备（如“新内核（预览）· Metal fp32”，自动回落到 CPU 时注明原因），可直接对比同一项目的原内核与新内核结果；不同内核或精度的结果因随机数与算术不同而略有差别。两个内核都不读取 `scanphase` 与 scanData.txt。
 
 #### 结构编辑与文件历史
 
@@ -73,11 +76,11 @@ Windows 安装版和便携版无需 Python、Git 或 GitHub 账户。请保留�
 
 工具栏右侧或 `Ctrl+Shift+A` 打开助手。它支持 OpenAI 兼容接口和本地模型，可读取项目、解释结果、提出参数修改，并在副本中执行扫描与优化。在助手设置中配置服务地址、模型并测试连接。未打开项目时也可以询问加速器物理与入门内容。回答前的思考和工具调用收在可展开的“思考过程”里，修改提案和带结果的运行仍单独显示。
 
-每项文件修改以提案展示，经批准后应用；也可在单个对话中开启自动应用。写入前备份到 `.avas_ai/backups/`，试算保存在 `.avas_ai/runs/`，不改项目的 `InputFile/` 与 `OutputFile/`。运行锁期间拒绝输入修改。API 密钥保存在 Windows 凭据管理器中。
+每项文件修改以提案展示，经批准后应用；也可在单个对话中开启自动应用。写入前备份到 `.avas_ai/backups/`，试算保存在 `.avas_ai/runs/`（使用项目选择的计算内核），不改项目的 `InputFile/` 与 `OutputFile/`。运行锁期间拒绝输入修改。API 密钥在 Windows 上保存在凭据管理器中，其他平台保存在用户数据目录的 `ai_secrets.json`。
 
 ### 源码安装
 
-使用 **64 位 Python 3.11 或更高版本**；开发和测试使用 3.11，3.12／3.13 支持。Windows 内核为 `avas/engine/AVAS.dll`，Linux 使用 `libAVAS.so`；解释器与内核平台必须匹配。
+使用 **64 位 Python 3.11 或更高版本**；开发和测试使用 3.11，3.12／3.13 支持。原内核在 Windows 为 `avas/engine/AVAS.dll`，Linux 为 `libAVAS.so`；新内核的预编译库在 `avas/engine/new/`。解释器与内核平台必须匹配。
 
 以下 Windows 命令在仓库根目录的 **PowerShell** 中执行。请手动创建独立 `.venv`，避免直接在 Anaconda base 中安装和运行；可将第一行的 `python` 换成指定的 Python 3.11 解释器路径。
 
@@ -89,6 +92,19 @@ python -m venv .venv
 ```
 
 上面的命令无需激活环境。想直接使用 `avas` 命令时，PowerShell 执行 `.\.venv\Scripts\Activate.ps1`，CMD 使用 `.venv\Scripts\activate.bat`；Linux 使用 `source .venv/bin/activate` 后执行相同的 pip 安装步骤。
+
+**macOS（Apple 芯片）：** 只支持源码安装（没有安装包），命令行、`avas serve` 与 `avas gui` 均可使用，只有新内核，在 CPU 或 Metal 上计算。新内核优先使用仓库提交的预编译库 `avas/engine/new/libavas_engine.dylib`；没有时需要 Xcode 命令行工具与 CMake 自行构建，必须用 Apple clang（含 Metal；若环境设置了 `CC`／`CXX`，例如 conda，先取消）：
+
+```bash
+python3.11 -m venv .venv
+.venv/bin/python -m pip install -e .
+# 仅当 avas/engine/new/ 中没有 libavas_engine.dylib 时：
+env -u CC -u CXX cmake -S engine -B engine/build -DCMAKE_BUILD_TYPE=Release
+cmake --build engine/build -j
+.venv/bin/python -m avas gui
+```
+
+AVAS 依次在环境变量 `AVAS_ENGINE_LIB`、`avas/engine/new/` 与 `engine/build/` 中寻找新内核库；`avas info` 显示找到的库、本机设备和本项目会用什么。
 
 仓库中的 `run_avas.py`／`run_avas.cmd` 默认使用本地 `.venv`，可用 `AVAS_NO_VENV=1` 关闭此行为。前端编译结果已随仓库提供，普通源码运行无需 Node.js。开发依赖、构建、调试和打包见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
@@ -102,6 +118,9 @@ avas run --input "C:\proj\InputFile" --output "C:\proj\Results_001"
 
 # 指定结构文件；误差研究可使用 --mode stat、dyn 或 stat_dyn
 avas run --input "C:\proj\InputFile" --output "C:\proj\Results_002" --lattice lattice_init.txt
+
+# 用新内核运行：设备 auto|cpu|cuda|metal，精度 auto|fp64|fp32，多卡 --gpus 0,1|all
+avas run --input "C:\proj\InputFile" --output "C:\proj\Results_003" --engine new --device cuda --precision fp32
 
 # 绘图；不加 --save 时弹出窗口
 avas plot emittance_x --output "C:\proj\Results_001" --save emit_x.png
@@ -117,7 +136,7 @@ avas info
 avas doctor
 ```
 
-`avas run --help`、`avas plot --help` 和 `avas scan --help` 提供完整选项。运行输入快照保存在 `<输出>/inputs/`，`avas_run.json` 记录其位置；场图从原目录读取。绘图默认从运行记录查找输入目录，也可用 `--input` 指定。
+`avas run --help`、`avas plot --help` 和 `avas scan --help` 提供完整选项。内核选项的优先级为：命令行（`--engine --device --precision --gpus --threads --compat`）> 环境变量（`AVAS_ENGINE`、`AVAS_ENGINE_DEVICE` 等）> 项目 `ini.ini` 的 `[engine]` > 默认值；`--compat dll` 让新内核逐位复现 AVAS.dll（只能在 CPU 上）。所选设备本机没有时运行前报错，不会悄悄改用 CPU；`avas_run.json` 的 `engine` 记录实际使用的内核、设备和精度。运行输入快照保存在 `<输出>/inputs/`，`avas_run.json` 记录其位置；场图从原目录读取。绘图默认从运行记录查找输入目录，也可用 `--input` 指定。
 
 **Python 研究接口：** 在 notebook 或脚本中可直接调用线性模型（`avas.model`）、周期与控制分析（`avas.dynamics`）和研究接口（`avas.research`）。研究接口把项目的“变体”（lattice 参数、beam.txt / input.txt 关键字、种子、粒子数）交给线性模型或内核运行，内核在子进程中运行，结果按输入指纹缓存在 `<项目>/Research/<研究名>/`，可批量、并行、续跑，并可做多维扫描、拉丁超立方采样、线性模型与内核对比、多种子统计和数据导出；不会改动项目的输入和 OutputFile。示例见 `examples/research/`。
 
@@ -133,7 +152,7 @@ Windows 安装器在欢迎页点击“下一步”时检查最新版，可下载
 
 下载与准备阶段可取消，关闭更新面板只收起显示；进入安装阶段后不能取消。网络中断后可重试并复用已下载内容。运行、暂停、扫描及 AI 试算期间不能安装，更新准备期间也不能开始新模拟。安装时请等待自动重启，避免手动重复启动。
 
-更新保留项目、结果、个人设置和 `.venv`。Git 自动更新要求官方 origin、main 分支、工作区干净且可快进；源码包遇到文件修改或覆盖冲突时停止。源码更新需从安装目录的 `.venv` 启动。浏览器模式需在后端机器更新并重启服务。
+更新保留项目、结果、个人设置和 `.venv`。macOS 上只支持 Git 方式的自动更新（源码安装）。Git 自动更新要求官方 origin、main 分支、工作区干净且可快进；源码包遇到文件修改或覆盖冲突时停止。源码更新需从安装目录的 `.venv` 启动。浏览器模式需在后端机器更新并重启服务。
 
 #### 更新失败或旧版本无法升级？
 
@@ -209,12 +228,15 @@ The sidebar follows the simulation workflow — Project, Beam, Lattice, Simulati
 | Project | Create and open projects; inspect inputs and the last run |
 | Beam | Configure particles, energy, distributions and Twiss parameters; read a `.dst` file and show its particles; the secondary beam switch and SeParticle.txt |
 | Lattice | Edit linked text and parameters; validate keywords; inspect 2D and 3D beamlines |
-| Simulation settings | Configure simulation type, step size, space charge, threading and error studies; edit the loss boundary (boundary.txt) and cavity entry phases (scanData.txt) |
+| Simulation settings | Choose the computing kernel, device and precision; configure simulation type, step size, space charge, threading and error studies; edit the loss boundary (boundary.txt; scanData.txt is kept but not read by the kernels) |
 | Files | Browser of InputFile: raw text, field-map profiles and slices, particle files; import, duplicate, rename |
 | Run | Start, pause and stop simulations; inspect live envelopes, records and replay |
 | Results | Analyze envelopes, emittance, losses and energy; compare runs and export PNG/PDF/SVG |
 | Study | Parameter scans (linear model or engine, 1D / 2D heat maps), period stability charts, response matrix and controllability, feedback simulation |
 | Primer | Accelerator physics, the physics and parameters of every component, interactive labs and a guided tutorial; no project needed |
+
+#### Computing kernels
+AVAS has two computing kernels: the original kernel (`AVAS.dll` / `libAVAS.so`, Windows and Linux x86-64 only) and the rebuilt **new kernel (preview)**, which computes on the CPU, NVIDIA GPUs (CUDA) and Mac GPUs (Metal) and supports `scmethod PICNIC`. Choose per project in **Simulation settings → Computing kernel**; the choice is stored in the `[engine]` section of `ini.ini`. Only the devices detected on this computer are offered; with Automatic the page shows what this project's runs will use (CUDA when an NVIDIA GPU is present, Metal on a Mac for runs with space charge, otherwise the CPU), and precision can be Automatic, fp64 or fp32. Platforms with the original kernel keep it as the default; platforms without it, such as macOS, default to the new kernel. The device and combination are checked before a run starts. Run, the status bar, Results and run comparison label each run with the kernel and device it actually used (e.g. "New kernel (preview) · Metal fp32", with the reason when Automatic fell back to the CPU), so original-kernel and new-kernel runs of one project can be compared directly; results of different kernels or precisions differ slightly because of random-number streams and arithmetic. Neither kernel reads `scanphase` or scanData.txt.
 
 #### Lattice editing and file history
 
@@ -242,11 +264,11 @@ The interactive labs (kinematics, phase-space ellipse, FODO, solenoid, dipole, R
 
 Open the assistant from the toolbar or with `Ctrl+Shift+A`. It supports OpenAI-compatible services and local models, reads projects, explains results, proposes parameter changes, and runs scans or optimization in copies. Configure the endpoint and model and test the connection in assistant settings. Without an open project you can still ask about accelerator physics and the primer. The thinking and tool calls before an answer are folded into one expandable Thinking block; change proposals and runs with results stay visible.
 
-Each file change is a proposal requiring approval; automatic application can be enabled for an individual conversation. Changes are backed up under `.avas_ai/backups/`. Trial runs use `.avas_ai/runs/` without changing project `InputFile/` or `OutputFile/`. Input changes are refused while the run lock is active. API keys are stored in Windows Credential Manager.
+Each file change is a proposal requiring approval; automatic application can be enabled for an individual conversation. Changes are backed up under `.avas_ai/backups/`. Trial runs use `.avas_ai/runs/` (with the project's computing kernel) without changing project `InputFile/` or `OutputFile/`. Input changes are refused while the run lock is active. API keys are stored in Windows Credential Manager on Windows and in `ai_secrets.json` in the user data folder elsewhere.
 
 ### Source installation
 
-Use **64-bit Python 3.11 or newer**. Development and tests use 3.11; 3.12/3.13 are supported. The engine is `avas/engine/AVAS.dll` on Windows and `libAVAS.so` on Linux; interpreter and engine platforms must match.
+Use **64-bit Python 3.11 or newer**. Development and tests use 3.11; 3.12/3.13 are supported. The original kernel is `avas/engine/AVAS.dll` on Windows and `libAVAS.so` on Linux; the prebuilt libraries of the new kernel are in `avas/engine/new/`. Interpreter and kernel platforms must match.
 
 Run these Windows commands in **PowerShell** at the repository root. Create a dedicated `.venv` manually, avoiding direct installation into Anaconda base. Replace the first `python` with a specific Python 3.11 interpreter path if needed.
 
@@ -258,6 +280,19 @@ python -m venv .venv
 ```
 
 These commands need no activation. To use `avas` directly, activate with `.\.venv\Scripts\Activate.ps1` in PowerShell or `.venv\Scripts\activate.bat` in CMD. On Linux use `source .venv/bin/activate`, then the same pip installation steps.
+
+**macOS (Apple silicon):** source installation only (no installer). The command line, `avas serve` and `avas gui` all work; only the new kernel is available, computing on the CPU or with Metal. The new kernel uses the prebuilt library committed in `avas/engine/new/libavas_engine.dylib`; without it, build the library with the Xcode command-line tools and CMake, using Apple's clang (which includes Metal; unset `CC` / `CXX` if your environment, e.g. conda, sets them):
+
+```bash
+python3.11 -m venv .venv
+.venv/bin/python -m pip install -e .
+# only when avas/engine/new/ has no libavas_engine.dylib:
+env -u CC -u CXX cmake -S engine -B engine/build -DCMAKE_BUILD_TYPE=Release
+cmake --build engine/build -j
+.venv/bin/python -m avas gui
+```
+
+AVAS looks for the new kernel's library in the environment variable `AVAS_ENGINE_LIB`, then `avas/engine/new/`, then `engine/build/`; `avas info` shows the library found, this computer's devices and what the project's runs will use.
 
 The repository's `run_avas.py` / `run_avas.cmd` use its `.venv` by default; `AVAS_NO_VENV=1` disables this behavior. Built frontend assets are included, so ordinary source installations need no Node.js. See [CONTRIBUTING.md](CONTRIBUTING.md) for development dependencies, builds, debugging and packaging.
 
@@ -271,6 +306,9 @@ avas run --input "C:\proj\InputFile" --output "C:\proj\Results_001"
 
 # Select a lattice; error studies accept --mode stat, dyn or stat_dyn
 avas run --input "C:\proj\InputFile" --output "C:\proj\Results_002" --lattice lattice_init.txt
+
+# Run with the new kernel: device auto|cpu|cuda|metal, precision auto|fp64|fp32, several GPUs with --gpus 0,1|all
+avas run --input "C:\proj\InputFile" --output "C:\proj\Results_003" --engine new --device cuda --precision fp32
 
 # Plot; omit --save to open a window
 avas plot emittance_x --output "C:\proj\Results_001" --save emit_x.png
@@ -286,7 +324,7 @@ avas info
 avas doctor
 ```
 
-Use `avas run --help`, `avas plot --help` and `avas scan --help` for full options. Input snapshots live in `<output>/inputs/` and are recorded in `avas_run.json`; field maps are read from their original directory. Plotting finds inputs from the run record unless overridden by `--input`.
+Use `avas run --help`, `avas plot --help` and `avas scan --help` for full options. Kernel options take precedence in this order: the command line (`--engine --device --precision --gpus --threads --compat`) > environment variables (`AVAS_ENGINE`, `AVAS_ENGINE_DEVICE`, …) > `[engine]` in the project's `ini.ini` > defaults; `--compat dll` makes the new kernel reproduce AVAS.dll bit for bit (CPU only). A device this computer does not have is an error before the run, never a silent switch to the CPU; the `engine` entry of `avas_run.json` records the kernel, device and precision actually used. Input snapshots live in `<output>/inputs/` and are recorded in `avas_run.json`; field maps are read from their original directory. Plotting finds inputs from the run record unless overridden by `--input`.
 
 **Python research interface:** notebooks and scripts can use the linear model (`avas.model`), period and control analysis (`avas.dynamics`) and the research interface (`avas.research`). It runs "variants" of a project (lattice parameters, beam.txt / input.txt keywords, seed, particles) with the linear model or the engine; engine runs are child processes, cached by an input fingerprint under `<project>/Research/<study>/`, and can be batched, run in parallel and resumed, with multi-dimensional scans, Latin-hypercube samples, linear-vs-engine comparisons, seed ensembles and data exports. The project's inputs and OutputFile are never changed. Examples are in `examples/research/`.
 
@@ -302,7 +340,7 @@ Installed AVAS checks official updates after startup and caches results for six 
 
 Download and preparation can be cancelled; closing the panel only hides it. Installation cannot be cancelled. Retry after a network interruption can reuse downloaded content. Installation is unavailable during running or paused simulations, scans and AI trials; preparation also blocks new simulations. Wait for the automatic restart instead of launching another instance.
 
-Updates preserve projects, results, preferences and `.venv`. Git updates require the official origin, main branch, a clean working tree and a fast-forward path. Source archives stop on local file changes or overwrite conflicts. Source updates must run from the installation's `.venv`. Browser deployments require updating and restarting the service on the backend machine.
+Updates preserve projects, results, preferences and `.venv`. On macOS only Git-based automatic updates (source installation) are supported. Git updates require the official origin, main branch, a clean working tree and a fast-forward path. Source archives stop on local file changes or overwrite conflicts. Source updates must run from the installation's `.venv`. Browser deployments require updating and restarting the service on the backend machine.
 
 #### An update failed or an older version cannot upgrade
 

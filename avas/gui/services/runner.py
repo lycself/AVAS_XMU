@@ -25,8 +25,12 @@ The assistant's sandbox studies (:mod:`avas.ai.sandbox`) are reported through
 the same state with ``source: "assistant"`` so the Run page, tool bar and status
 bar show them and can pause, resume and stop them.
 
+Before a run the kernel choice is checked (:func:`avas.gui.services.kernels.require_ready`); the state's
+``engine`` is what the run is expected to use until a stage finishes, then what its avas_run.json says it
+used (:func:`avas.gui.services.kernels.summary`).
+
 Events: ``run.progress`` (state dict) and ``run.finished`` ({ok, message, stopped,
-source, label, outputDir}).
+source, label, outputDir, engine}).
 """
 import codecs
 import configparser
@@ -131,6 +135,7 @@ class Job:
         self.mode = mode
         self.output_dir = output_dir or project.output_dir
         self.on_finished = on_finished  # f(job, ok, message, stopped)
+        self.engine = None              # kernels.summary of the run (expected, then actual)
         self.ok = None
         self.message = ""
 
@@ -219,14 +224,17 @@ class Runner:
             s.update(running=True, paused=self._paused_since is not None, mode=self.mode, source=job.source,
                      label=job.label, outputDir=job.output_dir, elapsed_s=self._job_seconds(),
                      eta_s=self._eta(), stage=self._stage + 1, stages=len(job.stages),
-                     stageLabel=job.stages[self._stage].label if 0 <= self._stage < len(job.stages) else "")
+                     stageLabel=job.stages[self._stage].label if 0 <= self._stage < len(job.stages) else "",
+                     engine=job.engine)
             return s
 
     # ------------------------------------------------------------------ control
-    def start(self, project, mode):
+    def start(self, project, mode, engine=None):
         mode = mode if mode in MODES else "basic"
         stage = Stage("run", "", lambda: {"input_dir": project.input_dir, "output_dir": project.output_dir, "mode": mode})
-        self.start_job(Job(project, [stage], source="project", mode=mode))
+        job = Job(project, [stage], source="project", mode=mode)
+        job.engine = engine
+        self.start_job(job)
 
     def start_job(self, job):
         from avas.ai import sandbox
@@ -466,6 +474,11 @@ class Runner:
         job = self.job
         stage = job.stages[self._stage]
         stage.elapsed_s = round(self._stage_seconds(), 1)
+        if stage.output_dir:
+            from avas.gui.services import kernels
+            used = kernels.read_summary(stage.output_dir)
+            if used is not None and (used.get("kernel") == "original" or used.get("device")):
+                job.engine = used                # what the run actually used
         if not self._stopping and code == 0 and self._stage + 1 < len(job.stages):
             stage.status = "finished"
             with self.lock:
@@ -605,21 +618,23 @@ def ini_error_mode(project):
 
 @rpc("run.check")
 def check():
-    """The engine's own pre-run checks (lattice syntax, ini values)."""
+    """The engine's own pre-run checks (lattice syntax, ini values) and the kernel choice; returns the
+    kernel the run is expected to use."""
     p = context.project().require()
     from avas.api.qt.api import project_check
+    from avas.gui.services import kernels
     try:
         project_check(p.item())
     except Exception as exc:  # noqa: BLE001 - shown to the user as is
         raise UserError(str(exc)) from exc
-    return True
+    return kernels.require_ready(p.input_dir)
 
 
 @rpc("run.start")
 def start():
     p = context.project().require()
-    check()
-    _runner.start(p, ini_error_mode(p))
+    engine = check()
+    _runner.start(p, ini_error_mode(p), engine)
     return _runner.state()
 
 

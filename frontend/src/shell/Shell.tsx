@@ -24,6 +24,8 @@ import {
 import { closeMenu, DialogFrame, openMenu, openMenuBelow, showDialog, type MenuItem } from "../components/overlays";
 import { canQuit } from "../host";
 import { ErrorBoundary } from "../components/ErrorBoundary";
+import { EngineBadge } from "../components/EngineBadge";
+import { useEngineInfo } from "../store/engine";
 import { Button, cx, Icon, IconButton, Spinner } from "../components/ui";
 import { LANGUAGES, t as tr, useT, type Language } from "../i18n";
 import { keyMatches, SHORTCUT, SHORTCUTS, type ShortcutId } from "./shortcuts";
@@ -480,6 +482,16 @@ ${t("Click to switch project")}` : t("Open or create a project")}
       <div className={cx("status-message ellipsis", !run.running && status?.level === "error" && "error")} data-tip={message || undefined}>
         {message}
       </div>
+      {(() => {
+        // the kernel of the running simulation, else the one the project's last run used
+        const engine = run.running ? run.engine : project.open ? (project.lastRun as { engine?: unknown } | undefined)?.engine : null;
+        if (!engine) return null;
+        return (
+          <button className="status-item status-engine" onClick={() => setPage(run.running ? "run" : "settings")}>
+            <EngineBadge engine={engine} />
+          </button>
+        );
+      })()}
       {run.running && (
         <button className="status-item" data-tip={t("Show the Run page")} onClick={() => setPage("run")}>
           {run.paused ? <Icon name="debug-pause" /> : <Spinner size={14} />}
@@ -552,6 +564,13 @@ export function Shell() {
   useEffect(() => {
     setVisited((v) => (v.has(page) ? v : new Set(v).add(page)));
   }, [page]);
+
+  // ask for the kernels and devices once in the background (a child process, a few seconds), so the
+  // About window and Simulation settings show them at once
+  useEffect(() => {
+    const timer = window.setTimeout(() => useEngineInfo.getState().load(), 5000);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   // the View → Motion setting for CSS transitions (sidebars, primer panels)
   const motion = useMotion();

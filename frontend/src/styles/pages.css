@@ -239,3 +239,19 @@
 .history-dialog-actions .history-comparison-actions > span { flex-basis: 100%; }
 
 .files-history-list .history-versions { min-height: 0; }
+/* Simulation settings → Computing kernel */
+.engine-note { display: inline-flex; align-items: flex-start; gap: 6px; font-size: 12px; line-height: 1.45; }
+.engine-note .codicon { font-size: 14px; margin-top: 1px; flex: none; }
+.engine-advanced { margin-top: 10px; }
+.engine-ini { margin: 0; padding: 4px 8px; font-size: 12px; color: var(--fg-muted); background: var(--editor-bg); border: 1px solid var(--border); border-radius: 4px; white-space: pre; }
+.companion-toggle { background: none; border: none; padding: 0; cursor: pointer; font: inherit; text-align: left; }
+.companion-toggle:hover { color: var(--fg-strong); }
+/* the kernel a run used (Run / Results pages, status bar) */
+.engine-badge { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; height: 18px; padding: 0 7px; border-radius: 9px; font-size: 11px; background: var(--badge-bg); color: var(--badge-fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+.engine-badge .codicon { font-size: 12px; }
+.engine-badge.fallback { color: var(--warning); }
+.engine-badge.predicted { opacity: .8; font-style: italic; }
+.compare-source-label .engine-badge { align-self: flex-start; margin-top: 2px; }
+.run-record-title .engine-badge { margin-left: 8px; }
+.live-beam-head .engine-badge { flex: none; max-width: 40%; }
+.status-engine { max-width: 280px; }

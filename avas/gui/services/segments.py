@@ -28,6 +28,7 @@ from avas.data.lattice_doc import LatticeDocument
 from avas.gui import context
 from avas.gui.bridge import UserError, rpc
 from avas.gui.locks import require_unlocked
+from avas.gui.services import kernels
 from avas.gui.textio import read_text, write_text
 
 log = logging.getLogger("avas.gui")
@@ -224,6 +225,7 @@ def start(project, spec, choice=None, label=None):
         raise UserError(f"Entry beam '{choice}' does not apply to this segment (choose {', '.join(o['id'] for o in options)}).")
     if not opt["available"]:
         raise UserError(f"Entry beam '{choice}' is not available: {opt.get('reason')}.")
+    engine = kernels.require_ready(project.input_dir)          # every stage copies the project's ini.ini
 
     stamp = time.strftime("%Y%m%d-%H%M%S")
     root = os.path.join(segments_root(project), f"{safe_name(p.label)}_{stamp}")
@@ -332,6 +334,7 @@ def start(project, spec, choice=None, label=None):
                      on_finished=finished)
     job.root = root
     job.meta = meta
+    job.engine = engine
     try:
         runner.runner().start_job(job)
     except Exception:
@@ -386,9 +389,11 @@ def _research_runs(p, limit=200):
             variant = rec.get("variant") or {}
             changes = [f"{t}.{k}={v}" for t, ps in (variant.get("lattice") or {}).items() for k, v in ps.items()]
             changes += [f"{k}={v}" for k, v in (variant.get("beam") or {}).items()]
+            out_dir = os.path.join(runs, name, "output")
             found.append({"kind": "research", "label": rec.get("label") or ", ".join(changes) or name,
-                          "outputDir": os.path.join(runs, name, "output"), "status": "finished", "study": study,
-                          "time": rec.get("finished") or rec.get("started"), "seed": rec.get("seed")})
+                          "outputDir": out_dir, "status": "finished", "study": study,
+                          "time": rec.get("finished") or rec.get("started"), "seed": rec.get("seed"),
+                          "engine": kernels.read_summary(out_dir)})
     found.sort(key=lambda r: r.get("time") or "", reverse=True)
     return found[:limit]
 
@@ -396,17 +401,19 @@ def _research_runs(p, limit=200):
 @rpc("results.sources")
 def sources():
     """Result folders of the project: OutputFile, archived runs (Runs/), research engine runs (Research/) and
-    every segment run."""
+    every segment run.  ``engine`` is the kernel the run used (:func:`kernels.summary`; None for records
+    older than M7)."""
     p = context.project().require()
     info = p.last_run() or {}
     out = [{"kind": "project", "label": "OutputFile", "outputDir": p.output_dir, "status": info.get("status"),
-            "time": info.get("finished") or info.get("started")}]
+            "time": info.get("finished") or info.get("started"), "engine": kernels.summary(info.get("engine"))}]
     from avas.gui.services import runs
     for rec in runs.list_runs(p):
         out.append({"kind": "archived", "label": rec.get("label") or os.path.basename(rec["folder"]),
                     "outputDir": rec["folder"], "status": rec.get("status"),
                     "time": rec.get("finished") or rec.get("started"), "mode": rec.get("mode"),
-                    "elapsed_s": rec.get("elapsed_s"), "archivedAt": rec.get("archived_at")})
+                    "elapsed_s": rec.get("elapsed_s"), "archivedAt": rec.get("archived_at"),
+                    "engine": kernels.summary(rec.get("engine"))})
     out += _research_runs(p)
     for meta in list_segments(p):
         seg = meta.get("segment") or {}
@@ -414,7 +421,8 @@ def sources():
                     "outputDir": os.path.join(meta["folder"], "OutputFile"), "status": meta.get("status"),
                     "time": meta.get("finished") or meta.get("created"), "zStart": seg.get("z_start"),
                     "zEnd": seg.get("z_end"), "entry": (meta.get("entry") or {}).get("choice"),
-                    "rephased": len(meta.get("rephased") or [])})
+                    "rephased": len(meta.get("rephased") or []),
+                    "engine": kernels.read_summary(os.path.join(meta["folder"], "OutputFile"))})
     return out
 
 

@@ -17,6 +17,7 @@ import { closeRecordReplay, lastFinite, useLive, type LiveLattice } from "../sto
 import { stopReplay, startReplay, useBunchFrame, usePlayer, type Track } from "./bunchPlayer";
 import { LayoutView, type EnvelopeCurves, type LayoutShow } from "./LayoutView";
 import { PlayerBar } from "./PlayerBar";
+import { EngineBadge } from "../components/EngineBadge";
 import { loadSchema, type LatticeDoc, type Schema } from "./types";
 
 const SHOW: LayoutShow = { run: false, preview: false, aperture: true, losses: true, max: false, energy: false, scale: "beam", band: true };
@@ -54,6 +55,7 @@ export function LiveBeamPanel() {
   const recordLoading = useLive((s) => s.recordLoading);
   const version = useLive((s) => s.version);
   const appRun = useApp((s) => s.run);
+  const lastFinished = useApp((s) => s.lastFinished);
   const projectOpen = useApp((s) => s.project.open);
   const [schema, setSchema] = useState<Schema | null>(null);
   const [doc, setDoc] = useState<{ hash: string; doc: LatticeDoc } | null>(null);
@@ -173,6 +175,7 @@ export function LiveBeamPanel() {
           {showRecord ? t("Replay of a run record") : running ? t("Live beam") : t("Beam of the finished run")}
         </span>
         <span className="muted ellipsis grow">{recordLoading && !showRecord ? t("Loading the record…") : task}</span>
+        <EngineBadge engine={showRecord ? record!.engine : appRun.running ? appRun.engine : lastFinished?.engine} />
         {parseError && (
           <span className="warning-text" data-tip={parseError}>
             <Icon name="warning" /> {t("lattice not parsed")}

@@ -147,7 +147,8 @@ def engine_choice_from_args(args, input_dir):
                        "kernel's libPIC.so)")
     new_only = {k: getattr(args, k, None) for k in ("precision", "gpus", "threads", "compat")}
     try:
-        kernel = engines.resolve_choice(cli={"kernel": getattr(args, "engine", None)}, input_dir=input_dir).kernel
+        first = engines.resolve_choice(cli={"kernel": getattr(args, "engine", None)}, input_dir=input_dir)
+        kernel = first.kernel
         if kernel == "new":
             if device == "gpu":
                 raise CliError("--device gpu selects the original kernel's libPIC.so; for the new kernel use "
@@ -161,7 +162,7 @@ def engine_choice_from_args(args, input_dir):
             raise CliError(f"{', '.join(given)} {'applies' if len(given) == 1 else 'apply'} only to the new kernel; "
                            "add --engine new "
                            "(or set kernel = new in ini.ini [engine])")
-        choice = engines.resolve_choice(cli={"kernel": "original"}, input_dir=input_dir)
+        choice = first                                   # keeps where the kernel was chosen (check_platform)
     except engines.EngineChoiceError as exc:
         raise CliError(str(exc)) from exc
     ini = read_ini(input_dir) if input_dir else {}
@@ -181,6 +182,10 @@ def _run(args, input_dir):
         if mode not in SIM_MODES:
             mode = "basic"
     choice, device = engine_choice_from_args(args, input_dir)
+    try:
+        engines.check_platform(choice)
+    except engines.EngineChoiceError as exc:
+        raise CliError(str(exc)) from exc
     if choice.is_new:
         # load the library and check a required device before anything is written
         from avas.core.MultiParticleEngine import MultiParticleEngine
@@ -405,8 +410,12 @@ def _plan_text(plan):
 def print_kernels(desc, input_dir=None, choice=None, indent="  "):
     """The kernels, devices and the resolution of auto for ``avas info`` / ``avas doctor``."""
     orig = desc["original"]
-    print(f"{indent}original kernel: {orig['path']}"
-          + (f"  sha1 {orig['sha1'][:12]}" if orig.get("sha1") else "  (missing)"))
+    if orig.get("available", True):
+        print(f"{indent}original kernel: {orig['path']}"
+              + (f"  sha1 {orig['sha1'][:12]}" if orig.get("sha1") else "  (missing)"))
+    else:
+        plat = (desc.get("platform") or {}).get("label") or "this platform"
+        print(f"{indent}original kernel: not available on {plat} (only the new kernel; it is the default here)")
     new = desc["new"]
     if new.get("path") and new.get("info"):
         info = new["info"]
@@ -580,7 +589,8 @@ def engine_arguments(p):
     g = p.add_argument_group("kernel", "Priority: these options > environment variables (AVAS_ENGINE, "
                                        "AVAS_ENGINE_DEVICE, ...) > ini.ini [engine] > defaults.")
     g.add_argument("--engine", choices=["original", "new"],
-                   help="simulation kernel (default: ini.ini [engine] kernel, else original)")
+                   help="simulation kernel (default: ini.ini [engine] kernel, else original; new where the original "
+                        "kernel does not run, e.g. macOS)")
     g.add_argument("--precision", choices=["auto", "fp64", "fp32"],
                    help="new kernel: auto = fp64 on full-rate fp64 GPUs and the CPU, fp32 on other GPUs and Metal")
     g.add_argument("--gpus", metavar="LIST", help="new kernel: all (default) or GPU numbers such as 0,1")

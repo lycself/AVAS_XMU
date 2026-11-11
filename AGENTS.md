@@ -7,7 +7,7 @@
 
 AVAS（Advanced Virtual Accelerator Software）是直线加速器束流动力学模拟程序：
 
-- C++ 计算内核：`avas/engine/AVAS.dll`（Linux 为 `libAVAS.so`），只有二进制，没有源码，不要修改。新内核（`engine/` 源码，预编译库将放在 `avas/engine/new/`）是可选内核，默认仍用原内核（`avas/engines.py`，见第 5.4 节“内核选择”）。
+- C++ 计算内核：`avas/engine/AVAS.dll`（Linux 为 `libAVAS.so`），只有二进制，没有源码，不要修改。新内核（`engine/` 源码，预编译库将放在 `avas/engine/new/`）是可选内核，有原内核的平台（Windows、Linux x86-64）默认仍用原内核，没有原内核的平台（macOS、ARM）默认用新内核（`avas/engines.py`，见第 5.4 节“内核选择”）。
 - Python 包 `avas/`：模拟流程、前后处理、命令行 `avas run / plot / gui / serve / info / doctor`。
 - 界面：React 网页前端（`frontend/`）+ Python 后端（`avas/gui/services/`），二者只通过 HTTP / WebSocket 通信（`avas/gui/server.py`）。
   `avas gui` 把页面放进 pywebview + Edge WebView2 桌面窗口；`avas serve` 不开窗口，在浏览器里用同一个页面（将来部署到服务器的基础，
@@ -23,7 +23,7 @@ avas/
   cli/            命令行入口（main.py；scan_cmd.py 是 avas scan）
   gui/            界面后端：server.py HTTP / WebSocket 服务（RPC、事件、blob、下载、令牌），bridge.py RPC 注册与事件队列，
                   app.py 桌面窗口（avas gui），serve.py 浏览器模式（avas serve），devserver.py 旧命令的别名
-    services/     每个页面一个模块，函数用 @rpc("page.action") 注册；fs.py 给页面自带的文件选择器列目录；runs.py 运行记录归档；scan.py 旧版参数扫描（Scans/，命令行仍用）；study.py 研究页扫描（Research/gui/）；analysis.py 周期面板、稳定区图谱、响应与可控性、反馈；learn.py 入门页的实验与教程
+    services/     每个页面一个模块，函数用 @rpc("page.action") 注册；fs.py 给页面自带的文件选择器列目录；runs.py 运行记录归档；scan.py 旧版参数扫描（Scans/，命令行仍用）；study.py 研究页扫描（Research/gui/）；analysis.py 周期面板、稳定区图谱、响应与可控性、反馈；learn.py 入门页的实验与教程；kernels.py 计算内核（`engine.info / preview / check`、运行前检查 `require_ready`、运行记录标签 `summary`、模拟设置页的 `[engine]` 表单）
     web/          前端编译结果（提交到仓库，用户不需要 Node.js）
   ai/             AI 助手：client.py、agent.py、avas_tools.py（工具）、sandbox.py（副本上运行模拟）、avas_prompt.py
   model/          线性模型（唯一的传输矩阵实现）：beam.py 束流与初始矩，elements.py 元件矩阵，fieldmaps.py 场图剖面缓存，tracker.py 参考粒子、切片矩阵与场图段缓存，
@@ -157,7 +157,7 @@ packaging/        PyInstaller + Inno Setup 打包
 - 2D / 3D 视图区左上角统一使用 ViewNavigation 的放大、缩小、显示全部按钮，外层不再重复提供入口；2D 为工具栏预留顶部空间。按钮围绕当前观察中心缩放，不依赖指针检测。3D 双击空白显示全部、双击元件聚焦；2D 双击视图显示全部，图例双击仍只显示该曲线。3D 手动缩放停止漫游和束团跟随。
 
 - 可视化编辑器的 2D / 3D 上方视图区随可用高度收缩（最低 160px），下方元件列表和参数面板至少保留 180px；空间不足时编辑器滚动，不能裁掉下方面板。窗口缩小时不覆盖用户保存的视图区高度，恢复窗口后恢复该高度；拖动分隔条从实际显示高度开始计算。
-- **输入文件的归属**（2026-11-03 与用户商定）：初始粒子分布的显示（`ParticlesView`，叠加按粒子协方差算的 rms 椭圆）和二次粒子（input.txt 的 `secondarybeam` 开关 + SeParticle.txt 表格）在束流页；boundary.txt 与 scanData.txt 的表格在模拟设置页，分别在“启用边界”和“相位扫描 = 从 scanData.txt”下方展开。这些小文件随页面一起保存（`beam.save` 的 `secondary`、`settings.save` 的 `companions`），只在内容变化时写，空表格不新建文件，同样受运行锁约束。束流页只改 input.txt 的 `secondarybeam` 一行，模拟设置页不管理这个关键字，两页写 input.txt 互不覆盖。文件页是 InputFile 的文件浏览器（原始文本、场图、文件管理），不要再让某项功能只能从文件页进入。元件场分布窗口底部的“场图文件”表（`lattice.fieldInfo`）列出每个分量文件的实际路径、网格、范围、归一化与存储格式。
+- **输入文件的归属**（2026-11-03 与用户商定）：初始粒子分布的显示（`ParticlesView`，叠加按粒子协方差算的 rms 椭圆）和二次粒子（input.txt 的 `secondarybeam` 开关 + SeParticle.txt 表格）在束流页；boundary.txt 与 scanData.txt 的表格在模拟设置页，分别在“启用边界”和“相位扫描 = 从 scanData.txt”下方展开（scanData.txt 两个内核都不读，表格默认收起）。这些小文件随页面一起保存（`beam.save` 的 `secondary`、`settings.save` 的 `companions`），只在内容变化时写，空表格不新建文件，同样受运行锁约束。束流页只改 input.txt 的 `secondarybeam` 一行，模拟设置页不管理这个关键字，两页写 input.txt 互不覆盖。文件页是 InputFile 的文件浏览器（原始文本、场图、文件管理），不要再让某项功能只能从文件页进入。元件场分布窗口底部的“场图文件”表（`lattice.fieldInfo`）列出每个分量文件的实际路径、网格、范围、归一化与存储格式。
 - 一个 lattice 文件在界面里只有**一个 Monaco 文本模型**，它是唯一的数据源。结构编辑器、可视化编辑器、AI 助手的修改都以"一次修改 = 一步撤销"写回这个文本模型，再重新解析（`lattice.parse`）。不要另存一份可以单独修改的元件数据。
 - `LatticeEditor` 用带 key 的子元素切换"文本 + 结构"和"可视化编辑器"两种模式，保证文本面板不被重新挂载（未保存的文字和撤销历史不丢）。
 - 修改只改写对应的行，保留注释和页面不认识的关键字；beam.txt、input.txt 保存时同样只改页面管理的关键字。
@@ -178,8 +178,10 @@ packaging/        PyInstaller + Inno Setup 打包
 - **内核选择**（M7a，2026-11-11 用户决定，详见 docs/engine/M7-plan.md、M7-notes.md）：`avas/engines.py` 是唯一的选择层。每个键的优先级为命令行
   （`avas run --engine original|new --device auto|cpu|cuda|metal --precision auto|fp64|fp32 --gpus all|0,1 --threads N --compat none|dll`）> 环境变量
   （`AVAS_ENGINE`、`AVAS_ENGINE_DEVICE`、`AVAS_ENGINE_PRECISION`、`AVAS_ENGINE_GPUS`、`AVAS_ENGINE_THREADS`、`AVAS_ENGINE_COMPAT`）> 项目 ini.ini 的 `[engine]`
-  （键 `kernel device precision gpus threads compat`，`avas/utils/iniconfig.py` 的 `read_engine_settings` / `write_engine_settings`，保留其余段和键）> 默认（kernel original；
-  新内核 auto / auto / all / 0 / none）。原内核被选中时忽略其余键；旧的 `[input] device = gpu`（libPIC.so）只对原内核有效，保持不动。不写 input.txt（原内核要能读同一项目）。
+  （键 `kernel device precision gpus threads compat`，`avas/utils/iniconfig.py` 的 `read_engine_settings` / `write_engine_settings`，保留其余段和键）> 默认（kernel 按平台：
+  有原内核的平台 original，没有的平台 new——`engines.original_available()` 只认 Windows / Linux 的 x86-64，`default_kernel()`；新内核 auto / auto / all / 0 / none）。
+  这与“默认仍用原内核”不冲突：那是对有原内核的平台（M7b，2026-11-11）。没有原内核的平台上**显式**选原内核（ini、`--engine original`、`AVAS_ENGINE`）在运行前报错
+  （`engines.check_platform`，CLI 退出码 2；GUI 的 `kernels.require_ready`），`avas info`、设置页、运行记录都体现平台默认。原内核被选中时忽略其余键；旧的 `[input] device = gpu`（libPIC.so）只对原内核有效，保持不动。不写 input.txt（原内核要能读同一项目）。
   新内核库的查找：`AVAS_ENGINE_LIB` > `avas/engine/new/` > `engine/build`（`Release`、`RelWithDebInfo`），路径来自 `avas.paths`。
   所有内核运行都经 `avas run` 子进程，各入口拿到 `[engine]` 的方式：完整运行 / 误差研究直接用项目 InputFile；分段运行、AI 沙盒、参数扫描、入门教程复制的文本输入含 ini.ini；
   研究层 `Study` 把解析好的选择写进每次运行的 `input/ini.ini [engine]`，并在子进程环境里去掉上述环境变量。
@@ -191,6 +193,17 @@ packaging/        PyInstaller + Inno Setup 打包
   旧记录没有该字段，读取时要容忍。**结果档**（`engines.result_tier`）：original、new-cpu-fp64、new-cuda-fp64（CUDA 与 emu 的 fp64）、new-fp32（CUDA / Metal / emu 的 fp32 逐字节相同）、
   new-compat-dll；研究指纹的内核身份是原内核文件 SHA-1（与 M7 前相同，旧缓存仍有效）或新内核的（结果档，版本），线程数和 GPU 编号不进指纹；
   运行后把实际档写进 run.json，与预判不符时记警告。研究层 `workers > 1` 且用 CUDA 时每个 worker 绑定一张卡，worker 数不超过卡数，单卡或 Metal 降为 1 并写日志。
+  device auto 的新内核运行在 `engine` 里另记 `reason`（内核计划给出的原因；计划的设备在运行时失败时注明），界面据此显示“实际：CPU（原因）”。
+- **界面中的计算内核**（M7b，2026-11-11）：模拟设置页“计算内核”分组（`pages/EngineSettings.tsx`）编辑 `[engine]`，随 `settings.save` 的 `engine` 参数保存，
+  `kernels.save_settings` 只在与文件不同时写（kernel 显式写，其余键等于默认值时删掉），保存前 `validate_form` 校验组合，受运行锁约束；设备只列本机检测到的
+  （`engine.info`，子进程查询并缓存，刷新按钮清缓存；壳层启动 5 秒后预取一次），auto 时用 `engine.preview` 显示本项目（按表单的空间电荷开关）会用什么；
+  不合法的精度 / 兼容组合禁用并说明（`engine.ts` 的 `precisionProblem` / `compatProblem`，与后端 `engines.validate` 同一规则）；原内核下其余项禁用；新内核库缺失时不可选并说明。
+  **每个运行入口在启动前调用 `kernels.require_ready(input_dir)`**：`run.check` / `run.start`、分段运行、研究页内核扫描与内核响应、AI 沙盒的 `Sandbox.run_in`；
+  它检查原内核的平台与 `scmethod PICNIC`（只有新内核支持）、新内核库、设备与组合，用带参数的 `UserError`（模板 + params，前端 `t(template, params)` 翻译）给出可操作的提示。
+  新增运行入口时也要调用它。运行状态的 `engine`（runner `Job.engine`、沙盒 activity）先是预计值（`predicted: true`），阶段结束后换成 avas_run.json 的实际值；
+  标签文字只由 `engine.ts` 的 `engineLabel` / `engineShort` 生成（`EngineBadge` 组件），用于运行页、实时面板、运行记录、状态栏、结果页来源与运行对比；
+  `results.sources`、`run.replay` 带 `engine`（`kernels.summary`，旧记录为 null，不显示标签）。input.txt `scanphase` 与 scanData.txt 两个内核都不读：
+  设置页注明并默认收起该表格，不删除文件、不改保存逻辑，也不再因表格为空阻止运行。关于窗口与“复制版本信息”列出两个内核与本机设备（`engine.ts` 的 `kernelLines`）。
 - 同一时间只运行一个任务：`avas/gui/services/runner.py` 的 `Job`（可含多个 `Stage`）。暂停是挂起整个子进程树（`avas/gui/proctree.py`），不是停止。
 - 开始运行前前端会先检查并保存所有有修改的页面（`actions.ts` 的 `prepareRun`）。
 - 分段运行（`avas/data/segment.py`、`services/segments.py`）结果写在 `<项目>/Segments/<名称>_<时间>/`，不改项目的 OutputFile。

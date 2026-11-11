@@ -10,6 +10,7 @@ import { LiveBeamPanel } from "../lattice/LiveBeamPanel";
 import { setPage, showResults, useApp } from "../store/app";
 import { openRecordReplay } from "../store/live";
 import { NoProject, PageHeader } from "./common";
+import { EngineBadge } from "../components/EngineBadge";
 
 const MODE_LABEL: Record<string, string> = {
   basic: "multi-particle",
@@ -120,6 +121,14 @@ export default function RunPage() {
           <div className="v">{project.latticeName}</div>
           <div className="k">{t("Output")}</div>
           <div className="v selectable">{source === "segment" && job?.outputDir ? job.outputDir : project.outputDir}</div>
+          <div className="k">{t("Kernel")}</div>
+          <div className="v">
+            {(() => {
+              const engine = running ? run.engine : last?.engine ?? (project.lastRun as any)?.engine;
+              return engine ? <EngineBadge engine={engine} /> : <span className="muted">{t("as set in Simulation settings")}</span>;
+            })()}{" "}
+            <a onClick={() => setPage("settings")}>{t("change")}</a>
+          </div>
         </div>
 
         <Section title={t("Progress")} icon="pulse">
@@ -232,11 +241,14 @@ function RunRecords({ running }: { running: boolean }) {
         {records.map((rec) => {
           const isProject = rec.kind === "project";
           const isArchived = rec.kind === "archived";
+          const isResearch = rec.kind === "research";
           const status = isProject ? info.status : rec.status;
           const details = isProject
             ? projectDetails
             : isArchived
               ? [rec.time, rec.mode, rec.elapsed_s != null ? fmtSeconds(rec.elapsed_s) : null, rec.archivedAt ? t("kept {time}", { time: rec.archivedAt }) : null].filter(Boolean).join("   ·   ")
+              : isResearch
+                ? [rec.time, (rec as any).seed != null ? `seed ${(rec as any).seed}` : null].filter(Boolean).join("   ·   ")
               : [
                 `z ${rec.zStart ?? "?"}–${rec.zEnd ?? "?"} m`,
                 rec.entry ? t(ENTRY_SHORT[rec.entry] ?? rec.entry) : null,
@@ -251,10 +263,11 @@ function RunRecords({ running }: { running: boolean }) {
               <div className="run-record-status">{status ? <Badge tone={statusTone(status)}>{runStatusLabel(status)}</Badge> : null}</div>
               <div className="run-record-main">
                 <div className="run-record-title">
-                  {isProject ? `${t("Full lattice")} (OutputFile)` : isArchived ? rec.label : t("Segment {label}", { label: rec.label })}
+                  {isProject ? `${t("Full lattice")} (OutputFile)` : isArchived ? rec.label : rec.kind === "research" ? t("Study {name}", { name: `${(rec as any).study ?? ""}: ${rec.label}` }) : t("Segment {label}", { label: rec.label })}
                   {isProject && status === "finished" && !archived && !empty && (
                     <span className="muted"> · {t("not kept")}</span>
                   )}
+                  {!empty && <EngineBadge engine={isProject ? info.engine ?? rec.engine : rec.engine} className="run-record-engine" />}
                 </div>
                 <div className="run-record-sub selectable">{empty ? t("no run recorded for this project") : details}</div>
               </div>
@@ -283,7 +296,7 @@ function RunRecords({ running }: { running: boolean }) {
                   icon="trash"
                   className="run-record-delete"
                   tip={running ? t("Cannot delete while a simulation is running") : t("Move to recycle bin")}
-                  disabled={running || empty}
+                  disabled={running || empty || isResearch}
                   onClick={() => remove(rec)}
                 />
               </div>

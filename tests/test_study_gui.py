@@ -134,6 +134,8 @@ def test_engine_scan_runs_through_the_sandbox(project, monkeypatch):
         return 0.1
 
     monkeypatch.setattr(sandbox.Sandbox, "run_in", fake_run_in)
+    from avas.gui.services import kernels                      # the stand-in engine needs no kernel check
+    monkeypatch.setattr(kernels, "require_ready", lambda input_dir: {"kernel": "original", "predicted": True})
     axes = [{"kind": "lattice", "target": "4", "param": "By"}]
     ok("study.start", axes=axes, values=["0, 0.001"], fidelity="engine", metrics=["centroid_x_max", "transmission"],
        label="kick")

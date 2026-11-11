@@ -388,6 +388,8 @@ def response_engine_start(monitors, knobs, particles=200):
         raise UserError("The engine has no deterministic offset knobs; use the linear model for them.")
     if engine_running() or runner.any_active():
         raise UserError("A simulation is already running; wait for it to finish.")
+    from avas.gui.services import kernels
+    kernels.require_ready(p.input_dir)
     stop = threading.Event()
     box = Sandbox(p, "study_response", root=os.path.join(p.path, "Research", STUDY_NAME, ".sandbox", "response"))
     try:

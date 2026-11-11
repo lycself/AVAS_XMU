@@ -89,6 +89,12 @@ function isBlobDeep(v: unknown): boolean {
   return false;
 }
 
+/** The text of a failed call: a UserError is translated (a template with its values filled in afterwards). */
+export function userMessage(reply: { error?: string; user?: boolean; template?: string; params?: Record<string, string | number> }): string {
+  if (!reply.user || !reply.error) return reply.error ?? "Error";
+  return reply.template && reply.params ? t(reply.template, reply.params) : t(reply.error);
+}
+
 export async function call<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T> {
   let res: Response;
   try {
@@ -102,9 +108,18 @@ export async function call<T = unknown>(method: string, params?: Record<string, 
   }
   if (res.status === 401) throw new RpcError(t("This page has no valid access token; open AVAS from 'avas gui' or the link printed by 'avas serve'."), undefined, true);
   if (!res.ok) throw new RpcError(`HTTP ${res.status}`, await res.text());
-  const reply = (await res.json()) as { ok: boolean; result?: unknown; error?: string; detail?: string; user?: boolean };
+  const reply = (await res.json()) as {
+    ok: boolean;
+    result?: unknown;
+    error?: string;
+    detail?: string;
+    user?: boolean;
+    /** a UserError with variable parts: the message template and its values */
+    template?: string;
+    params?: Record<string, string | number>;
+  };
   // messages of expected problems (bridge.UserError) are translated when zh_CN.json has them
-  if (!reply.ok) throw new RpcError(reply.user && reply.error ? t(reply.error) : reply.error ?? "Error", reply.detail, !!reply.user);
+  if (!reply.ok) throw new RpcError(userMessage(reply), reply.detail, !!reply.user);
   return (await resolveBlobs(reply.result)) as T;
 }
 

@@ -1,5 +1,7 @@
-"""Simulation settings page: tracking options in input.txt, the run mode in ini.ini, and the two tables
-input.txt switches on (boundary.txt for ``boundary 1``, scanData.txt for ``scanphase 2``)."""
+"""Simulation settings page: tracking options in input.txt, the run mode and the computing kernel in ini.ini
+(``[error]``, ``[engine]``, see :mod:`avas.gui.services.kernels`), and the two tables input.txt switches on
+(boundary.txt for ``boundary 1``, scanData.txt for ``scanphase 2`` -- neither kernel reads scanphase or
+scanData.txt; the page keeps them)."""
 import os
 import shutil
 import tempfile
@@ -10,6 +12,7 @@ from avas.gui import context
 from avas.gui.bridge import UserError, rpc
 from avas.gui.locks import require_unlocked
 from avas.gui.filehistory import capture
+from avas.gui.services import kernels
 from avas.gui.textio import normalized_write_text, read_text, write_text
 
 
@@ -76,6 +79,7 @@ def load():
     input_path = p.input_file("input.txt")
     data["text"] = read_text(input_path) if os.path.isfile(input_path) else ""
     data["companions"] = _companions(p)
+    data["engine"] = kernels.settings_form(p.input_dir)
     return data
 
 
@@ -145,9 +149,12 @@ def _read_triple(texts, cast):
 
 
 @rpc("settings.save")
-def save(form, meta, companions=None, restoredFrom=None):
+def save(form, meta, companions=None, restoredFrom=None, engine=None):
+    """Write input.txt, ini.ini ([error]; [engine] when *engine*, the kernel form, changed) and the tables."""
     require_unlocked()
     p = context.project().require()
+    if engine is not None:
+        kernels.validate_form(engine)                   # before anything is written
     item = p.item()
     scan = form.get("scanphase")
     values = {
@@ -192,6 +199,8 @@ def save(form, meta, companions=None, restoredFrom=None):
     res = ini.write_to_file(item)
     if isinstance(res, dict) and res.get("code", 0) != 0:
         raise UserError(res["data"]["msg"])
+    if engine is not None:
+        kernels.save_settings(p.input_dir, engine)          # only when the kernel form changed
     now = _companions(p)
     for key, text in (companions or {}).items():
         if key not in now or text is None or normalized_write_text(text) == normalized_write_text(now[key]["text"]):

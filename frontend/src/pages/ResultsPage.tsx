@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { archiveRun, deleteRunRecord } from "../actions";
+import { EngineBadge } from "../components/EngineBadge";
+import { engineShort } from "../engine";
 import { call, on } from "../bridge";
 import { openPath, pickFile, pickFolder } from "../host";
 import { reportError, toast } from "../components/overlays";
@@ -483,6 +485,8 @@ type ResultSource = {
   entry?: string | null;
   mode?: string | null;
   archivedAt?: string | null;
+  /** the kernel the run used (kernels.summary); null for older records */
+  engine?: unknown;
 };
 
 const ENTRY_LABEL: Record<string, string> = {
@@ -500,6 +504,12 @@ const ENTRY_SHORT: Record<string, string> = {
   upstream: "with upstream",
   twiss: "Twiss beam",
 };
+
+/** A source's name with its kernel for the source list ("… · new kernel Metal fp32"). */
+function withKernel(engine: unknown, label: string): string {
+  const kernel = engineShort(engine);
+  return kernel ? `${label}  ·  ${kernel}` : label;
+}
 
 function samePath(a?: string, b?: string) {
   return !!a && !!b && a.replace(/[\\/]+$/, "").toLowerCase() === b.replace(/[\\/]+$/, "").toLowerCase();
@@ -577,7 +587,7 @@ export default function ResultsPage() {
   const current = sources.find((s) => (outputDir ? samePath(s.outputDir, outputDir) : s.kind === "project"));
   const sourceOptions = sources.map((s) => ({
     value: s.outputDir,
-    label:
+    label: withKernel(s.engine,
       s.kind === "project"
         ? `${tt("Full lattice")} (OutputFile)`
         : s.kind === "archived"
@@ -592,7 +602,7 @@ export default function ResultsPage() {
             s.status && s.status !== "finished" ? runStatusLabel(s.status) : null,
           ]
             .filter(Boolean)
-            .join("  ·  "),
+            .join("  ·  ")),
   }));
   if (outputDir && !current) sourceOptions.push({ value: outputDir, label: tt("Other folder") });
   const pickSource = (dir: string) => {
@@ -715,6 +725,11 @@ export default function ResultsPage() {
           {tt("Open folder")}
         </Button>
       </div>
+      {!!current?.engine && (
+        <div className="results-source-note">
+          <EngineBadge engine={current.engine} />
+        </div>
+      )}
       {current?.kind === "archived" && (
         <div className="muted results-source-note">
           {tt("Kept run {label}: a copy of OutputFile/ made {time}; its input files are in inputs/.", { label: current.label, time: current.archivedAt ?? "" })}

@@ -4,3 +4,4 @@ from avas.gui.services import updates  # noqa: F401
 from avas.gui.services import history  # noqa: F401
 from avas.gui.services import learn  # noqa: F401
 from avas.gui.services import study, analysis  # noqa: F401
+from avas.gui.services import kernels  # noqa: F401

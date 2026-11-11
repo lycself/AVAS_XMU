@@ -60,6 +60,8 @@ export type LiveRecord = {
   rows: LiveArrays;
   losses: LiveLoss[];
   particles0: number | null;
+  /** the kernel the record was made with (null for records older than the kernel choice) */
+  engine: unknown;
 };
 
 type LiveState = {
@@ -93,6 +95,7 @@ export async function openRecordReplay(outputDir: string): Promise<LiveRecord> {
       rows: toArrays(r.rows),
       losses: (r.losses ?? []).map((l: any) => ({ z: l.z, n: l.n, t: 0 })),
       particles0: r.particles0 ?? null,
+      engine: r.engine ?? null,
     };
     useLive.setState((st) => ({ record, recordLoading: null, version: st.version + 1 }));
     return record;

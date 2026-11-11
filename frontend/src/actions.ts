@@ -8,6 +8,8 @@ import { refreshProject, setPage, setProject, showStatus, useApp, type ProjectSu
 import { allPages, dirtyPages, useDirty } from "./store/pages";
 import { basename } from "./util";
 import { formatBuildTime } from "./buildTime";
+import { kernelLines } from "./engine";
+import { useEngineInfo } from "./store/engine";
 
 /** Ask about unsaved pages.  Resolves true when it is fine to continue. */
 export async function resolveUnsaved(action: string): Promise<boolean> {
@@ -229,7 +231,7 @@ export async function resumeSimulation() {
 
 /** F5 and the tool-bar button: run, pause or resume depending on the state. */
 export type RunRecord = {
-  kind: "project" | "segment" | "archived";
+  kind: "project" | "segment" | "archived" | "research";
   label: string;
   outputDir: string;
   status?: string | null;
@@ -241,6 +243,8 @@ export type RunRecord = {
   mode?: string | null;
   elapsed_s?: number | null;
   archivedAt?: string | null;
+  /** the kernel the run used (kernels.summary); null for older records */
+  engine?: unknown;
 };
 
 /** Ask, then move a run record (the project's OutputFile or a whole segment run) to the recycle bin. */
@@ -287,10 +291,14 @@ export async function showAbout() {
     const info = await call<any>("app.info");
     b = info.build ?? build;
     useApp.setState({ build: b });
-    environment = `Python ${info.python} · ${info.platform} · ${info.host === "browser" ? t("Browser") : `WebView2 ${info.webview2 ?? "–"}`}`;
+    // the desktop window is Edge WebView2 on Windows, the system web view (WebKit / GTK / Qt) elsewhere
+    const webview = String(info.platform ?? "").startsWith("Windows") ? `WebView2 ${info.webview2 ?? "–"}` : String(info.platform ?? "").startsWith("macOS") ? "WKWebView" : t("System web view");
+    environment = `Python ${info.python} · ${info.platform} · ${info.host === "browser" ? t("Browser") : webview}`;
   } catch {
     /* Keep the version snapshot received at startup. */
   }
+  const engines = useEngineInfo.getState();
+  const kernels = kernelLines(await engines.load(), useEngineInfo.getState().error);
   const buildTime = (value?: string | null) => value ? formatBuildTime(value) ?? `${value} (${t("timezone unknown")})` : t("Unknown");
   const lines = [
     b.frozen ? t("Stand-alone build") : t("Running from source"),
@@ -300,7 +308,9 @@ export async function showAbout() {
     `${t("Front end built")}: ${buildTime(b.frontend)}`,
     `${t("Location")}: ${b.location ?? ""}`,
     environment,
-  ].filter(Boolean);
+  ]
+    .filter(Boolean)
+    .concat(["", ...kernels]);
   const identity = `AVAS ${version} · ${b.commit?.slice(0, 7) || t("Unknown commit")}`;
   const versionInfo = `${identity}\nAdvanced Virtual Accelerator Software\n\n${lines.join("\n")}`;
   alertDialog(

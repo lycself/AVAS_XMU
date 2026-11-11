@@ -101,7 +101,7 @@ def activity_state():
         return {"running": True, "paused": act["paused_since"] is not None, "source": act.get("source", "assistant"),
                 "label": act["label"], "mode": "basic", "percent": act["percent"], "eta_s": None,
                 "elapsed_s": _active_seconds(act), "step": act["index"] or None, "all_step": act["total"],
-                "pos_m": None, "line": act["line"]}
+                "pos_m": None, "line": act["line"], "engine": act.get("engine")}
 
 
 def pause():
@@ -262,11 +262,19 @@ class Sandbox:
             if act is None or act["paused_since"] is None:
                 break
             time.sleep(0.2)
+        from avas.gui.bridge import UserError
+        from avas.gui.services import kernels
+        try:
+            expected = kernels.require_ready(input_dir)     # the project's [engine], copied with ini.ini
+        except UserError as exc:
+            raise SandboxError(str(exc)) from exc
         from avas.gui import maintenance
         with maintenance.lock, _lock:
             maintenance.require_idle_update()
             if runner.is_running() or busy():
                 raise SandboxError("Another simulation is running; wait for it to finish.")
+            if _activity is not None:
+                _activity["engine"] = expected
             proc = subprocess.Popen(cmd, cwd=self.root, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                     stderr=subprocess.STDOUT, creationflags=flags)
             _active.update(proc=proc, job=self.job_id, out=out, index=self.count,
@@ -344,6 +352,10 @@ class Sandbox:
             with _lock:
                 _active.update(proc=None, job=None, out=None, index=None, lattice=None, field_dirs=None)
         seconds = max(0.0, time.time() - started - paused_s)
+        used = kernels.read_summary(out)
+        act = _activity
+        if act is not None and used is not None and (used.get("kernel") == "original" or used.get("device")):
+            act["engine"] = used
         if log_path:
             try:
                 with open(log_path, "w", encoding="utf-8") as fh:

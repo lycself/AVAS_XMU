@@ -716,6 +716,7 @@ def _facts(ui):
         if run.get("status"):
             facts.append(f"Last run: {run.get('status')} ({run.get('started')}, {run.get('elapsed_s')} s)"
                          + (f", error: {run.get('error')}" if run.get("error") else ""))
+        facts.append(_kernel_fact(p))
     except Exception:  # noqa: BLE001 - facts are a convenience
         pass
     run_time = None
@@ -723,6 +724,21 @@ def _facts(ui):
     if elapsed:
         run_time = f"{float(elapsed):.0f} s (last run)"
     return facts + _ui_facts(ui), run_time
+
+
+def _kernel_fact(p):
+    """The kernel the project's runs use and the one its last run used (ini.ini [engine], avas_run.json)."""
+    from avas import engines
+    try:
+        text = f"Computing kernel of this project: {engines.resolve_choice(input_dir=p.input_dir).label()}"
+    except engines.EngineChoiceError as exc:
+        text = f"Computing kernel settings are invalid: {exc}"
+    used = (p.last_run() or {}).get("engine") or {}
+    if used.get("kernel") == "new" and used.get("device"):
+        text += f"; the last run used the new kernel on {used['device']} {used.get('precision')} (tier {used.get('tier')})"
+    elif used.get("kernel") == "original":
+        text += "; the last run used the original kernel"
+    return text
 
 
 def _ui_facts(ui):
