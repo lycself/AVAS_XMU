@@ -1,6 +1,6 @@
 """One-command M1 / M2 parity check of the new engine against the AVAS.dll references.
 
-usage: python engine/tests/parity/run_all.py [--lib PATH] [--work DIR] [--strict]
+usage: python engine/tests/parity/run_all.py [--lib PATH] [--work DIR] [--strict [--rerun-original AVAS.dll]]
 
 1. runs every case with compat=dll and compares with refs/ (written by AVAS.dll on Windows);
 2. runs every case with the default (corrected) mode and reports the synchronous phase error of
@@ -9,6 +9,12 @@ OMP_NUM_THREADS is set to the thread count of the reference machine so that the 
 (and with them the summation order of the beam statistics) are the same as in AVAS.dll.
 Exit code 0 when compat=dll agrees with the references (byte-identical with --strict, otherwise
 within 1e-10 relative, the size of libm differences between platforms).
+
+--rerun-original (with --strict, Windows): compat=dll calls the math functions of the dynamic UCRT
+like AVAS.dll does, and the references were written on Windows 11; another Windows (the CI runner is
+Windows Server 2022) can round a few of them differently.  The cases that differ are then run again
+with the original AVAS.dll on this machine: the check passes when the new engine is byte-identical to
+that run, and fails when AVAS.dll still reproduces the references here (a real difference).
 """
 import argparse
 import json
@@ -34,10 +40,54 @@ def default_lib():
     raise SystemExit("engine library not found; build it first: cmake -S engine -B engine/build && cmake --build engine/build")
 
 
-def run(lib, compat, work, threads):
+def run(lib, compat, work, threads, only=None):
     env = dict(os.environ, OMP_NUM_THREADS=str(threads))
     subprocess.run([sys.executable, os.path.join(HERE, "run_engine.py"), "--lib", lib, "--compat", compat,
-                    "--work", work], check=True, env=env, stdout=subprocess.DEVNULL)
+                    "--work", work] + (["--only", ",".join(sorted(only))] if only else []),
+                   check=True, env=env, stdout=subprocess.DEVNULL)
+
+
+def rerun_original(original, work, threads, rows):
+    """--rerun-original: the cases of *rows* that differ from refs/, run with AVAS.dll on this machine.
+    Returns 0 when the new engine equals AVAS.dll here in every one of them."""
+    cases = {r[0] for r in rows if r[2] in ("DIFF", "MISSING")}
+    print(f"\nstrict differences in {len(cases)} cases: running them with the original {original} on this machine")
+    orig = os.path.join(work, "original")
+    # a new-engine library given here (a self-test of this check) runs as compat=dll
+    run(os.path.abspath(original), "dll" if "avas_engine" in os.path.basename(original) else "-", orig, threads, cases)
+    # the fresh AVAS.dll outputs in the layout of refs/ (<case>/...)
+    refs_here = os.path.join(work, "original_refs")
+    shutil.rmtree(refs_here, ignore_errors=True)
+    for case in cases:
+        if os.path.isdir(os.path.join(orig, case, "summary")):
+            shutil.copytree(os.path.join(orig, case, "summary"), os.path.join(refs_here, case))
+    same_here, rows_here = compare.compare_dirs(os.path.join(work, "dll"), refs_here, cases)
+    _, rows_orig = compare.compare_dirs(orig, os.path.join(HERE, "refs"), cases)
+    orig_diff = {(r[0], r[1]) for r in rows_orig if r[2] in ("DIFF", "MISSING")}
+    bad = 0
+    for r in sorted(r for r in rows if r[2] in ("DIFF", "MISSING")):
+        here = next((h for h in rows_here if h[:2] == r[:2]), None)
+        new_eq_orig = here is not None and here[2] in ("identical", "close")
+        orig_moved = (r[0], r[1]) in orig_diff
+        if new_eq_orig and orig_moved:
+            verdict = "environment: AVAS.dll on this machine gives the same bytes as the new engine"
+        elif not orig_moved:
+            verdict = "REAL DIFFERENCE: AVAS.dll on this machine still reproduces the reference"
+            bad += 1
+        else:
+            verdict = "DIFFERENT FROM BOTH the reference and AVAS.dll on this machine"
+            bad += 1
+        print(f"  {r[0]:<36} {r[1]:<28} {verdict}")
+    if not same_here:
+        others = [h for h in rows_here if h[2] in ("DIFF", "MISSING") and (h[0], h[1]) not in {(r[0], r[1]) for r in rows}]
+        for h in others:
+            print(f"  {h[0]:<36} {h[1]:<28} differs from AVAS.dll on this machine although it matched the reference")
+            bad += 1
+    if bad:
+        print(f"STRICT PARITY FAILED: {bad} differences not explained by the machine")
+        return 1
+    print("STRICT PARITY: byte-identical to AVAS.dll on this machine (the references differ only by the UCRT of the machine that wrote them)")
+    return 0
 
 
 ELEMENTS = ("drift", "field", "quad", "solenoid", "steerer", "bend", "edge", "multipole", "rfq")
@@ -526,6 +576,8 @@ def main():
     ap.add_argument("--work", default=None)
     ap.add_argument("--strict", action="store_true")
     ap.add_argument("--keep", action="store_true", help="keep the temporary work folder (without --work)")
+    ap.add_argument("--rerun-original", metavar="AVAS.dll", default=None,
+                    help="with --strict: rerun the differing cases with this original kernel on this machine")
     a = ap.parse_args()
     lib = os.path.abspath(a.lib or default_lib())
     work = a.work or tempfile.mkdtemp(prefix="avas_parity_")
@@ -541,6 +593,7 @@ def main():
     print("\ncompat=dll against AVAS.dll references (differences only):")
     sys.argv = ["compare.py", os.path.join(work, "dll"), "--quiet"]
     identical = compare.main() == 0
+    strict_rows = [] if identical else compare.compare_dirs(os.path.join(work, "dll"), os.path.join(HERE, "refs"))[1]
     default_report(doc, os.path.join(work, "none"))
     bad = energy_check(doc, os.path.join(work, "none"))
     bad += segment_drift_check(doc, os.path.join(work, "none"))
@@ -559,6 +612,8 @@ def main():
     if identical:
         return 0
     if a.strict:
+        if a.rerun_original:
+            return rerun_original(a.rerun_original, work, threads, strict_rows)
         return 1
     # tolerate last-bit libm differences on other platforms
     libm_sensitive = {c["name"]: c["libm_sensitive"] for c in doc["cases"] if c.get("libm_sensitive")}

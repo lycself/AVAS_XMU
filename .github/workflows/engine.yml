@@ -35,9 +35,9 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 150
     env:
-      CUDA: ${{ github.workspace }}\..\cuda-12.4.1
-      BUILD: ${{ github.workspace }}\..\engine-build
-      WORK: ${{ github.workspace }}\..\engine-work
+      CUDA: ${{ github.workspace }}-cuda-12.4.1
+      BUILD: ${{ github.workspace }}-engine-build
+      WORK: ${{ github.workspace }}-engine-work
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -77,8 +77,18 @@ jobs:
           python engine/tools/ci_engine.py deps "$env:BUILD\avas_engine.dll"
       - name: Parity, compat=dll byte for byte against the AVAS.dll references (strict)
         run: |
-          python engine/tests/parity/run_all.py --lib "$env:BUILD\avas_engine.dll" --work "$env:WORK\parity" --strict
+          python engine/tests/parity/run_all.py --lib "$env:BUILD\avas_engine.dll" --work "$env:WORK\parity" --strict --rerun-original avas\engine\AVAS.dll
           if ($LASTEXITCODE -ne 0) { throw "parity" }
+      - name: Parity summaries (only when a check failed)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: parity-windows-summaries
+          path: |
+            ${{ env.WORK }}\parity\*\*\summary\**
+            ${{ env.WORK }}\parity\original\*\log.txt
+          retention-days: 7
+          if-no-files-found: ignore
       - name: DLL tools (sampling, meshing, dataprocess) byte for byte against AVAS.dll
         run: |
           python engine/tests/parity/tools_check.py --lib avas\engine\AVAS.dll --work "$env:WORK\tools_dll"
@@ -168,8 +178,8 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 120
     env:
-      BUILD: ${{ github.workspace }}/../engine-build
-      WORK: ${{ github.workspace }}/../engine-work
+      BUILD: ${{ github.workspace }}-engine-build
+      WORK: ${{ github.workspace }}-engine-work
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

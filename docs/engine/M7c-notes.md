@@ -176,3 +176,22 @@ runner 的 Apple clang 版本（Xcode 15/16）与本机 17 不同，结果在容
 - L40S：`/data/public/lycself/m7c_tmp`（两份源码、改前 / 改后 / 新镜像 / 只含 sm_61 四份构建、容器内检查与 5 号卡检查的工作目录）、测试镜像 `avas-engine-build:m7c-test` 及其构建缓存记录已删除；
   旧镜像 `avas-engine-build:cuda12.4-manylinux2014` 保留。GPU 只用 5 号卡，CPU 用 `--cpuset-cpus 0-31` / `taskset -c 0-31`。
 - lyc-pc：`~/m7c_tmp`（库、测试脚本、示例输入、工作目录）已删除，只用 0 号卡。
+
+## 12. 推送后的 CI 结果（2026-11-11）
+
+第一次推送后逐项修正：
+- **源码哈希脚本**：`cmake -P` 的脚本模式下策略全未设置，CMake 3.31（Windows 镜像）把 `IN_LIST` 当普通单词，构建第一步失败；本机 CMake 4 没有旧行为所以没暴露。脚本里 `cmake_policy(SET CMP0057 NEW)`，CMake 3.31 下哈希与 Python 一致。
+- **macOS 镜像**：GitHub 已不提供 `macos-14`，改 `macos-15`。
+- **导出符号**：Windows 的 CUDA 静态运行库自带导出 `NvOptimusEnablementCuda`（双显卡笔记本上让驱动为本进程启用独显，device=cuda 需要），`ci_engine.py exports` 对 `.dll` 允许它。
+- **产物路径**：`upload-artifact` 不接受含 `..` 的路径，Windows / macOS 的 `BUILD`、`WORK`、`CUDA` 改为 `${{ github.workspace }}-engine-build` 这类同级绝对路径。
+- **strict parity**：Windows Server 2022 上 compat=dll 与参考有 8 个算例的 `.dst`（少数粒子末位，矩完全相同）和 LT1 的 BeamSet.plt / PCHistogram.dat 不同，DataSet 等文本全部逐字符一致。参考是 Windows 11 上 AVAS.dll 写的，compat=dll 与 AVAS.dll 一样调用动态 UCRT 的数学函数（第 7 节第 4 条预计的情况）。`run_all.py` 新增 `--rerun-original AVAS.dll`：严格比对有差别时，在同一台机器上用原 AVAS.dll 重跑这些算例；新内核与本机 AVAS.dll 逐字节相同即通过并逐项写明“environment”，本机 AVAS.dll 仍能复现参考而新内核不能则失败。Mac 上用新内核 compat=dll 充当“原内核”自测：97 个算例 269 处差别全部判为环境差别、通过。失败时上传各算例摘要（产物 `parity-windows-summaries`，保留 7 天）。
+
+第 7 节确认点：
+1. CUDA redist 目录：CMake 识别正常（`Found CUDAToolkit … 12.4.131`），构建约 5 分钟。
+2. 批处理、vswhere、Ninja：正常。
+3. MSVC：镜像为 19.44.35229，CUDA 12.4 接受。
+4. strict parity：见上，用本机 AVAS.dll 复核。
+6. DLL 依赖：`avas_engine.dll` 导入 MSVCP140、VCRUNTIME140、VCRUNTIME140_1、api-ms-win-crt-*、KERNEL32。VCRUNTIME140(_1) 随 python.org 的 Python 3.11 与 PyInstaller 打包提供（加载内核的总是 Python 进程），MSVCP140 由 `avas/engine/` 自带并已加入搜索路径，第 9 节待定点 1 按现状关闭。
+- Linux：全部通过（单元测试、只导出 C 接口、glibc ≤ 2.17、与参考 1e-10 以内、emu fp64 / fp32 184 个算例逐字节可重复），库 12.9 MB；镜像层缓存第二次命中。
+- macOS：构建、Rosetta 下 x86_64 单元测试与比对、arm64 比对、emu 全部通过；Metal 在虚拟机里不可用（“Apple Paravirtual device does not support Metal 3”），按设计跳过并记入 build-info；库 2.97 MB。
+- 告警：`actions/checkout@v4` 等仍以 Node.js 20 为目标，GitHub 已强制改用 Node.js 24 运行，目前只是告警。
