@@ -233,7 +233,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 if(MSVC)
   target_compile_options(avas_engine PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:/W3;/utf-8;/EHsc>")
-  target_compile_definitions(avas_engine PRIVATE _CRT_SECURE_NO_WARNINGS)
+  # _DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR: since VS 17.10 std::mutex has a constexpr constructor that an
+  # older MSVCP140 (< 14.40) already loaded into the process by another Python package cannot handle
+  # (crash on the first lock); with the macro the library works with any MSVCP140 of VS 2015-2022.
+  target_compile_definitions(avas_engine PRIVATE _CRT_SECURE_NO_WARNINGS _DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
   # The original DLL was built with /fp:fast; MSVC then evaluates sin and cos of the same
   # argument with its own static SSE2 sincos routine.  dllmath.cpp is compiled the same way so
   # that "compat=dll" calls exactly that routine (see dllmath.h).
@@ -278,7 +281,7 @@ if(AVAS_WITH_MPI)
 endif()
 if(MSVC)
   target_compile_options(avas_engine_static_for_tests PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:/utf-8;/EHsc>")
-  target_compile_definitions(avas_engine_static_for_tests PRIVATE _CRT_SECURE_NO_WARNINGS)
+  target_compile_definitions(avas_engine_static_for_tests PRIVATE _CRT_SECURE_NO_WARNINGS _DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
 endif()
 add_test(NAME unit COMMAND avas_engine_unit)
 

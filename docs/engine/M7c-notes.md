@@ -242,3 +242,10 @@ runner 的 Apple clang 版本（Xcode 15/16）与本机 17 不同，结果在容
   1e6 时 fp32 比 CPU 快 10.8×（无 SC）、29×（SPICNIC）、32×（PICNIC），比 fp64 快约 3×（PICNIC 5×），auto 选 fp32 合理。fp32 1e6 SPICNIC 每步：推进核 4.12 ms、组求和 1.68 ms、
   电荷分配 1.26 ms、网格求解 2.64 ms、插值 1.25 ms。显存：1e7 粒子运行前报错退出（需约 3.8–4.3 GB，空闲 3.45 GB）；fp32 8e6、fp64 7e6 可以运行，4 GB 卡上限约 fp32 9e6、fp64 8e6。
 - 临时数据：XPS `C:\Users\lycself\avas_xps_tmp\`（约 2.8 GB）与本次新建的两个更新锁文件已删除（已核实），用户仓库未动；Mac 的 `scratchpad/xps/` 已删除。
+
+### 第 14 节新待定点的决定（2026-11-15，用户“全部按推荐”）
+
+1. MSVC 构建定义 `_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR`（`avas_engine` 与测试用静态库）：VS 17.10 起 `std::mutex` 的 constexpr 构造在进程里已载入旧 MSVCP140（< 14.40）时会在第一次加锁时崩溃，
+   定义后与 VS 2015–2022 的任何 MSVCP140 都兼容，不影响结果。
+2. `f32_cpu.cpp` 在包含共享核函数的范围内 `#pragma warning(disable: 4305 4244)`（“double = float” 有意的截断），MSVC 日志只剩真正的新警告。
+3. 1650 上 fp32 组求和占推进 40 %：暂不处理。

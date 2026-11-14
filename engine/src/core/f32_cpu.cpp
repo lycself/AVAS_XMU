@@ -14,6 +14,12 @@
 #include <vector>
 
 #define AVAS_F32_CPU 1
+#if defined(_MSC_VER)
+// "double = float" turns the double literals and conversions of the shared kernels into float ones on
+// purpose; MSVC would warn about each (C4305 truncation, C4244 conversion)
+#pragma warning(push)
+#pragma warning(disable : 4305 4244)
+#endif
 #define avas avas_f32
 #define double float
 #include "core/hd.h"
@@ -24,6 +30,9 @@
 #include "core/f32_kernels.h"
 #undef double
 #undef avas
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
 
 namespace avas {
 namespace f32cpu {
