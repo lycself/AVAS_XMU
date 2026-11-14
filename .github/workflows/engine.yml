@@ -104,7 +104,7 @@ jobs:
           New-Item -ItemType Directory -Force "$env:WORK\artifact" | Out-Null
           Copy-Item "$env:BUILD\avas_engine.dll" "$env:WORK\artifact\"
           python engine/tools/ci_engine.py build-info --lib "$env:WORK\artifact\avas_engine.dll" --platform windows-x86_64 `
-            --out "$env:WORK\artifact\build-info.json" --check unit=passed --check exports=passed `
+            --fp32-dir "$env:WORK\emu\emu_fp32" --out "$env:WORK\artifact\build-info.json" --check unit=passed --check exports=passed `
             --check "parity=compat=dll byte-identical to AVAS.dll (strict)" --check "tools=byte-identical to AVAS.dll" `
             --check "emu=fp64 and fp32 passed"
           if ($LASTEXITCODE -ne 0) { throw "build-info" }
@@ -162,7 +162,7 @@ jobs:
         run: |
           cp "$RUNNER_TEMP/build/libavas_engine.so" "$RUNNER_TEMP/work/artifact/"
           "$RUNNER_TEMP/in-image" $PY engine/tools/ci_engine.py build-info --lib /work/artifact/libavas_engine.so \
-            --platform linux-x86_64 --out /work/artifact/build-info.json --check unit=passed \
+            --platform linux-x86_64 --fp32-dir /work/emu/emu_fp32 --out /work/artifact/build-info.json --check unit=passed \
             --check "exports=C API only" --check "glibc=<= 2.17" --check "parity=within 1e-10 of AVAS.dll" \
             --check "emu=fp64 and fp32 passed"
       - uses: actions/upload-artifact@v4
@@ -224,7 +224,7 @@ jobs:
           if [ "${{ steps.metal.outputs.usable }}" = true ]; then metal="passed"; else metal="skipped: no Metal 3 device on the runner"; fi
           if [ "${{ steps.rosetta.outputs.usable }}" = true ]; then x86="unit and parity passed under Rosetta"; else x86="not tested (no Rosetta)"; fi
           python engine/tools/ci_engine.py build-info --lib "$WORK/artifact/libavas_engine.dylib" --platform macos-universal2 \
-            --out "$WORK/artifact/build-info.json" --check unit=passed --check "exports=C API only" \
+            --fp32-dir "$WORK/emu/emu_fp32" --out "$WORK/artifact/build-info.json" --check unit=passed --check "exports=C API only" \
             --check "parity=within 1e-10 of AVAS.dll" --check "emu=fp64 and fp32 passed" --check "metal=$metal" \
             --check "x86_64=$x86"
       - uses: actions/upload-artifact@v4

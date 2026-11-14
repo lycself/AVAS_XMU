@@ -10,9 +10,10 @@ namespace {
 
 DevicePlan g_used;
 
-DevicePlan cpu_plan(const std::string& reason) {
+DevicePlan cpu_plan(const std::string& reason, const std::string& code) {
     DevicePlan p;
     p.reason = reason;
+    p.code = code;
     return p;
 }
 
@@ -26,13 +27,14 @@ DevicePlan failed_plan(const std::string& error) {
 
 DevicePlan plan_device(long long nParticles, bool spaceCharge) {
     const Options& o = options();
-    if (o.device == Device::Cpu) return cpu_plan("requested");
+    if (o.device == Device::Cpu) return cpu_plan("requested", "requested");
     if (o.device == Device::Emu) {
         if (compat_dll()) return failed_plan("compat=dll is only available on the CPU (device emu was requested)");
         DevicePlan p;
         p.device = "emu";
         p.precision = o.precision == Precision::Fp32 ? "fp32" : "fp64";
         p.reason = "requested";
+        p.code = "requested";
         return p;
     }
     if (o.device == Device::Metal) {
@@ -43,35 +45,37 @@ DevicePlan plan_device(long long nParticles, bool spaceCharge) {
         p.device = "metal";
         p.precision = "fp32";
         p.reason = "requested";
+        p.code = "requested";
         p.desc = name;
         return p;
     }
     const bool required = o.device == Device::Cuda;
     if (compat_dll()) {
         if (required) return failed_plan("compat=dll is only available on the CPU (device cuda was requested)");
-        return cpu_plan("auto: compat=dll runs on the CPU only");
+        return cpu_plan("auto: compat=dll runs on the CPU only", "compat_dll");
     }
     if (!cuda_compiled() && !required && metal_compiled()) {
         // auto on macOS (M6c decision 6): Metal when the run has space charge, else the CPU
-        if (!spaceCharge) return cpu_plan("auto: no space charge, Metal is used for runs with space charge");
+        if (!spaceCharge) return cpu_plan("auto: no space charge, Metal is used for runs with space charge", "no_space_charge");
         std::string name, why;
-        if (!metal_probe(name, why)) return cpu_plan("auto: " + why);
+        if (!metal_probe(name, why)) return cpu_plan("auto: " + why, "no_metal");
         DevicePlan p;
         p.device = "metal";
         p.precision = "fp32";
         p.reason = "auto";
+        p.code = "auto_space_charge";
         p.desc = name;
         return p;
     }
     if (!cuda_compiled()) {
         if (required) return failed_plan("device cuda: this engine was built without CUDA (AVAS_WITH_CUDA=OFF)");
-        return cpu_plan("auto: this engine was built without CUDA");
+        return cpu_plan("auto: this engine was built without CUDA", "no_cuda_build");
     }
     DevicePlan p;
     std::string why;
     if (!cuda_plan(nParticles, spaceCharge, p, why)) {
         if (required) return failed_plan("device cuda: " + why);
-        return cpu_plan("auto: " + why);
+        return cpu_plan("auto: " + why, p.code.empty() ? "no_gpu" : p.code);
     }
     return p;
 }
@@ -91,7 +95,7 @@ std::unique_ptr<DeviceBackend> make_device_backend(long long nParticles, bool sp
     plan.spaceCharge = spaceCharge;
     auto fallback = [&](const std::string& why) {
         say("Device: CPU (auto: " + why + ")");
-        g_used = cpu_plan("auto: " + why);
+        g_used = cpu_plan("auto: " + plan.device + " could not be used at run time: " + why, "run_time_failure");
         g_used.spaceCharge = spaceCharge;
     };
     if (plan.device == "cpu") {

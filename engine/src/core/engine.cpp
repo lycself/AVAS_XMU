@@ -201,6 +201,8 @@ int run_main_agent(int* state) {
             r.precision = d.precision;
             r.gpus = d.gpus;
             r.spaceCharge = d.device.empty() ? -1 : (d.spaceCharge ? 1 : 0);
+            r.reason = d.reason;
+            r.reasonCode = d.code;
             r.compat = compat_dll() ? "dll" : "none";
             r.threads = options().threads > 0 ? options().threads : static_cast<int>(std::thread::hardware_concurrency());
             r.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();

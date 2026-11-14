@@ -191,7 +191,8 @@ packaging/        PyInstaller + Inno Setup 打包
   `avas_engine_devices()`，与 `main_agent` 同一段代码 `plan_device`）；compat dll 只能配 auto / cpu，Metal 只有 fp32，CPU 只有 fp64，组合不对时在解析阶段报错。
   内核库只在 `avas run` / `avas info` 进程里用 ctypes 加载；其他进程（研究层、GUI）要知道 auto 会选什么时调用子进程 `avas info --engine-json`（`engines.query_subprocess`）。
   **avas_run.json 的 `engine` 字段**：原内核 `{"kernel": "original", "file", "sha1", "tier"}`（libPIC.so 通路另记 `device: gpu`）；新内核另有 `version`（引擎源码哈希前 16 位）、
-  实际的 `device`、`precision`、`gpus`、`compat`、`threads`、`space_charge`（取自 `avas_engine_last_run()`）、`tier` 与 `requested`；误差研究等多次运行记最后一次；
+  实际的 `device`、`precision`、`gpus`、`compat`、`threads`、`space_charge`（取自 `avas_engine_last_run()`）、`tier` 与 `requested`，auto 时还有 `reason` 与 `reason_code`
+  （内核给出的原因代码，界面 `engine.ts` 的 `autoReason` 按代码翻译，不匹配英文原因；没有代码的旧记录才按文字归类）；误差研究等多次运行记最后一次；
   旧记录没有该字段，读取时要容忍。**结果档**（`engines.result_tier`）：original、new-cpu-fp64、new-cuda-fp64（CUDA 与 emu 的 fp64）、new-fp32（CUDA / Metal / emu 的 fp32 逐字节相同）、
   new-compat-dll；研究指纹的内核身份是原内核文件 SHA-1（与 M7 前相同，旧缓存仍有效）或新内核的（结果档，版本），线程数和 GPU 编号不进指纹；
   运行后把实际档写进 run.json，与预判不符时记警告。研究层 `workers > 1` 且用 CUDA 时每个 worker 绑定一张卡，worker 数不超过卡数，单卡或 Metal 降为 1 并写日志。
@@ -304,6 +305,7 @@ packaging/        PyInstaller + Inno Setup 打包
 - **单粒子运行**（particlenumber 1 或关闭空间电荷）同步粒子数据相同但 rms 列为 NaN，属正常。
 - **DataSet.txt**：每行 41 列；z = 第 5 列 + 第 33 列（有二极铁时按 `dataset_envelope` 的规则累加弧长）；rms x/y/z 为第 16/18/20 列（m），最大值第 22/24/26 列，存活宏粒子数第 28 列，能量第 0 列（MeV）。内核运行开始时重建该文件，之后**逐行追加**，读取正在写的文件要丢弃不完整的最后一行（`read_dataset_array` 已处理）。
 - **进度行**形如 `Simulate progress 32.83%. Estimated remaining time 3s. Run time 3s.  5260  0.07m`，末尾两个数是存活宏粒子数和当前位置。
+  原内核（以及新内核 compat=dll）每 3 s 打印一次；新内核默认模式每 1 s 或每 5 % 打印一次（先到者），格式不变。
 - **误差研究**每组都会重新读取项目里的 lattice 文件（`avas/sim/error.py`），当前一次的输出在 `OutputFile/error_middle/output_0/`，完成的结果复制到 `OutputFile/error_output/output_<组>_<次>/`。
 - **线性模型**（`avas/model/`，2026-11-03 由 linear_optics.py 拆出）：编辑器预览、入门实验、AI 工具和将来的分析层都用它，不要另写传输矩阵或空间电荷。`LinearModel(text, beam, field_dirs)` 构建一次，`evaluate(space_charge, knobs, errors, centroid0, beam)` 返回 `ModelResult`，一律国际单位（m、rad、MeV，δ = Δp/p）；`linear_preview` 是 `ModelResult.preview()`，输出与拆分前逐位相同（不跟踪质心、不用段缓存）。每一步是仿射映射 x → M·x + d：常数项 d 只来自校正铁、元件错位（`errors` 的 dx、dy、roll，参考轨道不变）和场图轴上横向场（`map_dipoles`，可关闭；示例场图有噪声，`sol` + HWR 一个周期约偏 0.04 mm），只推动质心；σ 是关于质心的二阶矩，线性空间电荷以束流中心为中心，不推动质心。改元件参数（`knobs`，经 `lattice_edit` 定位）属于设计改变，重算参考粒子；场图段按"语句参数 + 入口 z、能量（V3 = 2 时加入口时间）"缓存，场图文件改动后要新建模型。校正铁按 schema 在下一个元件全长上施加均匀场（写 7 个参数，最后是最大值）：磁 By > 0 使正粒子向 −x 偏，Bx > 0 向 +y，电 Ex（kind 1，单位 V/m）向 +x。superpose 块内场图先求和再切片，块内单个场图的错位不建模（报错）。`avas.paths.field_dirs()` 给出项目的场图目录（GUI 的 `Project.field_dirs` 也调用它）。
 - **线性模型的质心约定已用内核核实**（2026-11-03，`tools/compare_centroid_engine.py` 单粒子运行，`info["centroid_checked"]` 为 True；改动约定后要重新核对）：磁校正铁 By、Bx 与电校正铁 Ex 的方向、单位和作用长度（末端偏移内核 −1.2312／+1.2312／+7.2069 mm，模型 −1.2316／+1.2316／+7.2094 mm）；四极一阶传输与 `displacepos` 按 mm 读取（沿 z 相对差 1.5e-6）；HWR 离轴传输（0.9 %）；场图轴上横向场的偏转（教程一个 `sol` + HWR 周期，轴上粒子 y 末端 −0.0405 对 −0.0408 mm，0.5 %；不计时差 41 %）；螺线管转向。**离轴穿过示例 `sol` 场图的差别来自场图本身**：内核直接用场图里与 Bz 不自洽的 Bx、By 跟踪（按场图三维插值做 RK4 跟踪可复现内核：+1 mm 起点 x −1.294 对内核 −1.272，y 0.084 对 0.084），而该场图在 1.7 mm 横向网格尺度上不对称，+1 mm 与 −1 mm 起点的响应差约 30 %（内核 −1.272 与 +0.920 mm），且随偏移大小变化；线性模型用轴上中心差分，给出两侧的平均（±1.128 mm），任何线性模型都不能同时符合两侧。改用场图自身的径向梯度既不能消除差别（x −1.114），又使周期矩阵不辛（模 0.926／1.014），不采用；4 mm 切片平均对 ∫Bz² 只有 0.8 % 的影响。内核单粒子运行不稳定：同样的输入约三成整列质心为 NaN，脚本自动重跑；一次重跑后的静磁算例末端能量出现 1.584 MeV（应为 1.527），这类结果不可信。内核不接受梯度为 0 的四极。

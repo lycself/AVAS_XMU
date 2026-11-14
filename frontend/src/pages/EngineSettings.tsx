@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { call } from "../bridge";
 import { Checkbox, Collapsible, Icon, IconButton, Radio, Section, Spinner, TextInput } from "../components/ui";
 import {
+  autoReason,
   compatProblem,
   deviceChoices,
   deviceName,
@@ -38,7 +39,11 @@ function planText(plan: Plan | null | undefined, t: ReturnType<typeof useT>): st
   if (!plan) return "–";
   if (plan.error) return t("cannot run: {reason}", { reason: plan.error });
   const gpus = plan.gpus.length ? ` (GPU ${plan.gpus.join(", ")})` : "";
-  return `${deviceName(plan.device)} ${plan.precision ?? ""}${gpus}`.trim();
+  const text = `${deviceName(plan.device)} ${plan.precision ?? ""}${gpus}`.trim();
+  // auto on the CPU: say why (the kernel's reason code)
+  if (plan.device === "cpu" && plan.reasonCode && plan.reasonCode !== "requested")
+    return `${text} (${autoReason(plan.reason, plan.reasonCode)})`;
+  return text;
 }
 
 export function EngineSettings({

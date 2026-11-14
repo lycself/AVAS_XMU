@@ -311,8 +311,8 @@ def test_sandbox_study_shows_on_the_run_page_and_can_be_paused_and_stopped(proje
         except ToolError as exc:
             outcome["error"] = str(exc)
 
-    # the new kernel on a GPU finishes the example's runs in a second, before its first progress line (printed every
-    # 3 s): give it enough particles to be caught running (the original kernel keeps the example's beam)
+    # the new kernel on a GPU finishes the example's runs in about a second, too short to be paused, resumed and
+    # stopped while the first value runs: give it enough particles (the original kernel keeps the example's beam)
     from avas import engines
     beam_path = os.path.join(project, "InputFile", "beam.txt")
     with open(beam_path, encoding="utf-8") as fh:

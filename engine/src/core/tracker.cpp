@@ -158,6 +158,7 @@ public:
         if (dev_) dev_->begin_run(b_, latH_, lat_.spOutCount > 0);
         startClock_ = std::chrono::steady_clock::now();
         zStartRun_ = b_.z[n];
+        lastProgressPct_ = 0.0;
         double t = b_.tMin;
         double zSeg = 0.0;
         if (p_.dumpPeriodicity != 0) {
@@ -414,6 +415,7 @@ private:
     double pushTime_ = 0.0;
     double zStartRun_ = 0.0;
     std::chrono::steady_clock::time_point startClock_;
+    double lastProgressPct_ = 0.0;   // default mode: percentage of the last progress line
     std::vector<Rec> planeRec_;
     std::vector<Rec> spRec_;  // superposeout exit crossings
     double segEnd_ = 1e300;   // end of the current time-step segment
@@ -1346,10 +1348,26 @@ private:
         if (!write_file(paths().output + "BeamSet.plt", out, true, true)) say("BeamSet.plt cannot be output");
     }
 
+    double progress_pct() const {
+        const Beam& b = b_;
+        const double zs = b.z[b.n];
+        return (zs - zStartRun_) / ((p_.outputPlanes.back() - zStartRun_) + zs - b.zMin) * 100.0;
+    }
+
+    // A progress line is due every 3 s (AVAS.dll; kept with compat=dll).  The default mode writes one
+    // every second or every 5 % of the run, whichever comes first, so that short GPU runs show their
+    // progress (at most 20 lines more than one a second).
+    bool progress_due(std::chrono::steady_clock::time_point now, std::chrono::steady_clock::time_point last) const {
+        const double since = std::chrono::duration<double>(now - last).count();
+        if (compat_) return since > 3.0;
+        return since >= 1.0 || progress_pct() >= lastProgressPct_ + 5.0;
+    }
+
     void progress(const std::vector<double>& events) {
         const Beam& b = b_;
         const double zs = b.z[b.n];
-        const double pct = (zs - zStartRun_) / ((p_.outputPlanes.back() - zStartRun_) + zs - b.zMin) * 100.0;
+        const double pct = progress_pct();
+        lastProgressPct_ = pct;
         const double T = std::chrono::duration<double>(std::chrono::steady_clock::now() - startClock_).count();
         const double R = (T * 100.0 / pct - T) * 0.5;
         char tb[64], rb[64];
@@ -1674,7 +1692,7 @@ private:
                 }
             }
             const auto now = std::chrono::steady_clock::now();
-            if (std::chrono::duration<double>(now - lastProgress).count() > 3.0) {
+            if (progress_due(now, lastProgress)) {
                 lastProgress = now;
                 progress(events);
             }

@@ -7,8 +7,9 @@ bool cuda_compiled() { return false; }
 
 ProcessRank process_rank() { return ProcessRank{}; }
 
-bool cuda_plan(long long, bool, DevicePlan&, std::string& why) {
+bool cuda_plan(long long, bool, DevicePlan& plan, std::string& why) {
     why = "this engine was built without CUDA";
+    plan.code = "no_cuda_build";
     return false;
 }
 

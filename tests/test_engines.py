@@ -308,6 +308,13 @@ def test_new_kernel_run_records_what_it_used(project, tmp_path):
     assert eng["tier"] == "new-compat-dll" and eng["threads"] == 1 and eng["requested"]["compat"] == "dll"
     res = _run_cli("info", "-i", str(project))
     assert "new kernel (cpu, auto, compat=dll)" in res.stdout
+    # auto with compat=dll runs on the CPU; the record says why (reason_code since 2026-11-14 libraries)
+    out3 = tmp_path / "auto"
+    res = _run_cli("run", "-i", str(project), "-o", str(out3), "--device", "auto", "--threads", "1")
+    assert res.returncode == 0, res.stdout[-2000:] + res.stderr
+    eng = json.loads((out3 / "avas_run.json").read_text())["engine"]
+    assert eng["device"] == "cpu" and "compat=dll" in eng["reason"]
+    assert eng.get("reason_code", "compat_dll") == "compat_dll"
 
 
 @needs_new_lib

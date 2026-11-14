@@ -7,6 +7,7 @@ usage:
   python engine/tools/ci_engine.py metal LIB                    is a Metal 3 device usable? (prints the reason;
                                                                 writes usable=true|false to $GITHUB_OUTPUT)
   python engine/tools/ci_engine.py build-info --lib LIB --platform NAME --out FILE [--check NAME=RESULT ...]
+                                                                [--fp32-dir WORK/emu/emu_fp32]
   python engine/tools/ci_engine.py stamp --out DIR [--require P1,P2] ARTIFACT_DIR ...
   python engine/tools/ci_engine.py smoke [--lib-dir avas/engine/new]   short `avas run --engine new` (skipped
                                                                 when the folder has no library for this platform)
@@ -14,6 +15,9 @@ usage:
 build-info.json (one per platform job) and build-stamp.json (all platforms, committed with the libraries in
 avas/engine/new/) record the engine source hash, the files' SHA-256, the compiler, the CUDA machine code and
 the workflow run.  verify_stamp() is the check shared by fetch_ci_engine.py and tests/test_design_rules.py.
+--fp32-dir: a digest of every parity case's outputs in the fp32 tier (emu, precision fp32) goes into
+build-info.json; the stamp reports which cases give the same bytes on all platforms (information only: the
+fp32 tier is byte-identical across devices of one build, across compilers it is not required).
 Standard library only (runs in the manylinux container and on the CI hosts without installing AVAS).
 """
 import argparse
@@ -225,6 +229,37 @@ def workflow_run():
             "commit": env.get("GITHUB_SHA", ""), "ref": env.get("GITHUB_REF_NAME", "")}
 
 
+def fp32_digests(folder):
+    """{case: SHA-256} of the outputs of the parity cases run by run_gpu.py in *folder* (its emu_fp32 / gpu32
+    folders): every file of OutputFile except timings and seeds, time stamps removed, CRLF -> LF in text files."""
+    sys.path.insert(0, os.path.join(ENGINE, "tests", "gpu"))
+    import run_gpu
+    out = {}
+    for case in sorted(os.listdir(folder)):
+        if not os.path.isdir(os.path.join(folder, case, "OutputFile")):
+            continue
+        h = hashlib.sha256()
+        for rel, p in sorted(run_gpu.output_files(os.path.join(folder, case)).items()):
+            name = os.path.basename(rel)
+            data = run_gpu.norm(name, open(p, "rb").read())
+            if name.endswith(".txt"):
+                data = data.replace(b"\r\n", b"\n")
+            h.update(rel.replace(os.sep, "/").encode() + b"\n" + hashlib.sha256(data).hexdigest().encode() + b"\n")
+        out[case] = h.hexdigest()
+    return out
+
+
+def fp32_report(infos):
+    """Cases with the same fp32 outputs on every platform that recorded them (build-stamp.json, information)."""
+    recs = {i["platform"]: i["fp32"] for i, _ in infos if i.get("fp32")}
+    if len(recs) < 2:
+        return None
+    cases = sorted(set.intersection(*(set(r) for r in recs.values())))
+    differ = [c for c in cases if len({r[c] for r in recs.values()}) > 1]
+    return {"platforms": sorted(recs), "cases": len(cases), "identical": len(cases) - len(differ),
+            "differ": differ}
+
+
 def cmd_build_info(a):
     lib = os.path.abspath(a.lib)
     if os.path.basename(lib) != LIBRARIES.get(a.platform):
@@ -241,6 +276,8 @@ def cmd_build_info(a):
            "cuda_compiler": info.get("cuda_compiler"), "engine_platform": info.get("platform"),
            "runner": runner or platform.platform(), "built": datetime.now(timezone.utc).isoformat(timespec="seconds"),
            "checks": checks, "run": workflow_run()}
+    if a.fp32_dir:
+        doc["fp32"] = fp32_digests(a.fp32_dir)
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
     with open(a.out, "w", encoding="utf-8", newline="\n") as fh:
         json.dump(doc, fh, indent=1)
@@ -282,6 +319,12 @@ def cmd_stamp(a):
              "ref": run["ref"] or infos[0][0]["run"]["ref"], "repository": run["repository"],
              "workflow_run": {k: run[k] or infos[0][0]["run"][k] for k in ("workflow", "id", "number", "attempt", "url")},
              "created": datetime.now(timezone.utc).isoformat(timespec="seconds"), "files": files}
+    cross = fp32_report(infos)
+    if cross:
+        stamp["fp32_cross_platform"] = cross
+        print(f"fp32 tier across {', '.join(cross['platforms'])}: {cross['identical']}/{cross['cases']} cases byte-identical"
+              + (f"; differ: {' '.join(cross['differ'][:30])}{' ...' if len(cross['differ']) > 30 else ''}" if cross["differ"] else "")
+              + " (information only)")
     with open(os.path.join(a.out, STAMP_NAME), "w", encoding="utf-8", newline="\n") as fh:
         json.dump(stamp, fh, indent=1)
         fh.write("\n")
@@ -400,6 +443,7 @@ def main(argv=None):
     p.add_argument("--platform", required=True, choices=sorted(LIBRARIES))
     p.add_argument("--out", required=True)
     p.add_argument("--check", action="append", default=[], help="NAME=RESULT recorded in the file")
+    p.add_argument("--fp32-dir", default=None, help="run_gpu.py's emu_fp32 folder: digests of the fp32 outputs")
     p = sub.add_parser("stamp")
     p.add_argument("--out", required=True)
     p.add_argument("--require", default="")

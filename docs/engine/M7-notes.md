@@ -258,3 +258,12 @@ Mac 真窗口（`avas gui`，pywebview Cocoa，脚本给 `webview.start` 打补�
 
 `scratchpad/m7b/` 下的新内核构建、Python 3.11 venv、两个示例项目副本、`avas serve` 与真窗口的临时设置、测试输出，结束时删除（截图除外，留给报告）；
 测试在 worktree 生成的 `tests/_output*` 与本次 `avas serve` / 真窗口写进 `~/.local/share/AVAS/logs/20261111.log` 的日志已删除（没有新建安装锁文件）。`frontend/node_modules` 是本次 `npm ci` 安装的（被 .gitignore 忽略），留给后续构建。`engine/build` 未动。
+
+### 8. 待定点的决定与实施（2026-11-14，用户“全部按推荐”）
+
+1. 进度行：新内核默认模式每 1 s 或每 5 % 打印一次（先到者，`tracker.cpp` 的 `progress_due`），compat=dll 仍为 3 s，格式不变。`test_assistant` 的扫描算例仍需要 150 万个粒子
+   （要在第一个取值运行中途暂停、继续、停止，与进度间隔无关），只改了注释。
+2. 原因代码：`DevicePlan::code` 在每个决定处设置，`avas_engine_devices()` 的计划与 `avas_engine_last_run()` 都带 `reason_code`（last_run 另带 `reason`，即运行实际所用设备的原因，
+   运行时回落为 `run_time_failure`）。`engines.run_record` 有 `reason_code` 时直接记入 avas_run.json（旧库仍按设备计划推断原因），`kernels.summary` / `engine.check` 传 `reasonCode`，
+   前端 `autoReason(reason, code)` 按代码给出 13 种中文说明，没有代码的旧记录才按文字归类；模拟设置页“自动”预览在回落到 CPU 时也写出原因。代码表见 `engine/README.md`。
+3. 状态栏：保持现状。

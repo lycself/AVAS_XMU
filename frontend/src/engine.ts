@@ -15,7 +15,15 @@ export const ENGINE_KEYS = ["kernel", "device", "precision", "gpus", "threads", 
 /** Defaults of the new kernel's options (avas.engines.DEFAULTS); the kernel's default depends on the platform. */
 export const ENGINE_DEFAULTS = { device: "auto", precision: "auto", gpus: "all", threads: "0", compat: "none" } as const;
 
-export type Plan = { device: string | null; precision: string | null; gpus: number[]; reason: string | null; error: string | null };
+export type Plan = {
+  device: string | null;
+  precision: string | null;
+  gpus: number[];
+  reason: string | null;
+  /** the kernel's fixed code for the reason (DevicePlan::code; absent from older libraries) */
+  reasonCode?: string | null;
+  error: string | null;
+};
 export type CudaDevice = { index: number; name: string; compute: string; fp64Full: boolean; memoryGb: number };
 /** engine.info */
 export type EngineInfo = {
@@ -56,6 +64,7 @@ export type EngineSummary = {
   tier?: string | null;
   requestedDevice?: string | null;
   reason?: string | null;
+  reasonCode?: string | null;
   version?: string | null;
   /** expected before the run (engine.check); the actual values come with avas_run.json */
   predicted?: boolean;
@@ -177,13 +186,43 @@ export function normalizeEngine(raw: unknown): EngineSummary | null {
     tier: r.tier ?? null,
     requestedDevice: r.requestedDevice ?? requested.device ?? null,
     reason: r.reason ?? null,
+    reasonCode: r.reasonCode ?? null,
     version: r.version ?? null,
     predicted: !!r.predicted,
   };
 }
 
-/** Why device auto ran on the CPU, in words (the engine's reason is English and technical). */
-export function autoReason(reason: string | null | undefined): string {
+/** Why device auto ran on the CPU, in words, from the kernel's reason code (the reason text is English and
+ *  technical; it goes into the tooltip).  Records written before the codes existed fall back to the text. */
+export function autoReason(reason: string | null | undefined, code?: string | null): string {
+  switch (code) {
+    case "no_space_charge":
+      return t("auto: no space charge, the GPU is used only with space charge");
+    case "compat_dll":
+      return t("auto: the AVAS.dll compatibility mode runs on the CPU only");
+    case "run_time_failure":
+      return t("auto: the GPU failed at run time, see the log");
+    case "no_cuda_build":
+      return t("auto: this build of the new kernel has no GPU support");
+    case "no_metal":
+      return t("auto: this Mac's GPU does not support Metal 3");
+    case "no_driver":
+      return t("auto: no NVIDIA driver found");
+    case "driver_too_old":
+      return t("auto: the NVIDIA driver is too old for the new kernel");
+    case "bad_gpus":
+      return t("auto: the GPUs chosen in Simulation settings are not on this computer");
+    case "gpu_too_old":
+      return t("auto: the GPU is older than Pascal (GeForce 10 series)");
+    case "no_kernel_image":
+      return t("auto: this build of the new kernel has no machine code for this GPU");
+    case "gpu_unusable":
+      return t("auto: the GPU cannot run the new kernel, see the log");
+    case "gpu_memory":
+      return t("auto: not enough GPU memory for this run");
+    case "no_gpu":
+      return t("auto: no usable GPU on this computer");
+  }
   const r = reason ?? "";
   if (r.startsWith("auto: no space charge")) return t("auto: no space charge, the GPU is used only with space charge");
   if (r.includes("compat=dll")) return t("auto: the AVAS.dll compatibility mode runs on the CPU only");
@@ -221,7 +260,7 @@ export function engineLabel(raw: unknown): EngineLabel | null {
     tips.push(t("The device actually used is recorded when the run finishes."));
   } else if (e.requestedDevice === "auto" && e.device === "cpu") {
     fallback = true;
-    text = `${name} · ${t("actual: CPU ({reason})", { reason: autoReason(e.reason) })}`;
+    text = `${name} · ${t("actual: CPU ({reason})", { reason: autoReason(e.reason, e.reasonCode) })}`;
   } else {
     text = `${name} · ${deviceName(e.device)}${e.precision ? ` ${e.precision}` : ""}`;
     if (e.gpus && e.gpus.length > 1) text += ` · ${t("{n} GPUs", { n: e.gpus.length })}`;

@@ -261,7 +261,8 @@ def test_check_before_a_run(project, fake_query, monkeypatch):
     write_engine(project, None)                                             # macOS default: the new kernel
     expected = ok("engine.check")
     assert expected == {"kernel": "new", "device": "metal", "precision": "fp32", "gpus": [], "compat": "none", "tier": "new-fp32",
-                        "requestedDevice": "auto", "reason": "auto", "version": "5762f2c226c3c359", "predicted": True}
+                        "requestedDevice": "auto", "reason": "auto", "reasonCode": None, "version": "5762f2c226c3c359",
+                        "predicted": True}
     assert ok("run.check")["device"] == "metal"                             # the Run page's check includes it
 
     write_engine(project, {"kernel": "original"})                          # explicit original kernel on macOS
@@ -320,7 +321,9 @@ def test_summary_of_run_records():
     rec = {"kernel": "new", "device": "cpu", "precision": "fp64", "gpus": [], "compat": "none", "tier": "new-cpu-fp64",
            "version": "v", "reason": "auto: no CUDA driver", "requested": {"kernel": "new", "device": "auto", "compat": "none"}}
     assert summary(rec) == {"kernel": "new", "device": "cpu", "precision": "fp64", "gpus": [], "compat": "none",
-                            "tier": "new-cpu-fp64", "requestedDevice": "auto", "reason": "auto: no CUDA driver", "version": "v"}
+                            "tier": "new-cpu-fp64", "requestedDevice": "auto", "reason": "auto: no CUDA driver",
+                            "reasonCode": None, "version": "v"}
+    assert summary(dict(rec, reason_code="no_driver"))["reasonCode"] == "no_driver"
 
 
 def test_result_sources_carry_the_kernel(project, monkeypatch):

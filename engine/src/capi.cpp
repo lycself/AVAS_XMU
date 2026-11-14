@@ -116,9 +116,10 @@ std::string precision_name(avas::Precision p) {
 
 std::string plan_json(const avas::DevicePlan& p) {
     if (!p.error.empty())
-        return "{\"device\":null,\"precision\":null,\"gpus\":[],\"reason\":null,\"error\":" + jstr(p.error) + "}";
+        return "{\"device\":null,\"precision\":null,\"gpus\":[],\"reason\":null,\"reason_code\":null,\"error\":" +
+               jstr(p.error) + "}";
     return "{\"device\":" + jstr(p.device) + ",\"precision\":" + jstr(p.precision) + ",\"gpus\":" + jints(p.gpus) +
-           ",\"reason\":" + jstr(p.reason) + ",\"error\":null}";
+           ",\"reason\":" + jstr(p.reason) + ",\"reason_code\":" + jstr(p.code) + ",\"error\":null}";
 }
 
 // {"sc": plan, "nosc": plan} for the current options (device replaced by *dev* when given)
@@ -232,12 +233,14 @@ std::string last_run_json() {
     const avas::LastRun& r = avas::last_run();
     if (!r.ran)
         return "{\"ran\":false,\"device\":null,\"precision\":null,\"gpus\":null,\"compat\":null,\"threads\":null,"
-               "\"space_charge\":null,\"seconds\":null,\"status\":null}";
+               "\"space_charge\":null,\"reason\":null,\"reason_code\":null,\"seconds\":null,\"status\":null}";
     const bool tracked = !r.device.empty();
     return "{\"ran\":true,\"device\":" + (tracked ? jstr(r.device) : std::string("null")) +
            ",\"precision\":" + (tracked ? jstr(r.precision) : std::string("null")) + ",\"gpus\":" + jints(r.gpus) +
            ",\"compat\":" + jstr(r.compat) + ",\"threads\":" + std::to_string(r.threads) +
            ",\"space_charge\":" + (r.spaceCharge < 0 ? std::string("null") : jbool(r.spaceCharge == 1)) +
+           ",\"reason\":" + (tracked ? jstr(r.reason) : std::string("null")) +
+           ",\"reason_code\":" + (tracked ? jstr(r.reasonCode) : std::string("null")) +
            ",\"seconds\":" + jnum(r.seconds) + ",\"status\":" + std::to_string(r.status) + "}";
 }
 

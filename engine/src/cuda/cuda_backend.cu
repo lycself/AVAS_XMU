@@ -1404,20 +1404,26 @@ bool cuda_plan(long long nParticles, bool spaceCharge, DevicePlan& plan, std::st
     cudaDriverGetVersion(&drv);
     if (drv == 0 && e != cudaSuccess) {
         why = std::string("no NVIDIA driver found (") + cudaGetErrorString(e) + ")";
+        plan.code = "no_driver";
         return false;
     }
     if (e == cudaErrorInsufficientDriver) {
         why = "the NVIDIA driver is too old (it supports CUDA " + std::to_string(drv / 1000) + "." +
               std::to_string((drv % 1000) / 10) + "; this engine needs a driver for CUDA 12, version 525.60 or later on "
               "Linux, 527.41 or later on Windows)";
+        plan.code = "driver_too_old";
         return false;
     }
     if (e != cudaSuccess || count == 0) {
         why = std::string("no usable NVIDIA GPU (") + (e != cudaSuccess ? cudaGetErrorString(e) : "no CUDA device") + ")";
+        plan.code = "no_gpu";
         return false;
     }
     std::vector<int> devs = parse_gpus(options().gpus, count, why);
-    if (devs.empty()) return false;
+    if (devs.empty()) {
+        plan.code = "bad_gpus";
+        return false;
+    }
     const cu::MpiWorld& world = cu::mpi_world();
     if (world.size > 1 && options().gpus.empty()) devs.assign(1, world.localRank % count);  // one GPU per rank
     std::ostringstream desc;
@@ -1427,15 +1433,18 @@ bool cuda_plan(long long nParticles, bool spaceCharge, DevicePlan& plan, std::st
         cudaDeviceProp p{};
         if (cudaGetDeviceProperties(&p, devs[k]) != cudaSuccess) {
             why = "cannot read the properties of GPU " + std::to_string(devs[k]);
+            plan.code = "gpu_unusable";
             return false;
         }
         if (p.major * 10 + p.minor < 60) {
             why = std::string("GPU ") + std::to_string(devs[k]) + " (" + p.name + ", sm_" + std::to_string(p.major) +
                   std::to_string(p.minor) + ") is older than Pascal; sm_60 or newer is needed";
+            plan.code = "gpu_too_old";
             return false;
         }
         if (cudaSetDevice(devs[k]) != cudaSuccess) {
             why = "cannot use GPU " + std::to_string(devs[k]);
+            plan.code = "gpu_unusable";
             return false;
         }
         int* d = nullptr;
@@ -1450,7 +1459,9 @@ bool cuda_plan(long long nParticles, bool spaceCharge, DevicePlan& plan, std::st
         if (pe != cudaSuccess || h != 61) {
             why = std::string("GPU ") + std::to_string(devs[k]) + " (" + p.name + ") cannot run the engine kernels (" +
                   cudaGetErrorString(pe) + ")";
+            plan.code = "gpu_unusable";
             if (pe == cudaErrorNoKernelImageForDevice) {
+                plan.code = "no_kernel_image";
                 // the prebuilt library carries machine code for selected GPUs only (CMakeLists.txt)
                 const std::string sm = std::to_string(p.major) + std::to_string(p.minor);
                 why += "; this library has machine code for " AVAS_BUILD_CUDA_ARCHS " but not for sm_" + sm +
@@ -1484,6 +1495,7 @@ bool cuda_plan(long long nParticles, bool spaceCharge, DevicePlan& plan, std::st
             std::snprintf(buf, sizeof buf, "not enough GPU memory: %lld particles need about %.2f GB per GPU, %.2f GB free",
                           nParticles, need / 1e9, static_cast<double>(minFree) / 1e9);
             why = buf;
+            plan.code = "gpu_memory";
             return false;
         }
     }
@@ -1491,6 +1503,7 @@ bool cuda_plan(long long nParticles, bool spaceCharge, DevicePlan& plan, std::st
     plan.precision = fp32 ? "fp32" : "fp64";
     plan.gpus = devs;
     plan.reason = reason;
+    plan.code = pr != Precision::Auto ? "requested" : allFull ? "auto_fp64_full_rate" : "auto_fp32";
     plan.desc = desc.str();
     plan.error.clear();
     return true;

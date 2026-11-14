@@ -153,6 +153,11 @@ struct DevicePlan {
     std::string precision = "fp64";  // "fp64" or "fp32" (Metal: always fp32)
     std::vector<int> gpus;           // CUDA devices of the run
     std::string reason;              // why ("requested", "auto: ...")
+    // the same as a fixed code for programs (avas_engine_devices / avas_engine_last_run "reason_code"):
+    // requested; auto_space_charge (Metal), auto_fp64_full_rate, auto_fp32 (CUDA); CPU fallbacks of auto:
+    // compat_dll, no_space_charge, no_metal, no_cuda_build, no_driver, driver_too_old, no_gpu, bad_gpus,
+    // gpu_too_old, no_kernel_image, gpu_unusable, gpu_memory, run_time_failure.  Empty with an error.
+    std::string code;
     std::string error;               // not empty: the run fails with this message (device required, unusable)
     std::string desc;                // CUDA: the selected GPUs for the log line; Metal: the GPU name
     bool spaceCharge = false;        // make_device_backend: the run it was set up for has space charge
@@ -172,6 +177,7 @@ void reset_used_device();
 
 // Only the CUDA build.  cuda_plan: driver, GPUs of the option gpus, their kernels (probe), the
 // memory estimate (nParticles > 0) and the precision; false and a reason when no usable GPU.
+// On failure plan.code holds the reason code (see DevicePlan::code).
 bool cuda_plan(long long nParticles, bool spaceCharge, DevicePlan& plan, std::string& why);
 // The back end of a plan from cuda_plan (null and a reason when it cannot be set up).
 std::unique_ptr<DeviceBackend> make_cuda_backend(const DevicePlan& plan, std::string& why);

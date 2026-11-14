@@ -549,12 +549,16 @@ def run_record(choice=None, legacy_device=None):
                    compat=last.get("compat"), threads=last.get("threads"), space_charge=last.get("space_charge"))
         rec["tier"] = result_tier("new", rec["device"], rec["precision"], rec["compat"])
         if choice.device == "auto" and rec["device"]:
-            rec["reason"] = _auto_reason(eng, rec["device"], rec["space_charge"])
+            if "reason_code" in last:     # the reason of the run itself (libraries since 2026-11-14)
+                rec["reason"], rec["reason_code"] = last.get("reason"), last.get("reason_code")
+            else:
+                rec["reason"] = _auto_reason(eng, rec["device"], rec["space_charge"])
     return rec
 
 
 def _auto_reason(eng, device, space_charge):
-    """Why device auto ran on *device* (the engine's plan; a device that failed at run time is named)."""
+    """Why device auto ran on *device*, for libraries without ``reason_code`` in avas_engine_last_run():
+    the engine's plan (a device that failed at run time is named)."""
     try:
         plans = (eng.devices() or {}).get("selected") or {}
     except (OSError, ValueError):

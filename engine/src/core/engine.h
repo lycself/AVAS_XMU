@@ -21,6 +21,8 @@ struct LastRun {
     std::string compat;        // "none" or "dll"
     int threads = 0;           // worker threads of the CPU parts (option threads, 0 = logical cores)
     int spaceCharge = -1;      // 1 / 0 for the tracked particles; -1 when none were tracked
+    std::string reason;        // why this device (DevicePlan::reason / code); empty like device
+    std::string reasonCode;
     double seconds = 0.0;      // wall time of main_agent
     int status = 0;            // return value of main_agent (0 ok, 1 / 2 errors)
 };

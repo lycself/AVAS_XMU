@@ -35,7 +35,7 @@ def _query(choice):
 def _plan(plan):
     plan = plan or {}
     return {"device": plan.get("device"), "precision": plan.get("precision"), "gpus": plan.get("gpus") or [],
-            "reason": plan.get("reason"), "error": plan.get("error")}
+            "reason": plan.get("reason"), "reasonCode": plan.get("reason_code"), "error": plan.get("error")}
 
 
 @rpc("engine.info")
@@ -144,6 +144,7 @@ def require_ready(input_dir):
     return {"kernel": "new", "device": plan["device"], "precision": plan.get("precision"), "gpus": plan.get("gpus") or [],
             "compat": choice.compat, "tier": engines.result_tier("new", plan["device"], plan.get("precision"), choice.compat),
             "requestedDevice": choice.device, "reason": plan.get("reason") if choice.device == "auto" else None,
+            "reasonCode": plan.get("reason_code") if choice.device == "auto" else None,
             "version": (new.get("info") or {}).get("version"), "predicted": True}
 
 
@@ -165,7 +166,7 @@ def summary(rec):
     return {"kernel": "new", "device": rec.get("device"), "precision": rec.get("precision"),
             "gpus": rec.get("gpus") or [], "compat": rec.get("compat") or requested.get("compat"),
             "tier": rec.get("tier"), "requestedDevice": requested.get("device"), "reason": rec.get("reason"),
-            "version": rec.get("version")}
+            "reasonCode": rec.get("reason_code"), "version": rec.get("version")}
 
 
 def read_summary(folder):

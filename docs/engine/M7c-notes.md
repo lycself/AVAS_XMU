@@ -197,3 +197,14 @@ runner 的 Apple clang 版本（Xcode 15/16）与本机 17 不同，结果在容
 - 告警：`actions/checkout@v4` 等仍以 Node.js 20 为目标，GitHub 已强制改用 Node.js 24 运行，目前只是告警。
 - 第四次运行（42973557438，提交 f7423ab）全部通过。Windows strict：8 个算例 18 处与参考不同（`.dst` 少数粒子末位、LT1 的 BeamSet.plt / PCHistogram.dat），在 runner 上重跑 AVAS.dll 后全部与新内核逐字节相同；其余输出直接与参考逐字符一致；DLL 工具逐字节一致。Windows 库 11.3 MB。
 - `fetch_ci_engine.py --run 42973557438` 校验后装入 `avas/engine/new/`（dll 6cacb6bc…、so 8cc96be7…、dylib 3382681f…）；macOS 库与第二次运行的构建逐字节相同。Mac 上默认改用这个库，`test_design_rules.py` 等通过。
+
+## 13. 第 9 节待定点的决定与实施（2026-11-14，用户“全部按推荐”）
+
+1. VC 运行库：保持现状（`avas/engine/` 加入搜索路径，第 12 节已由 CI 的 `deps` 确认）。
+2. Windows 安装包不再带原内核的 Linux 文件：`packaging/avas.spec` 在 win32 上排除 `*.so`、`*.so.*`（libAVAS.so、libPIC.so、libfftw3.so*）；Linux 包仍带 AVAS.dll（原内核身份）。
+   `tests/test_packaging.py` 覆盖。自动更新按清单移除旧包里的这些文件。
+3. CI 时长：保持全套。
+4. 三平台 emu fp32：各平台作业 `ci_engine.py build-info --fp32-dir <emu>/emu_fp32` 把每个算例 fp32 输出的摘要（去掉计时、种子与时间戳，文本文件 CRLF → LF）写进 build-info.json；
+   汇总作业在 build-stamp.json 写 `fp32_cross_platform`（平台、算例数、逐字节相同数、不同的算例），日志打印，不判失败。
+5. macOS 部署目标保持 13.0。
+6. CUDA 构建不可逐字节重现：暂不处理。

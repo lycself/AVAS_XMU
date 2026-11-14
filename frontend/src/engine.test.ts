@@ -152,6 +152,18 @@ describe("kernel labels", () => {
     expect(autoReason("auto: metal could not be used at run time (see the log)")).toMatch(/failed at run time/);
   });
 
+  it("translates the kernel's reason codes, whatever the text says", () => {
+    expect(autoReason("auto: anything", "no_space_charge")).toMatch(/no space charge/);
+    expect(autoReason("auto: anything", "compat_dll")).toMatch(/compatibility/);
+    expect(autoReason("auto: anything", "gpu_memory")).toMatch(/memory/);
+    expect(autoReason("auto: anything", "no_kernel_image")).toMatch(/machine code/);
+    expect(autoReason("auto: anything", "driver_too_old")).toMatch(/driver is too old/);
+    expect(autoReason("auto: no space charge", "no_gpu")).toMatch(/no usable GPU/);
+    const label = engineLabel({ kernel: "new", device: "cpu", precision: "fp64", requestedDevice: "auto", reason: "x", reasonCode: "no_driver" })!;
+    expect(label.text).toMatch(/no NVIDIA driver/);
+    expect(label.fallback).toBe(true);
+  });
+
   it("shows the request while the run has not recorded its device", () => {
     expect(engineLabel({ kernel: "new", device: null, requested: { device: "auto" } })!.text).toBe("New kernel (preview) · requested: auto");
     expect(engineLabel({ kernel: "new", device: null, requestedDevice: "metal" })!.text).toBe("New kernel (preview) · requested: Metal");

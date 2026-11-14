@@ -116,10 +116,16 @@ def test_spec_bundles_the_new_kernel_of_the_platform(tmp_path):
     new = tmp_path / "avas/engine/new"
     new.mkdir(parents=True)
     (tmp_path / "avas/engine/AVAS.dll").write_bytes(b"MZ")
+    for name in ("libAVAS.so", "libPIC.so", "libfftw3.so", "libfftw3.so.3.6.10", "libfftw3-3.dll", "MSVCP140.dll"):
+        (tmp_path / "avas/engine" / name).write_bytes(b"x")
     for name in ("avas_engine.dll", "libavas_engine.so", "libavas_engine.dylib", "build-stamp.json"):
         (new / name).write_bytes(b"x")
     datas = _spec_engine_datas(tmp_path, "win32")
     assert ("avas/engine/AVAS.dll", "avas/engine") in datas
+    # the Windows bundle has no Linux files of the original kernel; a Linux bundle keeps everything
+    assert sorted(d[0] for d in datas if d[1] == "avas/engine") == [
+        "avas/engine/AVAS.dll", "avas/engine/MSVCP140.dll", "avas/engine/libfftw3-3.dll"]
+    assert "avas/engine/libPIC.so" in [d[0] for d in _spec_engine_datas(tmp_path, "linux")]
     assert [d for d in datas if d[1] == "avas/engine/new"] == [
         ("avas/engine/new/avas_engine.dll", "avas/engine/new"), ("avas/engine/new/build-stamp.json", "avas/engine/new")]
     linux = [d[0] for d in _spec_engine_datas(tmp_path, "linux") if d[1] == "avas/engine/new"]

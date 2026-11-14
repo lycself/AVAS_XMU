@@ -29,10 +29,20 @@ datas = []
 # build-stamp.json).  collect_data_files() leaves out .so / .dylib only on Linux / macOS (extension suffixes),
 # so the new kernel's folder is added explicitly: this platform's library and the stamp (the Windows bundle
 # does not need the Linux and macOS libraries).  avas.paths.NEW_ENGINE_DIR finds them in _internal/avas/engine/new.
+# The Windows bundle also leaves out the original kernel's Linux files (libAVAS.so, libPIC.so, libfftw3.so*);
+# a Linux bundle keeps AVAS.dll, whose SHA-1 is the original kernel's identity there (avas.engines.identity).
 NEW_ENGINE = os.path.join(ROOT, "avas", "engine", "new")
 NEW_LIB = {"win32": "avas_engine.dll", "darwin": "libavas_engine.dylib"}.get(sys.platform, "libavas_engine.so")
+
+
+def _linux_only(path):
+    name = os.path.basename(path)
+    return name.endswith(".so") or ".so." in name
+
+
 datas += [(src, dst) for src, dst in collect_data_files("avas", subdir="engine")
-          if os.path.normcase(os.path.dirname(os.path.abspath(src))) != os.path.normcase(NEW_ENGINE)]
+          if os.path.normcase(os.path.dirname(os.path.abspath(src))) != os.path.normcase(NEW_ENGINE)
+          and not (sys.platform == "win32" and _linux_only(src))]
 datas += [(os.path.join(NEW_ENGINE, n), os.path.join("avas", "engine", "new")) for n in (NEW_LIB, "build-stamp.json")
           if os.path.isfile(os.path.join(NEW_ENGINE, n))]
 datas += collect_data_files("avas", subdir="static")
