@@ -1,24 +1,24 @@
 {
  "schema": 1,
- "source_hash": "bb04556168f34a44052cd9b3d634084b7e6826c3a8898660056afb88403caf89",
- "version": "bb04556168f34a44",
- "commit": "9fafb440113bd549b8590d0f818538801363269a",
+ "source_hash": "a5c1c2154f86645ec068d111b2fa02673b4b0f00a79f6e6c576068450603086d",
+ "version": "a5c1c2154f86645e",
+ "commit": "e237298190feb2f5a4d99edc6a98514923007edd",
  "ref": "engine-rebuild",
  "repository": "lycself/AVAS_XMU",
  "workflow_run": {
   "workflow": "Engine",
-  "id": "43613162331",
-  "number": "5",
+  "id": "43622614575",
+  "number": "7",
   "attempt": "1",
-  "url": "https://github.com/lycself/AVAS_XMU/actions/runs/43613162331"
+  "url": "https://github.com/lycself/AVAS_XMU/actions/runs/43622614575"
  },
- "created": "2026-11-14T16:30:37+00:00",
+ "created": "2026-11-14T18:32:46+00:00",
  "files": {
   "libavas_engine.so": {
    "platform": "linux-x86_64",
-   "sha256": "b13a6e4db7d826060629f17438478fbd6dc6eb0c1343e3a505a03a46461310f2",
+   "sha256": "97fad6e5bb7b8e3667fbf8d6083bb9e9fa09e9b61d9192c097f77773b335ae90",
    "size": 12876632,
-   "version": "bb04556168f34a44",
+   "version": "a5c1c2154f86645e",
    "build": {
     "cuda": true,
     "metal": false,
@@ -36,8 +36,8 @@
    "compiler": "gcc 10.2.1 20210130 (Red Hat 10.2.1-11)",
    "cmake_compiler": "GNU 10.2.1",
    "cuda_compiler": "NVIDIA 12.4.131",
-   "runner": "ubuntu24 20261111.127.1",
-   "built": "2026-11-14T16:15:48+00:00",
+   "runner": "ubuntu24 20261111.370.1",
+   "built": "2026-11-14T18:19:43+00:00",
    "checks": {
     "unit": "passed",
     "exports": "C API only",
@@ -48,9 +48,9 @@
   },
   "libavas_engine.dylib": {
    "platform": "macos-universal2",
-   "sha256": "e2c030a8086d3fc7a9442c43849f670daec19c0c7593c3e8d5d97aea7b632440",
+   "sha256": "b510dd4898deb66bef041872792a2f4ab3e9984a212f31c384fcf4ffe50fa5c8",
    "size": 2973704,
-   "version": "bb04556168f34a44",
+   "version": "a5c1c2154f86645e",
    "build": {
     "cuda": false,
     "metal": true,
@@ -62,7 +62,7 @@
    "cmake_compiler": "AppleClang 17.0.0.17000013",
    "cuda_compiler": "",
    "runner": "macos15 20261104.0514.1",
-   "built": "2026-11-14T16:11:46+00:00",
+   "built": "2026-11-14T18:14:32+00:00",
    "checks": {
     "unit": "passed",
     "exports": "C API only",
@@ -74,9 +74,9 @@
   },
   "avas_engine.dll": {
    "platform": "windows-x86_64",
-   "sha256": "89ee1eeb61d92ef2c1e19587b7cb786a62a59a2f5c64479a6208291d415bde41",
-   "size": 11295744,
-   "version": "bb04556168f34a44",
+   "sha256": "9fee852bf22f42f00bdb20bb8d02fca06ab1d6db34bfbf9bcde13f0b12bb2735",
+   "size": 11296256,
+   "version": "a5c1c2154f86645e",
    "build": {
     "cuda": true,
     "metal": false,
@@ -95,7 +95,7 @@
    "cmake_compiler": "MSVC 19.44.35230.0",
    "cuda_compiler": "NVIDIA 12.4.131",
    "runner": "win22 20261112.366.7",
-   "built": "2026-11-14T16:30:16+00:00",
+   "built": "2026-11-14T18:32:22+00:00",
    "checks": {
     "unit": "passed",
     "exports": "passed",
