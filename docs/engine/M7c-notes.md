@@ -212,3 +212,33 @@ runner 的 Apple clang 版本（Xcode 15/16）与本机 17 不同，结果在容
 第一次记录（CI 运行 43613162331，源码哈希 bb045561）：184 个算例中 58 个三平台逐字节相同；两两比较 Linux = Windows 90 个、Linux = macOS 64 个、macOS = Windows 58 个。
 不同的主要是初始分布算例（`D_*` 25 个）和带 RF 场的算例：fp32 档的初始化与场计算调用各平台数学库的 `sinf` / `expf` 等，末位不同后经跟踪放大。fp32 档在同一平台各设备间逐字节相同的保证不变，
 跨平台差别属于正常的单精度舍入，按决定只记录。预编译库取自该运行（dll 89ee1eeb…、so b13a6e4d…、dylib e2c030a8…）。
+
+## 14. XPS 真机验收（2026-11-15，Windows 11 + GTX 1650，源码 095b8e4）
+
+环境：Windows 11（10.0.26200，ucrtbase 10.0.26100.9711），i7-9750H，GTX 1650 4 GB（WDDM，驱动 566.41），VS 2022 Build Tools 17.12（MSVC 19.42）。
+被测的是 CI 发布的 `avas_engine.dll`（6cacb6bc…）；之后的 bb045561 构建只改了进度频率与查询接口的字段，物理部分相同。
+
+- **设备与加载**：`avas info --engine-json` 列出 1650（sm_75、非全速 fp64、4.29 GB），auto 有无空间电荷都解析为 cuda + fp32。只有 `avas/engine/`（自带 MSVCP140 14.50）
+  与 Python 自带 VCRUNTIME140(_1) 时能加载，实际载入的就是自带的 MSVCP140。
+- **GPU 比对**（`run_gpu.py --fp32 --stats 8`）：fp64 无空间电荷 154/154 与 CPU 逐字节相同；有空间电荷 30 个算例重跑逐字节相同，SPICNIC / PICNIC 与 CPU 也相同，
+  FFT 7 个算例 DataSet 相同、坐标差 ≤ 1.9e-11 rms（与 A100 一致）；fp32 重跑 184/184、与 emu fp32 184/184 逐字节相同；fp32 统计（8 个种子）均值差远小于种子间起伏。
+- **strict parity**：`run_all.py --strict` 直接 ALL IDENTICAL（5 个 EXPECTED），不需要 `--rerun-original`。CI（Server 2022）上那 18 处差别因此确认是 runner 的 UCRT 造成的；
+  以 LF 检出的 `scf_mesh.txt`（LS1）也一致，换行不影响。默认模式各项检查全部 ok。
+- **本机 MSVC + CUDA 构建**：按 engine.yml 下载 redist（SHA-256 一致），`build_cuda_windows.bat` 成功，27 条警告与 CI 的同一组，单元测试通过；
+  本地库（19.42）与 CI 库（19.44）在 20 个代表算例上 CPU 默认 / CUDA fp64 / CUDA fp32 / compat=dll 四种方式全部逐字节相同；`tools_check.py` 与 AVAS.dll 逐字节相同。
+- **误差研究**：`tests/test_error_study.py` 在原内核、新内核默认（auto → cuda fp32）、新内核 CPU、compat=dll 四种方式下都是 3 passed。
+  发现：该算例（FFT 空间电荷、300 粒子、input.txt 无 multithreading 行）中 **AVAS.dll 自身不可重复**——两次运行有 10/20 个输出文件不同（dst 约 40 个粒子末位、BeamSet.plt），
+  compat=dll 两次逐字节相同且与线程数无关，与 AVAS.dll 的差别同样只在 dst 末位与 BeamSet.plt，DataSet 全部相同。“compat=dll 与 AVAS.dll 逐字节一致”只对 AVAS.dll 自身可重复的算例成立
+  （已记入 90-experiments）。
+- **`avas run`**（示例项目副本）：`--engine new --device cuda` → new-fp32（1.1 s），`--precision fp64` → new-cuda-fp64（2.1 s），auto → new-fp32 且原因字段齐全；原内核 6.25 s。
+- **性能**（hwr010 两周期线，推进 + 空间电荷每步 ms，括号为跟踪总秒数）：
+
+  | 配置 | 1e5 无 SC | 1e6 无 SC | 1e5 SPICNIC | 1e6 SPICNIC | 1e5 PICNIC | 1e6 PICNIC |
+  |---|---|---|---|---|---|---|
+  | CPU i7-9750H 12 线程 | 6.76（5.9） | 65.5（57.3） | 36.8（28.2） | 331（254） | 43.0（32.7） | 451（343） |
+  | CUDA fp32（auto） | 0.71（1.06） | 6.07（9.1） | 1.88（1.9） | 11.3（12.4） | 1.86（1.9） | 14.3（14.7） |
+  | CUDA fp64 | 2.06（2.0） | 18.7（18.1） | 4.36（3.9） | 34.3（29.8） | 7.10（5.8） | 71.2（57.6） |
+
+  1e6 时 fp32 比 CPU 快 10.8×（无 SC）、29×（SPICNIC）、32×（PICNIC），比 fp64 快约 3×（PICNIC 5×），auto 选 fp32 合理。fp32 1e6 SPICNIC 每步：推进核 4.12 ms、组求和 1.68 ms、
+  电荷分配 1.26 ms、网格求解 2.64 ms、插值 1.25 ms。显存：1e7 粒子运行前报错退出（需约 3.8–4.3 GB，空闲 3.45 GB）；fp32 8e6、fp64 7e6 可以运行，4 GB 卡上限约 fp32 9e6、fp64 8e6。
+- 临时数据：XPS `C:\Users\lycself\avas_xps_tmp\`（约 2.8 GB）与本次新建的两个更新锁文件已删除（已核实），用户仓库未动；Mac 的 `scratchpad/xps/` 已删除。

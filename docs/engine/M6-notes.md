@@ -151,7 +151,9 @@ GCC 12（A100 上构建）无警告；Clang（macOS）无新警告。**Windows M
 | A100 fp64，2 卡 | 0.18 ms | 0.79 ms | 6.0 ms（35 s） | 2.49 ms | 6.0 ms | 20.5 ms（44 s） |
 | A100 fp32，1 卡 | — | 1.09 ms | 9.7 ms | — | 5.8 ms | 23.2 ms |
 | A100 节点 CPU（Xeon Gold 6226R，16 线程） | 5.35 ms | 29.5 ms | — | 33.5 ms | 216 ms | — |
-| L40S fp32 / fp64、CPU 32 线程、12700K、1080Ti fp32、GTX 1650 fp32 | 未能测量（机器无法连接） | | | | | |
+| L40S fp32 / fp64、CPU 32 线程、12700K、1080Ti fp32 | 未能测量（机器无法连接；后来的数字见 M6c 各阶段） | | | | | |
+| GTX 1650 fp32 / fp64（XPS，2026-11-15 补测，M7c-notes 第 14 节） | 0.71 / 2.06 ms | 6.07 / 18.7 ms | 装不下（4 GB） | 1.88 / 4.36 ms | 11.3 / 34.3 ms | 装不下 |
+| i7-9750H 12 线程（XPS） | 6.76 ms | 65.5 ms | — | 36.8 ms | 331 ms | — |
 
 - A100 一卡比同节点 16 线程 CPU 快 23×（1e6 无 SC）与 35×（1e6 SC）。两卡对无空间电荷 1e7 为 1.9×；有空间电荷时每步约 14 ms 不随卡数减少（主机上的 SPICNIC 格林函数表与非对称修正表、网格下载 / 上传，以及每张卡重复的网格求解），
   两卡只快 1.3×。这部分可以移到 GPU（M6b 一并考虑）。fp32 在 A100 上只快 5–15 %（A100 的 fp64 是全速的，推进受访存限制）；fp32 的收益在消费级显卡上，未能实测。
@@ -907,3 +909,8 @@ A100 的 `~/avas_engine_work/tmp_m7` 在作业 7963 完成后已删除（两个�
 3. importSCF 不放到设备上。
 
 M6c 到此结束。仍欠的验收：XPS 可以连接后补做 Windows MSVC strict parity、`test_error_study` 三种方式、MSVC CUDA 构建与 GTX 1650 上的 fp32 / fp64 比对和性能（含单卡不用托管内存的 WDDM 路径）。
+
+---
+
+**XPS 欠账已补（2026-11-15）**：第 8、11 节及 M6c 末尾列出的 Windows 验收——MSVC strict parity、`test_error_study` 的 DLL / 默认 / compat 三种方式、MSVC 下的 CUDA 构建、
+GTX 1650 上 fp64 / fp32 比对与性能（WDDM 单卡，fp32 不用托管内存）——已在 XPS 上全部通过，见 M7c-notes 第 14 节。

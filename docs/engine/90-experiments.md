@@ -89,3 +89,10 @@ M4 收紧物理检验时发现：原内核 SPICNIC（默认空间电荷方法）
 | 40³ | — | 0.977 / 0.978 | 0.992 / 0.991 |
 
 结论：原内核在网格较粗、单元拉长时**严重低估空间电荷**（本例 20³ 时只有理论值的 39 %），且结果强烈依赖网格；新内核默认模式随网格加密收敛到理论值的 1 % 以内。均匀椭球（半轴 1 / 1.5 / 3 mm）的场检验见 `engine/tests/physics/run_physics.py`（新内核默认 SPICNIC 40³ 偏差 0.34 %，FFT 在盒子足够大时 1.0 %）。
+
+## 第四批：FFT 空间电荷误差研究中 AVAS.dll 不可重复（2026-11-15，XPS Windows 11）
+
+`tests/test_error_study.py` 的算例（FFT 空间电荷、300 个宏粒子、input.txt 没有 `multithreading` 行），同样输入用 `avas run --mode stat` 跑两次：
+AVAS.dll 两次之间 20 个输出文件里有 10 个不同（outData.dst 约 40 个粒子相对差约 5e-15，BeamSet.plt 不同），DataSet 全部相同。新内核 compat=dll 两次逐字节相同，1 线程与 12 线程也相同；
+它与 AVAS.dll 的差别同样只在 dst 末位（约 90 个粒子，≤ 1.5e-13）与 BeamSet.plt。原因未深究，可能与第二批的多线程空间电荷数据竞争同源。
+结论：“compat=dll 与 AVAS.dll 逐字节一致”只对 AVAS.dll 自身可重复的算例成立；parity 算例都是可重复的（参考在同一台机器上多次生成一致）。

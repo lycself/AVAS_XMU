@@ -60,6 +60,7 @@ Metal 上 t-code 推进（含 superpose 块、误差场、superposeout）、z-co
 fp32 档在所有设备上是同一套设计（M6c 第四阶段）：主机逻辑在 `core/f32_host.cpp`（`F32Accel`），内核在 `core/f32_kernels.h`，设备只负责缓冲区和启动内核——
 Metal（`src/metal/`）、CUDA（`src/cuda/cuda_f32_*.cu`，`AVAS_ENGINE_PRECISION=fp32` 或 auto 在非 HPC 卡上）、CPU（`AVAS_ENGINE_DEVICE=emu AVAS_ENGINE_PRECISION=fp32`，
 任何构建都可用，作参照）三者逐字节相同；CUDA 多卡与之相同，MPI 下 fp32 档每个进程计算全部粒子（结果不变，但不加速）。
+显存不够时运行前就判断：`device=cuda` 报错退出（例如 4 GB 的 GTX 1650 约可容纳 fp32 9e6、fp64 8e6 个宏粒子，1e7 装不下），`device=auto` 写明原因（`gpu_memory`）后用 CPU。
 CUDA fp32 档（M6c 第五阶段）用显式显存与批量复制，单卡不用托管内存（Windows WDDM 对托管内存的限制不影响单卡）；SPICNIC / PICNIC 的格林函数表与修正表在 GPU 上以 fp64 计算（与 CPU 逐位相同的数）。
 检查：`run_gpu.py --device metal`（按 fp32 档与 CPU 比较，并与 emu fp32 逐字节比较）、`run_gpu.py --fp32`（CUDA：另与 emu fp32、重跑、双卡、MPI 逐字节比较）、
 `avas_engine_physics --metal`；`AVAS_ENGINE_PROFILE=1` 打印每步各部分耗时、z-code 在 GPU 上的次数与转换次数（`AVAS_ENGINE_F32_ZCODE=0` 让 z-code 回到主机，仅供测量）。
