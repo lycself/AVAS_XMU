@@ -311,16 +311,18 @@ def test_sandbox_study_shows_on_the_run_page_and_can_be_paused_and_stopped(proje
         except ToolError as exc:
             outcome["error"] = str(exc)
 
-    # the new kernel on a GPU finishes the example's runs in about a second, too short to be paused, resumed and
-    # stopped while the first value runs: give it enough particles (the original kernel keeps the example's beam)
+    # The first value must still run when its first progress line arrives, and long enough to be paused, resumed
+    # and stopped.  The example's beam is too short for that: the new kernel on a GPU finishes it in about a
+    # second, and the original kernel in about 4 s while it prints progress every 3 s (often not at all).
     from avas import engines
     beam_path = os.path.join(project, "InputFile", "beam.txt")
-    with open(beam_path, encoding="utf-8") as fh:
-        beam_text = fh.read()
-    if engines.resolve_choice(input_dir=os.path.join(project, "InputFile")).is_new:
-        with open(beam_path, "w", encoding="utf-8") as fh:
-            fh.write("\n".join("particlenumber 1500000" if ln.split()[:1] == ["particlenumber"] else ln
-                               for ln in beam_text.splitlines()) + "\n")
+    with open(beam_path, "rb") as fh:
+        beam_bytes = fh.read()
+    particles = 1500000 if engines.resolve_choice(input_dir=os.path.join(project, "InputFile")).is_new else 60000
+    lines = beam_bytes.decode("latin-1").splitlines()
+    with open(beam_path, "w", encoding="latin-1", newline="\n") as fh:
+        fh.write("\n".join(f"particlenumber {particles}" if ln.split()[:1] == ["particlenumber"] else ln
+                           for ln in lines) + "\n")
     thread = threading.Thread(target=work)
     thread.start()
     try:
@@ -345,8 +347,8 @@ def test_sandbox_study_shows_on_the_run_page_and_can_be_paused_and_stopped(proje
     finally:
         stop.set()
         thread.join(60)
-        with open(beam_path, "w", encoding="utf-8") as fh:
-            fh.write(beam_text)
+        with open(beam_path, "wb") as fh:
+            fh.write(beam_bytes)
 
 
 def test_segment_run_results_can_be_read_back(project):
