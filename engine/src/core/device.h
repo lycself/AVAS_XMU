@@ -157,7 +157,8 @@ struct DevicePlan {
     // requested; auto_space_charge (Metal), auto_fp64_full_rate, auto_fp32 (CUDA); CPU fallbacks of auto:
     // compat_dll, no_space_charge, no_metal, no_cuda_build, no_driver, driver_too_old, no_gpu, bad_gpus,
     // gpu_too_old, no_kernel_image, gpu_unusable, gpu_memory, run_time_failure, few_particles (Metal:
-    // fewer than kMetalMinParticles particles or than kMetalParticlesPerCell per mesh cell).  Empty with an error.
+    // fewer than kMetalMinParticles particles or than kMetalParticlesPerCell per mesh cell; CUDA: fewer than
+    // kCudaMinParticles particles).  Empty with an error.
     std::string code;
     std::string error;               // not empty: the run fails with this message (device required, unusable)
     std::string desc;                // CUDA: the selected GPUs for the log line; Metal: the GPU name
@@ -173,6 +174,10 @@ struct DevicePlan {
 // at 15000 particles and both are equal at about 60000.
 constexpr double kMetalParticlesPerCell = 0.5;
 constexpr long long kMetalMinParticles = 60000;
+// auto with CUDA: the CPU below this many particles (single-particle tracking above all: one particle per step
+// on a GPU costs far more than on the CPU; L40S HIAF, one particle: CUDA 129 s, CPU 16 s).  From about 5000
+// particles CUDA was 2-3x faster in every case measured (2026-11-16, M8-plan 13).
+constexpr long long kCudaMinParticles = 1000;
 // nParticles < 1: no memory estimate (query without a run).  meshCells: cells of the space-charge mesh
 // (0: unknown, a query; auto on macOS then reports Metal with cpuBelowParticlesPerCell).  The CUDA
 // probe creates a context on every selected GPU.

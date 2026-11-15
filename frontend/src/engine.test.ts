@@ -209,6 +209,7 @@ describe("kernel labels", () => {
     expect(autoReason("auto: anything", "no_space_charge")).toMatch(/no space charge/);
     expect(autoReason("auto: anything", "few_particles")).toMatch(/too few particles/);
     expect(autoReason("auto: 5000 particles (fewer than 60000): the CPU is faster than Metal")).toMatch(/too few particles/);
+    expect(autoReason("auto: 1 particles (fewer than 1000): the CPU is faster than CUDA")).toMatch(/too few particles/);
     expect(autoReason("auto: anything", "compat_dll")).toMatch(/compatibility/);
     expect(autoReason("auto: anything", "gpu_memory")).toMatch(/memory/);
     expect(autoReason("auto: anything", "no_kernel_image")).toMatch(/machine code/);

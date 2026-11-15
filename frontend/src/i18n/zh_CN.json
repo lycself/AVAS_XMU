@@ -1479,7 +1479,7 @@
   "auto: this build of the new kernel has no GPU support": "自动：这一版新内核没有 GPU 支持",
   "auto: no usable GPU on this computer": "自动：本机没有可用的 GPU",
   "auto: this Mac's GPU does not support Metal 3": "自动：这台 Mac 的 GPU 不支持 Metal 3",
-  "auto: too few particles for this Mac's GPU, the CPU is faster": "自动：粒子数太少，CPU 比这台 Mac 的 GPU 快",
+  "auto: too few particles for the GPU, the CPU is faster": "自动：粒子数太少，CPU 比 GPU 快",
   "auto: no NVIDIA driver found": "自动：没有找到 NVIDIA 驱动",
   "auto: the NVIDIA driver is too old for the new kernel": "自动：NVIDIA 驱动版本太旧，新内核无法使用",
   "auto: the GPUs chosen in Simulation settings are not on this computer": "自动：模拟设置中选择的 GPU 不在本机上",

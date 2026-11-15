@@ -618,7 +618,12 @@ def test_size_adjusted_plan(tmp_path):
     assert engines.size_adjusted_plan(metal, str(tmp_path))["reason"] == (
         "auto: 100000 particles for 262144 space-charge mesh cells (fewer than 0.5 per cell): the CPU is faster than Metal")
     cuda = {"device": "cuda", "precision": "fp32", "reason_code": "auto_fp32"}
-    assert engines.size_adjusted_plan(cuda, str(tmp_path)) is cuda
+    assert engines.size_adjusted_plan(cuda, str(tmp_path)) is cuda              # no limit reported: unchanged
+    cuda = dict(cuda, cpu_below_particles=1000)
+    assert engines.size_adjusted_plan(cuda, str(tmp_path)) is cuda              # 100000 particles: the GPU
+    (tmp_path / "beam.txt").write_text("particlenumber 1\n", encoding="utf-8")
+    assert engines.size_adjusted_plan(cuda, str(tmp_path))["reason"] == "auto: 1 particles (fewer than 1000): the CPU is faster than CUDA"
+    (tmp_path / "beam.txt").write_text("particlenumber 100000\n", encoding="utf-8")
     (tmp_path / "beam.txt").write_text("particlenumber 200000\n", encoding="utf-8")
     assert engines.size_adjusted_plan(metal, str(tmp_path)) is metal
 

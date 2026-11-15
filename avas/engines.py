@@ -478,21 +478,22 @@ def space_charge_size(input_dir):
 
 
 def size_adjusted_plan(plan, input_dir):
-    """*plan* (a device plan of :func:`describe` ``resolved``) for the run size of *input_dir*: device auto on
-    macOS reports Metal with ``cpu_below_particles`` and ``cpu_below_particles_per_cell``, and the kernel then
-    uses the CPU for a run with fewer particles, or fewer per space-charge mesh cell (reason code
-    ``few_particles``, the same text as the kernel)."""
+    """*plan* (a device plan of :func:`describe` ``resolved``) for the run size of *input_dir*: device auto
+    reports Metal with ``cpu_below_particles`` and ``cpu_below_particles_per_cell``, CUDA with
+    ``cpu_below_particles``, and the kernel then uses the CPU for a run with fewer particles, or fewer per
+    space-charge mesh cell (reason code ``few_particles``, the same text as the kernel)."""
     limit = (plan or {}).get("cpu_below_particles_per_cell")
     least = (plan or {}).get("cpu_below_particles") or 0
-    size = space_charge_size(input_dir) if limit and input_dir else None
+    size = space_charge_size(input_dir) if (limit or least) and input_dir else None
     if not size:
         return plan
     n, cells = size
+    gpu = "Metal" if plan.get("device") == "metal" else "CUDA"
     if n < least:
-        reason = f"auto: {n} particles (fewer than {least}): the CPU is faster than Metal"
-    elif n < limit * cells:
+        reason = f"auto: {n} particles (fewer than {least}): the CPU is faster than {gpu}"
+    elif limit and n < limit * cells:
         reason = (f"auto: {n} particles for {cells} space-charge mesh cells (fewer than {limit:g} per cell): "
-                  "the CPU is faster than Metal")
+                  f"the CPU is faster than {gpu}")
     else:
         return plan
     return {"device": "cpu", "precision": "fp64", "gpus": [], "error": None, "reason_code": "few_particles", "reason": reason}

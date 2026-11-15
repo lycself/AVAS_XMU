@@ -92,6 +92,14 @@ DevicePlan plan_device(long long nParticles, bool spaceCharge, long long meshCel
         if (required) return failed_plan("device cuda: " + why);
         return cpu_plan("auto: " + why, p.code.empty() ? "no_gpu" : p.code);
     }
+    if (!required) {
+        // auto: the CPU for few particles (M8-plan 13); the query (nParticles 0) reports the limit
+        if (nParticles > 0 && nParticles < kCudaMinParticles)
+            return cpu_plan("auto: " + std::to_string(nParticles) + " particles (fewer than " + std::to_string(kCudaMinParticles) +
+                                "): the CPU is faster than CUDA",
+                            "few_particles");
+        p.cpuBelowParticles = kCudaMinParticles;
+    }
     return p;
 }
 

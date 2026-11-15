@@ -116,8 +116,9 @@ def preview(choice, spaceCharge=None):
         return {"kernel": "new", "spaceCharge": sc, "error": error or data["new"]["error"], "plan": None, "other": None}
     resolved = dict(data.get("resolved") or {})
     p = context.project()
-    if p.is_open:                     # auto on macOS: the CPU for few particles per mesh cell
-        resolved["sc"] = engines.size_adjusted_plan(resolved.get("sc"), p.input_dir)
+    if p.is_open:                     # auto: the CPU for few particles (per mesh cell on a Mac)
+        for key in ("sc", "nosc"):
+            resolved[key] = engines.size_adjusted_plan(resolved.get(key), p.input_dir)
     return {"kernel": "new", "spaceCharge": sc, "error": None,
             "plan": _plan(resolved.get("sc" if sc else "nosc")), "other": _plan(resolved.get("nosc" if sc else "sc"))}
 
@@ -144,8 +145,7 @@ def require_ready(input_dir):
         raise UserError("The new kernel's library is not available: {detail}", detail=new["error"])
     sc = engines.input_space_charge(input_dir)
     plan = (data.get("resolved") or {}).get("sc" if sc else "nosc") or {}
-    if sc:
-        plan = engines.size_adjusted_plan(plan, input_dir)
+    plan = engines.size_adjusted_plan(plan, input_dir)
     if plan.get("error"):
         raise UserError("The new kernel cannot use the device chosen in Simulation settings ({device}) on this computer: {detail}. Choose Auto or CPU.", device=DEVICE_NAMES.get(choice.device, choice.device), detail=plan["error"])
     if not plan.get("device"):

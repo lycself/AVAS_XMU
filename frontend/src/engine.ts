@@ -268,7 +268,7 @@ export function autoReason(reason: string | null | undefined, code?: string | nu
     case "no_metal":
       return t("auto: this Mac's GPU does not support Metal 3");
     case "few_particles":
-      return t("auto: too few particles for this Mac's GPU, the CPU is faster");
+      return t("auto: too few particles for the GPU, the CPU is faster");
     case "no_driver":
       return t("auto: no NVIDIA driver found");
     case "driver_too_old":
@@ -288,7 +288,7 @@ export function autoReason(reason: string | null | undefined, code?: string | nu
   }
   const r = reason ?? "";
   if (r.startsWith("auto: no space charge")) return t("auto: no space charge, the GPU is used only with space charge");
-  if (r.includes("the CPU is faster than Metal")) return t("auto: too few particles for this Mac's GPU, the CPU is faster");
+  if (r.includes("the CPU is faster than")) return t("auto: too few particles for the GPU, the CPU is faster");
   if (r.includes("compat=dll")) return t("auto: the AVAS.dll compatibility mode runs on the CPU only");
   if (r.includes("could not be used at run time")) return t("auto: the GPU failed at run time, see the log");
   if (r.includes("built without CUDA") && !r.includes("Metal")) return t("auto: this build of the new kernel has no GPU support");

@@ -83,7 +83,7 @@ C 接口新增三个查询（JSON，见 `include/avas_engine.h`）：`avas_engin
 `avas_engine_devices()`（CUDA 卡、Metal 设备、CPU 线程数，以及 `auto` 和当前选项在有 / 无空间电荷时会选什么——与 `main_agent` 共用 `src/core/device.cpp` 的 `plan_device`）、
 `avas_engine_last_run()`（上一次 `main_agent` 实际用的设备、精度、GPU、compat、线程数、是否有空间电荷、选用该设备的原因 `reason` 与原因代码 `reason_code`、耗时与返回值）。
 原因代码（`DevicePlan::code`，设备计划里也有）是固定的英文标识：`requested`；选中 GPU 的 `auto_space_charge`（Metal）、`auto_fp64_full_rate`、`auto_fp32`（CUDA）；
-auto 回落到 CPU 的 `compat_dll`、`no_space_charge`、`few_particles`（Mac：粒子数少于 60000 或少于网格单元数的一半；查询时 Metal 计划带 `cpu_below_particles` 与 `cpu_below_particles_per_cell`）、`no_metal`、`no_cuda_build`、`no_driver`、`driver_too_old`、`no_gpu`、`bad_gpus`、`gpu_too_old`、`no_kernel_image`、
+auto 回落到 CPU 的 `compat_dll`、`no_space_charge`、`few_particles`（Mac：粒子数少于 60000 或少于网格单元数的一半；CUDA：粒子数少于 1000；查询时 GPU 计划带 `cpu_below_particles`，Metal 另带 `cpu_below_particles_per_cell`）、`no_metal`、`no_cuda_build`、`no_driver`、`driver_too_old`、`no_gpu`、`bad_gpus`、`gpu_too_old`、`no_kernel_image`、
 `gpu_unusable`、`gpu_memory`、`run_time_failure`。界面按代码翻译，不解析 `reason` 文字；新增代码时同步 `frontend/src/engine.ts` 的 `autoReason`。`avas_engine_version()` 返回引擎源码哈希的前 16 位。
 
 **引擎源码哈希**（`cmake/source_hash.cmake`，Python 的 `avas.engines.engine_source_hash` 是同一算法）：输入为 `CMakeLists.txt`、`include/` 与 `src/` 下的全部文件、
