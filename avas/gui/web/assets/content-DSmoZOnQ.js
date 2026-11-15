@@ -290,7 +290,7 @@ bend edge
 
 > **AVAS convention**: the linear preview treats \`bend\` as a sector-magnet body without pole-face angles; the pole-face rotation is given by an \`edge\` before and after it (as in TraceWin's BEND/EDGE). Whether the engine's \`bend\` itself includes edge effects, and whether it must be paired with \`edge\`, is not described in the manual; the engine is the reference. \`bend\` and \`edge\` are both z-code matrix-model elements; \`edge\` has zero length.
 
-> Note: in the linear preview a negative $\\alpha$ flips the sign of $h$, and $R_{16}$ etc. flip with it: the beam bends to the other side. Whether a positive $\\alpha$ bends towards $+x$ or $-x$ in the engine is not stated in the manual; check with a single-particle engine run when it matters.
+> Note: in the linear preview a negative $\\alpha$ flips the sign of $h$, and $R_{16}$ etc. flip with it: the beam bends to the other side. The engine does the same (not stated in the manual; checked with the engine on 2026-11-15): a positive $\\alpha$ puts the higher-momentum particles at $x > 0$ after the dipole, so $+x$ is the outside and the beam turns towards $-x$ ($-y$ for a vertical bend); the 3D view draws it this way.
 
 ### Example
 
@@ -646,7 +646,7 @@ bend edge
 
 > **AVAS 约定**：线性预览把 \`bend\` 当作不含极面角的扇形磁铁本体，极面旋转由前后各一条 \`edge\` 给出（与 TraceWin 的 BEND/EDGE 习惯相同）。内核中 \`bend\` 本身是否带有边缘作用、是否必须配 \`edge\`，手册没有说明，以内核为准。\`bend\` 与 \`edge\` 都是 z-code 矩阵模型元件；\`edge\` 长度为 0。
 
-> 注意：线性预览中 $\\alpha$ 取负值时 $h$ 变号，$R_{16}$ 等随之变号，即向另一侧偏转。内核中正的 $\\alpha$ 究竟朝 $+x$ 还是 $-x$ 偏转，手册没有说明；需要时用单粒子内核运行确认。
+> 注意：线性预览中 $\\alpha$ 取负值时 $h$ 变号，$R_{16}$ 等随之变号，即向另一侧偏转。内核与此相同（手册没有说明，2026-11-15 用内核核实）：正的 $\\alpha$ 使动量较高的粒子在出口处 $x > 0$，即 $+x$ 是弯转外侧、束流向 $-x$ 偏转（竖直弯转向 $-y$），3D 视图按这个方向画。
 
 ### 示例
 

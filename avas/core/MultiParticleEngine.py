@@ -16,6 +16,7 @@ from avas import engines
 from avas.paths import ENGINE_DIR
 
 _WINDOWS = platform.system() == "Windows"
+_UCRT = "ucrtbase.dll"   # a name, not a ctypes.CDLL("...") literal: PyInstaller would bundle that file
 
 
 def _unbuffer_c_stdout():
@@ -28,11 +29,21 @@ def _unbuffer_c_stdout():
     ``api-ms-win-crt-stdio`` import), so switching the shared ``stdout`` FILE
     to ``_IONBF`` here makes every line show up immediately.  Harmless on a
     console and silently skipped when anything is missing.
+
+    The UCRT is the one already loaded in this process (the one the kernels' ``api-ms-win-crt``
+    imports resolve to), never loaded by name: in the packaged program a name lookup finds the
+    copy in ``_internal`` first, a second UCRT whose ``stdout`` the kernels do not use.
     """
     if not _WINDOWS or sys.stdout is None or sys.stdout.isatty():
         return
     try:
-        ucrt = ctypes.CDLL("ucrtbase")
+        kernel32 = ctypes.WinDLL("kernel32")
+        kernel32.GetModuleHandleW.restype = ctypes.c_void_p
+        kernel32.GetModuleHandleW.argtypes = [ctypes.c_wchar_p]
+        handle = kernel32.GetModuleHandleW(_UCRT)
+        if not handle:
+            return
+        ucrt = ctypes.CDLL(_UCRT, handle=handle)
         ucrt.__acrt_iob_func.restype = ctypes.c_void_p
         ucrt.setvbuf.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_size_t]
         _IONBF = 4

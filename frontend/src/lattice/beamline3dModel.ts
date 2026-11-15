@@ -222,6 +222,24 @@ export function roundNice(v: number) {
   return Number(v.toPrecision(2));
 }
 
+/**
+ * Drawing tilt of an edge (pole face) in its bending plane: the face is drawn along
+ * B·cos t − Z·sin t, B the in-plane transverse axis, so t > 0 puts its +B side upstream.
+ * TRANSPORT convention: beta > 0 shortens the path of the outside particles in the field, at
+ * the entrance (face on the outside moved downstream) and at the exit (moved upstream). The
+ * outside is +B for a bend with alpha > 0 (see Orbit). An edge not touching a bend in its
+ * plane is drawn as an entrance edge of a positive bend.
+ */
+export function edgeTilt(edge: Elem, bends: readonly Elem[]): number {
+  const tol = 1e-6;
+  const touching = bends.filter((b) => b.hv === edge.hv && Math.abs(b.angle) > 1e-9);
+  const exit = touching.find((b) => Math.abs(b.s1 - edge.s0) < tol);
+  const entry = touching.find((b) => Math.abs(b.s0 - edge.s0) < tol);
+  if (entry) return -edge.angle * Math.sign(entry.angle);
+  if (exit) return edge.angle * Math.sign(exit.angle);
+  return -edge.angle;
+}
+
 /* ------------------------------------------------------------------ reference orbit */
 type Seg = { s0: number; s1: number; pose: Pose; k: number; plane: 0 | 1 };
 
@@ -242,7 +260,9 @@ export class Orbit {
         this.segs.push({ s0: s, s1: b.s0, pose, k: 0, plane: 0 });
         pose = this.pose(b.s0);
       }
-      this.segs.push({ s0: b.s0, s1: b.s1, pose, k: b.angle / b.len, plane: b.hv });
+      // alpha > 0 turns towards -x (-y when vertical): R16 > 0, +x is the outside of the bend.
+      // Checked against the engine (compat mode = AVAS.dll), 2026-11-15: d<x>/dW > 0 after alpha > 0.
+      this.segs.push({ s0: b.s0, s1: b.s1, pose, k: -b.angle / b.len, plane: b.hv });
       s = b.s1;
       pose = this.pose(b.s1);
     }

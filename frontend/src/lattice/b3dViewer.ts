@@ -21,7 +21,7 @@ import {
   type PartKey,
 } from "./b3dGeometry";
 import { Labels, PositionBar } from "./b3dHud";
-import { OUTER, downsampleEnvelope, type Elem, type EnvelopeSamples, type Model, type Pose, type Vec3 } from "./beamline3dModel";
+import { OUTER, downsampleEnvelope, edgeTilt, type Elem, type EnvelopeSamples, type Model, type Pose, type Vec3 } from "./beamline3dModel";
 import type { BunchFrame, MotionMode } from "./bunchPlayer";
 import { fmt6, schemaNow, statementSummary } from "./types";
 
@@ -731,6 +731,7 @@ export class Viewer {
     }
     const ex = this.ex;
     const orbit = m.orbit;
+    const bends = m.elems.filter((e) => e.shape === "bend");
     const col = (name: string) => this.colors.get(name) ?? this.colors.get("--el-other")!;
     const buckets = new Map<string, Bucket>();
     this.aTyp = m.medianR * ex;
@@ -818,8 +819,9 @@ export class Viewer {
           break;
         case "edge": {
           // thin dipole outline, wide in the bending plane, tilted by the pole-face angle
-          const c = Math.cos(e.angle);
-          const s = Math.sin(e.angle);
+          const t = edgeTilt(e, bends);
+          const c = Math.cos(t);
+          const s = Math.sin(t);
           const B = e.hv ? P.y : P.x; // in-plane transverse axis
           const inPlane: Vec3 = [B[0] * c - P.z[0] * s, B[1] * c - P.z[1] * s, B[2] * c - P.z[2] * s];
           const Z: Vec3 = [P.z[0] * c + B[0] * s, P.z[1] * c + B[1] * s, P.z[2] * c + B[2] * s];

@@ -290,7 +290,7 @@ bend edge
 
 > **AVAS convention**: the linear preview treats `bend` as a sector-magnet body without pole-face angles; the pole-face rotation is given by an `edge` before and after it (as in TraceWin's BEND/EDGE). Whether the engine's `bend` itself includes edge effects, and whether it must be paired with `edge`, is not described in the manual; the engine is the reference. `bend` and `edge` are both z-code matrix-model elements; `edge` has zero length.
 
-> Note: in the linear preview a negative $\alpha$ flips the sign of $h$, and $R_{16}$ etc. flip with it: the beam bends to the other side. Whether a positive $\alpha$ bends towards $+x$ or $-x$ in the engine is not stated in the manual; check with a single-particle engine run when it matters.
+> Note: in the linear preview a negative $\alpha$ flips the sign of $h$, and $R_{16}$ etc. flip with it: the beam bends to the other side. The engine does the same (not stated in the manual; checked with the engine on 2026-11-15): a positive $\alpha$ puts the higher-momentum particles at $x > 0$ after the dipole, so $+x$ is the outside and the beam turns towards $-x$ ($-y$ for a vertical bend); the 3D view draws it this way.
 
 ### Example
 

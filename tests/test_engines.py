@@ -456,3 +456,42 @@ def test_research_refuses_a_device_that_cannot_run(rproject):
     with pytest.raises(engines.EngineChoiceError, match="cannot use device 'cuda': no NVIDIA driver"):
         study.run(Variant(particles=100), "engine")
     assert ncalls(study) == 0
+
+
+def test_c_stdout_is_unbuffered_in_the_ucrt_already_loaded(monkeypatch):
+    """Windows: setvbuf goes to the UCRT the kernels use (GetModuleHandleW), never to a copy loaded
+    by name - in the packaged program that would be _internal's second UCRT (simulated here)."""
+    import ctypes
+    import types
+    from avas.core import MultiParticleEngine as mpe
+    calls = []
+
+    class Fn:
+        def __init__(self, name, result=None):
+            self.name, self.result = name, result
+
+        def __call__(self, *args):
+            calls.append((self.name,) + args)
+            return self.result
+
+    def win_dll(name):
+        assert name == "kernel32"
+        return types.SimpleNamespace(GetModuleHandleW=Fn("GetModuleHandleW", handle))
+
+    def cdll(name, handle=None):
+        assert handle is not None, "the UCRT must not be loaded by name"
+        calls.append(("CDLL", name, handle))
+        return types.SimpleNamespace(__acrt_iob_func=Fn("iob", 0x1234), setvbuf=Fn("setvbuf", 0))
+
+    monkeypatch.setattr(mpe, "_WINDOWS", True)
+    monkeypatch.setattr(mpe.sys, "stdout", types.SimpleNamespace(isatty=lambda: False))
+    monkeypatch.setattr(ctypes, "WinDLL", win_dll, raising=False)
+    monkeypatch.setattr(ctypes, "CDLL", cdll)
+    handle = 0x7FF0
+    mpe._unbuffer_c_stdout()
+    assert calls == [("GetModuleHandleW", "ucrtbase.dll"), ("CDLL", "ucrtbase.dll", 0x7FF0),
+                     ("iob", 1), ("setvbuf", 0x1234, None, 4, 0)]
+    calls.clear()
+    handle = None                                   # no UCRT in the process: nothing is loaded
+    mpe._unbuffer_c_stdout()
+    assert calls == [("GetModuleHandleW", "ucrtbase.dll")]
