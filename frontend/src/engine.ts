@@ -1,7 +1,7 @@
 // The computing kernels: the original kernel (AVAS.dll / libAVAS.so) and the new kernel (engine/), selected per
 // project in ini.ini [engine] (avas/engines.py, avas/gui/services/kernels.py).  Pure helpers: the options of the
 // Simulation settings page, which combinations are valid, the ini.ini lines a form gives, and the labels of run
-// records ("New kernel (preview) · Metal fp32").
+// records ("New kernel · Metal fp32").
 import { t } from "./i18n";
 
 export type Kernel = "original" | "new";
@@ -213,10 +213,10 @@ export function kernelLines(info: EngineInfo | null, error?: string | null): str
   if (n.available) {
     const b = n.build;
     const parts = ["CPU", b?.cuda ? `CUDA${b.cudaArchs.length ? ` (sm ${b.cudaArchs.join(",")})` : ""}` : "", b?.metal ? "Metal" : "", b?.mpi ? "MPI" : ""].filter(Boolean);
-    lines.push(`  ${t("New kernel (preview)")}: ${t("version")} ${n.version ?? "?"}${n.sha1 ? ` · SHA-1 ${n.sha1.slice(0, 7)}` : ""} · ${parts.join(" + ")}${n.compiler ? ` · ${n.compiler}` : ""}`);
+    lines.push(`  ${t("New kernel")}: ${t("version")} ${n.version ?? "?"}${n.sha1 ? ` · SHA-1 ${n.sha1.slice(0, 7)}` : ""} · ${parts.join(" + ")}${n.compiler ? ` · ${n.compiler}` : ""}`);
     if (n.path) lines.push(`    ${n.path}`);
   } else {
-    lines.push(`  ${t("New kernel (preview)")}: ${t("not found")}${n.error ? ` (${n.error})` : ""}`);
+    lines.push(`  ${t("New kernel")}: ${t("not found")}${n.error ? ` (${n.error})` : ""}`);
   }
   const d = info.devices;
   if (d) {
@@ -268,7 +268,7 @@ export function autoReason(reason: string | null | undefined, code?: string | nu
     case "no_metal":
       return t("auto: this Mac's GPU does not support Metal 3");
     case "few_particles":
-      return t("auto: fewer particles than half the space-charge mesh cells, the CPU is faster than this Mac's GPU");
+      return t("auto: too few particles for this Mac's GPU, the CPU is faster");
     case "no_driver":
       return t("auto: no NVIDIA driver found");
     case "driver_too_old":
@@ -288,7 +288,7 @@ export function autoReason(reason: string | null | undefined, code?: string | nu
   }
   const r = reason ?? "";
   if (r.startsWith("auto: no space charge")) return t("auto: no space charge, the GPU is used only with space charge");
-  if (r.includes("the CPU is faster than Metal")) return t("auto: fewer particles than half the space-charge mesh cells, the CPU is faster than this Mac's GPU");
+  if (r.includes("the CPU is faster than Metal")) return t("auto: too few particles for this Mac's GPU, the CPU is faster");
   if (r.includes("compat=dll")) return t("auto: the AVAS.dll compatibility mode runs on the CPU only");
   if (r.includes("could not be used at run time")) return t("auto: the GPU failed at run time, see the log");
   if (r.includes("built without CUDA") && !r.includes("Metal")) return t("auto: this build of the new kernel has no GPU support");
@@ -306,8 +306,8 @@ export function engineShort(raw: unknown): string | null {
 
 export type EngineLabel = { text: string; tip: string; fallback: boolean };
 
-/** The label of a run's kernel, e.g. "New kernel (preview) · Metal fp32", "Original kernel",
- *  "New kernel (preview) · actual: CPU (auto: …)".  null for records without the information. */
+/** The label of a run's kernel, e.g. "New kernel · Metal fp32", "Original kernel",
+ *  "New kernel · actual: CPU (auto: …)".  null for records without the information. */
 export function engineLabel(raw: unknown): EngineLabel | null {
   const e = normalizeEngine(raw);
   if (!e) return null;
@@ -315,7 +315,7 @@ export function engineLabel(raw: unknown): EngineLabel | null {
     const text = e.legacyGpu ? `${t("Original kernel")} · libPIC.so GPU` : t("Original kernel");
     return { text, tip: t("Original kernel (AVAS.dll / libAVAS.so)"), fallback: false };
   }
-  const name = t("New kernel (preview)");
+  const name = t("New kernel");
   const tips: string[] = [];
   let text: string;
   let fallback = false;

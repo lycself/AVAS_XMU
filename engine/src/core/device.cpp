@@ -58,6 +58,10 @@ DevicePlan plan_device(long long nParticles, bool spaceCharge, long long meshCel
         // auto on macOS (M6c decision 6, M8-plan 12): Metal when the run has space charge and at least
         // kMetalParticlesPerCell particles per mesh cell, else the CPU
         if (!spaceCharge) return cpu_plan("auto: no space charge, Metal is used for runs with space charge", "no_space_charge");
+        if (nParticles > 0 && nParticles < kMetalMinParticles)
+            return cpu_plan("auto: " + std::to_string(nParticles) + " particles (fewer than " + std::to_string(kMetalMinParticles) +
+                                "): the CPU is faster than Metal",
+                            "few_particles");
         if (nParticles > 0 && meshCells > 0 &&
             static_cast<double>(nParticles) < kMetalParticlesPerCell * static_cast<double>(meshCells))
             return cpu_plan("auto: " + std::to_string(nParticles) + " particles for " + std::to_string(meshCells) +
@@ -69,11 +73,13 @@ DevicePlan plan_device(long long nParticles, bool spaceCharge, long long meshCel
         DevicePlan p;
         p.device = "metal";
         p.precision = "fp32";
-        p.reason = meshCells > 0 ? "auto" : "auto: Metal for runs with space charge and at least " + fmt_g(kMetalParticlesPerCell) +
+        p.reason = meshCells > 0 ? "auto" : "auto: Metal for runs with space charge, at least " + std::to_string(kMetalMinParticles) +
+                                                " particles and at least " + fmt_g(kMetalParticlesPerCell) +
                                                 " particles per mesh cell, else the CPU";
         p.code = "auto_space_charge";
         p.desc = name;
         p.cpuBelowParticlesPerCell = kMetalParticlesPerCell;
+        p.cpuBelowParticles = kMetalMinParticles;
         return p;
     }
     if (!cuda_compiled()) {

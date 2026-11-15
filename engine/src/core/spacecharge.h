@@ -106,6 +106,7 @@ private:
     std::vector<double> fa_, fb_;                     // fft() work arrays, kept between solves
     std::vector<std::complex<double>> fc1_, fc2_;
     std::vector<std::vector<double>> loc_;            // compat threaded deposit: private meshes
+    std::vector<std::vector<long long>> fixLoc_;      // corrected threaded deposit on small meshes
 
     size_t at(int i, int j, int k) const { return (static_cast<size_t>(i) * ny_ + j) * nz_ + k; }
     size_t gat(int a, int b, int c) const {

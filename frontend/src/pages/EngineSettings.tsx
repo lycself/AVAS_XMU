@@ -96,7 +96,7 @@ export function EngineSettings({
   const preference = currentPreference(data, settings);
   const defaultKernel = defaultKernelOf(data, settings);
   const kernel = formKernel(f, defaultKernel);
-  const kernelName = (k: Kernel) => (k === "original" ? t("Original kernel") : t("New kernel (preview)"));
+  const kernelName = (k: Kernel) => (k === "original" ? t("Original kernel (being retired)") : t("New kernel"));
   const isNew = kernel === "new";
   const libraryOk = !!info?.new.available;
   const devices = deviceChoices(info);
@@ -152,14 +152,14 @@ export function EngineSettings({
               checked={kernel === "original"}
               disabled={!data.originalAvailable && kernel !== "original"}
               onChange={() => set("kernel", "original")}
-              label={t("Original kernel")}
-              tip={data.originalAvailable ? t("AVAS.dll / libAVAS.so, the kernel AVAS has always used") : t("The original kernel does not run on {platform}", { platform: data.platform })}
+              label={t("Original kernel (being retired)")}
+              tip={data.originalAvailable ? t("AVAS.dll / libAVAS.so, the kernel AVAS used before the new kernel; it will be removed in a later release") : t("The original kernel does not run on {platform}", { platform: data.platform })}
             />
             <Radio
               checked={isNew}
               disabled={!!info && !libraryOk && !isNew}
               onChange={() => set("kernel", "new")}
-              label={t("New kernel (preview)")}
+              label={t("New kernel")}
               tip={t("The rebuilt kernel: CPU, NVIDIA GPU or Mac GPU; supports the PICNIC solver")}
             />
           </div>

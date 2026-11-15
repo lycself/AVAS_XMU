@@ -154,7 +154,7 @@ describe("kernel lines of the About window", () => {
     i.auto = { sc: { device: "cuda", precision: "fp32", gpus: [0], reason: "auto", error: null }, nosc: { device: "cuda", precision: "fp32", gpus: [0], reason: "auto", error: null } };
     const text = kernelLines(i).join("\n");
     expect(text).toContain("Original kernel: AVAS.dll · SHA-1 3d6c3e0");
-    expect(text).toContain("New kernel (preview): version v · SHA-1 3faeb7f · CPU + CUDA (sm 89)");
+    expect(text).toContain("New kernel: version v · SHA-1 3faeb7f · CPU + CUDA (sm 89)");
     expect(text).toContain("GPU 0 (CUDA 0, sm 8.9, 48 GB, slow fp64)");
     expect(text).toContain("with space charge → CUDA fp32");
   });
@@ -166,7 +166,7 @@ describe("kernel lines of the About window", () => {
     i.new = { ...i.new, available: false, error: "not found here" };
     const text = kernelLines(i).join("\n");
     expect(text).toContain("not available on macOS arm64");
-    expect(text).toContain("New kernel (preview): not found (not found here)");
+    expect(text).toContain("New kernel: not found (not found here)");
     expect(kernelLines(null, "boom")[0]).toContain("boom");
   });
 });
@@ -187,17 +187,17 @@ describe("kernel labels", () => {
   it("names the device and precision the new kernel used", () => {
     const raw = { kernel: "new", device: "metal", precision: "fp32", gpus: [], compat: "none", tier: "new-fp32", requested: { device: "auto" }, version: "5762f2c2" };
     const label = engineLabel(raw)!;
-    expect(label.text).toBe("New kernel (preview) · Metal fp32");
+    expect(label.text).toBe("New kernel · Metal fp32");
     expect(label.fallback).toBe(false);
     expect(label.tip).toContain("new-fp32");
-    expect(engineLabel({ kernel: "new", device: "cuda", precision: "fp64", gpus: [0, 1], requested: { device: "cuda" } })!.text).toBe("New kernel (preview) · CUDA fp64 · 2 GPUs");
-    expect(engineLabel({ kernel: "new", device: "cpu", precision: "fp64", compat: "dll", requested: { device: "cpu" } })!.text).toBe("New kernel (preview) · CPU fp64 · AVAS.dll compatible");
+    expect(engineLabel({ kernel: "new", device: "cuda", precision: "fp64", gpus: [0, 1], requested: { device: "cuda" } })!.text).toBe("New kernel · CUDA fp64 · 2 GPUs");
+    expect(engineLabel({ kernel: "new", device: "cpu", precision: "fp64", compat: "dll", requested: { device: "cpu" } })!.text).toBe("New kernel · CPU fp64 · AVAS.dll compatible");
   });
 
   it("explains when auto fell back to the CPU", () => {
     const label = engineLabel({ kernel: "new", device: "cpu", precision: "fp64", requested: { device: "auto" }, reason: "auto: no CUDA driver" })!;
     expect(label.fallback).toBe(true);
-    expect(label.text).toBe("New kernel (preview) · actual: CPU (auto: no usable GPU on this computer)");
+    expect(label.text).toBe("New kernel · actual: CPU (auto: no usable GPU on this computer)");
     expect(label.tip).toContain("no CUDA driver");
     expect(autoReason("auto: no space charge, Metal is used for runs with space charge")).toMatch(/no space charge/);
     expect(autoReason("auto: compat=dll runs on the CPU only")).toMatch(/compatibility/);
@@ -207,8 +207,8 @@ describe("kernel labels", () => {
 
   it("translates the kernel's reason codes, whatever the text says", () => {
     expect(autoReason("auto: anything", "no_space_charge")).toMatch(/no space charge/);
-    expect(autoReason("auto: anything", "few_particles")).toMatch(/half the space-charge mesh cells/);
-    expect(autoReason("auto: 5000 particles for 262144 space-charge mesh cells (fewer than 0.5 per cell): the CPU is faster than Metal")).toMatch(/half/);
+    expect(autoReason("auto: anything", "few_particles")).toMatch(/too few particles/);
+    expect(autoReason("auto: 5000 particles (fewer than 60000): the CPU is faster than Metal")).toMatch(/too few particles/);
     expect(autoReason("auto: anything", "compat_dll")).toMatch(/compatibility/);
     expect(autoReason("auto: anything", "gpu_memory")).toMatch(/memory/);
     expect(autoReason("auto: anything", "no_kernel_image")).toMatch(/machine code/);
@@ -220,10 +220,10 @@ describe("kernel labels", () => {
   });
 
   it("shows the request while the run has not recorded its device", () => {
-    expect(engineLabel({ kernel: "new", device: null, requested: { device: "auto" } })!.text).toBe("New kernel (preview) · requested: auto");
-    expect(engineLabel({ kernel: "new", device: null, requestedDevice: "metal" })!.text).toBe("New kernel (preview) · requested: Metal");
+    expect(engineLabel({ kernel: "new", device: null, requested: { device: "auto" } })!.text).toBe("New kernel · requested: auto");
+    expect(engineLabel({ kernel: "new", device: null, requestedDevice: "metal" })!.text).toBe("New kernel · requested: Metal");
     const predicted = engineLabel({ kernel: "new", device: "metal", precision: "fp32", requestedDevice: "auto", predicted: true })!;
-    expect(predicted.text).toBe("New kernel (preview) · Metal fp32");
+    expect(predicted.text).toBe("New kernel · Metal fp32");
     expect(predicted.tip).toMatch(/Expected/);
   });
 

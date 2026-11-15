@@ -182,10 +182,8 @@ public:
     void group(F32Slice C, F32Slice Mx, F32Slice sums, F32Slice exps, F32Slice mx, int n, int stride, int ncol, int nmx,
                int nmx0) override {
         const int ng = (n + 4095) / 4096;
-        @autoreleasepool {
-            id<MTLCommandBuffer> cb = [queue_ commandBuffer];
-            id<MTLComputeCommandEncoder> enc = [cb computeCommandEncoder];
-            [enc setComputePipelineState:group_];
+        const int cols[4] = {ncol, nmx, nmx0, 0};
+        run_groups(group_, static_cast<size_t>(ng), 256, [&](id<MTLComputeCommandEncoder> enc) {
             set(enc, C, 0);
             set(enc, Mx, 1);
             set(enc, sums, 2);
@@ -193,13 +191,8 @@ public:
             set(enc, mx, 4);
             [enc setBytes:&n length:4 atIndex:5];
             [enc setBytes:&stride length:4 atIndex:6];
-            const int cols[4] = {ncol, nmx, nmx0, 0};
             [enc setBytes:cols length:16 atIndex:7];
-            [enc dispatchThreadgroups:MTLSizeMake(static_cast<NSUInteger>(ng), 1, 1) threadsPerThreadgroup:MTLSizeMake(256, 1, 1)];
-            [enc endEncoding];
-            [cb commit];
-            [cb waitUntilCompleted];
-        }
+        });
     }
 
     void bound(const void* U, const void* F, F32Slice geoms, F32Slice segStart, F32Slice segEnd, F32Slice bndZ, F32Slice bndR1,

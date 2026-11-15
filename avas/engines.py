@@ -5,9 +5,9 @@ environment (``AVAS_ENGINE``, ``AVAS_ENGINE_DEVICE``, ``AVAS_ENGINE_PRECISION``,
 ``AVAS_ENGINE_THREADS``, ``AVAS_ENGINE_COMPAT``), the project's ``ini.ini`` section ``[engine]``
 (keys ``kernel device precision gpus threads compat``), for the kernel only the GUI's global "default
 computing kernel" preference (gui.json, :func:`default_choice_kernel`; "original" where the original kernel
-does not exist falls back to the built-in default with a note), the defaults (kernel original where the
-original kernel exists -- Windows and Linux on x86-64 --, else new (macOS, ARM: :func:`default_kernel`);
-for the new kernel device auto, precision auto, gpus all, threads 0 = automatic, compat none).  With the
+does not exist falls back to the built-in default with a note), the defaults (kernel new on every
+platform since M8b, 2026-11-15: :func:`default_kernel`; the original kernel stays selectable on Windows and
+Linux x86-64; for the new kernel device auto, precision auto, gpus all, threads 0 = automatic, compat none).  With the
 original kernel the other keys are ignored; choosing it explicitly on a platform without it is an error
 before the run (:func:`check_platform`).  input.txt is never changed (the original kernel reads the same
 project).
@@ -69,8 +69,10 @@ def original_available(system=None, machine=None):
 
 
 def default_kernel():
-    """The kernel used when nothing selects one: the original kernel where it exists, else the new one."""
-    return "original" if original_available() else "new"
+    """The kernel used when nothing selects one: the new kernel on every platform (M8b, 2026-11-15; before,
+    the original kernel where it exists).  The original kernel is still chosen explicitly or with the global
+    preference where it runs."""
+    return "new"
 
 
 def platform_label(system=None, machine=None):
@@ -90,7 +92,7 @@ class EngineChoiceError(ValueError):
 class EngineChoice:
     """Kernel and, for the new kernel, its options.  *sources* tells where each value came from
     (``cli``, ``env``, ``ini``, ``default``; not compared)."""
-    kernel: str = "original"
+    kernel: str = "new"
     device: str = "auto"
     precision: str = "auto"
     gpus: str = "all"
@@ -477,16 +479,23 @@ def space_charge_size(input_dir):
 
 def size_adjusted_plan(plan, input_dir):
     """*plan* (a device plan of :func:`describe` ``resolved``) for the run size of *input_dir*: device auto on
-    macOS reports Metal with ``cpu_below_particles_per_cell``, and the kernel then uses the CPU for a run with
-    fewer particles per space-charge mesh cell (reason code ``few_particles``, the same text as the kernel)."""
+    macOS reports Metal with ``cpu_below_particles`` and ``cpu_below_particles_per_cell``, and the kernel then
+    uses the CPU for a run with fewer particles, or fewer per space-charge mesh cell (reason code
+    ``few_particles``, the same text as the kernel)."""
     limit = (plan or {}).get("cpu_below_particles_per_cell")
+    least = (plan or {}).get("cpu_below_particles") or 0
     size = space_charge_size(input_dir) if limit and input_dir else None
-    if not size or size[0] >= limit * size[1]:
+    if not size:
         return plan
     n, cells = size
-    return {"device": "cpu", "precision": "fp64", "gpus": [], "error": None, "reason_code": "few_particles",
-            "reason": f"auto: {n} particles for {cells} space-charge mesh cells (fewer than {limit:g} per cell): "
-                      "the CPU is faster than Metal"}
+    if n < least:
+        reason = f"auto: {n} particles (fewer than {least}): the CPU is faster than Metal"
+    elif n < limit * cells:
+        reason = (f"auto: {n} particles for {cells} space-charge mesh cells (fewer than {limit:g} per cell): "
+                  "the CPU is faster than Metal")
+    else:
+        return plan
+    return {"device": "cpu", "precision": "fp64", "gpus": [], "error": None, "reason_code": "few_particles", "reason": reason}
 
 
 # --------------------------------------------------------------------------- queries

@@ -1,4 +1,4 @@
-// The kernel a run used, as a small chip ("New kernel (preview) · Metal fp32"); nothing for records written
+// The kernel a run used, as a small chip ("New kernel · Metal fp32"); nothing for records written
 // before AVAS recorded it (see engine.ts engineLabel).
 import { engineLabel } from "../engine";
 import { useT } from "../i18n";

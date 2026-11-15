@@ -122,6 +122,7 @@ std::string plan_json(const avas::DevicePlan& p) {
     return "{\"device\":" + jstr(p.device) + ",\"precision\":" + jstr(p.precision) + ",\"gpus\":" + jints(p.gpus) +
            ",\"reason\":" + jstr(p.reason) + ",\"reason_code\":" + jstr(p.code) +
            (p.cpuBelowParticlesPerCell > 0.0 ? ",\"cpu_below_particles_per_cell\":" + avas::fmt_g(p.cpuBelowParticlesPerCell) : std::string()) +
+           (p.cpuBelowParticles > 0 ? ",\"cpu_below_particles\":" + std::to_string(p.cpuBelowParticles) : std::string()) +
            ",\"error\":null}";
 }
 

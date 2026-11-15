@@ -337,8 +337,12 @@ void SpaceCharge::weight(Beam& b, double factor) {
         par_range(static_cast<int>(fix_.size()), [&](int e0, int e1) { std::fill(fix_.begin() + e0, fix_.begin() + e1, 0LL); });
         const kern::MeshV M = mesh_view(b);
         const kern::PartV P = beam_view(b);
-        const bool threaded = workers_ && n >= 16384;  // fewer particles: not worth the atomics
-        auto deposit = [&](int p0, int p1) {
+        // threads: private integer meshes when the mesh is small against the deposits, else atomic adds
+        // into the one mesh (integer sums: the same result either way)
+        const bool threaded = workers_ && n >= 2048;
+        const int tasks = threaded ? std::min(nThreads_, (n + 1023) / 1024) : 1;
+        const bool privateMeshes = threaded && fix_.size() * static_cast<size_t>(tasks) <= static_cast<size_t>(n) * 8;
+        auto deposit_into = [&](int p0, int p1, long long* mesh, bool atomic) {
             for (int p = p0; p < p1; ++p) {
                 if (b.lost[p] == 1) continue;
                 int i, j, k;
@@ -346,15 +350,33 @@ void SpaceCharge::weight(Beam& b, double factor) {
                 if (!kern::mesh_cell(M, P, p, i, j, k, w)) continue;
                 const double q = b.charge[p];
                 for (int m = 0; m < 8; ++m) {
-                    long long& cell = fix_[kern::mesh_corner(M, i, j, k, m)];
+                    long long& cell = mesh[kern::mesh_corner(M, i, j, k, m)];
                     const long long v = kern::fix_charge(w[m] * q, fixExp_);
-                    if (threaded) atomic_add(cell, v);
+                    if (atomic) atomic_add(cell, v);
                     else cell += v;
                 }
             }
         };
-        if (threaded) par_range(n, deposit);
-        else deposit(0, n);
+        if (privateMeshes) {
+            if (fixLoc_.size() < static_cast<size_t>(tasks)) fixLoc_.resize(static_cast<size_t>(tasks));
+            par(tasks, [&](int t) {
+                std::vector<long long>& loc = fixLoc_[static_cast<size_t>(t)];
+                loc.assign(fix_.size(), 0LL);
+                deposit_into(static_cast<int>(static_cast<long long>(n) * t / tasks), static_cast<int>(static_cast<long long>(n) * (t + 1) / tasks),
+                             loc.data(), false);
+            });
+            par_range(static_cast<int>(fix_.size()), [&](int e0, int e1) {
+                for (int e = e0; e < e1; ++e) {
+                    long long s = 0;
+                    for (int t = 0; t < tasks; ++t) s += fixLoc_[static_cast<size_t>(t)][static_cast<size_t>(e)];
+                    fix_[static_cast<size_t>(e)] = s;
+                }
+            });
+            set_rho(fix_, factor, true);
+            return;
+        }
+        if (threaded) par_range(n, [&](int p0, int p1) { deposit_into(p0, p1, fix_.data(), true); });
+        else deposit_into(0, n, fix_.data(), false);
         set_rho(fix_, factor, true);
         return;
     }

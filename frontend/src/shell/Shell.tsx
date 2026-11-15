@@ -2,6 +2,7 @@ import { pointerDevice } from "../components/pointer";
 import { VersionStamp } from "../components/VersionStamp";
 // Window chrome: menu bar, tool bar, side bar, page area, log panel, status bar.
 import { checkUpdates, UpdateNotice } from "../updates";
+import { useKernelNotice } from "./kernelNotice";
 import { Fragment, lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   closeProject,
@@ -148,16 +149,16 @@ function defaultKernelMenu(pref: string, t: (s: string, p?: Record<string, strin
   const info = useEngineInfo.getState().info;
   void useEngineInfo.getState().load();
   const builtin = info?.builtinKernel ?? info?.defaultKernel ?? null;
-  const name = (k: string | null) => (k === "original" ? t("Original kernel") : k === "new" ? t("New kernel (preview)") : t("Unknown"));
+  const name = (k: string | null) => (k === "original" ? t("Original kernel (being retired)") : k === "new" ? t("New kernel") : t("Unknown"));
   const originalAvailable = info?.originalAvailable ?? true;
   const items: MenuItem[] = [
     { label: builtin ? t("Built-in default ({kernel})", { kernel: name(builtin) }) : t("Built-in default"), checked: !pref, onClick: () => persist({ [DEFAULT_KERNEL_SETTING]: "" }) },
     {
-      label: originalAvailable ? t("Original kernel") : t("Original kernel (not available here: the built-in default is used)"),
+      label: originalAvailable ? t("Original kernel (being retired)") : t("Original kernel (not available here: the built-in default is used)"),
       checked: pref === "original",
       onClick: () => persist({ [DEFAULT_KERNEL_SETTING]: "original" }),
     },
-    { label: t("New kernel (preview)"), checked: pref === "new", onClick: () => persist({ [DEFAULT_KERNEL_SETTING]: "new" }) },
+    { label: t("New kernel"), checked: pref === "new", onClick: () => persist({ [DEFAULT_KERNEL_SETTING]: "new" }) },
     { type: "header", label: t("Projects that choose a kernel in Simulation settings keep it.") },
   ];
   if (builtin && preferenceIgnored(pref, originalAvailable))
@@ -598,6 +599,9 @@ export function Shell() {
     const timer = window.setTimeout(() => useEngineInfo.getState().load(), 5000);
     return () => window.clearTimeout(timer);
   }, []);
+
+  // once after the update that made the new kernel the default (Windows, Linux)
+  useKernelNotice();
 
   // the View → Motion setting for CSS transitions (sidebars, primer panels)
   const motion = useMotion();

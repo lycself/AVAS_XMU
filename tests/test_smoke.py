@@ -1,7 +1,8 @@
 """End-to-end smoke tests: run the bundled example through the CLI and plot it.
 
 Run with ``pytest`` from the repository root.  The simulation takes a few
-seconds and needs the native engine (avas/engine/AVAS.dll or libAVAS.so).
+seconds with the default kernel (the new kernel, avas/engine/new); where the original kernel exists
+(avas/engine/AVAS.dll or libAVAS.so) it runs once with it too.
 """
 import os
 import shutil
@@ -39,6 +40,23 @@ def test_run_decoupled_dirs(run_dirs):
     assert main(["--input", inp, "--output", out]) == 0
     assert os.path.isfile(os.path.join(out, "DataSet.txt"))
     assert os.path.isfile(os.path.join(out, "avas_run.json"))
+    import json
+    with open(os.path.join(out, "avas_run.json"), encoding="utf-8") as fh:
+        assert json.load(fh)["engine"]["kernel"] == "new"        # the built-in default since M8b
+
+
+def test_run_with_the_original_kernel(run_dirs):
+    """The original kernel is still selectable where it exists (CI: Windows), so the smoke test runs both."""
+    import json
+    from avas import engines
+    if not engines.original_available():
+        pytest.skip("the original kernel does not run on this platform")
+    inp, _out = run_dirs
+    out = os.path.join(WORK, "Results_original")
+    assert main(["run", "--input", inp, "--output", out, "--engine", "original"]) == 0
+    with open(os.path.join(out, "avas_run.json"), encoding="utf-8") as fh:
+        assert json.load(fh)["engine"]["kernel"] == "original"
+    assert os.path.isfile(os.path.join(out, "DataSet.txt"))
 
 
 def test_run_with_other_lattice_file(run_dirs, monkeypatch):

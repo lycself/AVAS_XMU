@@ -7,7 +7,7 @@
 
 AVAS（Advanced Virtual Accelerator Software）是直线加速器束流动力学模拟程序：
 
-- C++ 计算内核：`avas/engine/AVAS.dll`（Linux 为 `libAVAS.so`），只有二进制，没有源码，不要修改。新内核（`engine/` 源码，预编译库将放在 `avas/engine/new/`）是可选内核，有原内核的平台（Windows、Linux x86-64）默认仍用原内核，没有原内核的平台（macOS、ARM）默认用新内核（`avas/engines.py`，见第 5.4 节“内核选择”）。
+- C++ 计算内核：`avas/engine/AVAS.dll`（Linux 为 `libAVAS.so`），只有二进制，没有源码，不要修改。新内核（`engine/` 源码，预编译库在 `avas/engine/new/`）自 M8b（2026-11-16）起是所有平台的默认内核（`avas/engines.py` 的 `default_kernel()`，见第 5.4 节“内核选择”）；原内核在 Windows、Linux x86-64 上仍可选择，界面标“将淘汰”，按 docs/engine/M8-plan.md 第 4 节的条件在以后删除。
 - Python 包 `avas/`：模拟流程、前后处理、命令行 `avas run / plot / gui / serve / info / doctor`。
 - 界面：React 网页前端（`frontend/`）+ Python 后端（`avas/gui/services/`），二者只通过 HTTP / WebSocket 通信（`avas/gui/server.py`）。
   `avas gui` 把页面放进 pywebview + Edge WebView2 桌面窗口；`avas serve` 不开窗口，在浏览器里用同一个页面（将来部署到服务器的基础，
@@ -192,7 +192,7 @@ packaging/        PyInstaller + Inno Setup 打包
   所有内核运行都经 `avas run` 子进程，各入口拿到 `[engine]` 的方式：完整运行 / 误差研究直接用项目 InputFile；分段运行、AI 沙盒、参数扫描、入门教程复制的文本输入含 ini.ini；
   研究层 `Study` 把解析好的选择写进每次运行的 `input/ini.ini [engine]`，并在子进程环境里去掉上述环境变量。
   **选了 cuda / metal 而本机或这个构建没有时，运行前报错并提示改 auto 或 cpu，不得悄悄改用 CPU**（`MultiParticleEngine.check_device`，判断用新内核自己的
-  `avas_engine_devices()`，与 `main_agent` 同一段代码 `plan_device`）；Mac 上 auto 只在有空间电荷且粒子数 ≥ 网格单元数 × `kMetalParticlesPerCell`（0.5，`device.h`）时选 Metal，否则 CPU（原因代码 `few_particles`；查询不知道运行规模，Metal 计划里带 `cpu_below_particles_per_cell`，界面运行前的预计由 `engines.size_adjusted_plan` 按项目的 particlenumber 与 numofgrid 换算，见 M8-plan 第 12 节）；compat dll 只能配 auto / cpu，Metal 只有 fp32，CPU 只有 fp64，组合不对时在解析阶段报错。
+  `avas_engine_devices()`，与 `main_agent` 同一段代码 `plan_device`）；Mac 上 auto 只在有空间电荷、粒子数 ≥ `kMetalMinParticles`（60000）且 ≥ 网格单元数 × `kMetalParticlesPerCell`（0.5，`device.h`）时选 Metal，否则 CPU（原因代码 `few_particles`；查询不知道运行规模，Metal 计划里带 `cpu_below_particles` 与 `cpu_below_particles_per_cell`，界面运行前的预计由 `engines.size_adjusted_plan` 按项目的 particlenumber 与 numofgrid 换算，见 M8-plan 第 12 节）；compat dll 只能配 auto / cpu，Metal 只有 fp32，CPU 只有 fp64，组合不对时在解析阶段报错。
   内核库只在 `avas run` / `avas info` 进程里用 ctypes 加载；其他进程（研究层、GUI）要知道 auto 会选什么时调用子进程 `avas info --engine-json`（`engines.query_subprocess`）。
   **avas_run.json 的 `engine` 字段**：原内核 `{"kernel": "original", "file", "sha1", "tier"}`（libPIC.so 通路另记 `device: gpu`）；新内核另有 `version`（引擎源码哈希前 16 位）、
   实际的 `device`、`precision`、`gpus`、`compat`、`threads`、`space_charge`（取自 `avas_engine_last_run()`）、`tier` 与 `requested`，auto 时还有 `reason` 与 `reason_code`

@@ -177,7 +177,7 @@ def test_settings_load_fills_in_the_platform_default(project, monkeypatch):
     # no kernel in [engine]: "" = the project follows the default computing kernel
     assert eng["form"] == {"kernel": "", "device": "auto", "precision": "auto", "gpus": "all", "threads": "0", "compat": "none"}
     assert eng["explicitKernel"] is False and eng["invalid"] == [] and eng["originalAvailable"] is True
-    assert eng["defaultKernel"] == "original" and eng["builtinKernel"] == "original" and eng["defaultSource"] == "default"
+    assert eng["defaultKernel"] == "new" and eng["builtinKernel"] == "new" and eng["defaultSource"] == "default"
     set_platform(monkeypatch, False)
     eng = ok("settings.load")["engine"]
     assert eng["form"]["kernel"] == "" and eng["defaultKernel"] == "new" and eng["originalAvailable"] is False
@@ -202,7 +202,7 @@ def test_global_default_kernel_preference_in_the_gui(project, monkeypatch):
         assert (eng["form"]["kernel"], eng["defaultKernel"], eng["defaultSource"], eng["preference"]) == ("", "new", "preference", "new")
         assert ok("engine.effective") == {"kernel": "new", "compat": "none", "source": "preference", "note": None, "error": None}
         info = ok("engine.info")
-        assert info["defaultKernel"] == "new" and info["builtinKernel"] == "original" and info["preference"] == "new"
+        assert info["defaultKernel"] == "new" and info["builtinKernel"] == "new" and info["preference"] == "new"
         # saving other keys does not pin the kernel; choosing one writes it, "" removes it again
         data = ok("settings.load")
         ok("settings.save", form=data["form"], meta=data["meta"], engine=dict(data["engine"]["form"], threads="2"))
@@ -346,8 +346,9 @@ def test_mac_auto_uses_the_cpu_for_few_particles_per_mesh_cell(project, fake_que
     and the settings preview predict the CPU when the project has fewer particles per mesh cell."""
     set_platform(monkeypatch, False)
     write_engine(project, None)
-    metal = dict(plan("metal", "fp32", "auto: Metal for runs with space charge and at least 0.5 particles per mesh cell, "
-                                        "else the CPU"), reason_code="auto_space_charge", cpu_below_particles_per_cell=0.5)
+    metal = dict(plan("metal", "fp32", "auto: Metal for runs with space charge, at least 60000 particles and at least 0.5 "
+                                        "particles per mesh cell, else the CPU"), reason_code="auto_space_charge",
+                 cpu_below_particles_per_cell=0.5, cpu_below_particles=60000)
     fake_query["answer"] = lambda choice: describe(choice, sc=metal)
     beam, inp = project / "InputFile" / "beam.txt", project / "InputFile" / "input.txt"
     beam0, inp0 = beam.read_text(encoding="utf-8"), inp.read_text(encoding="utf-8")
@@ -358,15 +359,17 @@ def test_mac_auto_uses_the_cpu_for_few_particles_per_mesh_cell(project, fake_que
         beam.write_text(b, encoding="utf-8")
         inp.write_text(i, encoding="utf-8")
     try:
-        setup(5000, 64)                                  # 5000 < 0.5 * 64^3
+        setup(5000, 64)                                  # 5000 < 60000
         got = ok("engine.check")
         assert (got["device"], got["precision"], got["tier"], got["reasonCode"]) == ("cpu", "fp64", "new-cpu-fp64", "few_particles")
-        assert "5000 particles for 262144" in got["reason"]
+        assert "5000 particles (fewer than 60000)" in got["reason"]
         form = {"kernel": "new", "device": "auto", "precision": "auto", "gpus": "all", "threads": "0", "compat": "none"}
         assert ok("engine.preview", choice=form)["plan"]["reasonCode"] == "few_particles"
+        setup(100000, 64)                                # 100000 < 0.5 * 64^3
+        assert "100000 particles for 262144" in ok("engine.check")["reason"]
         setup(200000, 64)                                # 200000 >= 131072: Metal
         assert ok("engine.check")["device"] == "metal"
-        setup(5000, 14)                                  # a small mesh: Metal
+        setup(80000, 14)                                 # a small mesh and enough particles: Metal
         assert ok("engine.check")["device"] == "metal"
     finally:
         beam.write_text(beam0, encoding="utf-8")

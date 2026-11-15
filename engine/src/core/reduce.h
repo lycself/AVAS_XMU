@@ -25,32 +25,55 @@ AVAS_HD inline void tree_sum(double* a, int n) {
         for (int t = 0; t < s; ++t) a[t] = a[t] + a[t + s];
 }
 
-// Level 1 and 2 for the group that starts at particle g0 (a multiple of kRedGroup) on the host.
+// Level 1 for the chunk that starts at particle base (a multiple of kRedChunk, base < n) on the host.
 // fill(i, c) writes the K contributions of particle i (i < n) to c.
+template <int K, class Fill>
+inline void chunk_sum(int base, int n, Fill&& fill, double out[K]) {
+    double buf[K][kRedChunk];
+    double c[K];
+    for (int t = 0; t < kRedChunk; ++t) {
+        const int i = base + t;
+        if (i < n) {
+            fill(i, c);
+            for (int k = 0; k < K; ++k) buf[k][t] = c[k];
+        } else {
+            for (int k = 0; k < K; ++k) buf[k][t] = 0.0;
+        }
+    }
+    for (int k = 0; k < K; ++k) {
+        tree_sum(buf[k], kRedChunk);
+        out[k] = buf[k][0];
+    }
+}
+
+// Level 2 for group g from the level-1 sums of its chunks (chunk c of the run at sums + c * K; chunks at
+// or after particle n count as 0.0).  Chunks can therefore be computed in any order or in parallel.
+template <int K>
+inline void group_of_chunks(int g, int n, const double* sums, double out[K]) {
+    double chunks[K][kRedGroupChunks];
+    for (int ch = 0; ch < kRedGroupChunks; ++ch) {
+        const long long c = static_cast<long long>(g) * kRedGroupChunks + ch;
+        for (int k = 0; k < K; ++k) chunks[k][ch] = c * kRedChunk < n ? sums[c * K + k] : 0.0;
+    }
+    for (int k = 0; k < K; ++k) {
+        tree_sum(chunks[k], kRedGroupChunks);
+        out[k] = chunks[k][0];
+    }
+}
+
+// Level 1 and 2 for the group that starts at particle g0 (a multiple of kRedGroup) on the host.
 template <int K, class Fill>
 inline void group_sum(int g0, int n, Fill&& fill, double out[K]) {
     double chunks[K][kRedGroupChunks];
-    double buf[K][kRedChunk];
-    double c[K];
+    double one[K];
     for (int ch = 0; ch < kRedGroupChunks; ++ch) {
         const int base = g0 + ch * kRedChunk;
         if (base >= n) {
             for (int k = 0; k < K; ++k) chunks[k][ch] = 0.0;
             continue;
         }
-        for (int t = 0; t < kRedChunk; ++t) {
-            const int i = base + t;
-            if (i < n) {
-                fill(i, c);
-                for (int k = 0; k < K; ++k) buf[k][t] = c[k];
-            } else {
-                for (int k = 0; k < K; ++k) buf[k][t] = 0.0;
-            }
-        }
-        for (int k = 0; k < K; ++k) {
-            tree_sum(buf[k], kRedChunk);
-            chunks[k][ch] = buf[k][0];
-        }
+        chunk_sum<K>(base, n, fill, one);
+        for (int k = 0; k < K; ++k) chunks[k][ch] = one[k];
     }
     for (int k = 0; k < K; ++k) {
         tree_sum(chunks[k], kRedGroupChunks);

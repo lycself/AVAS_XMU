@@ -36,7 +36,7 @@ def _write_ini(folder, text):
 def test_defaults_and_priority_cli_env_ini(tmp_path, monkeypatch):
     monkeypatch.setattr(engines, "original_available", lambda system=None, machine=None: True)
     assert engines.resolve_choice(env={}) == engines.EngineChoice()
-    assert engines.resolve_choice(env={}).kernel == "original"
+    assert engines.resolve_choice(env={}).kernel == "new"
     _write_ini(str(tmp_path), "[engine]\nkernel = new\ndevice = cpu\nthreads = 3\ngpus = 1, 0\nunknown = x\n")
     c = engines.resolve_choice(input_dir=str(tmp_path), env={})
     assert (c.kernel, c.device, c.precision, c.gpus, c.threads, c.compat) == ("new", "cpu", "auto", "1,0", 3, "none")
@@ -53,9 +53,10 @@ def test_defaults_and_priority_cli_env_ini(tmp_path, monkeypatch):
     assert engines.resolve_choice(env={"AVAS_ENGINE": "NEW"}).device == "auto"           # new-kernel defaults
 
 
-def test_default_kernel_follows_the_platform(monkeypatch):
-    """The original kernel exists on Windows / Linux x86-64 only; elsewhere the new kernel is the default and an
-    explicit original kernel is refused before the run."""
+def test_default_kernel_is_the_new_kernel_everywhere(monkeypatch):
+    """The new kernel is the built-in default on every platform (M8b); the original kernel exists on Windows /
+    Linux x86-64 only, where it can still be chosen; elsewhere an explicit original kernel is refused before
+    the run."""
     assert engines.original_available("Windows", "AMD64") and engines.original_available("Linux", "x86_64")
     assert not engines.original_available("Darwin", "arm64") and not engines.original_available("Darwin", "x86_64")
     assert not engines.original_available("Linux", "aarch64")
@@ -68,7 +69,8 @@ def test_default_kernel_follows_the_platform(monkeypatch):
     with pytest.raises(engines.EngineChoiceError, match=r"does not run on .*--engine original"):
         engines.check_platform(explicit)
     monkeypatch.setattr(engines, "original_available", lambda system=None, machine=None: True)
-    assert engines.resolve_choice(env={}).kernel == "original"
+    c = engines.resolve_choice(env={})
+    assert engines.default_kernel() == "new" and c.kernel == "new" and c.sources["kernel"] == "default"
     engines.check_platform(explicit)
 
 
@@ -89,7 +91,7 @@ def test_global_default_kernel_preference(tmp_path, monkeypatch):
     monkeypatch.setattr(engines, "original_available", lambda system=None, machine=None: True)
     c = engines.resolve_choice(env={})                                       # read from the file
     assert c.kernel == "new" and c.sources["kernel"] == "preference" and "note" not in c.sources
-    assert engines.resolve_choice(env={}, preference="").kernel == "original"  # not set: built-in default
+    assert engines.resolve_choice(env={}, preference="").kernel == "new"        # not set: built-in default
     # ini.ini, the environment and the command line come first
     project = tmp_path / "proj"
     _write_ini(str(project), "[engine]\nkernel = original\n")
@@ -318,11 +320,11 @@ def test_explicit_original_kernel_is_refused_where_it_does_not_run(project, tmp_
 
 
 def test_run_record_of_the_original_kernel():
-    rec = engines.run_record(engines.EngineChoice())
+    rec = engines.run_record(engines.EngineChoice(kernel="original"))
     assert rec["kernel"] == "original" and rec["tier"] == "original"
     assert rec["file"] == os.path.basename(engines.original_library_path())
     assert rec["sha1"] == engines.file_sha1(engines.original_library_path())
-    gpu = engines.run_record(engines.EngineChoice(), legacy_device="gpu")
+    gpu = engines.run_record(engines.EngineChoice(kernel="original"), legacy_device="gpu")
     assert gpu["file"] == "libPIC.so" and gpu["device"] == "gpu"
     new = engines.run_record(engines.resolve_choice(cli={"kernel": "new", "device": "cpu"}, env={}))
     assert new["kernel"] == "new" and new["requested"]["device"] == "cpu" and new["tier"] is None
@@ -608,11 +610,13 @@ def test_size_adjusted_plan(tmp_path):
     (tmp_path / "beam.txt").write_text("particlenumber 5000\n", encoding="utf-8")
     (tmp_path / "input.txt").write_text("scmethod FFT\n", encoding="utf-8")
     metal = {"device": "metal", "precision": "fp32", "gpus": [], "reason": "auto", "reason_code": "auto_space_charge",
-             "cpu_below_particles_per_cell": 0.5, "error": None}
+             "cpu_below_particles_per_cell": 0.5, "cpu_below_particles": 60000, "error": None}
     cpu = engines.size_adjusted_plan(metal, str(tmp_path))
     assert (cpu["device"], cpu["precision"], cpu["reason_code"]) == ("cpu", "fp64", "few_particles")
-    assert cpu["reason"] == ("auto: 5000 particles for 262144 space-charge mesh cells (fewer than 0.5 per cell): "
-                             "the CPU is faster than Metal")
+    assert cpu["reason"] == "auto: 5000 particles (fewer than 60000): the CPU is faster than Metal"
+    (tmp_path / "beam.txt").write_text("particlenumber 100000\n", encoding="utf-8")
+    assert engines.size_adjusted_plan(metal, str(tmp_path))["reason"] == (
+        "auto: 100000 particles for 262144 space-charge mesh cells (fewer than 0.5 per cell): the CPU is faster than Metal")
     cuda = {"device": "cuda", "precision": "fp32", "reason_code": "auto_fp32"}
     assert engines.size_adjusted_plan(cuda, str(tmp_path)) is cuda
     (tmp_path / "beam.txt").write_text("particlenumber 200000\n", encoding="utf-8")

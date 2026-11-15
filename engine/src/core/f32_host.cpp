@@ -650,17 +650,17 @@ public:
             LV.totalLength = static_cast<float>(ls.totalLength);
             LV.spExit = static_cast<float>(ls.spExit);
             for (int c = 0; c < 4; ++c) static_cast<std::uint32_t*>(bcross_.host)[c] = 0;
-            D_->step(&LV, &U, &pf_, SL(boff_, 0), SL(brf_, 0), sizes, n);
-            t1 = now();
-            // statistics per reduction group (fixed point on the GPU, merged in double here)
             const int ng = red_groups(n);
             F32Buf& gs = shared(bgs_, static_cast<size_t>(ng) * 21 * 8);
             F32Buf& ge = shared(bge_, static_cast<size_t>(ng) * 21 * 4);
             F32Buf& gm = shared(bgm_, static_cast<size_t>(ng) * 8 * 4);
-            {
-                D_->group(SL(bstate_, 26 * m_ * 4), SL(bstate_, (26 + 21) * m_ * 4), SL(gs, 0), SL(ge, 0), SL(gm, 0), n, static_cast<int>(m_),
-                          21, 8, 6);
-            }
+            D_->batch_begin();  // the push and its group sums: one submission (the host reads only the sums)
+            D_->step(&LV, &U, &pf_, SL(boff_, 0), SL(brf_, 0), sizes, n);
+            t1 = now();
+            // statistics per reduction group (fixed point on the GPU, merged in double here)
+            D_->group(SL(bstate_, 26 * m_ * 4), SL(bstate_, (26 + 21) * m_ * 4), SL(gs, 0), SL(ge, 0), SL(gm, 0), n, static_cast<int>(m_),
+                      21, 8, 6);
+            D_->batch_end();
             t2 = now();
             const std::int64_t* sv = static_cast<const std::int64_t*>(gs.host);
             const std::int32_t* ex = static_cast<const std::int32_t*>(ge.host);

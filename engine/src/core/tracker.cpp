@@ -973,27 +973,62 @@ private:
 
     // Corrected engine: the step of the particles of group g (4096 particles) with the statistics
     // summed in the fixed order of reduce.h; the group result goes to acc (one block per group).
-    void trans_group(int g, double zField, const std::vector<double>& events, double tEnd, double gp,
-                     const double sync[6], BlockAcc& acc) {
-        const kern::StepArgs a = step_args(zField, events, tEnd, gp, sync);
+    // Chunks [c0, c1) of 256 particles (reduce.h level 1): their sums into chunkSums_, their minimum,
+    // maximum and plane counts into chunkAcc_.  push_groups() runs them in parallel and then forms the
+    // group sums with the level-2 tree, so the statistics do not depend on how chunks are scheduled.
+    void trans_chunks(int c0, int c1, const kern::StepArgs& a, const kern::RfSrc& rf) {
         const kern::PartV P = pview();
-        const kern::RfSrc rf{rfTab_.data(), tEnd};
-        acc.reset();
-        double s[kern::kStepSums];
-        group_sum<kern::kStepSums>(g * kRedGroup, b_.n, [&](int i, double* out) {
-            kern::Contrib c;
-            kern::trans_particle<PortableMath>(latV_, P, i, a, rf, c);
-            kern::contrib_sums(c, out);
-            if (c.hasA) {
-                if (c.zmin < acc.zmin) acc.zmin = c.zmin;
-                if (acc.zmax < c.zmax) acc.zmax = c.zmax;
-                for (int j = 0; j < 6; ++j)
-                    if (acc.maxAbs[j] < c.mx[j]) acc.maxAbs[j] = c.mx[j];
-            }
-            acc.spCnt += c.sp;
-        }, s);
-        set_block_sums(acc, s);
+        for (int ch = c0; ch < c1; ++ch) {
+            BlockAcc& acc = chunkAcc_[static_cast<size_t>(ch)];
+            acc.reset();
+            chunk_sum<kern::kStepSums>(ch * kRedChunk, b_.n, [&](int i, double* out) {
+                kern::Contrib c;
+                kern::trans_particle<PortableMath>(latV_, P, i, a, rf, c);
+                kern::contrib_sums(c, out);
+                if (c.hasA) {
+                    if (c.zmin < acc.zmin) acc.zmin = c.zmin;
+                    if (acc.zmax < c.zmax) acc.zmax = c.zmax;
+                    for (int j = 0; j < 6; ++j)
+                        if (acc.maxAbs[j] < c.mx[j]) acc.maxAbs[j] = c.mx[j];
+                }
+                acc.spCnt += c.sp;
+            }, &chunkSums_[static_cast<size_t>(ch) * kern::kStepSums]);
+        }
     }
+
+    // TcodeTrans of every macro particle on the CPU (corrected engine): chunks on the pool, one
+    // BlockAcc per group of 4096 (the same sums as a group pushed by one thread).
+    void push_groups(WorkerPool& pool, int threads, double zField, const std::vector<double>& events, double tEnd,
+                     double gp, const double sync[6], std::vector<BlockAcc>& acc) {
+        const int n = b_.n;
+        const int nChunks = (n + kRedChunk - 1) / kRedChunk;
+        chunkSums_.resize(static_cast<size_t>(nChunks) * kern::kStepSums);
+        chunkAcc_.resize(static_cast<size_t>(nChunks));
+        const kern::StepArgs a = step_args(zField, events, tEnd, gp, sync);
+        const kern::RfSrc rf{rfTab_.data(), tEnd};
+        const int tasks = std::max(1, std::min(nChunks, threads * 4));
+        pool.run(tasks, [&](int k) {
+            trans_chunks(static_cast<int>(static_cast<long long>(nChunks) * k / tasks),
+                         static_cast<int>(static_cast<long long>(nChunks) * (k + 1) / tasks), a, rf);
+        });
+        for (size_t g = 0; g < acc.size(); ++g) {
+            BlockAcc& ga = acc[g];
+            ga.reset();
+            double s[kern::kStepSums];
+            group_of_chunks<kern::kStepSums>(static_cast<int>(g), n, chunkSums_.data(), s);
+            for (int ch = static_cast<int>(g) * kRedGroupChunks; ch < std::min(nChunks, static_cast<int>(g + 1) * kRedGroupChunks); ++ch) {
+                const BlockAcc& c = chunkAcc_[static_cast<size_t>(ch)];
+                if (c.zmin < ga.zmin) ga.zmin = c.zmin;
+                if (ga.zmax < c.zmax) ga.zmax = c.zmax;
+                for (int j = 0; j < 6; ++j)
+                    if (ga.maxAbs[j] < c.maxAbs[j]) ga.maxAbs[j] = c.maxAbs[j];
+                ga.spCnt += c.spCnt;
+            }
+            set_block_sums(ga, s);
+        }
+    }
+    std::vector<double> chunkSums_;
+    std::vector<BlockAcc> chunkAcc_;
 
     static void set_block_sums(BlockAcc& acc, const double* s) {
         for (int j = 0; j < 6; ++j) {
@@ -1366,7 +1401,8 @@ private:
         syncAcc.reset();
         oldCoord_.assign(static_cast<size_t>(n) + 1, std::array<double, 6>{});
         int threads = options().threads > 0 ? options().threads : static_cast<int>(std::thread::hardware_concurrency());
-        threads = std::max(1, std::min(threads, nBlocks));
+        // corrected engine: the push runs in chunks of 256 particles (push_groups), so up to one thread per chunk
+        threads = std::max(1, std::min(threads, compat_ || nBlocks < 1 ? nBlocks : (n + kRedChunk - 1) / kRedChunk));
         WorkerPool pool(threads > 1 ? threads : 0);
 
         update_beam_parameters();
@@ -1423,7 +1459,7 @@ private:
                     trans(bounds[k], bounds[k + 1], zSeg, events, t, gp, sync, acc[k]);
                 });
             } else {
-                pool.run(nBlocks, [&](int g) { trans_group(g, zSeg, events, t, gp, sync, acc[static_cast<size_t>(g)]); });
+                if (nBlocks > 0) push_groups(pool, threads, zSeg, events, t, gp, sync, acc);  // none: nothing pushed
             }
             pushTime_ += std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - tp0).count();
             if (n == 1) {
