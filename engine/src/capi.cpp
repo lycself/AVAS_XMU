@@ -8,6 +8,7 @@
 
 #include "core/device.h"
 #include "core/engine.h"
+#include "core/format.h"
 #include "core/options.h"
 #include "core/tools.h"
 
@@ -119,7 +120,9 @@ std::string plan_json(const avas::DevicePlan& p) {
         return "{\"device\":null,\"precision\":null,\"gpus\":[],\"reason\":null,\"reason_code\":null,\"error\":" +
                jstr(p.error) + "}";
     return "{\"device\":" + jstr(p.device) + ",\"precision\":" + jstr(p.precision) + ",\"gpus\":" + jints(p.gpus) +
-           ",\"reason\":" + jstr(p.reason) + ",\"reason_code\":" + jstr(p.code) + ",\"error\":null}";
+           ",\"reason\":" + jstr(p.reason) + ",\"reason_code\":" + jstr(p.code) +
+           (p.cpuBelowParticlesPerCell > 0.0 ? ",\"cpu_below_particles_per_cell\":" + avas::fmt_g(p.cpuBelowParticlesPerCell) : std::string()) +
+           ",\"error\":null}";
 }
 
 // {"sc": plan, "nosc": plan} for the current options (device replaced by *dev* when given)

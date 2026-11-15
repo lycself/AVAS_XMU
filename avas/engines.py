@@ -445,6 +445,50 @@ def input_space_charge(input_dir, spacecharge=None):
     return True
 
 
+def space_charge_size(input_dir):
+    """``(particles, mesh cells)`` of a run of the inputs in *input_dir* as the new kernel counts them
+    (numofgrid, else its defaults: FFT 64^3, SPICNIC / PICNIC by particle number); None when the particles
+    come from a distribution file (beam.txt ``readparticledistribution`` other than ``unknown``)."""
+    beam, inp = input_keywords(input_dir, "beam.txt"), input_keywords(input_dir, "input.txt")
+    if beam.get("readparticledistribution", "unknown") != "unknown":
+        return None
+    try:
+        n = int(float(beam["particlenumber"]))
+    except (KeyError, ValueError):
+        return None
+    grid = None
+    try:
+        with open(os.path.join(input_dir, "input.txt"), encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                parts = line.split("!", 1)[0].split()
+                if len(parts) >= 4 and parts[0].lower() == "numofgrid":
+                    grid = [int(float(v)) for v in parts[1:4]]
+    except (OSError, ValueError):
+        grid = None
+    if not grid or min(grid) < 1:
+        if inp.get("scmethod", "SPICNIC").upper() == "FFT":     # the kernel's default solver is SPICNIC
+            g = 64
+        else:
+            g = next(v for lim, v in ((3e4, 14), (8e4, 18), (3e5, 20), (8e5, 26), (3e6, 30), (8e6, 40), (3e7, 44),
+                                      (8e7, 56), (float("inf"), 64)) if n <= lim)
+        grid = [g, g, g]
+    return n, grid[0] * grid[1] * grid[2]
+
+
+def size_adjusted_plan(plan, input_dir):
+    """*plan* (a device plan of :func:`describe` ``resolved``) for the run size of *input_dir*: device auto on
+    macOS reports Metal with ``cpu_below_particles_per_cell``, and the kernel then uses the CPU for a run with
+    fewer particles per space-charge mesh cell (reason code ``few_particles``, the same text as the kernel)."""
+    limit = (plan or {}).get("cpu_below_particles_per_cell")
+    size = space_charge_size(input_dir) if limit and input_dir else None
+    if not size or size[0] >= limit * size[1]:
+        return plan
+    n, cells = size
+    return {"device": "cpu", "precision": "fp64", "gpus": [], "error": None, "reason_code": "few_particles",
+            "reason": f"auto: {n} particles for {cells} space-charge mesh cells (fewer than {limit:g} per cell): "
+                      "the CPU is faster than Metal"}
+
+
 # --------------------------------------------------------------------------- queries
 def describe(choice=None, input_dir=None, load_new=True):
     """Both kernels for ``avas info`` / ``avas doctor`` (this process loads the new library):

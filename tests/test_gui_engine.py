@@ -341,6 +341,39 @@ def test_check_before_a_run(project, fake_query, monkeypatch):
     write_engine(project, None)
 
 
+def test_mac_auto_uses_the_cpu_for_few_particles_per_mesh_cell(project, fake_query, monkeypatch):
+    """Device auto on macOS: the kernel reports Metal with cpu_below_particles_per_cell; the check before a run
+    and the settings preview predict the CPU when the project has fewer particles per mesh cell."""
+    set_platform(monkeypatch, False)
+    write_engine(project, None)
+    metal = dict(plan("metal", "fp32", "auto: Metal for runs with space charge and at least 0.5 particles per mesh cell, "
+                                        "else the CPU"), reason_code="auto_space_charge", cpu_below_particles_per_cell=0.5)
+    fake_query["answer"] = lambda choice: describe(choice, sc=metal)
+    beam, inp = project / "InputFile" / "beam.txt", project / "InputFile" / "input.txt"
+    beam0, inp0 = beam.read_text(encoding="utf-8"), inp.read_text(encoding="utf-8")
+
+    def setup(particles, grid):
+        b = re.sub(r"(?m)^particlenumber\s+\S+", f"particlenumber {particles}", beam0)
+        i = re.sub(r"(?m)^numofgrid.*\n?", "", inp0).rstrip("\n") + f"\nnumofgrid {grid} {grid} {grid}\n"
+        beam.write_text(b, encoding="utf-8")
+        inp.write_text(i, encoding="utf-8")
+    try:
+        setup(5000, 64)                                  # 5000 < 0.5 * 64^3
+        got = ok("engine.check")
+        assert (got["device"], got["precision"], got["tier"], got["reasonCode"]) == ("cpu", "fp64", "new-cpu-fp64", "few_particles")
+        assert "5000 particles for 262144" in got["reason"]
+        form = {"kernel": "new", "device": "auto", "precision": "auto", "gpus": "all", "threads": "0", "compat": "none"}
+        assert ok("engine.preview", choice=form)["plan"]["reasonCode"] == "few_particles"
+        setup(200000, 64)                                # 200000 >= 131072: Metal
+        assert ok("engine.check")["device"] == "metal"
+        setup(5000, 14)                                  # a small mesh: Metal
+        assert ok("engine.check")["device"] == "metal"
+    finally:
+        beam.write_text(beam0, encoding="utf-8")
+        inp.write_text(inp0, encoding="utf-8")
+        write_engine(project, None)
+
+
 def test_assistant_sandbox_runs_are_checked_too(project, fake_query, monkeypatch):
     from avas.ai import sandbox
     from avas.gui import context

@@ -25,7 +25,7 @@ DevicePlan failed_plan(const std::string& error) {
 
 }  // namespace
 
-DevicePlan plan_device(long long nParticles, bool spaceCharge) {
+DevicePlan plan_device(long long nParticles, bool spaceCharge, long long meshCells) {
     const Options& o = options();
     if (o.device == Device::Cpu) return cpu_plan("requested", "requested");
     if (o.device == Device::Emu) {
@@ -55,16 +55,25 @@ DevicePlan plan_device(long long nParticles, bool spaceCharge) {
         return cpu_plan("auto: compat=dll runs on the CPU only", "compat_dll");
     }
     if (!cuda_compiled() && !required && metal_compiled()) {
-        // auto on macOS (M6c decision 6): Metal when the run has space charge, else the CPU
+        // auto on macOS (M6c decision 6, M8-plan 12): Metal when the run has space charge and at least
+        // kMetalParticlesPerCell particles per mesh cell, else the CPU
         if (!spaceCharge) return cpu_plan("auto: no space charge, Metal is used for runs with space charge", "no_space_charge");
+        if (nParticles > 0 && meshCells > 0 &&
+            static_cast<double>(nParticles) < kMetalParticlesPerCell * static_cast<double>(meshCells))
+            return cpu_plan("auto: " + std::to_string(nParticles) + " particles for " + std::to_string(meshCells) +
+                                " space-charge mesh cells (fewer than " + fmt_g(kMetalParticlesPerCell) +
+                                " per cell): the CPU is faster than Metal",
+                            "few_particles");
         std::string name, why;
         if (!metal_probe(name, why)) return cpu_plan("auto: " + why, "no_metal");
         DevicePlan p;
         p.device = "metal";
         p.precision = "fp32";
-        p.reason = "auto";
+        p.reason = meshCells > 0 ? "auto" : "auto: Metal for runs with space charge and at least " + fmt_g(kMetalParticlesPerCell) +
+                                                " particles per mesh cell, else the CPU";
         p.code = "auto_space_charge";
         p.desc = name;
+        p.cpuBelowParticlesPerCell = kMetalParticlesPerCell;
         return p;
     }
     if (!cuda_compiled()) {
@@ -88,9 +97,9 @@ void reset_used_device() {
     g_used.precision.clear();
 }
 
-std::unique_ptr<DeviceBackend> make_device_backend(long long nParticles, bool spaceCharge) {
+std::unique_ptr<DeviceBackend> make_device_backend(long long nParticles, bool spaceCharge, long long meshCells) {
     const Options& o = options();
-    DevicePlan plan = plan_device(nParticles, spaceCharge);
+    DevicePlan plan = plan_device(nParticles, spaceCharge, meshCells);
     if (!plan.error.empty()) throw EngineError(plan.error);
     plan.spaceCharge = spaceCharge;
     auto fallback = [&](const std::string& why) {

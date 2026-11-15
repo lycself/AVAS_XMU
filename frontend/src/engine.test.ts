@@ -207,6 +207,8 @@ describe("kernel labels", () => {
 
   it("translates the kernel's reason codes, whatever the text says", () => {
     expect(autoReason("auto: anything", "no_space_charge")).toMatch(/no space charge/);
+    expect(autoReason("auto: anything", "few_particles")).toMatch(/half the space-charge mesh cells/);
+    expect(autoReason("auto: 5000 particles for 262144 space-charge mesh cells (fewer than 0.5 per cell): the CPU is faster than Metal")).toMatch(/half/);
     expect(autoReason("auto: anything", "compat_dll")).toMatch(/compatibility/);
     expect(autoReason("auto: anything", "gpu_memory")).toMatch(/memory/);
     expect(autoReason("auto: anything", "no_kernel_image")).toMatch(/machine code/);

@@ -98,7 +98,8 @@ public:
         }
 
         const std::vector<Segment> segs = segment_lattice();
-        dev_ = make_device_backend(n, p_.spaceCharge == 1);
+        const long long cells = p_.spaceCharge == 1 ? static_cast<long long>(p_.numOfGrid[0]) * p_.numOfGrid[1] * p_.numOfGrid[2] : 0;
+        dev_ = make_device_backend(n, p_.spaceCharge == 1, cells);
         if (dev_) dev_->begin_run(b_, latH_, lat_.spOutCount > 0);
         startClock_ = std::chrono::steady_clock::now();
         zStartRun_ = b_.z[n];

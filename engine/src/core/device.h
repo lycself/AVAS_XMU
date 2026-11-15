@@ -156,21 +156,29 @@ struct DevicePlan {
     // the same as a fixed code for programs (avas_engine_devices / avas_engine_last_run "reason_code"):
     // requested; auto_space_charge (Metal), auto_fp64_full_rate, auto_fp32 (CUDA); CPU fallbacks of auto:
     // compat_dll, no_space_charge, no_metal, no_cuda_build, no_driver, driver_too_old, no_gpu, bad_gpus,
-    // gpu_too_old, no_kernel_image, gpu_unusable, gpu_memory, run_time_failure.  Empty with an error.
+    // gpu_too_old, no_kernel_image, gpu_unusable, gpu_memory, run_time_failure, few_particles (Metal:
+    // fewer particles than kMetalParticlesPerCell times the mesh cells).  Empty with an error.
     std::string code;
     std::string error;               // not empty: the run fails with this message (device required, unusable)
     std::string desc;                // CUDA: the selected GPUs for the log line; Metal: the GPU name
     bool spaceCharge = false;        // make_device_backend: the run it was set up for has space charge
+    double cpuBelowParticlesPerCell = 0.0;  // auto Metal: the CPU is used below this many particles per mesh cell
 };
-// nParticles < 1: no memory estimate (query without a run).  The CUDA probe creates a context on
-// every selected GPU.
-DevicePlan plan_device(long long nParticles, bool spaceCharge);
+
+// auto on macOS: the CPU below this many particles per space-charge mesh cell.  Metal has a fixed cost per
+// step for the mesh (FFT passes, dispatches, synchronisation); on an M2 with a 64^3 mesh the CPU is 2.5x
+// faster at 5000 particles and Metal is faster only from about 100-150 thousand (2026-11-15, M8-plan 12).
+constexpr double kMetalParticlesPerCell = 0.5;
+// nParticles < 1: no memory estimate (query without a run).  meshCells: cells of the space-charge mesh
+// (0: unknown, a query; auto on macOS then reports Metal with cpuBelowParticlesPerCell).  The CUDA
+// probe creates a context on every selected GPU.
+DevicePlan plan_device(long long nParticles, bool spaceCharge, long long meshCells = 0);
 
 // Device chosen for a run (options device / precision / gpus, environment AVAS_ENGINE_DEVICE /
 // AVAS_ENGINE_PRECISION / AVAS_ENGINE_GPUS).  Returns null for the CPU; throws EngineError when a
 // GPU was required and cannot be used.  nParticles is used for the memory estimate.  The device
 // actually used (after a fallback of "auto" to the CPU) is kept for avas_engine_last_run().
-std::unique_ptr<DeviceBackend> make_device_backend(long long nParticles, bool spaceCharge);
+std::unique_ptr<DeviceBackend> make_device_backend(long long nParticles, bool spaceCharge, long long meshCells = 0);
 // The last device make_device_backend() set up (plan.device empty: none since reset_used_device()).
 const DevicePlan& used_device();
 void reset_used_device();

@@ -283,4 +283,9 @@ XPS 上只找到用户的一台真实机器：48Ca¹⁴⁺ MEBT + HWR 超导段�
 | 50000 | 46 s | 27 s |
 | 200000 | 58 s | 75 s |
 
-Metal 每步有一个与粒子数无关的网格开销：FFT 各遍的派发与同步，GPU 在突发负载下也不升频。所以在 M2 上，64³ 网格要到约 10–15 万个粒子 Metal 才更快。现在 `device auto`（M6c 决定 6）只要有空间电荷就选 Metal，对常见规模（几千到几万个粒子）是更慢的选择。是否修改（例如粒子数少于网格单元数的一半时选 CPU）待用户决定。
+Metal 每步有一个与粒子数无关的网格开销：FFT 各遍的派发与同步，GPU 在突发负载下也不升频。所以在 M2 上，64³ 网格要到约 10–15 万个粒子 Metal 才更快。原来的 `device auto`（M6c 决定 6）只要有空间电荷就选 Metal，对常见规模（几千到几万个粒子）是更慢的选择。
+
+**决定（用户 2026-11-15）**：按粒子数选。
+- Mac 上 auto 只在有空间电荷、且粒子数 ≥ 0.5 × 网格单元数时选 Metal，否则选 CPU，原因代码 `few_particles`。0.5 是 `device.h` 的 `kMetalParticlesPerCell`。
+- `avas_engine_devices()` 不知道运行规模，所以 Metal 计划里带 `cpu_below_particles_per_cell`。界面运行前的预计（`engine.check`、`engine.preview`）由 `engines.size_adjusted_plan` 按项目的 particlenumber 与 numofgrid（缺省时按内核默认值）换算；读粒子文件的项目只能沿用内核的计划，运行后的记录以实际为准。
+- 默认网格时，SPICNIC 的网格随粒子数变大（3 万个粒子以下 14³），只有不到 1372 个粒子才选 CPU；FFT 默认 64³，131072 个粒子以下选 CPU。

@@ -588,3 +588,33 @@ def test_legacy_gpu_path_warns_that_it_is_deprecated(tmp_path, monkeypatch, capl
     assert len(ran) == 1
     assert any("deprecated" in r.getMessage() and "--engine new --device cuda" in r.getMessage() for r in caplog.records)
     assert not hasattr(mp.MultiParticle, "stop")
+
+
+def test_space_charge_size_follows_the_kernel_defaults(tmp_path):
+    from avas import engines
+    (tmp_path / "beam.txt").write_text("particlenumber 5000\n", encoding="utf-8")
+    (tmp_path / "input.txt").write_text("spacecharge 1\nscmethod FFT\n", encoding="utf-8")
+    assert engines.space_charge_size(str(tmp_path)) == (5000, 64 ** 3)
+    (tmp_path / "input.txt").write_text("spacecharge 1\n", encoding="utf-8")       # default solver SPICNIC
+    assert engines.space_charge_size(str(tmp_path)) == (5000, 14 ** 3)
+    (tmp_path / "input.txt").write_text("numofgrid 32 16 8 ! comment\n", encoding="utf-8")
+    assert engines.space_charge_size(str(tmp_path)) == (5000, 32 * 16 * 8)
+    (tmp_path / "beam.txt").write_text("readparticledistribution part.dst\nparticlenumber 5000\n", encoding="utf-8")
+    assert engines.space_charge_size(str(tmp_path)) is None                       # the file decides
+
+
+def test_size_adjusted_plan(tmp_path):
+    from avas import engines
+    (tmp_path / "beam.txt").write_text("particlenumber 5000\n", encoding="utf-8")
+    (tmp_path / "input.txt").write_text("scmethod FFT\n", encoding="utf-8")
+    metal = {"device": "metal", "precision": "fp32", "gpus": [], "reason": "auto", "reason_code": "auto_space_charge",
+             "cpu_below_particles_per_cell": 0.5, "error": None}
+    cpu = engines.size_adjusted_plan(metal, str(tmp_path))
+    assert (cpu["device"], cpu["precision"], cpu["reason_code"]) == ("cpu", "fp64", "few_particles")
+    assert cpu["reason"] == ("auto: 5000 particles for 262144 space-charge mesh cells (fewer than 0.5 per cell): "
+                             "the CPU is faster than Metal")
+    cuda = {"device": "cuda", "precision": "fp32", "reason_code": "auto_fp32"}
+    assert engines.size_adjusted_plan(cuda, str(tmp_path)) is cuda
+    (tmp_path / "beam.txt").write_text("particlenumber 200000\n", encoding="utf-8")
+    assert engines.size_adjusted_plan(metal, str(tmp_path)) is metal
+
