@@ -115,7 +115,7 @@ The visual editor's **linear envelope preview** (`avas.sim.linear_optics`) does 
 | Losses | only a warning when 3 × rms exceeds the aperture | decided particle by particle |
 | Dipole / steering components of field maps | no deflection (a warning is given) | included |
 
-> **Note**: the preview does not include the longitudinal non-linearity of low-energy cavities, chromatic effects, the offsets of `superposeout` or `scanphase`. Design conclusions rest on the engine; a large difference between preview and engine usually means strong non-linear or space-charge effects — exactly when a multi-particle simulation is needed.
+> **Note**: the preview does not include the longitudinal non-linearity of low-energy cavities, chromatic effects or the offsets of `superposeout`. Design conclusions rest on the engine; a large difference between preview and engine usually means strong non-linear or space-charge effects — exactly when a multi-particle simulation is needed.
 
 ## Common misconceptions {#simulation-misconceptions}
 
@@ -134,7 +134,7 @@ The visual editor's **linear envelope preview** (`avas.sim.linear_optics`) does 
 beam:particlenumber beam:randomseed beam:current beam:frequency
 ```
 
-`randomseed` seeds the random numbers that generate the initial beam. The manual lists it among the `beam.txt` keywords, while the example project writes `randomseed 0` in `input.txt` (the schema accepts it in both files); which one the engine uses when both are present, and whether 0 has a special meaning, is not documented — the engine is the reference.
+`randomseed` seeds the random numbers that generate the initial beam. The manual lists it among the `beam.txt` keywords, while the example project writes `randomseed 0` in `input.txt` (the schema accepts it in both files); which one the engine uses when both are present, and whether 0 has a special meaning, is not documented — the engine is the reference. Mind a defect of the original kernel: with `randomseed` ≠ 0, the original kernel (and the new kernel's compatibility mode, compat = dll) generates an initial distribution with $x$ fully correlated with the phase (correlation −1), so the initial distribution is wrong; the Simulation settings page warns next to the random seed. The new kernel's default mode does not have this defect.
 
 ### Keywords of the initial distribution
 
@@ -173,8 +173,8 @@ input:multithreading input:dumpperiodicity input:boundary input:longlimits input
 - **Multithreading**: write `multithreading 1` to use several threads; for a single thread **leave the line out**. The manual says 0 means off, but the engine loses all particles at the start with `multithreading 0` (and 2, 3 …) (verified with the example project). The Settings page handles this.
 - **Loss boundary**: a particle beyond the element aperture `R` counts as lost; with `boundary 1` the boundary in `boundary.txt` is used instead, the radii in the lattice no longer apply, and lost particles are written to `CollisionData.txt`. `longlimits 1 phase energy` enables longitudinal loss detection, corresponding to the separatrix of [longitudinal dynamics](#longitudinal).
 - **Particle data**: `dumpperiodicity V1` writes all particles to `Beamset.plt` every $V_1$ steps (0 = never); the file can become very large. `pchistogram 1 bins` produces `pchistogram.dat`.
-- **Phase scan**: `scanphase` controls a phase scan of the RF cavities or reads phases from `scanData.txt` (see [longitudinal dynamics](#longitudinal)).
-- **GPU**: the GPU version of AVAS exists only as a precompiled library for Linux; on Windows the CPU computes with multiple threads.
+- **Phase scan**: the original manual says `scanphase` controls a phase scan of the RF cavities or reads phases from `scanData.txt`, but no kernel reads them; a cavity's phase comes only from `phase` and V3 of its field line (see [longitudinal dynamics](#longitudinal)), and the Simulation settings page removes a leftover `scanphase` line when saved.
+- **GPU**: the new kernel computes on NVIDIA GPUs (CUDA) and Mac GPUs (Metal), chosen under Computing kernel on the Simulation settings page. The original kernel's old GPU path on Linux (ini.ini `device = gpu`, the precompiled libPIC.so) is deprecated and will be removed in a later release.
 
 ### Output planes
 

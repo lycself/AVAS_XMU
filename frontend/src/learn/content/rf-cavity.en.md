@@ -321,7 +321,7 @@ The engine writes the reference particle's time and energy at each element entra
 
 > **AVAS convention**: the cavity field amplitude in AVAS is set directly by Ke (and Kb) and is fixed. The engine does not model the RF source, beam loading, detuning or low-level control; amplitude and phase jitter are introduced with the error commands `err_cav_*`, see [Errors and correction](#errors).
 
-> **Note**: `scanphase` (input.txt) also affects phases: 0 uses the phases in the lattice, 1 lets the engine scan the cavity phases, 2 reads each cavity's entrance phase and entrance time from `scanData.txt` (one line per cavity, in the order of the RF cavities in the lattice; the example's `scanData.txt` holds 52.66°, exactly the entrance phase for $\varphi_s = -33^\circ$). The linear preview ignores `scanphase`.
+> **Note**: `scanphase` in input.txt and `scanData.txt` do **not** affect the phases: neither the original nor the new kernel reads them (verified by reverse engineering and runs); the RF phases come only from `phase` and V3 of the field line. With V3 = 0 the kernel scans the entrance phase itself to find the one giving the requested $\varphi_s$; this has nothing to do with `scanphase`. To reproduce a given entrance phase, write it directly in the field line with V3 = 1 or V3 = 2. The Simulation settings page no longer offers a phase-scan option and removes a leftover `scanphase` line from input.txt when saved; the `scanData.txt` of older projects stays in the project and can be viewed on the Files page.
 
 ```avas-params
 input:scanphase input:steppercycle input:longlimits

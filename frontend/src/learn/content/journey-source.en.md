@@ -139,7 +139,7 @@ Whether the chopper sits in the LEBT or the MEBT is a trade-off. In the LEBT the
 
 AVAS does not simulate the ion source or the low-energy transport. The plasma and the extraction process need dedicated codes, and the key physics of the LEBT, space-charge compensation, depends on the pressure, ionisation cross sections and electron dynamics, which are also outside AVAS's models. This primer does not treat the LEBT as something to simulate with AVAS.
 
-`beam.txt` has a `beamtype` keyword (`dc` generates a DC beam) and the lattice has a `spacechargecomp` (space-charge compensation) keyword, but the manual does not describe the model or the parameters of `spacechargecomp`; the engine is the reference. Do not take these keywords as a basis for LEBT simulations.
+`beam.txt` has a `beamtype` keyword (`dc` generates a DC beam) and the lattice has a `spacechargecomp V` (space-charge compensation) keyword: from that line on, the space charge is multiplied by $(1 - V)$, $V$ being the degree of compensation; how the kernels differ is described in [Space charge](#space-charge-in-avas). It is only a constant factor without the physics of electron trapping, and the degree of compensation has to be estimated separately. Do not take these keywords as a basis for LEBT simulations.
 
 ```avas-params
 beam:beamtype beam:current beam:frequency spacechargecomp

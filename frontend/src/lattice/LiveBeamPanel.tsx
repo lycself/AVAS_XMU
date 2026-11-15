@@ -18,6 +18,7 @@ import { stopReplay, startReplay, useBunchFrame, usePlayer, type Track } from ".
 import { LayoutView, type EnvelopeCurves, type LayoutShow } from "./LayoutView";
 import { PlayerBar } from "./PlayerBar";
 import { EngineBadge } from "../components/EngineBadge";
+import { kernelsDiffer } from "../engine";
 import { loadSchema, type LatticeDoc, type Schema } from "./types";
 
 const SHOW: LayoutShow = { run: false, preview: false, aperture: true, losses: true, max: false, energy: false, scale: "beam", band: true };
@@ -164,6 +165,8 @@ export function LiveBeamPanel() {
   const zOffset = showRecord ? record!.zOffset : episode?.zOffset ?? 0;
   const segmentRange: [number, number] | null = zOffset > 0 && live ? [zOffset, Math.max(zOffset, live.z[live.z.length - 1] ?? zOffset)] : null;
   const canCompare = !showRecord && run?.kind === "project" && !!previous;
+  // the grey reference ran on another kernel / mode: differences may come from the kernel
+  const otherKernel = canCompare && compare && kernelsDiffer(previous?.engine, appRun.running ? appRun.engine : lastFinished?.engine);
   const noLattice = lattice === null && !running;
   const restMassFor = !showRecord && (run?.kind === "assistant" || run?.kind === "scan" || run?.kind === "learn") ? null : restMass;
 
@@ -183,6 +186,11 @@ export function LiveBeamPanel() {
         )}
         {canCompare && (
           <Checkbox checked={compare} onChange={setCompare} label={t("Compare with the run before")} tip={t("Show the run before as a grey reference while this one runs")} />
+        )}
+        {otherKernel && (
+          <span className="warning-text">
+            <Icon name="info" /> {t("These runs used different kernels; differences may come from the kernel.")}
+          </span>
         )}
         <span className="soft" data-tip={t("The bunch and its particles are drawn from the rms envelope written so far; they are not the simulated particle distribution.")}>
           <Icon name="info" /> {t("schematic")}

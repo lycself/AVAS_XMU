@@ -3,16 +3,15 @@ import { call } from "../bridge";
 import { Button, Checkbox, Icon, IconButton, Radio, Section, Spinner, TextInput } from "../components/ui";
 import { fileSaved } from "../store/pages";
 import { t, useT } from "../i18n";
-import { useInputsLocked } from "../store/app";
+import { useApp, useInputsLocked } from "../store/app";
 import { NoProject, PageHeader, FormRow, RunLockBanner, useProjectOpen } from "./common";
 import { useEditable } from "./useEditable";
 import { PathPicker, isFloat, isInt } from "./widgets";
-import { useEffect, useState } from "react";
 import { reportError } from "../components/overlays";
 import { FileHistoryButton } from "../files/FileHistory";
-import { BOUNDARY_COLUMNS, scanDataColumns, TokenTable } from "../files/tables";
-import { formProblems, type EngineForm } from "../engine";
-import { EngineSettings, type EngineSettingsData } from "./EngineSettings";
+import { BOUNDARY_COLUMNS, TokenTable } from "../files/tables";
+import { formProblems, seedDefect, type EngineForm } from "../engine";
+import { defaultKernelOf, engineKernelOf, EngineSettings, type EngineSettingsData } from "./EngineSettings";
 
 type Form = {
   sim_type: string;
@@ -20,7 +19,6 @@ type Form = {
   dumpperiodicity: string;
   randomseed: string;
   multithreading: boolean;
-  scanphase: string;
   spacecharge: boolean;
   scmethod: string;
   numofgrid: string[];
@@ -35,15 +33,16 @@ type Form = {
   error_type: string;
   error_seed: string;
 };
-type Meta = { device: string; hadThreadsKey: boolean; hasScanData: boolean; inputPath: string; iniPath: string };
+/** hasScanphase: input.txt has a scanphase line (no kernel reads it; saving removes it) */
+type Meta = { device: string; hadThreadsKey: boolean; hasScanphase: boolean; inputPath: string; iniPath: string };
 type Companion = { path: string; name: string; exists: boolean; text: string };
 type Data = {
   form: Form;
   meta: Meta;
   /** input.txt as saved (the history dialog compares versions with it) */
   text: string;
-  /** boundary.txt (read when boundary is on) and scanData.txt (read when scanphase is 2) */
-  companions: { boundary: Companion; scanData: Companion };
+  /** boundary.txt (read when boundary is on) */
+  companions: { boundary: Companion };
   /** the history version the form was restored from, until the next save */
   restoredFrom?: string;
   /** ini.ini [engine]: the computing kernel */
@@ -52,7 +51,7 @@ type Data = {
 
 /** The PICNIC solver with a kernel that does not have it (the original kernel stops with an error). */
 export function picnicBlocked(d: Data): boolean {
-  return d.form.scmethod === "PICNIC" && d.engine?.form.kernel === "original";
+  return d.form.scmethod === "PICNIC" && engineKernelOf(d.engine, useApp.getState().settings) === "original";
 }
 
 function validate(d: Data): string[] {
@@ -72,7 +71,7 @@ function validate(d: Data): string[] {
   }
   if (f.boundary && !d.companions.boundary.text.trim()) errors.push(t("Simulation settings: 'Apply boundary' is on but boundary.txt is empty"));
   if (f.error_type && !f.error_seed.trim()) errors.push(t("Simulation settings: error seed is missing"));
-  if (d.engine) errors.push(...formProblems(d.engine.form, d.engine.originalAvailable));
+  if (d.engine) errors.push(...formProblems(d.engine.form, d.engine.originalAvailable, defaultKernelOf(d.engine, useApp.getState().settings)));
   if (picnicBlocked(d))
     errors.push(t("Simulation settings: the PICNIC space-charge solver is only supported by the new kernel. Choose FFT or SPICNIC, or select the new kernel under Computing kernel."));
   return errors;
@@ -90,24 +89,17 @@ export default function SettingsPage() {
       const res = await call<Data>("settings.save", {
         form: d.form,
         meta: d.meta,
-        companions: { boundary: d.companions.boundary.text, scanData: d.companions.scanData.text },
+        companions: { boundary: d.companions.boundary.text },
         restoredFrom: d.restoredFrom ?? null,
         engine: d.engine?.form ?? null,
       });
-      for (const path of [d.meta.inputPath, d.meta.iniPath, d.companions.boundary.path, d.companions.scanData.path]) fileSaved(path, "settings");
+      for (const path of [d.meta.inputPath, d.meta.iniPath, d.companions.boundary.path]) fileSaved(path, "settings");
       return res;
     },
     validate,
-    files: (d) => (d ? [d.meta.inputPath, d.meta.iniPath, d.companions.boundary.path, d.companions.scanData.path] : []),
+    files: (d) => (d ? [d.meta.inputPath, d.meta.iniPath, d.companions.boundary.path] : []),
   });
-  // rows of scanData.txt follow the RF cavities of the run lattice
-  const [cavities, setCavities] = useState<string[]>([]);
-  // neither kernel reads scanphase / scanData.txt: the table is kept but folded away until asked for
-  const [scanTableOpen, setScanTableOpen] = useState(false);
-  const wantCavities = ed.value?.form.scanphase === "2" && scanTableOpen;
-  useEffect(() => {
-    if (wantCavities) call<string[]>("files.rfCavities").then(setCavities).catch(() => setCavities([]));
-  }, [wantCavities]);
+  const appSettings = useApp((s) => s.settings);
 
   if (!open) return <div className="page"><div className="page-inner"><PointerSettings /><NoProject /></div></div>;
   if (!ed.value) return <div className="empty-state">{ed.error ? <span className="danger-text">{ed.error}</span> : <Spinner size={24} />}</div>;
@@ -122,7 +114,7 @@ export default function SettingsPage() {
     });
   const sc = f.spacecharge;
   const comp = ed.value.companions;
-  const setCompanion = (key: "boundary" | "scanData", text: string) =>
+  const setCompanion = (key: "boundary", text: string) =>
     ed.setValue((d) => ({ ...d, companions: { ...d.companions, [key]: { ...d.companions[key], text } } }));
   const restore = async (text: string, revision: string) => {
     if (locked) return;
@@ -134,7 +126,9 @@ export default function SettingsPage() {
     }
   };
   const setEngine = (engine: EngineForm) => ed.setValue((d) => ({ ...d, engine: { ...d.engine, form: engine } }));
-  const originalKernel = ed.value.engine?.form.kernel === "original";
+  const engineKernel = engineKernelOf(ed.value.engine, appSettings);
+  const originalKernel = engineKernel === "original";
+  const seedWarning = seedDefect(engineKernel, ed.value.engine?.form.compat, f.randomseed);
   const missing = (c: Companion) => (c.exists ? undefined : tt("{name} does not exist yet; it is created when you save.", { name: c.name }));
 
   return (
@@ -184,9 +178,19 @@ export default function SettingsPage() {
                 <FormRow label={tt("Output every N steps (plt)")} tip={tt("0 = no particle dump (BeamSet.plt)")}>
                   <TextInput value={f.dumpperiodicity} invalid={!isInt(f.dumpperiodicity, true)} onChange={(e) => set("dumpperiodicity", e.target.value)} />
                 </FormRow>
-                <FormRow label={tt("Random seed of input beam")}>
+                <FormRow label={tt("Random seed of input beam")} tip={tt("0 = a new sample every run")}>
                   <TextInput value={f.randomseed} invalid={!isInt(f.randomseed, true)} onChange={(e) => set("randomseed", e.target.value)} />
                 </FormRow>
+                {seedWarning && (
+                  <FormRow>
+                    <span className="engine-note warning-text">
+                      <Icon name="warning" />{" "}
+                      {originalKernel
+                        ? tt("With the original kernel a seed other than 0 gives an initial distribution with x fully correlated with the phase (correlation −1). Use seed 0 or the new kernel's default mode.")
+                        : tt("In the AVAS.dll compatibility mode a seed other than 0 gives an initial distribution with x fully correlated with the phase (correlation −1). Use seed 0 or the default mode.")}
+                    </span>
+                  </FormRow>
+                )}
                 <FormRow>
                   <Checkbox
                     checked={f.multithreading}
@@ -195,46 +199,17 @@ export default function SettingsPage() {
                     tip={tt("Lets the engine use several CPU cores for one run.")}
                   />
                 </FormRow>
-                <FormRow
-                  label={tt("Phase scan")}
-                  tip={tt("scanphase keyword: 0 = fixed phases, 1 = scan cavity phases, 2 = read entry phases from scanData.txt. 'engine default' leaves it out. Neither kernel reads it.")}
-                >
-                  <div className="radio-row">
-                    {[
-                      ["default", tt("engine default")],
-                      ["0", tt("off")],
-                      ["1", tt("scan")],
-                      ["2", tt("from scanData.txt")],
-                    ].map(([v, l]) => (
-                      <Radio key={v} checked={f.scanphase === v} onChange={() => set("scanphase", v)} label={l} />
-                    ))}
-                  </div>
-                </FormRow>
-                {f.scanphase !== "default" && (
+                {ed.value.meta.hasScanphase && (
                   <FormRow>
                     <span className="engine-note warning-text">
-                      <Icon name="info" /> {tt("The current kernels do not read scanphase or scanData.txt; the setting and the file are only kept. The RF phases come from the field lines (V3).")}
+                      <Icon name="info" /> {tt("input.txt has a scanphase line; neither kernel reads it, and it is removed when you save.")}{" "}
+                      <Button variant="ghost" small disabled={locked} onClick={() => ed.setValue((d) => ({ ...d, meta: { ...d.meta, hasScanphase: false } }))}>
+                        {tt("Remove it")}
+                      </Button>
                     </span>
                   </FormRow>
                 )}
               </div>
-              {f.scanphase === "2" && (
-                <div className="companion-table">
-                  <button type="button" className="companion-title companion-toggle" onClick={() => setScanTableOpen((o) => !o)}>
-                    <Icon name={scanTableOpen ? "chevron-down" : "chevron-right"} />
-                    <Icon name="table" /> {tt("Cavity entry phases ({name})", { name: comp.scanData.name })}
-                    <span className="hint">{tt("not read by the kernels; kept in the project")}</span>
-                  </button>
-                  {scanTableOpen && <TokenTable
-                    text={comp.scanData.text}
-                    editable={!locked}
-                    onChange={(text) => setCompanion("scanData", text)}
-                    columns={scanDataColumns()}
-                    rowLabels={cavities}
-                    hint={missing(comp.scanData) ?? tt("One row per RF cavity, in lattice order.")}
-                  />}
-                </div>
-              )}
             </Section>
 
             <Section title={tt("Space charge")} icon="zap">

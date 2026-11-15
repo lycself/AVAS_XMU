@@ -81,6 +81,14 @@ def dataset_diagnostics(output_dir):
     data = read_dataset_array(path)
     out = {"rows": int(data.shape[0]), "messages": []}
     if not data.shape[0]:
+        if secondary_run(output_dir):
+            out["secondary"] = True
+            out["messages"].append({"level": "info", "text": (
+                "Secondary-particle run (secondarybeam 1): the kernel writes no envelope, so DataSet.txt is empty. "
+                "The particles at each output plane are in outData_*.txt, the synchronous particle in SeSynParticle.txt.",
+                "二次粒子运行（secondarybeam 1）：内核不写包络，DataSet.txt 为空。各输出面的粒子在 outData_*.txt 中，"
+                "同步粒子在 SeSynParticle.txt 中。")})
+            return out
         out["messages"].append({"level": "warning", "text": ("DataSet.txt is empty.", "DataSet.txt 为空。")})
         return out
     # z along a straight line: synchronous-particle position + centroid offset (manual, DataSet.txt)
@@ -135,6 +143,35 @@ def dataset_diagnostics(output_dir):
 def _num(v):
     v = float(v)
     return v if math.isfinite(v) else None
+
+
+def secondary_switch(input_txt):
+    """Whether the input.txt at *input_txt* switches on secondary particles (``secondarybeam`` ≠ 0)."""
+    try:
+        with open(input_txt, encoding="utf-8", errors="replace") as fh:
+            lines = fh.read().splitlines()
+    except OSError:
+        return False
+    for line in lines:
+        parts = line.split("!", 1)[0].split()
+        if len(parts) >= 2 and parts[0].lower() == "secondarybeam":
+            try:
+                return float(parts[1]) != 0
+            except ValueError:
+                return False
+    return False
+
+
+def secondary_run(output_dir):
+    """Whether the run in *output_dir* tracked secondary particles: its input snapshot (``inputs/input.txt``,
+    or ``input/input.txt`` of a research run) has ``secondarybeam`` ≠ 0, else -- for a folder without a
+    snapshot -- it wrote SeSynParticle.txt.  Such runs write no DataSet.txt rows (both kernels)."""
+    for snap in (os.path.join(output_dir, "inputs", "input.txt"),
+                 os.path.join(os.path.dirname(os.path.abspath(output_dir)), "input", "input.txt")):
+        if os.path.isfile(snap):
+            return secondary_switch(snap)
+    se = os.path.join(output_dir, "SeSynParticle.txt")
+    return os.path.isfile(se) and os.path.getsize(se) > 0
 
 
 # --------------------------------------------------------------------------- metrics

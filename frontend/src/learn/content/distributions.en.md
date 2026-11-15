@@ -221,7 +221,7 @@ beam:distribution beam:twissx beam:twissy beam:twissz beam:particlenumber beam:r
 - `distribution V1 V2`: V1 is the transverse distribution (shared by the x and y planes), V2 the longitudinal one; the choices are `KV`, `GS`, `PB`, `WB`.
 - `twissx α β ε` (likewise `twissy`, `twissz`): $\alpha$ dimensionless, $\beta$ in mm/mrad, $\varepsilon$ the **normalized rms** emittance (π·mm·mrad); the "angle" of the $z$ plane is $\delta = \Delta p/p$ (in mrad), normalized with the same factor $\beta\gamma$. Units and conversions are in [Phase space: In AVAS](#phase-space-in-avas).
 - `particlenumber`: number of macro-particles. 1 selects single-particle mode, in which `twiss*`, `current` and `distribution` have no effect. Each macro-particle carries the charge $Q/N$ with the charge-to-mass ratio of a real particle, so its motion in external fields is unchanged and only the space charge uses the total charge. In the example 5260 macro-particles each stand for about 1344 protons.
-- `randomseed`: random seed used to generate the initial beam.
+- `randomseed`: random seed used to generate the initial beam. The original kernel and the new kernel's compatibility mode (compat = dll) have a defect when `randomseed` ≠ 0: the generated distribution has $x$ fully correlated with the phase (correlation −1), which shows in `inData.dst`; the Simulation settings page warns next to the random seed. The new kernel's default mode does not have this defect.
 - `initpos x y z` (mm), `initmom x' y' z'` (mrad): position and angle offsets of the whole bunch (they change the first moments), used to study an initial off-centre beam.
 - `numofcharge`: charge number; it still applies when a particle file is read.
 - `beamtype`: `dc` generates a DC beam, `notdc` a bunched beam.

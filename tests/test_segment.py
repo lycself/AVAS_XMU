@@ -133,6 +133,12 @@ def test_keyword_edits():
     assert seg.keyword_value(out, "use_dst") is None
 
 
+def test_secondary_beam_switch():
+    assert seg.secondary_beam("sim_type mulp\nSecondaryBeam 1 ! on\n")
+    assert not seg.secondary_beam("secondarybeam 0\n") and not seg.secondary_beam("sim_type mulp\n")
+    assert not seg.secondary_beam("! secondarybeam 1\n") and not seg.secondary_beam("secondarybeam x\n")
+
+
 def test_particle_files_by_position(tmp_path):
     for name in ("inData.dst", "outData_0.300000.dst", "outData_1.020000.dst", "other.dst"):
         (tmp_path / name).write_bytes(b"")

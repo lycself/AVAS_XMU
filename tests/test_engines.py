@@ -72,6 +72,57 @@ def test_default_kernel_follows_the_platform(monkeypatch):
     engines.check_platform(explicit)
 
 
+def test_global_default_kernel_preference(tmp_path, monkeypatch):
+    """The GUI's "default computing kernel" (gui.json) comes after ini.ini [engine] and before the built-in
+    default; "original" where the original kernel does not run falls back with a note, not an error."""
+    prefs = tmp_path / "gui.json"
+    monkeypatch.setenv(engines.PREFERENCE_ENV, str(prefs))
+    assert engines.preference_path() == str(prefs)
+    assert engines.read_preference() == ""                                   # no file
+    prefs.write_text("{broken", encoding="utf-8")
+    assert engines.read_preference() == ""
+    prefs.write_text(json.dumps({engines.PREFERENCE_KEY: "Bogus"}), encoding="utf-8")
+    assert engines.read_preference() == ""
+    prefs.write_text(json.dumps({"ui/theme": "dark", engines.PREFERENCE_KEY: "New"}), encoding="utf-8")
+    assert engines.read_preference() == "new"
+
+    monkeypatch.setattr(engines, "original_available", lambda system=None, machine=None: True)
+    c = engines.resolve_choice(env={})                                       # read from the file
+    assert c.kernel == "new" and c.sources["kernel"] == "preference" and "note" not in c.sources
+    assert engines.resolve_choice(env={}, preference="").kernel == "original"  # not set: built-in default
+    # ini.ini, the environment and the command line come first
+    project = tmp_path / "proj"
+    _write_ini(str(project), "[engine]\nkernel = original\n")
+    assert engines.resolve_choice(input_dir=str(project), env={}).kernel == "original"
+    assert engines.resolve_choice(env={"AVAS_ENGINE": "original"}).kernel == "original"
+    assert engines.resolve_choice(cli={"kernel": "original"}, env={}).kernel == "original"
+    c = engines.resolve_choice(env={}, preference="original")
+    assert c.kernel == "original" and c.sources["kernel"] == "preference"
+    engines.check_platform(c)
+
+    # "original" on a platform without it: the built-in default and a note
+    monkeypatch.setattr(engines, "original_available", lambda system=None, machine=None: False)
+    c = engines.resolve_choice(env={}, preference="original")
+    assert c.kernel == "new" and c.sources["kernel"] == "default" and "is ignored" in c.sources["note"]
+    engines.check_platform(c)                                                # not an error
+    assert engines.default_choice_kernel("original")[0] == "new"
+    assert engines.default_choice_kernel("new") == ("new", "preference", None)
+
+
+def test_avas_info_reads_the_global_preference(project, tmp_path):
+    """`avas info` / `avas run` children read the preference from the file AVAS_GUI_SETTINGS names."""
+    prefs = tmp_path / "prefs.json"
+    if engines.original_available():
+        prefs.write_text(json.dumps({engines.PREFERENCE_KEY: "new"}), encoding="utf-8")
+        res = _run_cli("info", "-i", str(project), env={"AVAS_GUI_SETTINGS": str(prefs)})
+        assert res.returncode == 0 and ": new kernel" in res.stdout
+    else:
+        prefs.write_text(json.dumps({engines.PREFERENCE_KEY: "original"}), encoding="utf-8")
+        res = _run_cli("info", "-i", str(project), env={"AVAS_GUI_SETTINGS": str(prefs)})
+        assert res.returncode == 0 and ": new kernel" in res.stdout
+        assert "default kernel preference 'original' is ignored" in res.stdout
+
+
 def test_input_space_charge_with_a_form_value(tmp_path):
     (tmp_path / "input.txt").write_text("spacecharge 0\n")
     (tmp_path / "beam.txt").write_text("current 1\nparticlenumber 1000\n")
@@ -518,3 +569,22 @@ def test_loaded_ucrts_lists_every_ucrtbase_module(monkeypatch):
                                 GetModuleFileNameW=Fn(name_of))
     monkeypatch.setattr(ctypes, "WinDLL", lambda name: k32, raising=False)
     assert mpe._loaded_ucrts() == [0x20, 0x40]
+
+
+def test_legacy_gpu_path_warns_that_it_is_deprecated(tmp_path, monkeypatch, caplog):
+    """ini.ini [input] device = gpu (libPIC.so) still runs, with a deprecation warning pointing to the new
+    kernel's CUDA device; MultiParticle has no stop() (main_agent ignores its argument)."""
+    import types
+    from avas.core import MultiParticle as mp
+    ran = []
+    fake = types.ModuleType("avas.gpu.pic")
+    fake.SimulationRunner = lambda item: types.SimpleNamespace(run=lambda: ran.append(item))
+    monkeypatch.setitem(sys.modules, "avas.gpu.pic", fake)
+    monkeypatch.setattr(mp, "generate_input_gpu", lambda *a: None)
+    monkeypatch.setattr(mp, "generate_beam_gpu", lambda *a: None)
+    sim = mp.MultiParticle({"project_path": str(tmp_path), "device": "gpu"})
+    with caplog.at_level("WARNING", logger="avas.core.MultiParticle"):
+        assert sim.run() == 0
+    assert len(ran) == 1
+    assert any("deprecated" in r.getMessage() and "--engine new --device cuda" in r.getMessage() for r in caplog.records)
+    assert not hasattr(mp.MultiParticle, "stop")

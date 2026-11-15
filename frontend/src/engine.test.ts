@@ -3,16 +3,23 @@ import {
   autoReason,
   compatProblem,
   deviceChoices,
+  effectiveDefaultKernel,
   engineLabel,
   engineShort,
   ENGINE_KEYS,
   formatGpus,
+  formKernel,
   formProblems,
   iniLines,
   kernelLines,
+  kernelsDiffer,
+  kernelsDifferAmong,
   normalizeEngine,
   parseGpus,
   precisionProblem,
+  preferenceIgnored,
+  secondaryNeedsBeamFile,
+  seedDefect,
   type EngineForm,
   type EngineInfo,
 } from "./engine";
@@ -67,11 +74,57 @@ describe("kernel options", () => {
     expect(formProblems(form({ gpus: "0,x" }), true)).toHaveLength(1);
     expect(formProblems(form({ kernel: "original", device: "metal", precision: "fp64" }), true)).toEqual([]);
     expect(formProblems(form({ kernel: "original" }), false)[0]).toMatch(/does not run on this platform/);
+    // a form without a kernel is checked as the default kernel
+    expect(formProblems(form({ kernel: "", device: "metal", precision: "fp64" }), true, "original")).toEqual([]);
+    expect(formProblems(form({ kernel: "", device: "metal", precision: "fp64" }), true, "new")).toHaveLength(1);
+  });
+
+  it("resolves the default kernel from the global preference like the back end", () => {
+    expect(effectiveDefaultKernel("", "original", true)).toBe("original");
+    expect(effectiveDefaultKernel(undefined, "new", false)).toBe("new");
+    expect(effectiveDefaultKernel("new", "original", true)).toBe("new");
+    expect(effectiveDefaultKernel("Original", "new", true)).toBe("original");
+    expect(effectiveDefaultKernel("original", "new", false)).toBe("new");       // not on this platform: built-in
+    expect(effectiveDefaultKernel("bogus", "original", true)).toBe("original");
+    expect(preferenceIgnored("original", false)).toBe(true);
+    expect(preferenceIgnored("original", true) || preferenceIgnored("new", false) || preferenceIgnored(null, false)).toBe(false);
+    expect(formKernel({ kernel: "" }, "new")).toBe("new");
+    expect(formKernel({ kernel: "original" }, "new")).toBe("original");
+  });
+
+  it("warns about the fixed-seed defect only for the original kernel and compat = dll", () => {
+    expect(seedDefect("original", null, "12345")).toBe(true);
+    expect(seedDefect("new", "dll", 7)).toBe(true);
+    expect(seedDefect("new", "none", "12345")).toBe(false);
+    expect(seedDefect("original", null, "0")).toBe(false);
+    expect(seedDefect("original", null, "")).toBe(false);
+    expect(seedDefect("original", null, "abc")).toBe(false);
+    expect(seedDefect(null, null, "5")).toBe(false);
+    expect(secondaryNeedsBeamFile("original", null) && secondaryNeedsBeamFile("new", "dll")).toBe(true);
+    expect(secondaryNeedsBeamFile("new", "none")).toBe(false);
+  });
+
+  it("tells when two runs used different kernels or modes", () => {
+    const orig = { kernel: "original" };
+    const cpu = { kernel: "new", device: "cpu", precision: "fp64", compat: "none" };
+    const metal = { kernel: "new", device: "metal", precision: "fp32", requested: { device: "auto", compat: "none" } };
+    const dll = { kernel: "new", device: "cpu", precision: "fp64", compat: "dll" };
+    expect(kernelsDiffer(orig, cpu)).toBe(true);
+    expect(kernelsDiffer(cpu, dll)).toBe(true);
+    expect(kernelsDiffer(orig, dll)).toBe(true);
+    expect(kernelsDiffer(cpu, metal)).toBe(false);                            // same kernel and mode, other device
+    expect(kernelsDiffer(orig, { kernel: "original", device: "gpu" })).toBe(false);
+    expect(kernelsDiffer(null, cpu)).toBe(false);                             // older record: unknown
+    expect(kernelsDifferAmong([cpu, metal, null])).toBe(false);
+    expect(kernelsDifferAmong([cpu, null, metal, orig])).toBe(true);
+    expect(kernelsDifferAmong([])).toBe(false);
   });
 
   it("maps the form to ini.ini [engine] keys like the back end saves it", () => {
     expect(ENGINE_KEYS).toEqual(["kernel", "device", "precision", "gpus", "threads", "compat"]);
     expect(iniLines(form({ kernel: "original" }))).toEqual(["kernel = original"]);
+    expect(iniLines(form({ kernel: "" }))).toEqual([]);                      // follows the default kernel
+    expect(iniLines(form({ kernel: "", threads: "2" }))).toEqual(["threads = 2"]);
     expect(iniLines(form())).toEqual(["kernel = new"]);
     expect(iniLines(form({ device: "cuda", precision: "fp32", gpus: "0,1", threads: "4", compat: "dll" }))).toEqual([
       "kernel = new",

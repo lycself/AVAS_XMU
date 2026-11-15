@@ -246,7 +246,7 @@ The focusing strength scales as $1/p^2$, so an energy spread changes the focal l
 
 ### Space charge and neutralisation
 
-Space charge is strong for low-energy, high-current beams; the axially symmetric focusing of a solenoid matches the space-charge force of a round beam and makes it easy to form a matched round beam. In a real LEBT, ionisation of the residual gas partly neutralises the space charge; AVAS's lattice has a `spacechargecomp` (space-charge compensation) keyword, but the manual does not describe its model, so check it against engine results before use, and treat the degree of neutralisation as a separate uncertainty (see [space charge](#space-charge)).
+Space charge is strong for low-energy, high-current beams; the axially symmetric focusing of a solenoid matches the space-charge force of a round beam and makes it easy to form a matched round beam. In a real LEBT, ionisation of the residual gas partly neutralises the space charge; AVAS's lattice keyword `spacechargecomp V` (space-charge compensation) multiplies the space charge by $(1 - V)$ from that line on (how the kernels differ: see [space charge](#space-charge-in-avas)); it is only a constant factor without modelling electron trapping, so treat the degree of neutralisation as a separate uncertainty.
 
 ## Common misconceptions {#solenoid-misconceptions}
 

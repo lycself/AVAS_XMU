@@ -3,10 +3,31 @@
 import { useCallback, useEffect, useState } from "react";
 import { call } from "../bridge";
 import { reportError } from "../components/overlays";
-import { CommitInput, Field, IconButton, Radio, Select } from "../components/ui";
+import { CommitInput, Field, Icon, IconButton, Radio, Select } from "../components/ui";
+import { seedDefect } from "../engine";
 import { fmtG } from "../format";
 import { pick, useT } from "../i18n";
 import { useApp } from "../store/app";
+import { useEffectiveKernel } from "../store/engine";
+
+/** The research runs' fixed random seed (avas.research.study.DEFAULT_SEED). */
+export const RESEARCH_SEED = 12345;
+
+/** With the original kernel or compat = dll the fixed research seed gives an initial distribution with x fully
+ *  correlated with the phase; nothing for the new kernel's default mode. */
+export function SeedDefectNote({ enabled = true }: { enabled?: boolean }) {
+  const t = useT();
+  const effective = useEffectiveKernel(enabled);
+  if (!enabled || !effective || !seedDefect(effective.kernel, effective.compat, RESEARCH_SEED)) return null;
+  return (
+    <p className="engine-note warning-text">
+      <Icon name="warning" />{" "}
+      {effective.kernel === "original"
+        ? t("This project runs on the original kernel: with the fixed seed ({seed}) its initial distribution has x fully correlated with the phase (correlation −1). Centroid responses are hardly affected, emittance and space-charge results are. Use the new kernel (Simulation settings → Computing kernel) for these.", { seed: RESEARCH_SEED })
+        : t("This project runs in the AVAS.dll compatibility mode: with the fixed seed ({seed}) its initial distribution has x fully correlated with the phase (correlation −1). Centroid responses are hardly affected, emittance and space-charge results are. Use the default mode for these.", { seed: RESEARCH_SEED })}
+    </p>
+  );
+}
 
 export type Statement = { line: number; keyword: string; key: string; name: string; params: string[]; isElement: boolean; known: boolean; active: boolean; zStart: number | null; zEnd?: number | null };
 export type KeywordSpec = { key: string; title: [string, string]; params: { key: string; label: [string, string]; unit: string; kind: string }[] };

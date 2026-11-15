@@ -216,6 +216,9 @@ def _save_meta(root, meta):
 def start(project, spec, choice=None, label=None):
     """Plan the segment from the saved lattice and start its stages; returns the runner job."""
     from avas.gui.services import runner
+    input_text = read_text(project.input_file("input.txt")) if os.path.isfile(project.input_file("input.txt")) else ""
+    if segment.secondary_beam(input_text):
+        raise UserError("Segment runs do not support secondary particles (secondarybeam 1 in input.txt): a segment starts from the main beam's particles or Twiss parameters. Run the whole lattice instead.")
     doc = load_doc(project)
     p = make_plan(doc, spec, label)
     options, default = entry_options(project, p)
@@ -240,7 +243,6 @@ def start(project, spec, choice=None, label=None):
             "fingerprint": fingerprint(project, doc, p.z_end), "rephased": [], "stages": []}
     _save_meta(root, meta)
     beam_text = read_text(project.input_file("beam.txt")) if os.path.isfile(project.input_file("beam.txt")) else ""
-    input_text = read_text(project.input_file("input.txt")) if os.path.isfile(project.input_file("input.txt")) else ""
     ref_out = os.path.join(root, "reference", "OutputFile")
     up_out = os.path.join(root, "upstream", "OutputFile")
     seg_in, seg_out = os.path.join(root, "InputFile"), os.path.join(root, "OutputFile")
@@ -303,9 +305,6 @@ def start(project, spec, choice=None, label=None):
                 entry.update(source=chain_src["name"])
             phases, report = segment.rephase(p, rows, t_ref)
             entry.update(t_entry=t_entry, t_ref=t_ref)
-            scan = segment.keyword_value(input_text, "scanphase")
-            if scan and scan[0] in ("1", "2"):
-                inputs["scanphase"] = "0"        # the reference run already applied the scan / scanData.txt
         _write_inputs(project, seg_in, segment.segment_text(p, phases), beam, inputs)
         if source:
             shutil.copy2(source, os.path.join(seg_in, ENTRY_FILE))

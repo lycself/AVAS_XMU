@@ -373,7 +373,7 @@ end
 
 - `f` is the cavity frequency; `frequency` in `beam.txt` is the beam frequency (bunch repetition rate, which sets the bunch charge $Q = I/f$). They may differ (e.g. after a frequency doubling).
 - `Ke` scales the electric field (map in MV/m) and `Kb` the magnetic field; scale both together when changing the cavity gradient.
-- `scanphase` in `input.txt` controls the phase scan: 0 no scan, 1 scan the phase, 2 read the entrance phases and times of the cavities from `scanData.txt`.
+- A cavity's phase comes only from `phase` and V3 of its field line. No kernel reads `scanphase` in `input.txt` or `scanData.txt` (the original manual says they control a phase scan); the Simulation settings page removes a leftover `scanphase` line when saved.
 - `longlimits` sets the phase and energy limits of the longitudinal loss criterion, the counterpart of the separatrix above: particles outside the limits count as lost longitudinally.
 - The output file `Phase.txt` gives, two lines per RF cavity, the entrance and exit time, position and synchronous energy; use it to check the gain of each cavity.
 - `twissz` in `beam.txt` holds the longitudinal Twiss parameters: $\alpha_z$, $\beta_z$ (mm/mrad, with $z$ in mm and $\delta = \Delta p/p$ in mrad) and the normalized rms longitudinal emittance (π·mm·mrad), consistent with the $(z, \delta)$ conversion above.

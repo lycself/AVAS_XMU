@@ -321,7 +321,7 @@ field
 
 > **AVAS 约定**：AVAS 中腔场幅度由 Ke（与 Kb）直接给定，是固定值。内核不模拟功率源、束流负载、失谐和低电平控制；场幅与相位的抖动通过误差命令 `err_cav_*` 引入，参见 [误差与校正](#errors)。
 
-> **注意**：`scanphase`（input.txt）也会影响相位：0 表示按 lattice 中的相位，1 让内核扫描腔相位，2 从 `scanData.txt` 读取每个腔的入口相位和入口时间（每行一个腔，顺序与 lattice 中射频腔顺序相同；示例项目的 `scanData.txt` 写的是 52.66°，正是 $\varphi_s = -33^\circ$ 时的入口相位）。线性预览不处理 `scanphase`。
+> **注意**：input.txt 的 `scanphase` 和 `scanData.txt` **不影响**相位：原内核和新内核都不读取它们（已用逆向分析和实际运行核实），射频相位只由 field 行的 `phase` 与 V3 决定。V3 = 0 时内核自己扫描入口相位、求出给定 $\varphi_s$ 对应的入口相位，这与 `scanphase` 无关。要复现某个入口相位，就用 V3 = 1 或 V3 = 2 直接写在 field 行里。模拟设置页不再提供相位扫描选项，input.txt 中残留的 `scanphase` 行在保存该页时删除；旧项目的 `scanData.txt` 保留在项目中，可在文件页查看。
 
 ```avas-params
 input:scanphase input:steppercycle input:longlimits

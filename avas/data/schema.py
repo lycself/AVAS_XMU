@@ -257,8 +257,15 @@ _LATTICE = [
         P("V1", "First plane", "第一个输出平面位置", "m"), P("V2", "Spacing", "输出平面间距", "m"),
         P("V3", "Maximum span", "第一个到最后一个的最大间距", "m")],
         ("Insert equally spaced output planes.", "按等间距批量插入输出平面。")),
-    Keyword("spacechargecomp", ("Space-charge compensation", "空间电荷补偿"), OTHER, [],
-            ("Not described in the manual.", "手册未说明。"), min_params=0),
+    Keyword("spacechargecomp", ("Space-charge compensation", "空间电荷补偿"), OTHER, [
+        P("V", "Compensation", "补偿度")],
+            ("From this line onward the space charge is multiplied by (1 − V) (V = 0 no compensation, 0.5 half).  "
+             "Original kernel: only the Windows AVAS.dll reads it (Linux libAVAS.so ignores the line); it ignores "
+             "the line for V ≥ 1 and amplifies the space charge for V < 0.  New kernel: the default mode limits "
+             "1 − V to [0, 1]; the compatibility mode (compat = dll) reproduces AVAS.dll.",
+             "从这一行所在位置起，空间电荷乘以 (1 − V)（V = 0 不补偿，0.5 补偿一半）。原内核：只有 Windows 的 "
+             "AVAS.dll 读取（Linux 的 libAVAS.so 忽略这一行），V ≥ 1 时忽略这一行，V < 0 时放大空间电荷。"
+             "新内核：默认模式把 1 − V 限制在 [0, 1]；兼容模式（compat = dll）与 AVAS.dll 相同。"), min_params=0),
     # ---- errors ---------------------------------------------------------------------
     Keyword("err_step", ("Error groups", "误差分组"), ERROR, [
         P("a", "Groups", "分组数", kind=INT), P("b", "Runs per group", "每组运行次数", kind=INT)],
@@ -319,6 +326,14 @@ def lattice_keyword(name):
 
 
 # --------------------------------------------------------------------------- beam.txt
+_SEED_DOC = ("0 = a different sample every run; beam.txt's randomseed overrides input.txt's.  Original kernel and the new kernel's compatibility mode "
+             "(compat = dll): a seed other than 0 gives an initial distribution with x fully correlated with "
+             "the phase (correlation -1), a defect of the original kernel; the new kernel's default mode "
+             "does not have it.",
+             "0 表示每次运行重新抽样；beam.txt 的 randomseed 优先于 input.txt。原内核和新内核兼容模式（compat = dll）在种子非 0 时生成的初始分布中 "
+             "x 与相位完全相关（相关系数 −1），这是原内核的缺陷；新内核默认模式没有这个问题。")
+
+
 _BEAM = [
     Keyword("readparticledistribution", ("Particle file", "粒子分布文件"), "beam",
             [P("file", "File", "文件", kind=FILE)],
@@ -352,7 +367,7 @@ _BEAM = [
         P("V1", "Type", "类型", kind=ENUM, choices=[("dc", ("DC beam", "直流束")), ("notdc", ("bunched", "束团"))])],
         ("dc generates a DC beam.", "设置为 dc 时生成直流束流。")),
     Keyword("randomseed", ("Random seed", "随机数种子"), "beam", [P("V1", "Seed", "种子", kind=INT)],
-            ("Seed used when generating the beam.", "生成束流时所用的随机数。")),
+            ("Seed used when generating the beam.  " + _SEED_DOC[0], "生成束流时所用的随机数。" + _SEED_DOC[1])),
     Keyword("initpos", ("Initial offset", "初始位置偏移"), "beam", [
         P("x", "x", "x", "mm"), P("y", "y", "y", "mm"), P("z", "z", "z", "mm")]),
     Keyword("initmom", ("Initial angle", "初始角度偏移"), "beam", [
@@ -385,7 +400,12 @@ _INPUT = [
         min_params=1),
     Keyword("scanphase", ("Phase scan", "相位扫描"), "input", [
         P("V1", "Mode", "方式", kind=ENUM, choices=[("0", ("no scan", "不扫描")), ("1", ("scan", "扫描相位")),
-                                                    ("2", ("read scanData.txt", "从文件读取相位"))])]),
+                                                    ("2", ("read scanData.txt", "从文件读取相位"))])],
+        ("No kernel reads this keyword or scanData.txt (the original kernel, the new kernel, libPIC.so); the RF "
+         "phases come from the field lines (V3).  Kept so that old files still parse; the Simulation settings page "
+         "removes the line when it saves.",
+         "没有内核读取这个关键字和 scanData.txt（原内核、新内核、libPIC.so 都不读），射频相位只由 field 行"
+         "（V3）决定。保留它只为旧文件能解析；模拟设置页保存时删去这一行。")),
     Keyword("spacecharge", ("Space charge", "空间电荷效应"), "input", [P("V1", "On", "开关", kind=ENUM, choices=_ONOFF)]),
     Keyword("scmethod", ("Space-charge solver", "空间电荷算法"), "input", [
         P("V1", "Solver", "算法", kind=ENUM, choices=[("FFT", ("FFT", "FFT")), ("PICNIC", ("PICNIC", "PICNIC")),
@@ -412,7 +432,7 @@ _INPUT = [
         P("V1", "On", "开关", kind=ENUM, choices=_ONOFF)],
         ("Reads SeParticle.txt; synchronous particle still needed in beam.txt.",
          "读取 SeParticle.txt，仍需在 beam.txt 中设置同步粒子信息。")),
-    Keyword("randomseed", ("Random seed", "随机数种子"), "input", [P("V1", "Seed", "种子", kind=INT)]),
+    Keyword("randomseed", ("Random seed", "随机数种子"), "input", [P("V1", "Seed", "种子", kind=INT)], _SEED_DOC),
     Keyword("spacechargelong", ("Space-charge step (envelope)", "空间电荷步长（包络）"), "input",
             [P("V1", "Step", "步长", "m")], ("Envelope model only.", "只对包络模型起效。")),
     Keyword("spacechargetype", ("Space charge (envelope)", "空间电荷（包络）"), "input",

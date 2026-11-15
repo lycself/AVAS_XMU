@@ -221,7 +221,7 @@ beam:distribution beam:twissx beam:twissy beam:twissz beam:particlenumber beam:r
 - `distribution V1 V2`：V1 为横向（x、y 两个平面共用）分布，V2 为纵向分布，可选 `KV`、`GS`、`PB`、`WB`。
 - `twissx α β ε`（`twissy`、`twissz` 同）：$\alpha$ 无量纲，$\beta$ 单位 mm/mrad，$\varepsilon$ 为**归一化 rms** 发射度（π·mm·mrad）；$z$ 平面的“角度”是 $\delta = \Delta p/p$（以 mrad 计），同样乘 $\beta\gamma$ 归一化。单位与换算见 [相空间：在 AVAS 中](#phase-space-in-avas)。
 - `particlenumber`：宏粒子数。写 1 时为单粒子模式，此时 `twiss*`、`current`、`distribution` 不生效。每个宏粒子的电荷为 $Q/N$，荷质比与真实粒子相同，所以外场中的运动不变，只有空间电荷按总电荷计算。示例 5260 个宏粒子，每个代表约 1344 个质子。
-- `randomseed`：生成初始束流的随机数种子。
+- `randomseed`：生成初始束流的随机数种子。原内核和新内核的兼容模式（compat = dll）在 `randomseed` 不为 0 时有缺陷：生成的分布中 $x$ 与相位完全相关（相关系数 −1），可以从 `inData.dst` 中看出来；模拟设置页会在随机种子旁警告。新内核的默认模式没有这个缺陷。
 - `initpos x y z`（mm）、`initmom x' y' z'`（mrad）：给整个束团加位置和角度偏移（改变一阶矩），用来研究初始偏心。
 - `numofcharge`：电荷数；读入粒子文件时它仍然有效。
 - `beamtype`：写 `dc` 时生成直流束，`notdc` 为束团。

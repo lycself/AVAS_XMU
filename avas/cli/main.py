@@ -154,6 +154,7 @@ def engine_choice_from_args(args, input_dir):
                 raise CliError("--device gpu selects the original kernel's libPIC.so; for the new kernel use "
                                "--device cuda (or auto)")
             choice = engines.resolve_choice(cli=dict(new_only, kernel="new", device=device), input_dir=input_dir)
+            choice.sources.update({k: v for k, v in first.sources.items() if k in ("kernel", "note")})
             return choice, "cpu"
         given = [f"--{k}" for k, v in new_only.items() if v is not None]
         if device in NEW_ONLY_DEVICES:
@@ -227,6 +228,8 @@ def _run(args, input_dir):
     write_run_info(output_dir, info)
 
     print(f"[avas] mode={mode} device={device}" if not choice.is_new else f"[avas] mode={mode}")
+    if choice.sources.get("note"):
+        print(f"[avas] note: {choice.sources['note']}")
     if choice.is_new:
         print(f"[avas] engine: {choice.label()} {info['engine'].get('file') or ''}".rstrip())
     print(f"[avas] input : {input_dir}")
@@ -451,7 +454,10 @@ def print_kernels(desc, input_dir=None, choice=None, indent="  "):
               f"without -> {_plan_text(auto.get('nosc'))}")
     if choice is not None:
         where = f"project {input_dir}" if input_dir else "selected"
-        print(f"{indent}{where}: {choice.label()}")
+        how = {"preference": " (default kernel preference)"}.get(choice.sources.get("kernel"), "")
+        print(f"{indent}{where}: {choice.label()}{how}")
+        if choice.sources.get("note"):
+            print(f"{indent}  note: {choice.sources['note']}")
         if choice.is_new and desc.get("resolved"):
             res = desc["resolved"]
             print(f"{indent}  runs: with space charge -> {_plan_text(res.get('sc'))}; "

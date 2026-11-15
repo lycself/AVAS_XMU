@@ -373,7 +373,7 @@ end
 
 - `f` 是腔的频率；`beam.txt` 的 `frequency` 是束流频率（束团重复频率，决定每个束团的电荷 $Q = I/f$），二者可以不同（例如倍频段）。
 - `Ke` 缩放电场（场图单位 MV/m），`Kb` 缩放磁场；改变腔的加速梯度时两者按比例一起改。
-- `input.txt` 的 `scanphase` 控制相位扫描：0 不扫描，1 扫描相位，2 从 `scanData.txt` 读取各腔的入口相位和入口时间。
+- 腔的相位只由 field 行的 `phase` 与 V3 决定。`input.txt` 的 `scanphase` 和 `scanData.txt` 没有任何内核读取（原手册称它们控制相位扫描），模拟设置页保存时会删除残留的 `scanphase` 行。
 - `longlimits` 设置纵向损失判定的相位和能量边界，对应上文分界线的概念：越过边界的粒子记为纵向损失。
 - 输出文件 `Phase.txt` 每两行给出一个射频腔入口和出口的时间、位置和同步粒子能量，可用来核对每个腔的能量增益。
 - `beam.txt` 的 `twissz` 是纵向 Twiss 参数：$\alpha_z$、$\beta_z$（mm/mrad，$z$ 单位 mm、$\delta = \Delta p/p$ 单位 mrad）、归一化 rms 纵向发射度（π·mm·mrad），与上文的 $(z, \delta)$ 换算一致。

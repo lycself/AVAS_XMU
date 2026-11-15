@@ -26,6 +26,8 @@ type Overview = {
   errors: string[];
   density: string[];
   cavities: string[];
+  /** secondary-particle run (secondarybeam 1 in its input snapshot): no envelope */
+  secondary?: boolean;
 };
 
 type ItemKey =
@@ -768,6 +770,12 @@ export default function ResultsPage() {
           ))}
         </div>
         <div className="results-main">
+          {ov?.secondary && (
+            <div className="results-note engine-note warning-text">
+              <Icon name="info" />{" "}
+              {tt("Secondary-particle run (secondarybeam 1): the kernel writes no envelope, so there are no envelope, emittance or energy curves. The particles at each output plane are in outData_*.txt, the synchronous particle in SeSynParticle.txt.")}
+            </div>
+          )}
           {error ? (
             <div className="empty-state danger-text">{error}</div>
           ) : !ov ? (

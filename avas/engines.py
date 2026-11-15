@@ -3,7 +3,9 @@
 Priority of every setting, highest first: the command line (``avas run --engine … --device …``), the
 environment (``AVAS_ENGINE``, ``AVAS_ENGINE_DEVICE``, ``AVAS_ENGINE_PRECISION``, ``AVAS_ENGINE_GPUS``,
 ``AVAS_ENGINE_THREADS``, ``AVAS_ENGINE_COMPAT``), the project's ``ini.ini`` section ``[engine]``
-(keys ``kernel device precision gpus threads compat``), the defaults (kernel original where the
+(keys ``kernel device precision gpus threads compat``), for the kernel only the GUI's global "default
+computing kernel" preference (gui.json, :func:`default_choice_kernel`; "original" where the original kernel
+does not exist falls back to the built-in default with a note), the defaults (kernel original where the
 original kernel exists -- Windows and Linux on x86-64 --, else new (macOS, ARM: :func:`default_kernel`);
 for the new kernel device auto, precision auto, gpus all, threads 0 = automatic, compat none).  With the
 original kernel the other keys are ignored; choosing it explicitly on a platform without it is an error
@@ -185,15 +187,62 @@ def read_ini(input_dir):
     return {k.strip().lower(): v for k, v in cfg.items(INI_SECTION) if k.strip().lower() in KEYS and str(v).strip() != ""}
 
 
-def resolve_choice(cli=None, input_dir=None, env=None):
+# --------------------------------------------------------------------------- global preference
+# The GUI's "default computing kernel" (Settings menu), stored in the GUI preferences file gui.json under
+# this key: "original", "new", or absent / "" = the built-in default.  Every process reads the same file:
+# AVAS_GUI_SETTINGS when set (``avas serve --settings`` sets it, and children started by the GUI inherit
+# it), else the user's gui.json in the user data folder (the same rule as avas.gui.settings.default_path).
+PREFERENCE_KEY = "engine/defaultKernel"
+PREFERENCE_ENV = "AVAS_GUI_SETTINGS"
+
+
+def preference_path():
+    """The GUI preferences file the global default kernel is read from."""
+    override = os.environ.get(PREFERENCE_ENV, "").strip()
+    return override or os.path.join(paths.USER_DATA_DIR, "gui.json")
+
+
+def read_preference(path=None):
+    """The global default kernel of the GUI preferences ("original", "new" or "" = not set; an unreadable
+    file or an unknown value counts as not set)."""
+    try:
+        with open(path or preference_path(), encoding="utf-8-sig") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        return ""
+    value = str(data.get(PREFERENCE_KEY) or "").strip().lower() if isinstance(data, dict) else ""
+    return value if value in KERNELS else ""
+
+
+def default_choice_kernel(preference=None):
+    """``(kernel, source, note)`` used when neither the command line, the environment nor ini.ini choose a
+    kernel: the global preference (source ``preference``), else the built-in default (``default``).  The
+    preference "original" on a platform without the original kernel falls back to the built-in default with
+    a *note* (not an error: the preference is shared by every project).  *preference* None reads the
+    preferences file; a string is used as the preference ("" = not set)."""
+    pref = read_preference() if preference is None else str(preference).strip().lower()
+    if pref == "original" and not original_available():
+        return default_kernel(), "default", ("the default kernel preference 'original' is ignored: the original "
+                                             f"kernel does not run on {platform_label()}")
+    if pref in KERNELS:
+        return pref, "preference", None
+    return default_kernel(), "default", None
+
+
+def resolve_choice(cli=None, input_dir=None, env=None, preference=None):
     """The :class:`EngineChoice` from *cli* (dict, None values ignored), the environment *env* (default
-    ``os.environ``) and ``[engine]`` of the project's ini.ini in *input_dir*."""
+    ``os.environ``), ``[engine]`` of the project's ini.ini in *input_dir*, then the global default kernel
+    of the GUI preferences (:func:`default_choice_kernel`, *preference* as there) and the built-in default.
+    ``sources["kernel"]`` is ``cli``, ``env``, ``ini``, ``preference`` or ``default``; ``sources["note"]``
+    explains an ignored preference."""
     cli = {k: v for k, v in (cli or {}).items() if v is not None and k in KEYS}
     env = os.environ if env is None else env
     ini = read_ini(input_dir)
     origins = {"cli": "command line", "env": "environment variable", "ini": "ini.ini [engine]"}
+    note = None
 
     def raw(key):
+        nonlocal note
         if key in cli:
             return cli[key], "cli", f"{origins['cli']} --{'engine' if key == 'kernel' else key}"
         value = env.get(ENV[key], "")
@@ -201,11 +250,16 @@ def resolve_choice(cli=None, input_dir=None, env=None):
             return value, "env", f"{origins['env']} {ENV[key]}"
         if key in ini:
             return ini[key], "ini", f"{origins['ini']} {key}"
-        return (default_kernel() if key == "kernel" else DEFAULTS[key]), "default", "default"
+        if key == "kernel":
+            kernel, src, note = default_choice_kernel(preference)
+            return kernel, src, "default kernel preference" if src == "preference" else "default"
+        return DEFAULTS[key], "default", "default"
 
     value, src, origin = raw("kernel")
     kernel = parse_value("kernel", value, origin)
     sources = {"kernel": src}
+    if note:
+        sources["note"] = note
     if kernel == "original":
         return EngineChoice(kernel="original", sources=sources)
     values = {}

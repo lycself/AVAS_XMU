@@ -105,7 +105,7 @@ class LiveRun:
         self.label = label
         self.mode = mode
         self.lattice = lattice                # {name, text, fieldDirs, hash} of the run (jobs)
-        self.previous = previous              # {env, started, latticeHash}: the run before (project runs)
+        self.previous = previous              # {env, started, latticeHash, engine}: the run before (project runs)
         self.output_dir = output_dir
         self.t0 = time.time()
         self.started = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -155,7 +155,9 @@ class Monitor:
                 env = dataset_envelope(p.output_dir)          # still the previous run's
                 if env is not None:
                     info = p.last_run()
-                    previous = {"env": env, "started": info.get("started"), "latticeHash": info.get("lattice_sha1")}
+                    from avas.gui.services import kernels
+                    previous = {"env": env, "started": info.get("started"), "latticeHash": info.get("lattice_sha1"),
+                                "engine": kernels.summary(info.get("engine"))}
             run = LiveRun(job.source, ("job", id(job)), job.label, job.mode, lattice, previous, job.output_dir, p.path)
             with self.lock:
                 self._finish(self.run)
@@ -318,7 +320,7 @@ class Monitor:
             prev = run.previous
             out["previous"] = None if prev is None else {
                 **{k: (bridge.blob(v, "float32") if isinstance(v, np.ndarray) else v) for k, v in prev["env"].items()},
-                "started": prev["started"], "latticeHash": prev["latticeHash"]}
+                "started": prev["started"], "latticeHash": prev["latticeHash"], "engine": prev.get("engine")}
             out["episode"] = None if ep is None else {**ep.meta(), "rows": _blobs(ep.arrays()), "losses": list(ep.losses)}
             out["band"] = [{**{k: v for k, v in b.items() if k != "arrays"}, "rows": _blobs(b["arrays"])} for b in run.band]
             return out

@@ -9,8 +9,16 @@ whose fingerprint exists is not repeated: a stopped batch resumes, and a second 
 same results.  With a fixed seed the engine is reproducible (checked 2026-11-03), so a cached result
 is the result.  The project's own folders are never written.
 
+The default seed is :data:`DEFAULT_SEED` (12345).  With the original kernel or the new kernel's
+compatibility mode (compat = dll) a seed other than 0 gives an initial distribution with x fully
+correlated with the phase (correlation -1, a defect of the original kernel; the new kernel's default
+mode does not have it): centroid responses are hardly affected, but emittance growth and space-charge
+results of such runs are biased.  Use the new kernel, or ``seed=0`` (a new sample every run, so no
+cache reuse), when that matters.
+
 The kernel comes from the study's arguments over the environment over the project's ini.ini
-``[engine]`` (:func:`avas.engines.resolve_choice`); every run's ``input/ini.ini`` carries the
+``[engine]`` over the global default kernel of the GUI preferences (:func:`avas.engines.resolve_choice`);
+every run's ``input/ini.ini`` carries the
 resolved choice in ``[engine]`` (not part of the fingerprint), so ``avas run`` in the child uses it.
 """
 import datetime
@@ -111,7 +119,8 @@ class Study:
     """Runs of variants of the project at *project* (a project folder or an input folder).
 
     *name*: folder name under ``<project>/Research/`` unless *root* is given (e.g. outside a
-    read-only project).  *seed*: input.txt ``randomseed`` of runs whose variant has none.
+    read-only project).  *seed*: input.txt ``randomseed`` of runs whose variant has none (default 12345;
+    with the original kernel or compat = dll a seed ≠ 0 correlates x with the phase, see the module notes).
     *strict*: fingerprint the field maps by content.  *engine_command*: ``f(input_dir, output_dir,
     field_dir, lattice) -> argv`` (default ``avas run``; tests use a stand-in).  *timeout*: seconds.
     *runner*: ``f(input_dir, output_dir, field_dir, lattice, log_path, stop, progress) -> seconds``

@@ -190,7 +190,7 @@ beam:readparticledistribution outputplane
 ### Running and checking
 
 - Tune `Kb`, `Ke` and the phases first with the linear preview of the visual editor: reference-particle energy agrees to about 0.01 % (the engine's mean energy feels the off-axis field and can differ by a few per cent of the gain), rms sizes usually within 1–2 %; longitudinal non-linearity and emittance growth do not show, and the multi-particle engine has the final word. [The guided tutorial](#tutorial) runs the engine in a sandbox for direct comparison.
-- `steppercycle` in `input.txt` is the number of integration steps per RF period, 50 in the example; `scanphase` decides whether the cavity phases are scanned or read from `scanData.txt`; the linear preview ignores it.
+- `steppercycle` in `input.txt` is the number of integration steps per RF period, 50 in the example; the cavity phases come only from `phase` and V3 of the field lines; no kernel reads `scanphase` or `scanData.txt`.
 - `multithreading` may only be 1 or absent: 0 makes the engine lose all particles at the start (verified with the example).
 - In a segmented run, phases with V3 = 2 must be converted with $\varphi_{RF} - 360^\circ\cdot f\cdot(t_{in} - T_{entry})$; AVAS's segmented runs do this automatically.
 

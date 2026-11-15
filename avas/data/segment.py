@@ -375,6 +375,16 @@ def keyword_value(text, key):
     return None
 
 
+def secondary_beam(input_text):
+    """Whether an input.txt text switches on secondary particles (``secondarybeam`` ≠ 0).  Segment runs refuse
+    them: a segment starts from the main beam, and a secondary run writes no DataSet / particle files."""
+    value = keyword_value(input_text, "secondarybeam")
+    try:
+        return bool(value) and float(value[0]) != 0
+    except ValueError:
+        return False
+
+
 # =========================================================================== timing
 def read_syndata(path):
     rows = []

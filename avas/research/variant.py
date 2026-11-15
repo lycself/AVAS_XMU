@@ -4,7 +4,10 @@
   (element name, 1-based line or ``{"index": n}``; parameter key or position);
 * ``beam`` / ``input``: ``{keyword: value}`` for beam.txt / input.txt (a list sets the values
   from position 1 on);
-* ``seed`` (input.txt ``randomseed``) and ``particles`` (beam.txt ``particlenumber``).
+* ``seed`` (input.txt ``randomseed``) and ``particles`` (beam.txt ``particlenumber``).  With the
+  original kernel or the new kernel's compatibility mode (compat = dll) a seed other than 0 gives an
+  initial distribution with x fully correlated with the phase (correlation -1); the new kernel's
+  default mode does not have this defect.
 
 Addresses in scans: ``"Q1.G"`` (lattice), ``"beam.current"``, ``"input.stepsize"``, ``"seed"``,
 ``"particles"``, or a tuple ``("lattice", target, param)``.

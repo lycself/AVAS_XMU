@@ -139,7 +139,7 @@ LEBT 里束流在螺线管中的 rms 尺寸通常有几毫米，所以最后一�
 
 AVAS 不模拟离子源和低能传输段。离子源的等离子体与引出过程需要专门的程序；LEBT 的关键物理是空间电荷补偿，它取决于气压、电离截面和电子的动力学，也不在 AVAS 的模型之内。本入门不把 LEBT 当作 AVAS 的模拟对象。
 
-`beam.txt` 中有 `beamtype` 关键字（`dc` 生成直流束），lattice 中有 `spacechargecomp`（空间电荷补偿）关键字，但手册没有说明 `spacechargecomp` 的模型和参数，以内核为准；不要把它们当作 LEBT 模拟的依据。
+`beam.txt` 中有 `beamtype` 关键字（`dc` 生成直流束），lattice 中有 `spacechargecomp V`（空间电荷补偿）关键字：从该行起把空间电荷乘以 $(1 - V)$，$V$ 是补偿度，各内核的处理差别见 [空间电荷](#space-charge-in-avas)。它只是一个常数因子，不包含电子俘获的物理，补偿度要另行估计；不要把这些关键字当作 LEBT 模拟的依据。
 
 ```avas-params
 beam:beamtype beam:current beam:frequency spacechargecomp

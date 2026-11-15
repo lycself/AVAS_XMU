@@ -8,10 +8,18 @@ from avas.utils.tool import write_to_txt
 
 log = logging.getLogger(__name__)
 
+LEGACY_GPU_DEPRECATION = (
+    "warning: ini.ini [input] device = gpu (libPIC.so, the original kernel's Linux GPU path) is deprecated and will "
+    "be removed in a later release. The new kernel's NVIDIA GPU replaces it: avas run --engine new --device cuda, "
+    "or Simulation settings -> Computing kernel -> New kernel, device NVIDIA GPU (CUDA).")
+
 
 class MultiParticle():
     """
     多粒子模拟
+
+    There is no ``stop()``: ``main_agent`` ignores its argument, so the old ``main_agent(2)`` ran the whole
+    simulation again with the original kernel.  A run is stopped by ending its ``avas run`` process.
     """
     def __init__(self, item):
         # {
@@ -78,6 +86,7 @@ class MultiParticle():
                 raise Exception(f'{error}')
 
         elif self.device == "gpu":
+            log.warning(LEGACY_GPU_DEPRECATION)
             from avas.gpu.pic import SimulationRunner
 
             # 重写beam和input (written next to the inputs the engine reads, i.e. the staged copy)
@@ -101,10 +110,6 @@ class MultiParticle():
             res = 0
 
         return res
-
-    def stop(self):
-        res = self.multiparticle_engine.main_agent(2)
-        log.info("simulation stopped %s", res)
 
     def check_error_file(self, ErrorLog):
         """The engine's error message from ErrorLog.txt (the text after the 5-space separator, else all of it)."""

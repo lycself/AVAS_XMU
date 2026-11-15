@@ -359,6 +359,10 @@ meshRms三个方向上的网格边长，按对应方向束团的 RMS 尺寸乘�
 
 输入参数表见下方 input 参考。multithreading 只写 1；关闭时删除整行，不能写 0。原文 stepPerCycle 的时间公式存在量纲疑问，未作为确定公式迁入，推进步长应按当前 schema 和实际运行核对。
 
+randomseed：原内核和新内核的兼容模式（compat = dll）在 randomseed 不为 0 时生成的初始分布中 x 与相位完全相关（相关系数 −1），这是原内核的缺陷；模拟设置页在随机种子旁警告，研究页（固定种子 12345）的扫描和响应标签同样提示。新内核的默认模式没有这个缺陷。
+
+scanphase：两个内核都不读取，见 scanData.txt 一节。
+
 [查看多线程参数](#input-multithreading)
 
 ## 束流文件与 Twiss 约定 {#ref-beam}
@@ -383,17 +387,21 @@ meshRms三个方向上的网格边长，按对应方向束团的 RMS 尺寸乘�
 
 ## scanData.txt 射频扫相文件 {#ref-scan-data}
 
-> 来源：原手册对应章节。核对状态：来自原手册；与参数扫描产生的 scan.csv 不同。
+> 来源：原手册对应章节。核对状态：经逆向分析和实际运行核实，原内核（AVAS.dll／libAVAS.so）、新内核（两种模式）和 libPIC.so 都不读取此文件和 input.txt 的 `scanphase`；本节只为旧项目保留格式说明。与参数扫描产生的 scan.csv 不同。
 
-用于记录AVAS扫相结果或手动设置射频场相位，文件的每一行分别为一个射频腔的 入口相位（角度）、入口时间（s）。射频场在lattice中的排列顺序即为数据的排列顺序。
+原手册称该文件用于记录 AVAS 扫相结果或手动设置射频场相位，每一行分别为一个射频腔的入口相位（角度）、入口时间（s），按射频场在 lattice 中的排列顺序排列。实际上没有内核读取它：射频相位只由 field 行的相位参数决定（V3 = 0 为同步相位，内核自己扫描入口相位求出；V3 = 2 为 t = 0 时刻的绝对相位）。模拟设置页不再提供相位扫描选项，input.txt 中残留的 `scanphase` 行在保存该页时删除；scanData.txt 不会被删除，可在文件页查看原始文本。
 
 
 
 ## SeParticle.txt 二次粒子 {#ref-secondary}
 
-> 来源：原手册对应章节。核对状态：来自原手册及 schema 文件列定义；本次未运行二次粒子案例。
+> 来源：原手册对应章节。核对状态：文件列来自原手册及 schema；读取规则和输出按两个内核核实。
 
 当在input.txt 中将 secondarybeam 设置为 1 时，可以在 ReadParticleDistribution 之后输入此文件。SeParticle.txt 文件用于记录二次粒子束，每一行代表一个粒子。
+
+读取规则：新内核的默认模式在 beam.txt 没有 `readparticledistribution` 时读取 SeParticle.txt；原内核和新内核的兼容模式（compat = dll）只读取 beam.txt 中 `readparticledistribution` 指定的文件，束流页会在这种情况下给出提示（AVAS 不改写 beam.txt）。束流页保存时检查每行至少有下表的 11 列（前十列为数字），并去掉空行。
+
+二次粒子运行不输出包络，DataSet.txt 为空；结果在 `outData_*.txt` 和 `SeSynParticle.txt` 中，结果页没有包络曲线。分段运行不接受 secondarybeam 1。
 
 由于二次粒子束不包含同步粒子信息，为了正确模拟某些元件的作用，即使已经提供了初始束团分布，仍然需要在 beam.txt 文件中设置同步粒子信息。
 

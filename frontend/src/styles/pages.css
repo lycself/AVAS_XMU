@@ -115,6 +115,7 @@
 .results-tree { width: 250px; flex: none; overflow: auto; background: var(--sidebar-bg); border-right: 1px solid var(--border); padding: 6px 0; }
 .results-tree .files-item { padding-left: 16px; }
 .results-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+.results-note { flex: none; padding: 6px 12px; }
 .results-tab { flex: 1 1 auto; min-height: 0; flex-direction: column; }
 .plot-tab, .phase-viewer { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
 .plot-options { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-bottom: 1px solid var(--border); min-height: 38px; }

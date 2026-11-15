@@ -295,7 +295,7 @@ def test_results_plots(project):
     assert ok("results.figure", plot="syn_phase")["traces"]
     assert ok("results.figure", plot="cavity_voltage", params={"ratio": {"efield": 2}})["kind"] == "bar"
     overview = ok("results.overview")
-    assert overview["density"] and overview["plt"]
+    assert overview["density"] and overview["plt"] and overview["secondary"] is False
     for kind in ("density", "density_level", "centroid", "emit", "rms_size_max"):
         ok("results.figure", plot="density", params={"path": overview["density"][0], "plane": "x", "kind": kind})
     reply = rpc("results.figure", plot="dataset", params={"type": "nonsense"})
@@ -521,6 +521,10 @@ def test_archive_run_records(project, monkeypatch):
         kinds = [s["kind"] for s in ok("results.sources")]
         assert kinds == ["project", "archived"]
         assert ok("results.overview", outputDir=folder)["hasDataSet"]
+        # a secondary-particle run (its input snapshot has secondarybeam 1) is flagged: no envelope curves
+        with open(os.path.join(folder, "inputs", "input.txt"), "a", encoding="utf-8") as fh:
+            fh.write("\nsecondarybeam 1\n")
+        assert ok("results.overview", outputDir=folder)["secondary"] is True
         fig = ok("results.figure", plot="dataset", params={"type": "rms_x"}, outputDir=folder)
         assert fig["kind"] == "lines" and fig["traces"]
         assert ok("runs.rename", folder=folder, label="v2")["label"] == "v2"

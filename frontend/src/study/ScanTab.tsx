@@ -9,7 +9,7 @@ import { Badge, Button, Checkbox, CommitInput, Empty, Field, IconButton, Section
 import { fmtG, fmtSeconds, runStatusLabel } from "../format";
 import { useT } from "../i18n";
 import { setPage, showResults, useApp } from "../store/app";
-import { AxisPicker, type AxisSpec, METRIC_LABEL, ValuesField, axisComplete, useProjectLattice } from "./common";
+import { AxisPicker, type AxisSpec, METRIC_LABEL, SeedDefectNote, ValuesField, axisComplete, useProjectLattice } from "./common";
 
 type Target = { kind: string; file: string; param: string; label: string; unit: string; original: string | null };
 type Row = { index: number; values: number[]; seconds?: number; folder?: string; output_dir?: string; error?: string; [metric: string]: unknown };
@@ -182,6 +182,7 @@ export function ScanTab() {
             ? t("The linear model gives a quick map; check the interesting points with the engine.")
             : t("Each point runs on a copy of the inputs with a fixed random seed; a point already computed with the same inputs is taken from the cache.")}
         </p>
+        <SeedDefectNote enabled={fidelity === "engine"} />
       </Section>
 
       {used.map((spec, k) => (

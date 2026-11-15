@@ -9,8 +9,9 @@ export type Device = "auto" | "cpu" | "cuda" | "metal";
 export type Precision = "auto" | "fp64" | "fp32";
 export type Compat = "none" | "dll";
 
-/** The page's form; the keys are the keys of ini.ini [engine]. */
-export type EngineForm = { kernel: Kernel; device: Device | string; precision: Precision | string; gpus: string; threads: string; compat: Compat | string };
+/** The page's form; the keys are the keys of ini.ini [engine].  kernel "" = not written: the project follows the
+ *  default computing kernel (the global preference, else the built-in default). */
+export type EngineForm = { kernel: Kernel | ""; device: Device | string; precision: Precision | string; gpus: string; threads: string; compat: Compat | string };
 export const ENGINE_KEYS = ["kernel", "device", "precision", "gpus", "threads", "compat"] as const;
 /** Defaults of the new kernel's options (avas.engines.DEFAULTS); the kernel's default depends on the platform. */
 export const ENGINE_DEFAULTS = { device: "auto", precision: "auto", gpus: "all", threads: "0", compat: "none" } as const;
@@ -29,7 +30,11 @@ export type CudaDevice = { index: number; name: string; compute: string; fp64Ful
 export type EngineInfo = {
   platform: string;
   originalAvailable: boolean;
+  /** the kernel of projects without [engine] kernel: the global preference, else the built-in default */
   defaultKernel: Kernel;
+  builtinKernel?: Kernel;
+  /** Settings → Default computing kernel ("" = not set) */
+  preference?: Kernel | "";
   original: { file: string; exists: boolean; sha1: string | null };
   new: {
     available: boolean;
@@ -98,10 +103,65 @@ export function compatProblem(device: string, compat: string): string | null {
   return null;
 }
 
-/** The problems of a form (empty: it can be saved); the back end checks the same combinations. */
-export function formProblems(form: EngineForm, originalAvailable: boolean): string[] {
+/** gui.json key of the global "default computing kernel" (Settings menu; avas.engines.PREFERENCE_KEY). */
+export const DEFAULT_KERNEL_SETTING = "engine/defaultKernel";
+
+/** The kernel of projects that do not choose one: the global preference, else the built-in default; the
+ *  preference "original" where the original kernel does not run falls back to the built-in default
+ *  (avas.engines.default_choice_kernel). */
+export function effectiveDefaultKernel(preference: unknown, builtin: Kernel, originalAvailable: boolean): Kernel {
+  const p = typeof preference === "string" ? preference.trim().toLowerCase() : "";
+  if (p === "original") return originalAvailable ? "original" : builtin;
+  if (p === "new") return "new";
+  return builtin;
+}
+
+/** Whether the preference "original" is ignored here (no original kernel on this platform). */
+export function preferenceIgnored(preference: unknown, originalAvailable: boolean): boolean {
+  return typeof preference === "string" && preference.trim().toLowerCase() === "original" && !originalAvailable;
+}
+
+/** The kernel a form runs with: its own choice, else the default kernel. */
+export function formKernel(form: Pick<EngineForm, "kernel">, defaultKernel: Kernel): Kernel {
+  return form.kernel || defaultKernel;
+}
+
+/** The original kernel and the compatibility mode (compat = dll), with a random seed other than 0, generate an
+ *  initial distribution with x fully correlated with the phase (correlation −1); the new kernel's default mode
+ *  does not.  *seed*: the randomseed value (text or number; empty / invalid = no warning). */
+export function seedDefect(kernel: string | null | undefined, compat: string | null | undefined, seed: string | number | null | undefined): boolean {
+  if (kernel !== "original" && !(kernel === "new" && compat === "dll")) return false;
+  const n = typeof seed === "number" ? seed : Number(String(seed ?? "").trim() || "0");
+  return Number.isFinite(n) && Math.trunc(n) !== 0;
+}
+
+/** Whether a kernel reads only the file named by beam.txt readparticledistribution for secondary particles (the
+ *  original kernel and compat = dll); the new kernel's default mode reads SeParticle.txt when beam.txt names none. */
+export function secondaryNeedsBeamFile(kernel: string | null | undefined, compat: string | null | undefined): boolean {
+  return kernel === "original" || (kernel === "new" && compat === "dll");
+}
+
+/** Whether two runs used different kernels or modes (original / new / new compat = dll), so differences between
+ *  them may come from the kernel.  false when either record has no kernel information. */
+export function kernelsDiffer(a: unknown, b: unknown): boolean {
+  const x = normalizeEngine(a);
+  const y = normalizeEngine(b);
+  if (!x || !y) return false;
+  const mode = (e: EngineSummary) => (e.kernel === "original" ? "original" : e.compat === "dll" ? "new-dll" : "new");
+  return mode(x) !== mode(y);
+}
+
+/** Whether any two of several runs used different kernels or modes (records without information are skipped). */
+export function kernelsDifferAmong(records: unknown[]): boolean {
+  const known = records.filter((r) => normalizeEngine(r));
+  return known.some((r) => kernelsDiffer(r, known[0]));
+}
+
+/** The problems of a form (empty: it can be saved); the back end checks the same combinations.  *defaultKernel*:
+ *  the kernel of a form that does not choose one. */
+export function formProblems(form: EngineForm, originalAvailable: boolean, defaultKernel: Kernel = "new"): string[] {
   const out: string[] = [];
-  if (form.kernel === "original") {
+  if (formKernel(form, defaultKernel) === "original") {
     if (!originalAvailable) out.push(t("Computing kernel: the original kernel does not run on this platform; choose the new kernel"));
     return out;
   }
@@ -112,9 +172,10 @@ export function formProblems(form: EngineForm, originalAvailable: boolean): stri
   return out;
 }
 
-/** The ini.ini [engine] lines the form is saved as (the kernel explicitly, other keys only when not the default). */
+/** The ini.ini [engine] lines the form is saved as (the kernel when the form chooses one, other keys only when not
+ *  the default). */
 export function iniLines(form: EngineForm): string[] {
-  const out = [`kernel = ${form.kernel}`];
+  const out = form.kernel ? [`kernel = ${form.kernel}`] : [];
   for (const key of ENGINE_KEYS.slice(1)) {
     const value = String(form[key]).trim();
     if (value && value !== ENGINE_DEFAULTS[key as keyof typeof ENGINE_DEFAULTS]) out.push(`${key} = ${value}`);

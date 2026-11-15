@@ -160,10 +160,42 @@ def _format_lines(form):
     return out
 
 
+SECONDARY_COLUMNS = 11       # x y z vx vy vz charge mass weight time kind (the first ten numeric)
+
+
+def clean_secondary(text):
+    """The secondary-particle table without blank lines; :class:`UserError` naming the first line with fewer
+    than 11 columns or a non-numeric value in the first ten.  The original kernel reads every line as a particle
+    and reads past the end of a short or blank line (undefined behaviour), so the file is checked before it
+    is written."""
+    rows = []
+    for number, line in enumerate((text or "").splitlines(), 1):
+        parts = line.split()
+        if not parts:
+            continue                                     # blank lines are dropped
+        if len(parts) < SECONDARY_COLUMNS:
+            raise UserError("Secondary particles, line {line}: {count} columns; every particle needs 11 (x y z vx vy vz charge mass weight time kind).",
+                            line=number, count=len(parts))
+        for col, value in enumerate(parts[:SECONDARY_COLUMNS - 1], 1):
+            try:
+                float(value)
+            except ValueError:
+                raise UserError("Secondary particles, line {line}, column {column}: '{value}' is not a number.",
+                                line=number, column=col, value=value) from None
+        rows.append(line.rstrip())
+    return "\n".join(rows) + ("\n" if rows else "")
+
+
 @rpc("beam.save")
 def save(form, secondary=None, restoredFrom=None):
     require_unlocked()
     p = context.project().require()
+    if secondary is not None and secondary.get("text") is not None:
+        # checked before anything is written (blank lines are dropped) when it is used or edited; an unused,
+        # unchanged file does not block saving beam.txt
+        changed = normalized_write_text(secondary["text"]) != normalized_write_text(_secondary(p)["text"])
+        if secondary.get("on") or changed:
+            secondary = dict(secondary, text=clean_secondary(secondary["text"]))
     path = p.input_file("beam.txt")
     new = _format_lines(form)
     old_lines = read_text(path).splitlines() if os.path.isfile(path) else []

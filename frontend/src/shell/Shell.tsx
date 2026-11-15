@@ -26,6 +26,7 @@ import { canQuit } from "../host";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { EngineBadge } from "../components/EngineBadge";
 import { useEngineInfo } from "../store/engine";
+import { DEFAULT_KERNEL_SETTING, effectiveDefaultKernel, preferenceIgnored } from "../engine";
 import { Button, cx, Icon, IconButton, Spinner } from "../components/ui";
 import { LANGUAGES, t as tr, useT, type Language } from "../i18n";
 import { keyMatches, SHORTCUT, SHORTCUTS, type ShortcutId } from "./shortcuts";
@@ -140,6 +141,30 @@ function showShortcuts() {
   );
 }
 
+
+/** Settings → Default computing kernel: the kernel of projects without "kernel" in ini.ini [engine] (gui.json
+ *  engine/defaultKernel, read by every `avas run`, research and sandbox run; avas.engines.default_choice_kernel). */
+function defaultKernelMenu(pref: string, t: (s: string, p?: Record<string, string | number>) => string): MenuItem {
+  const info = useEngineInfo.getState().info;
+  void useEngineInfo.getState().load();
+  const builtin = info?.builtinKernel ?? info?.defaultKernel ?? null;
+  const name = (k: string | null) => (k === "original" ? t("Original kernel") : k === "new" ? t("New kernel (preview)") : t("Unknown"));
+  const originalAvailable = info?.originalAvailable ?? true;
+  const items: MenuItem[] = [
+    { label: builtin ? t("Built-in default ({kernel})", { kernel: name(builtin) }) : t("Built-in default"), checked: !pref, onClick: () => persist({ [DEFAULT_KERNEL_SETTING]: "" }) },
+    {
+      label: originalAvailable ? t("Original kernel") : t("Original kernel (not available here: the built-in default is used)"),
+      checked: pref === "original",
+      onClick: () => persist({ [DEFAULT_KERNEL_SETTING]: "original" }),
+    },
+    { label: t("New kernel (preview)"), checked: pref === "new", onClick: () => persist({ [DEFAULT_KERNEL_SETTING]: "new" }) },
+    { type: "header", label: t("Projects that choose a kernel in Simulation settings keep it.") },
+  ];
+  if (builtin && preferenceIgnored(pref, originalAvailable))
+    items.push({ type: "header", label: t("Now used: {kernel}", { kernel: name(effectiveDefaultKernel(pref, builtin, originalAvailable)) }) });
+  return { label: t("Default computing kernel"), icon: "server-process", submenu: items };
+}
+
 function MenuBar() {
   const t = useT();
   const lang = useLang((s) => s.lang);
@@ -159,6 +184,7 @@ function MenuBar() {
   const theme = useApp((s) => s.theme);
   const scale = useApp((s) => s.scale);
   const pointer = useApp((s) => pointerDevice(s.settings));
+  const defaultKernelPref = useApp((s) => s.settings[DEFAULT_KERNEL_SETTING] ?? "");
   const motion = useApp((s) => s.settings["ui/motion"] ?? "full");
   const anyDirty = useDirty((s) => Object.values(s.dirty).some(Boolean));
 
@@ -245,6 +271,7 @@ function MenuBar() {
           label: t("Language"),
           submenu: (Object.keys(LANGUAGES) as Language[]).map((code) => ({ label: LANGUAGES[code], checked: lang === code, onClick: () => setLanguage(code) })),
         },
+        defaultKernelMenu(String(defaultKernelPref), t),
         {
           label: t("Pointer device (all plots)"),
           submenu: [

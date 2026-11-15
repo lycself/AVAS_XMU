@@ -14,7 +14,7 @@ Keep this manual open while working. Drag the title bar to move it or its edges 
 
 ini.ini defines the project inputs and outputs. InputFile holds beam, settings, lattice and field-map files; OutputFile holds the latest full run. The lattice/source setting selects the simulation lattice; its filename is not necessarily lattice_mulp.txt.
 
-Use the File menu or project switcher to open another project. Unsaved changes are checked before switching or closing. Files is the browser of InputFile: raw text, field-map profiles and slices, particle files, and importing, duplicating, renaming and recycling. Everyday edits happen on their own pages: the initial particle distribution and secondary particles on Beam, boundary.txt and scanData.txt on Simulation settings.
+Use the File menu or project switcher to open another project. Unsaved changes are checked before switching or closing. Files is the browser of InputFile: raw text, field-map profiles and slices, particle files, and importing, duplicating, renaming and recycling. Everyday edits happen on their own pages: the initial particle distribution and secondary particles on Beam, boundary.txt on Simulation settings. No kernel reads the scanData.txt of older projects; it can only be viewed as raw text on Files.
 
 Inputs are read-only during a run. You can still inspect files and results.
 
@@ -24,7 +24,9 @@ Use Beam to configure energy, current, particle count and distribution. Saving u
 
 The beam reference entries below provide keyword meanings, units and choices. With “Read particles from a .dst file” checked and a file chosen, the page shows that file’s particles (x-x′, y-y′, φ-W; the red curve is the rms ellipse of the particles), and “Fill parameters from file” copies mass, current, energy and Twiss into the form.
 
-Checking “Secondary beam” writes secondarybeam 1 in input.txt and edits SeParticle.txt in the table below it (one particle per row); the synchronous particle still comes from the beam parameters. “History” lists the saved versions of beam.txt; restoring one fills the form as one undoable change, written to the file when you save.
+Checking “Secondary beam” writes secondarybeam 1 in input.txt and edits SeParticle.txt in the table below it (one particle per row); the synchronous particle still comes from the beam parameters. Saving checks that every row has at least 11 columns (x y z vx vy vz charge mass weight time kind, the first ten numeric) and drops blank rows. The new kernel's default mode reads SeParticle.txt when beam.txt has no `readparticledistribution`; the original kernel and the new kernel's compatibility mode (Reproduce AVAS.dll) read only the file named by `readparticledistribution` in beam.txt, and the page shows a notice in that case (AVAS does not rewrite beam.txt). Secondary-particle runs write no envelope (DataSet.txt is empty); the results are in `outData_*.txt` and `SeSynParticle.txt`, and the run log says so. Segment runs refuse secondarybeam 1.
+
+“History” lists the saved versions of beam.txt; restoring one fills the form as one undoable change, written to the file when you save.
 
 ## Lattice editing
 
@@ -40,7 +42,11 @@ The Periods tab of Text + Structure analyses the periods marked by `lattice n 1`
 
 ## Simulation settings
 
-The Simulation settings page manages simulation options in input.txt and the computing kernel in ini.ini (see Computing kernels) with undo and redo. See the input reference entries for individual fields. With “Apply boundary (boundary.txt)” checked, the loss boundary table is edited below it. Neither kernel reads `scanphase` or scanData.txt: the Phase scan row says so, and the entry-phase table under “from scanData.txt” is folded by default; unfolded it can still be edited and is saved with the page, the file stays in the project, and the RF phases come from V3 of the field lines. The tables are saved with the page; an empty table does not create a file. “History” lists the saved versions of input.txt and restores them as on the Beam page.
+The Simulation settings page manages simulation options in input.txt and the computing kernel in ini.ini (see Computing kernels) with undo and redo. See the input reference entries for individual fields. With “Apply boundary (boundary.txt)” checked, the loss boundary table is edited below it; the table is saved with the page, and an empty table does not create a file. “History” lists the saved versions of input.txt and restores them as on the Beam page.
+
+Neither the original nor the new kernel reads `scanphase` in input.txt or scanData.txt; the RF phases come only from the phase parameter of the field lines (V3 = 0: synchronous phase, for which the kernel finds the entrance phase by its own phase scan; V3 = 2: absolute phase at t = 0), so the page no longer offers a phase-scan option. When input.txt contains a `scanphase` line, a one-line notice says that the kernels do not read it, and the line is removed when the page is saved. scanData.txt is not deleted and can still be viewed as raw text on Files.
+
+With the original kernel or the new kernel's compatibility mode (Reproduce AVAS.dll) and `randomseed` ≠ 0, the generated initial distribution has x fully correlated with the phase (correlation −1), a defect of the original kernel; the page warns next to the random seed. The new kernel's default mode does not have this defect.
 
 CPU multithreading writes multithreading 1 when enabled and removes the line when disabled. Do not manually write multithreading 0: the engine loses all particles at the start with that value.
 
@@ -48,11 +54,13 @@ Resolve lattice errors and missing field maps before running. The linear envelop
 
 ## Computing kernels {#guide-kernels}
 
-AVAS has two computing kernels. The **original kernel** (AVAS.dll / libAVAS.so) exists for Windows and Linux x86-64 only; the **new kernel (preview)** is the rebuilt kernel, computing on the CPU, NVIDIA GPUs (CUDA) and Mac GPUs (Metal), and supports the PICNIC space-charge solver. The kernel is chosen per project and stored in the `[engine]` section of ini.ini; the original kernel still reads the same project (input.txt does not change).
+AVAS has two computing kernels. The **original kernel** (AVAS.dll / libAVAS.so) exists for Windows and Linux x86-64 only; the **new kernel (preview)** is the rebuilt kernel, computing on the CPU, NVIDIA GPUs (CUDA) and Mac GPUs (Metal), and supports the PICNIC space-charge solver. A project can choose its kernel, stored in the `[engine]` section of ini.ini; the original kernel still reads the same project (input.txt does not change). Projects without their own choice use the default computing kernel.
+
+**Settings → Default computing kernel** offers Built-in default, Original kernel and New kernel, stored in the interface preferences (gui.json). The built-in default is the original kernel on platforms that have it and the new kernel on platforms without it, such as macOS; choosing Original kernel on a platform without it (macOS, ARM) falls back to the built-in default with a note. The kernel of a run is decided in this order: command line > environment variables `AVAS_ENGINE*` > `kernel` in the project's ini.ini `[engine]` > the default computing kernel > the built-in default. The default computing kernel also applies to `avas run` on the command line (read from the same gui.json, or from the file named by the environment variable `AVAS_GUI_SETTINGS`), research runs and the assistant's sandbox runs.
 
 Choose it in **Simulation settings → Computing kernel**:
 
-- **Kernel**: the original kernel or the new kernel (preview). Platforms with the original kernel use it by default; platforms without it, such as macOS, default to the new kernel, and the page says that this platform only has the new kernel. When the new kernel's library is missing, the option cannot be chosen and the page explains how to get it.
+- **Kernel**: the original kernel or the new kernel (preview). When the project's `[engine]` has no `kernel`, the page says that it follows the default (and which kernel that currently is); the Follow the default button removes the project's own choice. On platforms without the original kernel, such as macOS, the page says that this platform only has the new kernel. When the new kernel's library is missing, the option cannot be chosen and the page explains how to get it.
 - **Device**: Automatic, CPU, and the NVIDIA GPU or Mac GPU detected on this computer; the refresh button at the top right detects them again. With Automatic, the line below shows what this project's runs will use: CUDA when an NVIDIA GPU is present; on a Mac, Metal for runs with space charge and the CPU without; otherwise the CPU.
 - **Precision**: Automatic, fp64 or fp32. Metal computes in fp32 only and the CPU in fp64 only; invalid combinations cannot be chosen. Automatic means fp64 on the CPU and on GPUs with full-rate fp64, fp32 on other GPUs and on Metal.
 - **GPUs**: shown when the computer has several NVIDIA GPUs; with no GPU ticked, all are used.
@@ -60,9 +68,11 @@ Choose it in **Simulation settings → Computing kernel**:
 
 With the original kernel, device, precision and the advanced options are disabled: they apply only to the new kernel. The settings are saved with the page, `[engine]` is written only when it changed, and the run lock applies. `avas run --engine … --device …` and the `AVAS_ENGINE*` environment variables take precedence over ini.ini; the page warns when such variables are set.
 
+The original kernel's old GPU path on Linux (ini.ini `[input] device = gpu`, using libPIC.so) is deprecated: the run log warns, and it will be removed in a later release. Use the new kernel's NVIDIA GPU instead (`avas run --engine new --device cuda`, or Simulation settings → Computing kernel).
+
 Before a run starts (the Run page, segment runs, error studies, engine scans and response matrices of the Study page, the assistant's trial runs), AVAS checks that the chosen device exists and the combination is valid and says so at once, instead of switching to the CPU silently. With the original kernel, choosing PICNIC shows “Only the new kernel supports PICNIC” next to the solver, and the run is stopped before it starts.
 
-The kernel each run actually used is recorded in the `engine` entry of avas_run.json. The Run page (run details, live panel, run records), the status bar, the sources of the Results page and run comparison show it as a label such as “New kernel (preview) · Metal fp32” or “Original kernel”; when Automatic fell back to the CPU the label reads “actual: CPU (reason)”. During a run the expected device is shown, replaced by the actual one when it finishes; older records without this information show no label. Run comparison compares original-kernel and new-kernel runs of the same project directly. Different kernels and result tiers (original, new CPU fp64, CUDA fp64, fp32, reproduce AVAS.dll) use different random-number streams and arithmetic, so their results differ within statistical noise; only runs of the same tier and seed compare value by value.
+The kernel each run actually used is recorded in the `engine` entry of avas_run.json. The Run page (run details, live panel, run records), the status bar, the sources of the Results page and run comparison show it as a label such as “New kernel (preview) · Metal fp32” or “Original kernel”; when Automatic fell back to the CPU the label reads “actual: CPU (reason)”. During a run the expected device is shown, replaced by the actual one when it finishes; older records without this information show no label. Run comparison compares original-kernel and new-kernel runs of the same project directly; when the two runs used different kernels or compatibility modes, the Run page's comparison with the previous run and the Compare tab of Results note that differences may come from the kernel. Different kernels and result tiers (original, new CPU fp64, CUDA fp64, fp32, reproduce AVAS.dll) use different random-number streams and arithmetic, so their results differ within statistical noise; only runs of the same tier and seed compare value by value.
 
 **Help → About AVAS** lists both kernels' versions, the new kernel's build options and this computer's devices; Copy version information includes them.
 
@@ -88,7 +98,7 @@ The bunch and particle cloud are illustrations based on rms envelopes, not actua
 
 The Study page (formerly Scan) has four tabs; everything runs on copies of the inputs and leaves the project's inputs and full-run results alone.
 
-Parameter scan: choose one or two axes (a lattice element parameter, or a beam.txt / input.txt keyword) and their values, with the linear model (a whole map in seconds) or the engine (one multi-particle simulation per point, one at a time, pausable and stoppable on Run). One axis gives a curve, two a heat map; click a point to see its envelope along the line, or open an engine run on Results. Engine runs use a fixed random seed and are kept in `Research/gui/`; a point with identical inputs comes from the cache, and `avas.research` in scripts reads the same runs. Scan descriptions live in `Research/gui/scans/`. Scans from the old `Scans/` remain listed.
+Parameter scan: choose one or two axes (a lattice element parameter, or a beam.txt / input.txt keyword) and their values, with the linear model (a whole map in seconds) or the engine (one multi-particle simulation per point, one at a time, pausable and stoppable on Run). One axis gives a curve, two a heat map; click a point to see its envelope along the line, or open an engine run on Results. Engine runs use a fixed random seed and are kept in `Research/gui/`; a point with identical inputs comes from the cache, and `avas.research` in scripts reads the same runs. Scan descriptions live in `Research/gui/scans/`. Scans from the old `Scans/` remain listed. Research runs use the fixed random seed 12345; with the original kernel or the compatibility mode (Reproduce AVAS.dll), the scan and response tabs warn that the initial distribution generated this way has x fully correlated with the phase (see Simulation settings).
 
 Stability chart: choose a period and two axes (element parameter or beam current); every point gets the matched beam with space charge, the phase advances and the envelope stability, drawn as heat maps. Empty cells have no matched beam.
 
@@ -100,9 +110,9 @@ Feedback: simulate pulse-to-pulse orbit feedback with gain, delay, a drifting el
 
 Choose the latest output, a kept run, a segment result, an engine run of the Study page or another output directory in Results, then select plots or phase-space views. Interactive zoom and figure export are available. Envelope, centroid, energy and emittance plots can overlay the linear model of the run's own inputs (dashed, Linear model) to show what the multi-particle simulation adds.
 
-Compare runs overlays the same quantity from multiple runs. Check units, inputs and coordinate ranges before comparing. Multithreaded simulations can differ slightly; output need not be byte-identical.
+Compare runs overlays the same quantity from multiple runs. Check units, inputs and coordinate ranges before comparing. Multithreaded simulations can differ slightly; output need not be byte-identical. When the runs used different kernels or compatibility modes, the comparison notes that differences may come from the kernel.
 
-Replay lives in Run; Results is for analysis. NaN rms columns can be normal for a single-particle calculation; check surviving particles and logs as well.
+Replay lives in Run; Results is for analysis. NaN rms columns can be normal for a single-particle calculation; check surviving particles and logs as well. Secondary-particle runs have no envelope (DataSet.txt is empty); Results notes that there are no envelope curves, and the data are in `outData_*.txt` and `SeSynParticle.txt`.
 
 ## AI assistant
 

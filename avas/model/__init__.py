@@ -38,8 +38,8 @@ normalised rms emittances (z plane: z in mm, δ = Δp/p in mrad).  The RF phase
 of the transverse fields is the one of the reference particle.
 Not modelled: dipole / steering content of maps (a warning is given),
 superposeout offsets, chromatic and non-linear effects (e.g. the growth of
-the longitudinal emittance in low-energy cavities), losses, ``scanphase`` of
-input.txt.
+the longitudinal emittance in low-energy cavities), losses.  (``scanphase`` of
+input.txt is read by no kernel, so it is ignored here too.)
 """
 from avas.model.beam import read_beam  # noqa: E402
 from avas.model.common import PreviewError  # noqa: E402

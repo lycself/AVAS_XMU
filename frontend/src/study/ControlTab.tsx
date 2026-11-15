@@ -8,7 +8,7 @@ import { Badge, Button, Checkbox, CommitInput, Empty, Field, IconButton, NumberI
 import { fmtG } from "../format";
 import { useT } from "../i18n";
 import { setPage, useApp } from "../store/app";
-import { elementLabel, useProjectLattice } from "./common";
+import { elementLabel, SeedDefectNote, useProjectLattice } from "./common";
 
 export type Monitor = { name: string; z: number; kind: "position" | "size"; planes: string; resolution: number; line?: number | null };
 export type Knob = { target: string | number; param: string; kind: "lattice" | "error" | "beam"; step?: number | null; lower?: number | null; upper?: number | null };
@@ -217,6 +217,7 @@ export function ControlTab({ spec, setSpec, reload }: { spec: Spec | null; setSp
           <NumberInput value={particles} onCommit={(v) => setParticles(Math.max(1, Math.round(v ?? 200)))} />
         </Field>
       </div>
+      <SeedDefectNote />
       {resp ? <ResponseView resp={resp.data} source={resp.source} dark={dark} /> : <Empty icon="graph" title={t("No response computed yet")} />}
 
       <Section title={t("Modes of one period")} icon="pulse" description={t("The centroid of a period as x_{n+1} = A·x_n + B·u_n, y_n = C·x_n: which motions the period's knobs can steer and its monitors can see.")}>

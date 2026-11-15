@@ -414,7 +414,7 @@ export default function FilesPage() {
     else if (opened.kind === "boundary")
       table = <TokenTable {...tprops} columns={BOUNDARY_COLUMNS} wrapStartEnd hint={tt("Used when 'Apply boundary' is enabled on the Simulation settings page; lattice apertures are then ignored.")} />;
     else if (opened.kind === "scandata")
-      table = <TokenTable {...tprops} columns={scanDataColumns()} rowLabels={cavities} hint={tt("Read when phase scan mode is 2 (Simulation settings page); rows follow the RF cavities in lattice order.")} />;
+      table = <TokenTable {...tprops} columns={scanDataColumns()} rowLabels={cavities} hint={tt("No kernel reads scanData.txt (nor scanphase in input.txt); the file is only kept for old projects.")} />;
     else if (opened.kind === "separticle")
       table = <TokenTable {...tprops} columns={schema.separticle.map((c) => ({ caption: c.unit ? `${pick(c.label)} (${c.unit})` : pick(c.label), tip: pick(c.label) }))} hint={tt("Secondary particles, read when secondarybeam is 1 in input.txt.")} />;
     else if (opened.kind === "tracewin_lattice") table = <TraceWinTable text={text} schema={schema} />;

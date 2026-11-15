@@ -6,6 +6,8 @@
 * ``engine.preview``: what a choice of the Simulation settings form would run on for this project.
 * ``engine.check`` / :func:`require_ready`: the check before every run (run page, segment runs, the Study
   page's engine runs, the assistant's sandbox) -- a clear message instead of a failing child process.
+* ``engine.effective``: the kernel a run of the open project resolves to (hints of the beam and research
+  pages that depend on the kernel), without a child process.
 * :func:`summary`: the ``engine`` entry of a run record (avas_run.json) shortened for the labels of the
   Run / Results pages; old records without it give ``None``.
 * :func:`settings_form` / :func:`save_settings`: the "Computing kernel" group of the Simulation settings
@@ -45,8 +47,10 @@ def info(refresh=False):
         engines.clear_query_cache()
     data, error = _query(EngineChoice(kernel="new"))
     orig_path = engines.original_library_path()
+    default, source, note = engines.default_choice_kernel()
     out = {"platform": engines.platform_label(), "originalAvailable": engines.original_available(),
-           "defaultKernel": engines.default_kernel(),
+           "defaultKernel": default, "defaultSource": source, "defaultNote": note,
+           "builtinKernel": engines.default_kernel(), "preference": engines.read_preference(),
            "original": {"file": os.path.basename(orig_path), "exists": os.path.isfile(orig_path),
                         "sha1": engines.file_sha1(orig_path)},
            "new": {"available": False, "path": None, "sha1": None, "version": None, "sourceHash": None, "build": None,
@@ -148,6 +152,20 @@ def require_ready(input_dir):
             "version": (new.get("info") or {}).get("version"), "predicted": True}
 
 
+@rpc("engine.effective")
+def effective():
+    """The kernel a run of the open project resolves to, without asking the kernel: ``{kernel, compat, source,
+    note, error}`` (*source*: cli, env, ini, preference or default; *compat* None for the original kernel).
+    The beam and research pages use it for hints that depend on the kernel."""
+    p = context.project().require()
+    try:
+        choice = engines.resolve_choice(input_dir=p.input_dir)
+    except EngineChoiceError as exc:
+        return {"kernel": None, "compat": None, "source": None, "note": None, "error": str(exc)}
+    return {"kernel": choice.kernel, "compat": choice.compat if choice.is_new else None,
+            "source": choice.sources.get("kernel"), "note": choice.sources.get("note"), "error": None}
+
+
 @rpc("engine.check")
 def check():
     """:func:`require_ready` for the open project."""
@@ -183,15 +201,23 @@ def _ini_path(input_dir):
     return os.path.join(input_dir, "ini.ini")
 
 
+def _default(key):
+    """The form's value for a key the file does not set: "" for the kernel (= follow the default computing
+    kernel: the global preference, else the built-in default), the new kernel's default otherwise."""
+    return "" if key == "kernel" else engines.DEFAULTS[key]
+
+
 def settings_form(input_dir):
-    """``{form, invalid, explicitKernel, env, originalAvailable, defaultKernel, platform}``: the ``[engine]``
-    values of the project with the defaults filled in (*form* values are strings for the page), entries that
-    are not valid, whether the kernel is written, environment variables that override the file for runs
-    started here, and whether this platform has the original kernel."""
+    """``{form, invalid, explicitKernel, env, originalAvailable, defaultKernel, defaultSource, defaultNote,
+    builtinKernel, preference, platform}``: the ``[engine]`` values of the project with the defaults filled in
+    (*form* values are strings for the page; kernel "" = not written, the project follows *defaultKernel*:
+    the global preference *preference* or the built-in default *builtinKernel*), entries that are not valid,
+    whether the kernel is written, environment variables that override the file for runs started here, and
+    whether this platform has the original kernel."""
     raw = {str(k).strip().lower(): v for k, v in read_engine_settings(_ini_path(input_dir)).items()}
     form, invalid = {}, []
     for key in engines.KEYS:
-        default = engines.default_kernel() if key == "kernel" else engines.DEFAULTS[key]
+        default = _default(key)
         value = raw.get(key)
         if value is None or str(value).strip() == "":
             form[key] = default
@@ -203,15 +229,17 @@ def settings_form(input_dir):
             form[key] = default
     form["threads"] = str(form["threads"])
     env = [name for name in engines.ENV.values() if str(os.environ.get(name, "")).strip()]
-    return {"form": form, "invalid": invalid, "explicitKernel": "kernel" in raw, "env": env,
-            "originalAvailable": engines.original_available(), "defaultKernel": engines.default_kernel(),
+    default, source, note = engines.default_choice_kernel()
+    return {"form": form, "invalid": invalid, "explicitKernel": bool(form["kernel"]), "env": env,
+            "originalAvailable": engines.original_available(), "defaultKernel": default, "defaultSource": source,
+            "defaultNote": note, "builtinKernel": engines.default_kernel(), "preference": engines.read_preference(),
             "platform": engines.platform_label()}
 
 
 def _normalized(form):
     out = {}
     for key in engines.KEYS:
-        default = engines.default_kernel() if key == "kernel" else engines.DEFAULTS[key]
+        default = _default(key)
         value = (form or {}).get(key)
         out[key] = default if value in (None, "") else engines.parse_value(key, value, key)
     return out
@@ -221,24 +249,26 @@ def validate_form(form):
     """The normalized values of a kernel form; :class:`UserError` for invalid values or combinations."""
     try:
         new = _normalized(form)
-        if new["kernel"] == "new":
-            engines.validate(EngineChoice(**new))
+        kernel = new["kernel"] or engines.default_choice_kernel()[0]
+        if kernel == "new":
+            engines.validate(EngineChoice(**dict(new, kernel="new")))
     except EngineChoiceError as exc:
         raise UserError("The computing kernel settings are invalid: {detail}", detail=str(exc)) from exc
     return new
 
 
 def save_settings(input_dir, form):
-    """Write the page's kernel form to ini.ini ``[engine]`` when it differs from the file (the kernel is
-    written explicitly, the other keys only when they are not the default).  Returns whether it wrote.
-    The caller holds the run lock check (settings.save)."""
+    """Write the page's kernel form to ini.ini ``[engine]`` when it differs from the file (the kernel only
+    when the page chose one -- "" removes it, so the project follows the default computing kernel --, the
+    other keys only when they are not the default).  Returns whether it wrote.  The caller holds the run
+    lock check (settings.save)."""
     if form is None:
         return False
     new = validate_form(form)
     current = settings_form(input_dir)
     if new == _normalized(current["form"]) and not current["invalid"]:
         return False
-    values = {"kernel": new["kernel"]}
+    values = {"kernel": new["kernel"] or None}
     for key in engines.KEYS[1:]:
         values[key] = None if new[key] == engines.DEFAULTS[key] else new[key]
     write_engine_settings(_ini_path(input_dir), values)

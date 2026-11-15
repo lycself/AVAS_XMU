@@ -7,7 +7,7 @@ import { useT } from "../i18n";
 import { useApp } from "../store/app";
 import type { LinesFig } from "./figures";
 import { EngineBadge } from "../components/EngineBadge";
-import { engineShort } from "../engine";
+import { engineShort, kernelsDifferAmong } from "../engine";
 
 export type CompareSource = { kind: string; label: string; outputDir: string; status?: string | null; time?: string | null; zStart?: number | null; engine?: unknown };
 
@@ -97,6 +97,8 @@ export function CompareTab({
   }, [figs, selected, usable, alignZ, dark, t]);
 
   const errors = selected.map((dir) => ({ dir, fig: figs[dir] })).filter((e) => e.fig && "error" in e.fig) as { dir: string; fig: { error: string } }[];
+  // runs of different kernels / modes: their differences may come from the kernel, not from the inputs
+  const mixedKernels = kernelsDifferAmong(selected.map((dir) => usable.find((s) => s.outputDir === dir)?.engine));
 
   return (
     <div className="plot-tab">
@@ -110,6 +112,11 @@ export function CompareTab({
         {loading && <Spinner />}
         <IconButton icon="refresh" tip={t("Refresh")} onClick={() => setSelected((s) => [...s])} />
       </div>
+      {mixedKernels && (
+        <div className="results-note engine-note warning-text">
+          <Icon name="info" /> {t("These runs used different kernels; differences may come from the kernel.")}
+        </div>
+      )}
       <div className="compare-layout">
         <div className="compare-sources">
           <div className="muted" style={{ marginBottom: 4 }}>

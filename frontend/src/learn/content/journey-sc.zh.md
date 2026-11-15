@@ -190,7 +190,7 @@ beam:readparticledistribution outputplane
 ### 运行与检查
 
 - 先用可视化编辑器的线性预览调 `Kb`、`Ke` 和相位：参考粒子能量误差约 0.01 %（内核的平均能量受离轴场影响，可差几个百分点的增益），rms 通常差 1–2 %；纵向非线性和发射度增长看不到，最终以多粒子内核为准。[引导教程](#tutorial) 可以在沙盒里直接运行内核比较。
-- `input.txt` 的 `steppercycle` 是每个射频周期的积分步数，示例 50；`scanphase` 决定是否扫描或从 `scanData.txt` 读取腔相位，线性预览不处理它。
+- `input.txt` 的 `steppercycle` 是每个射频周期的积分步数，示例 50；腔相位只由 field 行的 `phase` 与 V3 决定，`scanphase` 和 `scanData.txt` 没有任何内核读取。
 - `multithreading` 只能写 1 或不写：写 0 会让内核在起点丢失全部粒子（已用示例核实）。
 - 分段运行时 V3 = 2 的相位要按 $\varphi_{RF} - 360^\circ\cdot f\cdot(t_{in} - T_{entry})$ 重新换算，AVAS 的分段运行会自动处理。
 

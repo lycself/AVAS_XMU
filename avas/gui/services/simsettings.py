@@ -1,7 +1,10 @@
 """Simulation settings page: tracking options in input.txt, the run mode and the computing kernel in ini.ini
-(``[error]``, ``[engine]``, see :mod:`avas.gui.services.kernels`), and the two tables input.txt switches on
-(boundary.txt for ``boundary 1``, scanData.txt for ``scanphase 2`` -- neither kernel reads scanphase or
-scanData.txt; the page keeps them)."""
+(``[error]``, ``[engine]``, see :mod:`avas.gui.services.kernels`), and the table input.txt switches on
+(boundary.txt for ``boundary 1``).
+
+No kernel reads ``scanphase`` or scanData.txt (the original kernel, the new kernel in either mode, libPIC.so):
+the page does not offer them; an existing ``scanphase`` line is reported (``meta.hasScanphase``) and removed
+when the page saves.  scanData.txt itself is left alone (the Files page shows it)."""
 import os
 import shutil
 import tempfile
@@ -59,7 +62,7 @@ def _triple(values):
     return [safe_str(vals[i], "") if i < len(vals) else "" for i in range(3)]
 
 
-COMPANIONS = {"boundary": "boundary.txt", "scanData": "scanData.txt"}
+COMPANIONS = {"boundary": "boundary.txt"}
 
 
 def _companions(p):
@@ -101,14 +104,12 @@ def parse(text):
 
 def _read(item, p):
     d = create_from_file_input_ini(item)["data"]["inputiniParams"]
-    scan = d.get("scanphase")
     form = {
         "sim_type": d.get("sim_type") or "mulp",
         "steppercycle": safe_str(d.get("steppercycle"), "100"),
         "dumpperiodicity": safe_str(d.get("dumpperiodicity"), "0"),
         "randomseed": safe_str(d.get("randomseed"), "0"),
         "multithreading": safe_int(d.get("multithreading"), 0) == 1,
-        "scanphase": "default" if scan is None else str(safe_int(scan, 0)),
         "spacecharge": safe_int(d.get("spacecharge"), 1) == 1,
         "scmethod": d.get("scmethod") or "SPICNIC",
         "numofgrid": _triple(d.get("numofgrid")),
@@ -131,7 +132,8 @@ def _read(item, p):
     meta = {
         "device": d.get("device") or "cpu",
         "hadThreadsKey": d.get("multithreading") is not None,
-        "hasScanData": os.path.isfile(p.input_file("scanData.txt")),
+        # neither kernel reads it; the page says so and saving removes the line
+        "hasScanphase": d.get("scanphase") is not None,
         "inputPath": p.input_file("input.txt"),
         "iniPath": p.input_file("ini.ini"),
     }
@@ -156,7 +158,6 @@ def save(form, meta, companions=None, restoredFrom=None, engine=None):
     if engine is not None:
         kernels.validate_form(engine)                   # before anything is written
     item = p.item()
-    scan = form.get("scanphase")
     values = {
         "sim_type": form.get("sim_type") or "mulp",
         "scmethod": form.get("scmethod") or "SPICNIC",
@@ -178,7 +179,7 @@ def save(form, meta, companions=None, restoredFrom=None, engine=None):
         # when the user asked for a value.  "multithreading 0" is never written: the
         # engine then loses every particle (checked 2026-09-19), so "off" removes the line.
         "multithreading": 1 if form.get("multithreading") else None,
-        "scanphase": None if scan in (None, "", "default") else safe_int(scan, 0),
+        "scanphase": None,                              # no kernel reads it: the line is removed
         "numofgrid": _read_triple(form.get("numofgrid") or [], int),
         "meshrms": _read_triple(form.get("meshrms") or [], float),
     }

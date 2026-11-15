@@ -146,7 +146,7 @@ def load_new_library(path):
 
 
 class MultiParticleEngine:
-    """Loads the kernel once; ``get_path`` sets the folders, ``main_agent`` runs (1) or stops (2) it.
+    """Loads the kernel once; ``get_path`` sets the folders, ``main_agent`` runs it.
 
     *choice*: :class:`avas.engines.EngineChoice` (default: the one of the running ``avas run``, else
     from the environment).  The loaded library is ``self.library`` on every platform.  The engine's
@@ -216,8 +216,10 @@ class MultiParticleEngine:
                                f"input={inputfilepath}, output={outputfilePath}, field={fieldfilePath}")
         return res
 
-    def main_agent(self, value):
-        """``value`` 1 = run, 2 = stop.  Returns the engine status (0 ok; 1 / 2 = error, see ErrorLog.txt)."""
+    def main_agent(self, value=1):
+        """Run the simulation.  The kernel does **not** read *value* (pass 1): every call runs the whole
+        simulation -- the old "2 = stop" made the original kernel run it again.  A run is stopped by ending
+        its process.  Returns the engine status (0 ok; 1 / 2 = error, see ErrorLog.txt)."""
         if int(value) == 1 and self.new is not None:
             self.new.set_options(self.choice.engine_options())     # Python's choice wins over the environment
             self.check_device()

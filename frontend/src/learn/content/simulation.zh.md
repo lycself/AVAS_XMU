@@ -115,7 +115,7 @@ $$
 | 损失 | 只提示 3 倍 rms 超过孔径 | 逐粒子判定 |
 | 场图的二极 / 校正分量 | 不计偏转（给出提示） | 包含 |
 
-> **注意**：预览不包含低能腔中的纵向非线性、色差、`superposeout` 的偏移和 `scanphase`。设计结论以内核为准；预览与内核差别大时，通常说明非线性或空间电荷效应强，正需要多粒子模拟。
+> **注意**：预览不包含低能腔中的纵向非线性、色差和 `superposeout` 的偏移。设计结论以内核为准；预览与内核差别大时，通常说明非线性或空间电荷效应强，正需要多粒子模拟。
 
 ## 容易误解的地方 {#simulation-misconceptions}
 
@@ -134,7 +134,7 @@ $$
 beam:particlenumber beam:randomseed beam:current beam:frequency
 ```
 
-`randomseed` 是生成初始束流的随机数种子。手册把它列在 `beam.txt` 的关键字中，示例项目却写在 `input.txt` 里（`randomseed 0`，schema 两处都接受）；两处都写时内核用哪一个、0 是否有特殊含义，手册没有说明，以内核为准。
+`randomseed` 是生成初始束流的随机数种子。手册把它列在 `beam.txt` 的关键字中，示例项目却写在 `input.txt` 里（`randomseed 0`，schema 两处都接受）；两处都写时内核用哪一个、0 是否有特殊含义，手册没有说明，以内核为准。注意原内核的一个缺陷：`randomseed` 不为 0 时，原内核（以及新内核的兼容模式 compat = dll）生成的初始分布中 $x$ 与相位完全相关（相关系数 −1），初始分布因此不对；模拟设置页会在随机种子旁警告。新内核的默认模式没有这个缺陷。
 
 ### 初始分布的关键字
 
@@ -173,8 +173,8 @@ input:multithreading input:dumpperiodicity input:boundary input:longlimits input
 - **多线程**：写 `multithreading 1` 使用多线程，单线程就**不写这一行**。手册说 0 表示关闭，但内核遇到 `multithreading 0`（以及 2、3 等）会在起点丢失全部粒子（已用示例项目核实）。界面的模拟设置页已按此处理。
 - **损失边界**：粒子超出元件孔径 `R` 记为损失；`boundary 1` 时改用 `boundary.txt` 中的边界，lattice 中的半径不再生效，损失粒子写入 `CollisionData.txt`。`longlimits 1 相位 能量` 打开纵向损失判定，与 [纵向动力学](#longitudinal) 中的分界线概念对应。
 - **粒子数据**：`dumpperiodicity V1` 每 $V_1$ 步把全部粒子写入 `Beamset.plt`（0 表示不写）；文件可能很大。`pchistogram 1 份数` 生成 `pchistogram.dat`。
-- **相位扫描**：`scanphase` 控制射频腔的相位扫描或从 `scanData.txt` 读取相位（见 [纵向动力学](#longitudinal)）。
-- **GPU**：AVAS 的 GPU 版本只有 Linux 上预编译的库，Windows 上用多线程 CPU 计算。
+- **相位扫描**：原手册称 `scanphase` 控制射频腔的相位扫描或从 `scanData.txt` 读取相位，但没有任何内核读取它们；腔的相位只由 field 行的 `phase` 与 V3 决定（见 [纵向动力学](#longitudinal)），模拟设置页保存时会删除残留的 `scanphase` 行。
+- **GPU**：新内核可在 NVIDIA GPU（CUDA）和 Mac GPU（Metal）上计算，在模拟设置页的“计算内核”中选择。原内核在 Linux 上的旧 GPU 途径（ini.ini `device = gpu`，预编译的 libPIC.so）已弃用，将在以后的版本中删除。
 
 ### 输出平面
 

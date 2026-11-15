@@ -378,9 +378,12 @@ def overview(outputDir=None):
                 if os.path.isfile(os.path.join(folder, n)) and pred(n.lower())] if os.path.isdir(folder) else []
 
     run_info = p.last_run() if os.path.normcase(out) == os.path.normcase(p.output_dir) else {}
+    from avas.post.analysis.run_diagnostics import secondary_run
     return {
         "outputDir": out, "defaultOutput": p.output_dir, "inputDir": input_dir,
         "hasDataSet": "DataSet.txt" in names, "hasPlt": "BeamSet.plt" in names,
+        # secondary-particle run (secondarybeam 1 in the input snapshot): no envelope, see outData_*.txt
+        "secondary": secondary_run(out),
         "dst": files(lambda n: n.endswith(".dst")) + files(lambda n: n.endswith(".dst"), input_dir),
         "plt": files(lambda n: n.endswith(".plt")),
         "errors": files(lambda n: n.startswith("errors_par") and n.endswith(".txt")),

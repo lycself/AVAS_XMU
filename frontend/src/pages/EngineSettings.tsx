@@ -1,21 +1,29 @@
 // Simulation settings → Computing kernel: ini.ini [engine] of the project (kernel, device, precision, GPUs,
 // threads, compatibility mode).  Only the devices this computer has are offered; with device Auto the group
 // shows what a run of this project will use.  Saved with the page (settings.save), only when it changed.
+// A project without "kernel" in [engine] follows the default computing kernel (Settings menu → Default
+// computing kernel, else the built-in default); the form's kernel is "" then.
 import { useEffect, useMemo, useState } from "react";
 import { call } from "../bridge";
-import { Checkbox, Collapsible, Icon, IconButton, Radio, Section, Spinner, TextInput } from "../components/ui";
+import { Button, Checkbox, Collapsible, Icon, IconButton, Radio, Section, Spinner, TextInput } from "../components/ui";
 import {
   autoReason,
   compatProblem,
+  DEFAULT_KERNEL_SETTING,
   deviceChoices,
   deviceName,
+  effectiveDefaultKernel,
   formatGpus,
+  formKernel,
   iniLines,
   parseGpus,
   precisionProblem,
+  preferenceIgnored,
   type EngineForm,
+  type Kernel,
   type Plan,
 } from "../engine";
+import { useApp } from "../store/app";
 import { useT } from "../i18n";
 import { useEngineInfo } from "../store/engine";
 import { FormRow } from "./common";
@@ -29,9 +37,28 @@ export type EngineSettingsData = {
   /** AVAS_ENGINE* variables that override ini.ini for runs started here */
   env: string[];
   originalAvailable: boolean;
-  defaultKernel: string;
+  /** the kernel the project follows when the form's kernel is "" (when the page was loaded) */
+  defaultKernel: Kernel;
+  /** the built-in default of this platform, and the global preference ("" = not set) */
+  builtinKernel: Kernel;
+  preference: Kernel | "";
   platform: string;
 };
+
+/** The global preference: the app's current setting (it changes while the page is open), else the loaded one. */
+export function currentPreference(data: EngineSettingsData, settings: Record<string, unknown>): unknown {
+  return DEFAULT_KERNEL_SETTING in settings ? settings[DEFAULT_KERNEL_SETTING] : data.preference;
+}
+
+/** The kernel a project without [engine] kernel runs with, now. */
+export function defaultKernelOf(data: EngineSettingsData, settings: Record<string, unknown>): Kernel {
+  return effectiveDefaultKernel(currentPreference(data, settings), data.builtinKernel ?? data.defaultKernel, data.originalAvailable);
+}
+
+/** The kernel the page's form runs with (its own choice, else the default kernel). */
+export function engineKernelOf(data: EngineSettingsData | null | undefined, settings: Record<string, unknown>): Kernel | null {
+  return data ? formKernel(data.form, defaultKernelOf(data, settings)) : null;
+}
 
 type Preview = { kernel: string; spaceCharge?: boolean; plan: Plan | null; other: Plan | null; error: string | null };
 
@@ -65,14 +92,19 @@ export function EngineSettings({
     load();
   }, [load]);
 
-  const isNew = f.kernel === "new";
+  const settings = useApp((s) => s.settings);
+  const preference = currentPreference(data, settings);
+  const defaultKernel = defaultKernelOf(data, settings);
+  const kernel = formKernel(f, defaultKernel);
+  const kernelName = (k: Kernel) => (k === "original" ? t("Original kernel") : t("New kernel (preview)"));
+  const isNew = kernel === "new";
   const libraryOk = !!info?.new.available;
   const devices = deviceChoices(info);
   const cuda = info?.devices?.cuda ?? [];
 
   // what a run of this project would use with the form's choice (asked from the back end, debounced)
   const [preview, setPreview] = useState<Preview | null>(null);
-  const key = JSON.stringify([f, spaceCharge, isNew && libraryOk]);
+  const key = JSON.stringify([f, kernel, spaceCharge, isNew && libraryOk]);
   useEffect(() => {
     if (!isNew || !libraryOk) {
       setPreview(null);
@@ -80,7 +112,7 @@ export function EngineSettings({
     }
     let alive = true;
     const timer = window.setTimeout(() => {
-      call<Preview>("engine.preview", { choice: f, spaceCharge })
+      call<Preview>("engine.preview", { choice: { ...f, kernel }, spaceCharge })
         .then((p) => alive && setPreview(p))
         .catch(() => alive && setPreview(null));
     }, 250);
@@ -114,11 +146,11 @@ export function EngineSettings({
       actions={<IconButton icon="refresh" tip={t("Detect the devices again")} disabled={loading} onClick={() => load(true)} />}
     >
       <div className="form">
-        <FormRow label={t("Kernel")} tip={t("Stored in ini.ini [engine] of this project. 'avas run --engine' and the AVAS_ENGINE variable override it.")}>
+        <FormRow label={t("Kernel")} tip={t("Stored in ini.ini [engine] of this project. 'avas run --engine' and the AVAS_ENGINE variable override it; without it the project follows Settings → Default computing kernel.")}>
           <div className="radio-row">
             <Radio
-              checked={f.kernel === "original"}
-              disabled={!data.originalAvailable && f.kernel !== "original"}
+              checked={kernel === "original"}
+              disabled={!data.originalAvailable && kernel !== "original"}
               onChange={() => set("kernel", "original")}
               label={t("Original kernel")}
               tip={data.originalAvailable ? t("AVAS.dll / libAVAS.so, the kernel AVAS has always used") : t("The original kernel does not run on {platform}", { platform: data.platform })}
@@ -132,6 +164,30 @@ export function EngineSettings({
             />
           </div>
         </FormRow>
+        <FormRow>
+          {f.kernel ? (
+            <span className="engine-note">
+              <Icon name="pin" /> {t("This project chooses its kernel in ini.ini [engine].")}{" "}
+              <Button variant="ghost" small disabled={locked} onClick={() => set("kernel", "")} tip={t("Remove the project's choice; it then follows Settings → Default computing kernel")}>
+                {t("Follow the default ({kernel})", { kernel: kernelName(defaultKernel) })}
+              </Button>
+            </span>
+          ) : (
+            <span className="engine-note">
+              <Icon name="link" />{" "}
+              {preference && !preferenceIgnored(preference, data.originalAvailable)
+                ? t("Not set in this project: follows the global default (currently {kernel}, Settings → Default computing kernel).", { kernel: kernelName(defaultKernel) })
+                : t("Not set in this project: follows the global default (currently {kernel}, the built-in default).", { kernel: kernelName(defaultKernel) })}
+            </span>
+          )}
+        </FormRow>
+        {preferenceIgnored(preference, data.originalAvailable) && (
+          <FormRow>
+            <span className="engine-note warning-text">
+              <Icon name="warning" /> {t("The default computing kernel is set to the original kernel, which does not run on {platform}; the new kernel is used instead.", { platform: data.platform })}
+            </span>
+          </FormRow>
+        )}
         {!data.originalAvailable && (
           <FormRow>
             <span className="engine-note">

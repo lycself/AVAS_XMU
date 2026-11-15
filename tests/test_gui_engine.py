@@ -174,11 +174,57 @@ def test_settings_load_fills_in_the_platform_default(project, monkeypatch):
     write_engine(project, None)
     set_platform(monkeypatch, True)
     eng = ok("settings.load")["engine"]
-    assert eng["form"] == {"kernel": "original", "device": "auto", "precision": "auto", "gpus": "all", "threads": "0", "compat": "none"}
+    # no kernel in [engine]: "" = the project follows the default computing kernel
+    assert eng["form"] == {"kernel": "", "device": "auto", "precision": "auto", "gpus": "all", "threads": "0", "compat": "none"}
     assert eng["explicitKernel"] is False and eng["invalid"] == [] and eng["originalAvailable"] is True
+    assert eng["defaultKernel"] == "original" and eng["builtinKernel"] == "original" and eng["defaultSource"] == "default"
     set_platform(monkeypatch, False)
     eng = ok("settings.load")["engine"]
-    assert eng["form"]["kernel"] == "new" and eng["defaultKernel"] == "new" and eng["originalAvailable"] is False
+    assert eng["form"]["kernel"] == "" and eng["defaultKernel"] == "new" and eng["originalAvailable"] is False
+
+
+def set_preference(value):
+    ok("settings.set", values={"engine/defaultKernel": value})          # what the Settings menu does
+
+
+def test_global_default_kernel_preference_in_the_gui(project, monkeypatch):
+    """Settings menu → Default computing kernel (gui.json): the settings page and engine.effective follow it
+    while the project has no kernel in [engine]; "original" where it does not run falls back with a note."""
+    from avas import engines
+    from avas.gui import context
+    write_engine(project, None)
+    set_platform(monkeypatch, True)
+    # one pytest process shares one settings object (created by whichever test came first): read its file
+    monkeypatch.setenv(engines.PREFERENCE_ENV, context.settings().path)
+    try:
+        set_preference("new")
+        eng = ok("settings.load")["engine"]
+        assert (eng["form"]["kernel"], eng["defaultKernel"], eng["defaultSource"], eng["preference"]) == ("", "new", "preference", "new")
+        assert ok("engine.effective") == {"kernel": "new", "compat": "none", "source": "preference", "note": None, "error": None}
+        info = ok("engine.info")
+        assert info["defaultKernel"] == "new" and info["builtinKernel"] == "original" and info["preference"] == "new"
+        # saving other keys does not pin the kernel; choosing one writes it, "" removes it again
+        data = ok("settings.load")
+        ok("settings.save", form=data["form"], meta=data["meta"], engine=dict(data["engine"]["form"], threads="2"))
+        section = ini_text(project).split("[engine]")[1]
+        assert "threads = 2" in section and "kernel" not in section
+        ok("settings.save", form=data["form"], meta=data["meta"], engine=dict(data["engine"]["form"], kernel="original"))
+        assert "kernel = original" in ini_text(project)
+        assert ok("engine.effective")["source"] == "ini"
+        ok("settings.save", form=data["form"], meta=data["meta"], engine=dict(data["engine"]["form"], kernel=""))
+        assert "[engine]" not in ini_text(project)
+        set_preference("original")
+        assert ok("engine.effective")["kernel"] == "original"
+        set_platform(monkeypatch, False)
+        eff = ok("engine.effective")
+        assert eff["kernel"] == "new" and eff["source"] == "default" and "is ignored" in eff["note"]
+        eng = ok("settings.load")["engine"]
+        assert eng["defaultKernel"] == "new" and "is ignored" in eng["defaultNote"]
+        set_preference("dll")                                              # nonsense: not set
+        assert ok("engine.effective")["source"] == "default"
+    finally:
+        set_preference("")
+        write_engine(project, None)
 
 
 def test_settings_save_writes_engine_only_when_it_changed(project, monkeypatch):

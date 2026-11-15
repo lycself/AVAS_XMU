@@ -46,7 +46,13 @@ export type LiveRunInfo = {
 export type LiveLattice = { name: string; text: string; fieldDirs: string[]; hash: string };
 
 /** Envelope of the run before the current one (same shape as the last-run envelope). */
-export type LivePrevious = Record<string, any> & { z: ArrayLike<number>; started?: string; latticeHash?: string | null };
+export type LivePrevious = Record<string, any> & {
+  z: ArrayLike<number>;
+  started?: string;
+  latticeHash?: string | null;
+  /** the kernel of the run before (kernels.summary; null for older records) */
+  engine?: unknown;
+};
 
 /** A finished run record opened for replay on the Run page ("run.replay"). */
 export type LiveRecord = {

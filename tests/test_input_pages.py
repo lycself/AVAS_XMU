@@ -1,5 +1,6 @@
 """GUI back-end tests of what the Beam and Simulation settings pages edit besides their own keywords:
-the secondary beam (input.txt switch + particle file), boundary.txt and scanData.txt, restoring a
+the secondary beam (input.txt switch + particle file, checked before it is written), boundary.txt, the
+scanphase line no kernel reads (reported, removed on save; scanData.txt left alone), restoring a
 file-history version into the form (beam.parse / settings.parse), and the field-map facts the
 element's field window shows (lattice.fieldInfo). No engine run is needed.
 """
@@ -67,8 +68,29 @@ def test_secondary_beam(project):
     ok("settings.save", form=settings["form"], meta=settings["meta"])
     assert keyword_lines(project / "input.txt", "secondarybeam") == ["secondarybeam 1"]
 
+    # blank lines are dropped; short lines and non-numeric values are refused before anything is written
+    saved = ok("beam.save", form=data["form"], secondary={"on": True, "text": "\n" + rows + "  \n" + rows})
+    assert saved["secondary"]["text"] == rows + rows
+    beam_before = read(project / "beam.txt")
+    for bad, line, words in (("0 0 0 0 0 1e6 1 938.272 1 0\n", 1, "10 columns"),
+                             (rows + "\n0 0 0 0 0 1e6 1 938 x 0 1\n", 3, "column 9")):
+        reply = rpc("beam.save", form={**data["form"], "current": "0.5"}, secondary={"on": True, "text": bad})
+        assert reply["ok"] is False and reply["user"] and f"line {line}" in reply["error"] and words in reply["error"], reply
+        assert reply["template"].startswith("Secondary particles, line {line}")
+    assert read(project / "beam.txt") == beam_before and read(project / "SeParticle.txt") == rows + rows
+
+    # segment runs refuse secondary particles
+    from avas.gui import context
+    from avas.gui.bridge import UserError
+    from avas.gui.services import segments
+    with pytest.raises(UserError, match="secondary particles"):
+        segments.start(context.project(), {"section": "cav"}, "twiss")
+
     off = ok("beam.save", form=data["form"], secondary={"on": False, "text": rows})
     assert off["secondary"]["on"] is False and keyword_lines(project / "input.txt", "secondarybeam") == ["secondarybeam 0"]
+    # switched off and unchanged: an invalid file does not block saving beam.txt
+    (project / "SeParticle.txt").write_text("1 2 3\n", encoding="utf-8")
+    ok("beam.save", form=data["form"], secondary={"on": False, "text": "1 2 3\n"})
 
 
 def test_beam_restore_from_history(project):
@@ -88,34 +110,46 @@ def test_beam_restore_from_history(project):
 
 
 def test_settings_companion_tables(project):
-    # CRLF on disk, as in a Windows checkout: the page gets the file as it is
-    with open(project / "scanData.txt", "rb") as fh:
-        raw = fh.read()
-    with open(project / "scanData.txt", "wb") as fh:
-        fh.write(raw.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))
     data = ok("settings.load")
     comp = data["companions"]
-    assert comp["scanData"]["exists"] is True and comp["boundary"]["exists"] is False
-    assert comp["scanData"]["text"] == read(project / "scanData.txt")
+    assert list(comp) == ["boundary"] and comp["boundary"]["exists"] is False      # scanData.txt is not a table here
+    assert "scanphase" not in data["form"]
 
-    # unchanged tables are not rewritten, even when the table hands back LF line endings;
     # an empty boundary table does not create the file
-    mtime = os.path.getmtime(project / "scanData.txt")
-    for text in (comp["scanData"]["text"], comp["scanData"]["text"].replace("\r\n", "\n")):
-        ok("settings.save", form=data["form"], meta=data["meta"], companions={"boundary": "", "scanData": text})
-    assert os.path.getmtime(project / "scanData.txt") == mtime and not (project / "boundary.txt").exists()
+    ok("settings.save", form=data["form"], meta=data["meta"], companions={"boundary": ""})
+    assert not (project / "boundary.txt").exists()
 
     boundary = "start\n1 copper 0.5 0.02 0.02 RLP 0 0 0 0 0 0\nend\n"
-    scan = comp["scanData"]["text"].replace("\r\n", "\n").rstrip("\n") + "\n"
+    # CRLF on disk, as in a Windows checkout
+    scan_before = (project / "scanData.txt").read_bytes()
     saved = ok("settings.save", form={**data["form"], "boundary": True}, meta=data["meta"],
-               companions={"boundary": boundary, "scanData": scan + "-30 0\n"})
+               companions={"boundary": boundary, "scanData": "-30 0\n"})            # an old page's table: ignored
     assert saved["form"]["boundary"] is True
-    assert read(project / "boundary.txt") == boundary and read(project / "scanData.txt").endswith("-30 0\n")
+    assert read(project / "boundary.txt") == boundary and (project / "scanData.txt").read_bytes() == scan_before
     assert saved["companions"]["boundary"]["exists"] is True
+    # unchanged, even when the table hands back LF line endings: not rewritten
+    mtime = os.path.getmtime(project / "boundary.txt")
+    ok("settings.save", form=saved["form"], meta=saved["meta"], companions={"boundary": boundary.replace("\n", "\r\n")})
+    assert os.path.getmtime(project / "boundary.txt") == mtime
 
     import re
     form = ok("settings.parse", text=re.sub(r"(?m)^steppercycle .*$", "steppercycle 77", data["text"]))
     assert form["steppercycle"] == "77" and form["error_type"] == saved["form"]["error_type"]
+
+
+def test_scanphase_line_is_reported_and_removed_on_save(project):
+    """No kernel reads scanphase: the page reports an existing line and saving removes it (other lines and
+    comments stay); scanData.txt is left alone."""
+    path = project / "input.txt"
+    before = read(path)
+    path.write_text(before.rstrip("\n") + "\n! keep this comment\nScanPhase 2\n", encoding="utf-8")
+    data = ok("settings.load")
+    assert data["meta"]["hasScanphase"] is True and "scanphase" not in data["form"]
+    scan_before = (project / "scanData.txt").read_bytes()
+    saved = ok("settings.save", form=data["form"], meta=data["meta"])
+    assert saved["meta"]["hasScanphase"] is False and keyword_lines(path, "scanphase") == []
+    assert "! keep this comment" in read(path) and (project / "scanData.txt").read_bytes() == scan_before
+    assert keyword_lines(path, "steppercycle") == [ln.strip() for ln in before.splitlines() if ln.startswith("steppercycle")]
 
 
 def test_field_info(project):

@@ -3,7 +3,9 @@ import { call } from "../bridge";
 import { pickFile } from "../host";
 import { confirmDialog, DialogFrame, reportError, showDialog, toast } from "../components/overlays";
 import { Plot, seriesColor } from "../components/Plot";
-import { Button, Checkbox, IconButton, Section, Select, Spinner, TextInput } from "../components/ui";
+import { Button, Checkbox, Icon, IconButton, Section, Select, Spinner, TextInput } from "../components/ui";
+import { secondaryNeedsBeamFile } from "../engine";
+import { useEffectiveKernel } from "../store/engine";
 import { fmtG } from "../format";
 import { pick, t, useT } from "../i18n";
 import { useApp, useInputsLocked } from "../store/app";
@@ -160,6 +162,7 @@ export default function BeamPage() {
   const [showEllipse, setShowEllipse] = useState(false);
   const [schema, setSchema] = useState<Schema | null>(null);
   const locked = useInputsLocked();
+  const effective = useEffectiveKernel(open);
   const ed = useEditable<Data>({
     id: "beam",
     label: () => "beam.txt",
@@ -241,6 +244,18 @@ export default function BeamPage() {
   const sec = ed.value.secondary;
   const setSecondary = (patch: Partial<Secondary>) => ed.setValue((d) => ({ ...d, secondary: { ...d.secondary, ...patch } }));
   const dstShown = f.use_dst && !!f.dst && ed.value.dstFiles.includes(f.dst);
+  // which file the kernel reads secondary particles from: the one beam.txt names (readparticledistribution), else
+  // (new kernel, default mode only) the page's SeParticle.txt
+  const namedFile = f.use_dst && String(f.dst).trim() ? String(f.dst).trim() : "";
+  const secondaryNote = !sec.on
+    ? null
+    : namedFile && namedFile.toLowerCase() !== sec.name.toLowerCase()
+      ? tt("beam.txt names {file} as the particle file (readparticledistribution): the kernel reads the secondary particles from it, not from {name}.", { file: namedFile, name: sec.name })
+      : !namedFile && effective && secondaryNeedsBeamFile(effective.kernel, effective.compat)
+        ? effective.kernel === "original"
+          ? tt("The original kernel reads secondary particles only from the file named by readparticledistribution in beam.txt, so {name} is ignored unless beam.txt names it. The new kernel's default mode reads {name} directly.", { name: sec.name })
+          : tt("The AVAS.dll compatibility mode reads secondary particles only from the file named by readparticledistribution in beam.txt, so {name} is ignored unless beam.txt names it. The default mode reads {name} directly.", { name: sec.name })
+        : null;
   const restore = async (text: string, revision: string) => {
     if (locked) return;
     try {
@@ -330,6 +345,15 @@ export default function BeamPage() {
                   />
                 </FormRow>
               </fieldset>
+              {secondaryNote && (
+                <div className="form">
+                  <FormRow>
+                    <span className="engine-note warning-text">
+                      <Icon name="warning" /> {secondaryNote}
+                    </span>
+                  </FormRow>
+                </div>
+              )}
               {sec.on && schema && (
                 <div className="companion-table">
                   <TokenTable
@@ -337,7 +361,7 @@ export default function BeamPage() {
                     editable={!locked}
                     onChange={(text) => setSecondary({ text })}
                     columns={schema.separticle.map((c) => ({ caption: c.unit ? `${pick(c.label)} (${c.unit})` : pick(c.label), tip: pick(c.label) }))}
-                    hint={sec.exists ? tt("One particle per row, saved to {name}.", { name: sec.name }) : tt("{name} does not exist yet; it is created when you save.", { name: sec.name })}
+                    hint={sec.exists ? tt("One particle per row, saved to {name}: 11 columns, the first ten numbers.", { name: sec.name }) : tt("{name} does not exist yet; it is created when you save.", { name: sec.name })}
                   />
                 </div>
               )}

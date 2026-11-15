@@ -33,6 +33,9 @@ def state():
 def app_settings():
     if _state["settings"] is None:
         _state["settings"] = settings_mod.Settings()
+        # children (`avas run`, research and sandbox runs) read the global default kernel from this file
+        # (avas.engines.read_preference); they inherit the variable
+        os.environ["AVAS_GUI_SETTINGS"] = os.path.abspath(_state["settings"].path)
     return _state["settings"]
 
 

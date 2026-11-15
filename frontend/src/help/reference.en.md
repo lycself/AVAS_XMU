@@ -103,6 +103,10 @@ beam.txt describes the beam, input.txt simulation settings, and the ini.ini-sele
 
 The live input entries replace the original keyword table. In particular, write multithreading 1 or omit the line to disable; 0 is unsafe for this engine. The original stepPerCycle time formula is dimensionally questionable and is not reproduced as a verified equation.
 
+randomseed: with the original kernel or the new kernel's compatibility mode (compat = dll) and randomseed ≠ 0, the generated initial distribution has x fully correlated with the phase (correlation −1), a defect of the original kernel. Simulation settings warns next to the random seed, and the scan and response tabs of the Study page (fixed seed 12345) warn too. The new kernel's default mode does not have the defect.
+
+scanphase: read by neither kernel; see scanData.txt.
+
 meshRms dimensions are Lx=V1×2×rms_x, Ly=V2×2×rms_y and Lz=V3×2×rms_z. The source states that longitudinal periodic boundaries select FFT and set longitudinal mesh length to the bunch period; sufficient longitudinal grid points are needed. Separate boundary mode ignores lattice aperture radii and uses Boundary.txt. Secondary transport requires synchronous-particle settings.
 
 [Multithreading](#input-multithreading)
@@ -121,11 +125,15 @@ The source describes content after the first start and before the first end as a
 
 ## scanData.txt {#ref-scan-data}
 
-Records RF phase scans or manually supplied phases. Each row gives cavity entrance phase (degrees) and entrance time (s), in lattice RF-cavity order. This is distinct from parameter-scan scan.csv.
+Kept only for older projects. Verified by reverse engineering and runs: no kernel reads this file or `scanphase` in input.txt — not the original kernel (AVAS.dll / libAVAS.so), not the new kernel in either mode, not libPIC.so. The source describes it as recording RF phase scans or manually supplied phases, each row giving a cavity's entrance phase (degrees) and entrance time (s) in lattice RF-cavity order. The RF phases actually come only from the phase parameter of the field lines (V3 = 0: synchronous phase, for which the kernel finds the entrance phase by its own phase scan; V3 = 2: absolute phase at t = 0). Simulation settings no longer offers a phase-scan option and removes a leftover `scanphase` line from input.txt when saved; scanData.txt is not deleted and can be viewed as raw text on Files. This is distinct from parameter-scan scan.csv.
 
 ## SeParticle.txt {#ref-secondary}
 
-Source/schema format; secondary-particle transport was not exercised during this migration. With secondarybeam=1, ReadParticleDistribution can reference this file, one particle per row. Synchronous-particle information must still be configured in beam.txt.
+Columns from the source and schema; reading rules and outputs checked for both kernels. With secondarybeam=1, ReadParticleDistribution can reference this file, one particle per row. Synchronous-particle information must still be configured in beam.txt.
+
+The new kernel's default mode reads SeParticle.txt when beam.txt has no `readparticledistribution`; the original kernel and the new kernel's compatibility mode (compat = dll) read only the file named by `readparticledistribution` in beam.txt, and the Beam page shows a notice in that case (AVAS does not rewrite beam.txt). Saving on the Beam page checks that every row has at least the 11 columns below (the first ten numeric) and drops blank rows.
+
+Secondary-particle runs write no envelope: DataSet.txt is empty, the results are in `outData_*.txt` and `SeSynParticle.txt`, and Results shows no envelope curves. Segment runs refuse secondarybeam 1.
 
 ```text
 x y z vx vy vz charge mass weight time Kind

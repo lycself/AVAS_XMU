@@ -66,3 +66,20 @@ def test_lost_beam_and_metrics(tmp_path):
 def test_failure_hint_for_old_nan_crash():
     assert "NaN" in failure_hint("could not convert string to float: '-nan(ind)'")[0]
     assert failure_hint("some other error") is None
+
+
+def test_empty_dataset_of_a_secondary_run_points_to_its_outputs(tmp_path):
+    """Secondary-particle runs (secondarybeam 1) write no DataSet rows (both kernels; checked with the new
+    kernel 2026-11-15): the message names outData_*.txt / SeSynParticle.txt instead of a warning."""
+    (tmp_path / "DataSet.txt").write_text("")
+    diag = dataset_diagnostics(str(tmp_path))
+    assert diag["messages"][0]["level"] == "warning" and "secondary" not in diag
+    (tmp_path / "SeSynParticle.txt").write_text("0 0 0 0 0 0.057 0 0 0  0\n")       # no input snapshot: the file tells
+    diag = dataset_diagnostics(str(tmp_path))
+    assert diag["secondary"] is True and diag["messages"][0]["level"] == "info"
+    assert "outData_*.txt" in diag["messages"][0]["text"][0] and "SeSynParticle.txt" in diag["messages"][0]["text"][1]
+    (tmp_path / "inputs").mkdir()
+    (tmp_path / "inputs" / "input.txt").write_text("sim_type mulp\nsecondarybeam 0\n")  # the snapshot decides
+    assert "secondary" not in dataset_diagnostics(str(tmp_path))
+    (tmp_path / "inputs" / "input.txt").write_text("sim_type mulp\nSecondaryBeam 1 ! on\n")
+    assert dataset_diagnostics(str(tmp_path))["secondary"] is True
