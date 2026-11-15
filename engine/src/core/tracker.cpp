@@ -451,10 +451,15 @@ private:
             in.ly = ly.data();
             in.lz = lz.data();
         }
-        dev_->sc_solve(in);
+        // the total charge needs only rho: taken before the solve, so that the solve and the interpolation
+        // can go to the device as one submission (Metal) when the field is not recorded on the host
         const double Q = sc.total_charge();
         M.Q = Q;
+        const bool together = !sc.recording();
+        if (together) dev_->sc_batch(true);
+        dev_->sc_solve(in);
         dev_->sc_interp(M);
+        if (together) dev_->sc_batch(false);
         if (sc.recording()) {
             dev_->sc_fields(sc.ex(), sc.ey(), sc.ez());
             sc.record_after(b, Q);

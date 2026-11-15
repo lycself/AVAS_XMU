@@ -1092,6 +1092,11 @@ public:
         }
     }
 
+    void batch(bool open) override {
+        if (open) D_->batch_begin();
+        else D_->batch_end();
+    }
+
     void interp_state(const kern::MeshV& M, const double* ex, const double* ey, const double* ez, int n) override {
         Timer timer{tInterp_, now()};
         hostCurrent_ = false;

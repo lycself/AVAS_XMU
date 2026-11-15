@@ -435,6 +435,9 @@ public:
         ey = ey_;
         ez = ez_;
     }
+    void sc_batch(bool open) override {
+        if (accel_ && accel_->authoritative()) accel_->batch(open);
+    }
     void sc_interp(const kern::MeshV& M0) override {
         if (accel_ && accel_->authoritative()) {
             if (accelField_) accel_->interp_state(M0, nullptr, nullptr, nullptr, sh_[0].n());

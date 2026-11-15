@@ -126,6 +126,9 @@ public:
     virtual void sc_solve(const ScSolveIn& in) = 0;
     virtual void sc_fields(std::vector<double>& ex, std::vector<double>& ey, std::vector<double>& ez) = 0;
     virtual void sc_interp(const kern::MeshV& M) = 0;
+    // open (true) / close (false) one submission around sc_solve + sc_interp (Metal: the solve and the
+    // interpolation in one command buffer); nothing on the other devices
+    virtual void sc_batch(bool open) { (void)open; }
 
     // boundary.txt, lpboundary, longlimits
     virtual void boundary(const LatScalars& ls, double t, double dt, std::vector<BoundaryHit>& hits) = 0;
@@ -224,6 +227,7 @@ public:
     // list, sums and gradient there); the field stays there (interp_state with null arrays, fields() on the
     // host).  false: not handled, the caller solves on the CPU.
     virtual bool solve_mesh(const ScSolveIn& in) = 0;
+    virtual void batch(bool open) { (void)open; }  // see DeviceBackend::sc_batch
     virtual void fields(std::vector<double>& ex, std::vector<double>& ey, std::vector<double>& ez) = 0;
     // Field at the particles from the mesh field ex, ey, ez (sc = 0 for lost particles).
     virtual void interp(const kern::MeshV& M, const double* ex, const double* ey, const double* ez, int n,

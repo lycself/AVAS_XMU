@@ -130,11 +130,13 @@ public:
     }
 
     void batch_begin() override {
+        if (batchDepth_++ > 0) return;  // nested: the outer batch submits
         if (benc_) return;
         bcb_ = [queue_ commandBuffer];
         benc_ = [bcb_ computeCommandEncoder];
     }
     void batch_end() override {
+        if (batchDepth_ > 0 && --batchDepth_ > 0) return;
         if (!benc_) return;
         [benc_ endEncoding];
         [bcb_ commit];
@@ -304,6 +306,7 @@ private:
     }
     id<MTLCommandBuffer> bcb_ = nil;  // open batch (batch_begin .. batch_end)
     id<MTLComputeCommandEncoder> benc_ = nil;
+    int batchDepth_ = 0;
 
     template <class Setup>
     void run(id<MTLComputePipelineState> ps, size_t threads, Setup&& setup) {
