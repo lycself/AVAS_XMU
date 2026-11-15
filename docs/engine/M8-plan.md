@@ -177,3 +177,21 @@ M8a 的比对工具是 `tools/compare_kernels.py`（用法见文件头）。
 **下一步**：按决定 1，用户在至少 2 个真实项目（含空间电荷）上运行
 `python tools/compare_kernels.py --input <项目> --gpu --repeats 3 --seeds 1,2,3`。
 物理表全部在起伏内（或超出起伏的项能用缺陷修正解释），且新内核 CPU 不慢于原内核，即可进入 M8b。
+
+## 9. 并入 M8b：界面与两个内核的一致性（2026-11-15 用户决定并入）
+
+来源是 2026-11-07 的诊断会话 brave-zhukovsky。它的方案只针对原内核，当时还没有新内核。现在逐条按两个内核重新评估：已过时的不做，仍有效的随 M8b 一起实施。这些改动和第 3 节改的是同一批文件（模拟设置页、束流页、schema、README），所以放在一起做。
+
+| # | 原方案 | 现状 | M8b 中怎么做 |
+|---|---|---|---|
+| 1 | scanphase：模拟设置页去掉相位扫描单选和 scanData 表格 | 原内核、新内核（两种模式）和 libPIC.so 都不读 `scanphase`／scanData.txt；M7b 已在界面注明，并取消了表格为空不能运行的限制 | **做**：按原 1a 去掉这个单选和表格。文件里已有的 `scanphase` 行显示“内核不读取”，保存时删去；scanData.txt 仍可在文件页查看。同时删掉 `segments.py` 里改写该行的代码，并改正 schema、AI 提示词、使用说明和入门中的说法 |
+| 2 | PICNIC：schema 只保留 FFT／SPICNIC | **已过时**：新内核默认模式支持 PICNIC（M6b），M7b 已在选原内核时提示“只有新内核支持” | **不做**。切换后 PICNIC 是默认内核的正常选项，原内核下的提示保留 |
+| 3 | 二次粒子：`beam.save` 把 `readparticledistribution` 写成二次粒子文件名等 | 新内核默认模式在 beam.txt 没写 `readparticledistribution` 时读 SeParticle.txt（M5b 决定），束流页现有功能可以直接用 | **做剩下的部分**：<br>① 不改写 beam.txt。选原内核或兼容模式时，束流页提示：这两种模式只读 beam.txt 里写明的文件。<br>② 运行结束不再报“DataSet 为空”，改为说明结果在 `outData_*.txt`／`SeSynParticle.txt`；新内核是否写 DataSet 在实施时核实。<br>③ 结果页说明二次粒子运行没有包络曲线。<br>④ 保存前检查 SeParticle.txt 每行至少 11 列并去掉空行，否则原内核会越界读。<br>⑤ 分段运行遇到 `secondarybeam 1` 直接拒绝。 |
+| 4 | spacechargecomp：先在 Windows 上实测再写说明 | **已核实**：(1 − V) 来自 DLL 反汇编（60-space-charge F-28），新内核兼容模式在 `spacechargecomp 0.5` 算例上与 AVAS.dll 逐字符一致（M4）；默认模式把 1 − V 限制在 [0, 1] | **只写说明**：schema 补上参数 V 的含义（空间电荷乘以 1 − V；原内核在 V ≥ 1 时忽略这一行、V < 0 时放大空间电荷，新内核默认模式限制在 0～1），AGENTS 第 6 节与入门同步 |
+| 5 | 删掉 `MultiParticle.stop()` | 仍有效：原内核 `main_agent(2)` 会把模拟完整重跑一次；新内核已修正。界面停止运行靠结束子进程，不调用它 | **做**：删掉这个方法，`main_agent` 的文档改为“不读参数” |
+| 6 | 种子提示写在研究页、schema、模拟设置页 | 只有原内核和新内核兼容模式在 `randomseed` 非 0 时生成 x 与相位完全相关的分布，新内核默认模式没有这个缺陷 | **做，按内核区分**：<br>• 模拟设置页的随机种子只在所选内核为原内核或兼容模式、且种子非 0 时提示；<br>• schema（beam、input 两处）和研究接口文档（`study.py`、`variant.py`）写明这是原内核的问题；<br>• 研究页的扫描、响应标签：原内核运行时提示该缺陷，并建议改用新内核。 |
+| 7 | README 与 AGENTS 第 6 节 | AGENTS 第 6 节 2026-11-15 已注明各条适用的内核 | **做**：README 中英文写清上述用户能感觉到的变化，随 M8b 的 docs/changes 条目一起说明 |
+
+仍然记作后续、M8b 不处理的有：
+- `spacechargelong`／`spacechargetype`：两个内核都不认识这两个关键字；
+- 耦合误差 `err_*_cpl_*`：内核不认识，但误差研究由 Python 自己抽样，不受影响。
