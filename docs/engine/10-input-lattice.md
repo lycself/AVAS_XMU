@@ -511,7 +511,7 @@ loop:
     `[14..19]=invalid`；子块 = 所有 `zEnd_k < zEnd_i` 的子元件。
 - 情形 B：`zEnd_k == max zEnd`（腔在块尾）
   - 片 1（静态）：`[1] = %f z0_k`，`[12]=0`，`[13]=%f z0_k`；子块 = `z0_i < z0_k`。
-  - 片 2（RF）：头 = `field, word1_k, %f Rmin, 0, 4, word5..8_k, 0, invalid, invalid, %f z0_k, %f zEnd_k, %d cav, invalid×5`（20 个单词）；
+  - 片 2（RF）：头 = `field, word1_k, %f Rmin, 0, 4, word5..8_k, 0, invalid, invalid, %f z0_k, %f zEnd_k, %d cav, invalid×5`（20 个单词；[3] 在 .so 中是 `0`，AVAS.dll 照抄 `word3_k`，即腔自己的 V3，2026-11-15 实测，见 M2-notes 末节）；
     子块 = `z0_k < zEnd_i`。
 - 情形 C：其他（腔在中间）：片 1 静态（`z0_i < z0_k`）、片 2 RF（`z0_k < zEnd_i` 且 `z0_i < zEnd_k`，头同情形 B）、
   片 3 静态（`zEnd_k < zEnd_i`，头同情形 A 的片 2）。
@@ -958,5 +958,5 @@ geoms(+0x00).push(g)
 
 ## 实测更正（2026-11-07）
 
-- superpose 含 RF 腔：腔在块首**和块尾**（与一段同长 drift 叠加）两种写法，synData 的 φs、φRF 都是 NaN，束流不加速。文中"情形 B（腔在块尾）正常"的推断与实测不符，需重新读 2.6.5 节的合成规则。
+- superpose 含 RF 腔：腔在块首**和块尾**（与一段同长 drift 叠加）两种写法，V3 = 0 时 synData 的 φs、φRF 都是 NaN，束流不加速。V3 = 2 时 AVAS.dll 不扫相位、按绝对相位正常加速（2026-11-15，SP8／SP9）：DLL 的 RF 片头照抄腔的 V3，.so 写 0。文中"情形 B（腔在块尾）正常"的推断与实测不符，需重新读 2.6.5 节的合成规则。
 - `scanphase` 1/2 与 scanData.txt 确认无效（DataSet.txt 与不写时逐字节相同）；`secondarybeam 1` 时内核不读 SeParticle.txt；`main_agent(2)` 确认会完整重跑一次。详见 [90-experiments.md](90-experiments.md)。

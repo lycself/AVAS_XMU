@@ -756,6 +756,64 @@
    "conserves_energy": true
   },
   {
+   "name": "SP8_rf_end_v3_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "100 50 0"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "superpose 0 0 0 0 0 0",
+    "drift 0.3 0.02 0",
+    "superpose 0.09 0 0 0 0 0",
+    "field 0.21 0.02 2 1 162.5e6 52.66 1.36 -1.36 efield",
+    "superposeend",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "SP8_rf_end_v3_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "superpose 0 0 0 0 0 0",
+    "drift 0.3 0.02 0",
+    "superpose 0.09 0 0 0 0 0",
+    "field 0.21 0.02 2 1 162.5e6 52.66 1.36 -1.36 efield",
+    "superposeend",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "SP9_rf_mid_v3_single",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "1 -0.5 0",
+    "displacedpos": "100 50 0"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "superpose 0 0 0 0 0 0",
+    "drift 0.4 0.02 0",
+    "superpose 0.09 0 0 0 0 0",
+    "field 0.21 0.02 2 1 162.5e6 52.66 1.36 -1.36 efield",
+    "superposeend",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
    "name": "SP4_out_shift_dst",
    "beam": {
     "readparticledistribution": "hwr010_seed12345.dst"

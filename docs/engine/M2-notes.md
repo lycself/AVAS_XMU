@@ -58,7 +58,7 @@ M1 的 `S5f_quad_not_implemented` 改为 `S5f_err_not_implemented`（quad 已实
 
 | 项目 | compat=dll | 默认 | 物理解释 / 影响（相对 DLL） |
 |---|---|---|---|
-| 含 RF 腔的 superpose | 腔在块首时多写一个 `invalid`，子场整体错位，组内没有任何场；V3 被写成 0（腔不在块首）；φs = NaN，不加速；候选下标 −1 越界（未定义行为） | 按规格拼出正确的场行，场求和，相位正常扫描 | SP2/SP3 默认 φs = −33.000°，出口 γβz 0.05708 → 0.06311（DLL 不加速） |
+| 含 RF 腔的 superpose | 腔在块首时多写一个 `invalid`，子场整体错位，组内没有任何场；φs = NaN，不加速；候选下标 −1 越界（未定义行为）。RF 片头的 V3 照抄腔自己的值（2026-11-15 更正：原写“腔不在块首时 V3 被写成 0”，那是 libAVAS.so 的行为；AVAS.dll 照抄，见 SP8／SP9） | 按规格拼出正确的场行，场求和，相位正常扫描 | SP2/SP3 默认 φs = −33.000°，出口 γβz 0.05708 → 0.06311（DLL 不加速） |
 | 漏写 superposeend | 结束块的那一行被丢掉（SP6 中下一个 drift 消失，总长 0.45 m） | 打印警告并照常处理该行（总长 0.55 m） | 原内核静默改变 lattice |
 | 叠加组长度、位置 | `%f`，舍入到 1e-6 m（SP7：0.4234567 → 0.423457） | `%.17g` 原值 | 原内核把下游所有元件移动最多 0.5 µm |
 | superpose 中的 drift 子块 | 用错误下标 `15+15j` 判断，几乎从不识别 | 识别，参与孔径判断 | 组内 drift 的孔径生效 |
@@ -113,7 +113,7 @@ DataSet 第 0 列按打印精度必须全程不变，outData_*.dst 的平均 W �
 | SingleParticle.txt / outData 能量 | 只用 γβz（SingleParticle 还写死质子质量） | 完整 |γβ|、实际 mc² | M1 |
 | lattice 未知关键字 | 静默 | 控制台警告 | M1 |
 | solenoid / steerer / bend / edge 参数不足 | 打印后以默认值（名 drift）入表 | ErrorLog 报错 | M2 |
-| superpose 含 RF 腔 | 场行错位（块首多一个 `invalid`）、V3 写成 0（腔不在块首） | 正确的场行 | M2 |
+| superpose 含 RF 腔 | 场行错位（块首多一个 `invalid`）；V3 照抄（2026-11-15 前 compat 误写成 0，见 M8-plan 第 11 节） | 正确的场行 | M2 |
 | superpose 中 drift 子块 | 错误下标，几乎不识别 | 识别（孔径） | M2 |
 | 漏写 superposeend | 丢掉结束块的那一行 | 警告并处理该行 | M2 |
 | 叠加组数字格式 | `%f`（1e-6 m） | `%.17g` | M2 |
@@ -144,3 +144,13 @@ DataSet 第 0 列按打印精度必须全程不变，outData_*.dst 的平均 W �
 5. **已越过段末的粒子**：默认模式按无场漂移推进（不再用简化的 quad / solenoid 场），仍计入统计；compat=dll 复现原行为。M4 之前实现。
 
 M3 已实现上面的第 4、5 项（spacechargecomp 截断与警告；越过段末的粒子无场漂移），见 [M3-notes.md](M3-notes.md)。
+
+## 更正（2026-11-15）：superpose 块内 RF 腔的 V3
+
+用户的真实项目（48Ca MEBT + HWR，19 个 HWR 腔、2 个聚束器放在 superpose 块尾，V3 = 2）上，compat=dll 与 AVAS.dll 的 DataSet.txt 行数不同。从第一个块内腔的入口（z = 0.734 m）起分开。
+- **原因**：本文和规格 10 §2.6.5.2 按 .so 写成“腔不在块首时 RF 片头 [3] 写 0”。AVAS.dll 实际照抄腔自己的 V3：在 synData 中，DLL 的块内腔 φs 是按 V3 = 2 的绝对相位得到的（51.2°、83.1° …），compat 则按 V3 = 0 扫成了目标相位（−90°、−45° …）。
+- **为什么以前没发现**：已有算例 SP2／SP3 都是腔在块首、V3 = 0，两种写法结果相同，所以这个分支从未被核对过。
+- **修正**：`lattice.cpp` 的 rfHead 去掉 compat 下的 “0”，[3] 一律照抄腔的 V3；默认模式本来就照抄，不受影响。
+- **新增算例**：SP8_rf_end_v3_single／_dst（腔在块尾）、SP9_rf_mid_v3_single（腔在块中），V3 = 2；参考由 XPS 上的 AVAS.dll 生成。修正后 Mac 构建与参考相差 ≤ 2.5e-16。
+- **libAVAS.so 也不能当这类项目的参考**：它写 0，与 DLL 的物理不同。
+- **V3 = 0 时情形 B 的 φs = NaN**（2026-11-07 实测更正）是另一回事，仍然成立。

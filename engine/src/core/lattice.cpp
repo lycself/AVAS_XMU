@@ -646,7 +646,9 @@ private:
             auto rfHead = [&](const std::string& c12, const std::string& c13, bool caseA) {
                 // AVAS.dll writes one "invalid" too many when the cavity starts the block, which
                 // shifts every sub-block of the cavity piece: the cavity gets no field at all.
-                std::vector<std::string> h = {"field", rw[1], num(rmin), (compat_dll() && !caseA) ? "0" : rw[3], "4",
+                // [3] is the cavity's own V3 in AVAS.dll; libAVAS.so writes "0" when the cavity does
+                // not start the block (checked 2026-11-15 on a V3 = 2 lattice, cases SP8 / SP9).
+                std::vector<std::string> h = {"field", rw[1], num(rmin), rw[3], "4",
                                               rw[5], rw[6], rw[7], rw[8], "0", "invalid", "invalid", c12, c13,
                                               std::to_string(cav_)};
                 const int pad = (caseA && compat_dll()) ? 6 : 5;

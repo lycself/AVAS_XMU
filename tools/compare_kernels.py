@@ -15,11 +15,14 @@ project's InputFile and OutputFile are never written.  Runs, one after the other
   fluctuation;
 * with ``--gpu``: ``new`` with ``device auto`` and the first seed – the time, and the GPU result
   against the CPU run with the same seed;
-* ``original`` and ``new --compat dll`` with the same fixed seed – whether compatibility mode
-  reproduces the original kernel (byte-identical on Windows; within about 1e-10 on Linux).
+* on Windows: ``original`` and ``new --compat dll`` with the same fixed seed – whether compatibility
+  mode reproduces AVAS.dll byte for byte.  Not on Linux: libAVAS.so generates distributions with
+  glibc's ``rand`` (compatibility mode follows AVAS.dll and the Windows UCRT), so the runs start from
+  different particles, and the .so also differs from AVAS.dll in places (superpose blocks with a
+  cavity, M2-notes); the parity references of ``engine/tests/parity`` are AVAS.dll outputs.
 
 Where the original kernel does not run (macOS, ARM), compatibility mode stands in for it as the
-reference (it is the original kernel's behaviour) and the byte check is skipped.
+reference (it is AVAS.dll's behaviour) and the byte check is skipped.
 
 The physics table compares the mean of the new runs with the mean of the reference runs on a
 common z grid: rms sizes, normalised emittances, energy and transmission.  Emittances are compared
@@ -228,7 +231,7 @@ def main(argv=None):
     plan += [(f"new_s{s}", "new CPU", dict(engine="new", device="cpu"), s, False) for s in seeds]
     if args.gpu:
         plan.append((f"new_auto_s{seeds[0]}", "new auto", dict(engine="new", device="auto"), seeds[0], False))
-    if have_original:
+    if have_original and os.name == "nt":
         plan += [("original_fixed", "original (fixed seed)", dict(engine="original"), FIXED_SEED, False),
                  ("compat_fixed", "compat (fixed seed)", dict(engine="new", compat="dll", device="cpu"), FIXED_SEED, False)]
 
@@ -264,7 +267,7 @@ def main(argv=None):
             w.writerow(keys)
             for i in range(len(z)):
                 w.writerow([f"{table[k][i]:.10g}" for k in keys])
-    if have_original and runs["original_fixed"].ok and runs["compat_fixed"].ok:
+    if "original_fixed" in runs and runs["original_fixed"].ok and runs["compat_fixed"].ok:
         verdict, rel = dataset_identity(runs["original_fixed"], runs["compat_fixed"])
         summary["compat_check"] = {"verdict": verdict, "max_rel": rel}
 
@@ -328,7 +331,7 @@ def report(s):
     c = s["compat_check"]
     lines += ["", "## Compatibility mode against the original kernel (same fixed seed)", ""]
     if c is None:
-        lines.append("Not checked (the original kernel does not run here, or a run failed).")
+        lines.append("Not checked (only on Windows, where the original kernel is AVAS.dll; or a run failed).")
     else:
         lines.append(f"DataSet.txt: **{c['verdict']}**" + ("" if c["verdict"] == "identical" else f", largest relative difference {c['max_rel']:.3g}"))
     return "\n".join(lines) + "\n"

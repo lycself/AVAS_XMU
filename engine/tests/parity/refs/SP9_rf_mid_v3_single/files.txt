@@ -1,0 +1,14 @@
+BeamSet.plt 81
+DataSet.txt 57538
+ExData.edt 0
+FullParticle.txt 83
+LongitudinalBeamLoss.txt 0
+ParticleTracking.txt 0
+SimulationTime.txt -
+SingleParticle.txt 29632
+collisionData.txt 0
+outData_0.500000.dst 79
+synData.txt 618
+synParticle.txt -
+test.txt 0
+testP.txt 0
