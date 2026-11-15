@@ -289,3 +289,50 @@ Metal 每步有一个与粒子数无关的网格开销：FFT 各遍的派发与�
 - Mac 上 auto 只在有空间电荷、且粒子数 ≥ 0.5 × 网格单元数时选 Metal，否则选 CPU，原因代码 `few_particles`。0.5 是 `device.h` 的 `kMetalParticlesPerCell`。
 - `avas_engine_devices()` 不知道运行规模，所以 Metal 计划里带 `cpu_below_particles_per_cell`。界面运行前的预计（`engine.check`、`engine.preview`）由 `engines.size_adjusted_plan` 按项目的 particlenumber 与 numofgrid（缺省时按内核默认值）换算；读粒子文件的项目只能沿用内核的计划，运行后的记录以实际为准。
 - 默认网格时，SPICNIC 的网格随粒子数变大（3 万个粒子以下 14³），只有不到 1372 个粒子才选 CPU；FFT 默认 64³，131072 个粒子以下选 CPU。
+- **2026-11-16 补充**：第 13 节的测量表明网格小时仍有每步固定开销，规则改为粒子数 ≥ 60000（`kMetalMinParticles`）且 ≥ 0.5 × 网格单元数。默认 SPICNIC 网格时 6 万个粒子以下都选 CPU。
+
+## 13. 第二个真实项目、M8b 与性能（2026-11-16）
+
+### 用户提供的两个项目
+- **HIAF**（U³⁵⁺，RFQ 之后到 1248 MeV，81.25 MHz，37 m，28 个 QWR 与 3 个聚束器，全部为场图，SPICNIC 空间电荷，`boundary 1`）。RFQ 在 TraceWin 中模拟，AVAS 从 RFQ 出口分布（15088 个粒子、190 MeV）开始，lattice 中**没有 `rfq` 元件**，所以不能用于 RFQ 逆向。项目原样是单粒子（`particlenumber 1`），beam.txt 的频率写成 825 MHz，与 lattice 和分布文件的 81.25 MHz 不一致。比对了两种配置：
+  - **单粒子**（原样）；
+  - **多粒子**：加 `readparticledistribution U35+_fromLEBT_RFQout_1.22mA_2023.3.15.dst`（读文件时 beam.txt 的频率不起作用）。
+- **第二个压缩包**：与 XPS 上 `InputFile (2)`（IF2）逐字节相同，第 11 节已比对。
+- 至此有两台真实机器（CAFe、HIAF），满足决定 1 的项目数。
+
+### 结果
+| 配置 | 机器 | 原内核 | 新内核 CPU | GPU | 物理量 |
+|---|---|---|---|---|---|
+| HIAF 多粒子 | XPS（12 线程） | 157 s | 65 s（chunk 并行之前的库） | CUDA 14 s | 系统差别：末端 rms_x +1.2 %，能量 −0.07 MeV（6e-5）；**兼容模式与 AVAS.dll 逐字节相同** |
+| HIAF 多粒子 | L40S（24 线程） | 65 s（libAVAS.so，boundary.txt 改 LF） | 16.8 s | —（5 号卡被他人占用） | 与 XPS 相同 |
+| HIAF 多粒子 | Mac M2 | —（兼容模式 13 s） | 15.8 s | — | 兼容 vs 默认与上同 |
+| HIAF 单粒子 | XPS | 184 s（4 次中 1 次崩溃） | 69 s | CUDA 116 s（旧规则） | x、y 差 ≤ 4 nm，z ≤ 0.1 mm，γβz ≤ 1e-6（37 m） |
+| HIAF 单粒子 | L40S | 16 s | 16 s | CUDA 129 s（旧规则、卡被占用） | 同上 |
+
+- **系统差别来自 SPICNIC 的修正**。读文件的多粒子运行每次相同，没有统计起伏，差别全是内核的。把同一项目的 `scmethod` 改成 FFT，兼容模式与默认模式只差 ≤ 0.15 %；SPICNIC 时差 1–2 %（中途发射度增长最多 6 %）。修正的正是“格林函数核截断在 0.75 Nx、单元平均不准”这两个缺陷（`spacecharge.cpp` 的 `tabulate`）。
+- **原内核在这个项目上不可靠**：
+  - libAVAS.so 遇到 CRLF 换行的 boundary.txt 必然段错误：`start\r` 不等于 `start`，全部行被跳过，之后读空 vector 的 `back()`。AVAS.dll 在 Windows 文本模式下去掉了 `\r`，不受影响。
+  - AVAS.dll 在单粒子配置上随机崩溃（访问冲突，地址每次不同）：直接运行 5 次崩 2 次，比对工具 4 次崩 1 次，与种子无关，崩在跟踪阶段。原因未查，推测是越界访问。新内核每次都完成。
+- **CUDA 的自动选择**：单粒子在 GPU 上比 CPU 慢 6–8 倍；约 5000 个粒子起，GPU 在 IF1、示例项目、HIAF 上都快 2–3 倍。auto 改为粒子数 < 1000（`kCudaMinParticles`，含单粒子）时用 CPU，原因代码 `few_particles`。
+- **比较工具的改进**：
+  - 读文件或单粒子的输入标为确定性，差别记作“systematic”，不再因噪声为 0 而误报“beyond”；
+  - 单粒子逐步比较同步粒子的 x、y、z、γβz（原内核与兼容模式在单粒子时能量、质心列为 NaN）；
+  - 失败的运行只列在表中，比较用完成的运行。
+
+### 性能（结果逐位不变）
+- **粒子推进**：默认模式原来每个 4096 粒子的归约组由一个线程推进，粒子少时并行度不够（5000 个粒子只用 2 个线程，15088 个用 4 个）。改为按 256 粒子的块并行，再按 reduce.h 的同一棵树合成组和（`chunk_sum`、`group_of_chunks`）。没有块时（multithreading 0/2/3）仍然不推进。HIAF 多粒子 Mac 34 → 20 s。
+- **电荷分配**：粒子数 ≥ 2048 就并行。网格小（单元数 × 线程数 ≤ 8 × 粒子数）时用每线程私有的整数网格，否则用原子加。
+- **Metal**：每步的推进与分组统计合成一次提交，快约 14 %。按粒子数实测交叉点（HIAF 生成束、14³ 网格）：1.5 万个粒子 CPU 15 s、Metal 37 s；6 万 52 s 对 49 s；20 万 190 s 对 77 s。
+- **核对**：
+  - Mac 上全部比对算例逐文件相同：默认模式 3、12 线程，兼容模式，Metal；
+  - L40S：CUDA fp32、fp64 与修正前相同（第 12 节）。
+
+### 研究接口的缺陷（M8b 引入，已修正）
+新内核成为默认后，`write_engine_section` 对原内核的选择不写 ini.ini（原来原内核是子进程的默认）。指定原内核的研究运行和比较工具实际用了新内核。现在总是写明。
+
+### M8b 已实施
+- `default_kernel()` 在所有平台返回 `new`；`EngineChoice()` 默认 `new`。
+- 界面：新内核去掉“预览”，原内核标“将淘汰”。
+- 更新后的一次性说明（`shell/kernelNotice.tsx`）：只在有原内核的平台、用户没有自选默认内核时出现，可一键“默认使用原内核”。
+- 冒烟测试两个内核都跑。
+- README、使用说明、AI 提示词、AGENTS 第 1 节已更新。

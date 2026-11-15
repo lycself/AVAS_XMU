@@ -319,7 +319,9 @@ def test_explicit_original_kernel_is_refused_where_it_does_not_run(project, tmp_
     assert res.returncode == 0 and "original kernel: not available on" in res.stdout
 
 
-def test_run_record_of_the_original_kernel():
+def test_run_record_of_the_original_kernel(monkeypatch):
+    # no engine of an earlier run in this process (the smoke test runs the new kernel by default since M8b)
+    monkeypatch.setattr(engines, "_last_engine", None)
     rec = engines.run_record(engines.EngineChoice(kernel="original"))
     assert rec["kernel"] == "original" and rec["tier"] == "original"
     assert rec["file"] == os.path.basename(engines.original_library_path())
