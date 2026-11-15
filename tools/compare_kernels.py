@@ -3,17 +3,18 @@
 Run from the repository root:
 
     .venv\\Scripts\\python.exe tools\\compare_kernels.py --input <project or its InputFile> [--out DIR]
-        [--particles N] [--seeds 1,2] [--gpu] [--keep-runs]
+        [--particles N] [--repeats 2] [--seeds 1,2] [--gpu] [--keep-runs]
 
 Every run goes through :class:`avas.research.Study` on a copy of the inputs in ``--out``; the
 project's InputFile and OutputFile are never written.  Runs, one after the other (fair timing):
 
-* ``original`` twice with ``randomseed 0`` – the reference and its run-to-run fluctuation.  A
-  fixed seed is not used here: the original kernel then generates a distribution with x fully
-  correlated with the phase (a known defect fixed in the new kernel).
-* ``new`` (the corrected default mode, CPU) with ``--seeds`` (two seeds) – the new kernel and its
+* ``original`` ``--repeats`` times with ``randomseed 0`` – the reference and its run-to-run
+  fluctuation.  A fixed seed is not used here: the original kernel then generates a distribution
+  with x fully correlated with the phase (a known defect fixed in the new kernel).
+* ``new`` (the corrected default mode, CPU) once per ``--seeds`` value – the new kernel and its
   fluctuation;
-* with ``--gpu``: ``new`` with ``device auto`` (first seed), for the time and the GPU result;
+* with ``--gpu``: ``new`` with ``device auto`` and the first seed – the time, and the GPU result
+  against the CPU run with the same seed;
 * ``original`` and ``new --compat dll`` with the same fixed seed – whether compatibility mode
   reproduces the original kernel (byte-identical on Windows; within about 1e-10 on Linux).
 
@@ -21,12 +22,18 @@ Where the original kernel does not run (macOS, ARM), compatibility mode stands i
 reference (it is the original kernel's behaviour) and the byte check is skipped.
 
 The physics table compares the mean of the new runs with the mean of the reference runs on a
-common z grid: rms sizes, normalised emittances, energy and transmission.  ``noise`` is the larger
-of the two run-to-run differences; a difference more than twice the noise is marked ``beyond``
-(caused by the kernels, not by sampling) and the first z where it appears is named with the
-lattice element there.  Sizes and emittances are relative to the reference's largest value, energy
-in MeV, transmission absolute.  A project that reads its distribution from a file has no sampling
-noise; every difference is then the kernels'.
+common z grid: rms sizes, normalised emittances, energy and transmission.  Emittances are compared
+as their change from the first row, so that the sampling of the initial distribution does not
+count as a kernel difference; ``start`` gives the difference of the initial values.  ``noise`` is
+the larger of the two sides' run-to-run spread (max − min over the runs, largest along z); a
+difference more than twice the noise is marked ``beyond`` and the first z where it appears is
+named with the lattice element there.  More repeats and seeds give a steadier noise estimate.
+Sizes and emittances are relative to the reference's largest value, energy in MeV, transmission
+absolute.  A project that reads its distribution from a file has no sampling noise; every
+difference is then the kernels'.
+
+Times: ``wall`` is the whole ``avas run`` child process, ``kernel`` the engine's own "Simulated
+total time" from engine.log (threads from its ``mulitthread:`` line when space charge is on).
 
 Written to ``--out``: ``report.md``, ``summary.json``, ``curves.csv`` (z and every quantity of
 every run).  The run folders (``runs/``) are deleted unless ``--keep-runs``.
@@ -36,7 +43,9 @@ import csv
 import datetime
 import json
 import os
+import re
 import shutil
+import statistics
 import sys
 
 import numpy as np
@@ -51,6 +60,7 @@ from avas.research.compare import common_z, on_grid  # noqa: E402
 FIXED_SEED = 12345
 QUANTITIES = ("rms_x", "rms_y", "rms_z", "emit_x", "emit_y", "emit_z", "energy", "transmission")
 BEYOND = 2.0
+BEFORE = "initial distribution (before the first element)"
 
 
 def curve(run, q, z):
@@ -70,14 +80,15 @@ def scale_of(q, ref):
 
 
 def element_at(doc, z):
-    best = None
+    best, first = None, None
     for st in doc.elements():
         if st.z_start is None or st.z_end is None:
             continue
+        first = st.z_start if first is None else min(first, st.z_start)
         if st.z_start - 1e-9 <= z <= st.z_end + 1e-9:
             best = st  # the innermost / last one listed
     if best is None:
-        return ""
+        return BEFORE if first is not None and z < first else "(no element)"
     return f"{best.name or best.keyword} (line {best.line_no}, {best.z_start:.4f}–{best.z_end:.4f} m)"
 
 
@@ -92,30 +103,111 @@ def dataset_identity(a, b):
     da, db = read_dataset_array(pa), read_dataset_array(pb)
     if da.shape != db.shape:
         return f"different shape {da.shape} / {db.shape}", float("inf")
-    both = np.isfinite(da) & np.isfinite(db)
     if (np.isfinite(da) != np.isfinite(db)).any():
         return "different NaN pattern", float("inf")
+    both = np.isfinite(da)
     den = np.maximum(np.abs(da), np.abs(db))
     rel = np.where(both & (den > 0), np.abs(da - db) / np.where(den > 0, den, 1), 0.0)
     return "different", float(rel.max())
 
 
-def run_row(name, run):
+def log_facts(run):
+    """(kernel seconds, threads) from the run's engine.log; None where it does not say."""
+    secs = threads = None
+    try:
+        with open(os.path.join(run.folder, "engine.log"), encoding="utf-8", errors="replace") as fh:
+            text = fh.read()
+    except OSError:
+        return secs, threads
+    m = re.findall(r"Simulated total time:?\s*([0-9.eE+-]+)", text)
+    if m:
+        secs = float(m[-1])
+    m = re.search(r"mulitthread:\s*(\d+)", text)
+    if m:
+        threads = int(m.group(1))
+    return secs, threads
+
+
+def run_row(name, group, run):
     eng = (run.record.get("engine") or {})
     act = eng.get("actual") or {}
-    return {"run": name, "status": run.record.get("status"), "error": run.record.get("error"),
+    kernel_s, log_threads = log_facts(run)
+    return {"run": name, "group": group, "status": run.record.get("status"), "error": run.record.get("error"),
             "kernel": act.get("kernel") or eng.get("kernel"), "device": act.get("device"),
-            "precision": act.get("precision"), "compat": act.get("compat"), "threads": act.get("threads"),
-            "seed": run.record.get("seed"), "seconds": run.record.get("seconds"),
-            "transmission": run.transmission}
+            "precision": act.get("precision"), "compat": act.get("compat"),
+            "threads": act.get("threads") or log_threads, "seed": run.record.get("seed"),
+            "seconds": run.record.get("seconds"), "kernel_seconds": kernel_s, "transmission": run.transmission}
+
+
+def physics(ref, new, z, doc, runs):
+    """Rows of the physics table and the curves of every run."""
+    rows, table = [], {"z": z}
+    for name, r in runs.items():
+        if r.ok:
+            for q in QUANTITIES:
+                table[f"{q}:{name}"] = curve(r, q, z)
+    for q in QUANTITIES:
+        cr = np.array([curve(r, q, z) for r in ref])
+        cn = np.array([curve(r, q, z) for r in new])
+        mr, mn = cr.mean(axis=0), cn.mean(axis=0)
+        s = scale_of(q, mr)
+        start = float((mn[0] - mr[0]) / s)
+        if q.startswith("emit"):  # growth: the initial sampling is not a kernel difference
+            cr, cn = cr - cr[:, :1], cn - cn[:, :1]
+            mr0, mn0 = cr.mean(axis=0), cn.mean(axis=0)
+        else:
+            mr0, mn0 = mr, mn
+        diff = (mn0 - mr0) / s
+        noise = max(float(np.nanmax(np.ptp(cr, axis=0))), float(np.nanmax(np.ptp(cn, axis=0)))) / s
+        mx = float(np.nanmax(np.abs(diff)))
+        beyond = mx > BEYOND * noise and mx > 1e-12
+        first = ""
+        if beyond:
+            i = int(np.flatnonzero(np.abs(diff) > BEYOND * noise)[0])
+            first = f"z = {z[i]:.4f} m, {element_at(doc, z[i])}"
+        rows.append({"quantity": q, "ref_end": float(mr[-1]), "new_end": float(mn[-1]), "start": start,
+                     "diff_end": float(diff[-1]), "diff_max": mx, "noise": noise,
+                     "verdict": "beyond" if beyond else "within", "first": first,
+                     "growth": q.startswith("emit")})
+    return rows, table
+
+
+def gpu_rows(gpu, cpu, z):
+    """Largest difference of the GPU run against the CPU run with the same seed."""
+    out = []
+    for q in QUANTITIES:
+        a, b = curve(gpu, q, z), curve(cpu, q, z)
+        s = scale_of(q, b)
+        out.append({"quantity": q, "diff_max": float(np.nanmax(np.abs(a - b)) / s), "diff_end": float((a[-1] - b[-1]) / s)})
+    return out
+
+
+def timing(rows):
+    """Median wall / kernel seconds per group of runs."""
+    out = []
+    for group in ("reference", "new CPU", "new auto", "original (fixed seed)", "compat (fixed seed)"):
+        rs = [r for r in rows if r["group"] == group and r["status"] == "done"]
+        if not rs:
+            continue
+        wall = [r["seconds"] for r in rs if isinstance(r["seconds"], (int, float))]
+        kern = [r["kernel_seconds"] for r in rs if isinstance(r["kernel_seconds"], (int, float))]
+        out.append({"group": group, "runs": len(rs), "wall": statistics.median(wall) if wall else None,
+                    "kernel": statistics.median(kern) if kern else None,
+                    "device": rs[0]["device"], "precision": rs[0]["precision"], "threads": rs[0]["threads"]})
+    return out
 
 
 def main(argv=None):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # a GBK console cannot print the report
+    except (AttributeError, ValueError):
+        pass
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--input", required=True, help="project folder or its InputFile")
     ap.add_argument("--out", help="report folder (default kernel_compare_<time> in the current folder)")
     ap.add_argument("--particles", type=int, help="particlenumber of every run (default: the project's)")
-    ap.add_argument("--seeds", default="1,2", help="two randomseed values of the new kernel's runs")
+    ap.add_argument("--repeats", type=int, default=2, help="runs of the reference with randomseed 0 (default 2)")
+    ap.add_argument("--seeds", default="1,2", help="randomseed values of the new kernel's runs (at least two)")
     ap.add_argument("--gpu", action="store_true", help="also run the new kernel with device auto")
     ap.add_argument("--keep-runs", action="store_true", help="keep the run folders in <out>/runs")
     ap.add_argument("--timeout", type=float, default=None, help="seconds per run")
@@ -124,71 +216,48 @@ def main(argv=None):
     out = os.path.abspath(args.out or "kernel_compare_" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S"))
     runs_dir = os.path.join(out, "runs")
     os.makedirs(runs_dir, exist_ok=True)
-    seeds = [int(s) for s in args.seeds.split(",")][:2]
-    if len(seeds) != 2:
-        ap.error("--seeds needs two values")
+    seeds = [int(s) for s in args.seeds.split(",") if s.strip()]
+    if len(seeds) < 2 or args.repeats < 2:
+        ap.error("--seeds needs at least two values and --repeats at least 2")
     base = Variant(particles=args.particles) if args.particles else Variant()
     have_original = engines.original_available()
 
-    def study(name, **engine):
-        return Study(args.input, name=name, root=os.path.join(runs_dir, name), timeout=args.timeout, **engine)
-
     ref_kw = dict(engine="original") if have_original else dict(engine="new", compat="dll", device="cpu")
     ref_name = "original" if have_original else "compat"
-    plan = [
-        (f"{ref_name}_r1", ref_kw, 0, True),
-        (f"{ref_name}_r2", ref_kw, 0, True),
-        (f"new_s{seeds[0]}", dict(engine="new", device="cpu"), seeds[0], False),
-        (f"new_s{seeds[1]}", dict(engine="new", device="cpu"), seeds[1], False),
-    ]
+    plan = [(f"{ref_name}_r{i + 1}", "reference", ref_kw, 0, True) for i in range(args.repeats)]
+    plan += [(f"new_s{s}", "new CPU", dict(engine="new", device="cpu"), s, False) for s in seeds]
     if args.gpu:
-        plan.append((f"new_auto_s{seeds[0]}", dict(engine="new", device="auto"), seeds[0], False))
+        plan.append((f"new_auto_s{seeds[0]}", "new auto", dict(engine="new", device="auto"), seeds[0], False))
     if have_original:
-        plan += [("original_fixed", dict(engine="original"), FIXED_SEED, False),
-                 ("compat_fixed", dict(engine="new", compat="dll", device="cpu"), FIXED_SEED, False)]
+        plan += [("original_fixed", "original (fixed seed)", dict(engine="original"), FIXED_SEED, False),
+                 ("compat_fixed", "compat (fixed seed)", dict(engine="new", compat="dll", device="cpu"), FIXED_SEED, False)]
 
-    runs = {}
-    for name, kw, seed, force in plan:
+    runs, groups = {}, {}
+    for name, group, kw, seed, force in plan:
         print(f"[compare_kernels] {name} ...", flush=True)
-        st = study(name, **kw)
-        runs[name] = st.engine(base.set("seed", seed), force=force)
-        r = runs[name]
+        st = Study(args.input, name=name, root=os.path.join(runs_dir, name), timeout=args.timeout, **kw)
+        r = runs[name] = st.engine(base.set("seed", seed), force=force)
+        groups[name] = group
         print(f"[compare_kernels] {name}: {r.record.get('status')} {r.record.get('seconds')} s "
               f"{r.record.get('error') or ''}", flush=True)
 
-    rows = [run_row(n, r) for n, r in runs.items()]
-    ref = [runs[f"{ref_name}_r1"], runs[f"{ref_name}_r2"]]
-    new = [runs[f"new_s{seeds[0]}"], runs[f"new_s{seeds[1]}"]]
+    rows = [run_row(n, groups[n], r) for n, r in runs.items()]
+    ref = [r for n, r in runs.items() if groups[n] == "reference"]
+    new = [r for n, r in runs.items() if groups[n] == "new CPU"]
     summary = {"project": os.path.abspath(args.input), "reference": ref_name, "particles": args.particles,
-               "seeds": seeds, "runs": rows, "physics": [], "compat_check": None,
-               "platform": engines.platform_label(), "written": datetime.datetime.now().isoformat(timespec="seconds")}
+               "repeats": args.repeats, "seeds": seeds, "runs": rows, "timing": timing(rows), "physics": [],
+               "gpu": [], "compat_check": None, "platform": engines.platform_label(),
+               "written": datetime.datetime.now().isoformat(timespec="seconds")}
 
-    good = [r for r in ref + new if r.ok]
-    if len(good) == 4:
-        z = common_z(good, 600)
+    if all(r.ok for r in ref + new):
+        z = common_z(ref + new, 600)
         st = Study(args.input, name="lattice", root=os.path.join(runs_dir, "_lattice"))
         with open(os.path.join(st.input_dir, st.lattice_name), encoding="utf-8", errors="replace") as fh:
             doc = LatticeDocument(fh.read())
-        table = {"z": z}
-        for q in QUANTITIES:
-            cr = [curve(r, q, z) for r in ref]
-            cn = [curve(r, q, z) for r in new]
-            for name, r in runs.items():
-                if r.ok:
-                    table[f"{q}:{name}"] = curve(r, q, z)
-            mr, mn = (cr[0] + cr[1]) / 2, (cn[0] + cn[1]) / 2
-            s = scale_of(q, mr)
-            diff = (mn - mr) / s
-            noise = max(np.nanmax(np.abs(cr[0] - cr[1])), np.nanmax(np.abs(cn[0] - cn[1]))) / s
-            mx = float(np.nanmax(np.abs(diff)))
-            beyond = mx > BEYOND * noise and mx > 1e-12
-            first = ""
-            if beyond:
-                i = int(np.flatnonzero(np.abs(diff) > BEYOND * noise)[0])
-                first = f"z = {z[i]:.4f} m, {element_at(doc, z[i])}"
-            summary["physics"].append({"quantity": q, "ref_end": float(mr[-1]), "new_end": float(mn[-1]),
-                                       "diff_end": float(diff[-1]), "diff_max": mx, "noise": float(noise),
-                                       "verdict": "beyond" if beyond else "within", "first": first})
+        summary["physics"], table = physics(ref, new, z, doc, runs)
+        gpu = runs.get(f"new_auto_s{seeds[0]}")
+        if gpu is not None and gpu.ok:
+            summary["gpu"] = gpu_rows(gpu, runs[f"new_s{seeds[0]}"], z)
         with open(os.path.join(out, "curves.csv"), "w", newline="", encoding="utf-8") as fh:
             w = csv.writer(fh)
             keys = list(table)
@@ -211,35 +280,51 @@ def main(argv=None):
     return 0
 
 
+def _num(v, fmt):
+    return format(v, fmt) if isinstance(v, (int, float)) else "-"
+
+
 def report(s):
     unit = {"energy": "MeV", "transmission": "1"}
+    seeds = ", ".join(str(x) for x in s["seeds"])
     lines = [f"# Kernel comparison: {s['project']}", "",
-             f"{s['platform']}; reference: **{s['reference']}** (randomseed 0, two runs); new kernel: corrected "
-             f"default mode on the CPU, randomseed {s['seeds'][0]} and {s['seeds'][1]}; particles: "
-             f"{s['particles'] or 'as in the project'}.", "", "## Runs", "",
-             "| run | status | kernel | device | precision | compat | threads | seed | seconds | transmission |",
-             "|---|---|---|---|---|---|---|---|---|---|"]
+             f"{s['platform']}; reference: **{s['reference']}** (randomseed 0, {s['repeats']} runs); new kernel: "
+             f"corrected default mode on the CPU, randomseed {seeds}; particles: {s['particles'] or 'as in the project'}.",
+             "", "## Runs", "",
+             "| run | status | kernel | device | precision | compat | threads | seed | wall s | kernel s | transmission |",
+             "|---|---|---|---|---|---|---|---|---|---|---|"]
     for r in s["runs"]:
-        sec = f"{r['seconds']:.1f}" if isinstance(r["seconds"], (int, float)) else "-"
-        tr = f"{r['transmission']:.4f}" if isinstance(r["transmission"], (int, float)) else "-"
-        lines.append(f"| {r['run']} | {r['status']}{' – ' + r['error'] if r['error'] else ''} | {r['kernel']} | "
+        lines.append(f"| {r['run']} | {r['status']}{' - ' + r['error'] if r['error'] else ''} | {r['kernel']} | "
                      f"{r['device'] or '-'} | {r['precision'] or '-'} | {r['compat'] or '-'} | {r['threads'] or '-'} | "
-                     f"{r['seed']} | {sec} | {tr} |")
-    lines += ["", "## Physics (new − reference)", ""]
+                     f"{r['seed']} | {_num(r['seconds'], '.1f')} | {_num(r['kernel_seconds'], '.2f')} | "
+                     f"{_num(r['transmission'], '.4f')} |")
+    lines += ["", "## Timing (median)", "", "| runs | n | device | precision | threads | wall s | kernel s |",
+              "|---|---|---|---|---|---|---|"]
+    for t in s["timing"]:
+        lines.append(f"| {t['group']} | {t['runs']} | {t['device'] or '-'} | {t['precision'] or '-'} | {t['threads'] or '-'} | "
+                     f"{_num(t['wall'], '.1f')} | {_num(t['kernel'], '.2f')} |")
+    lines += ["", "## Physics (new - reference)", ""]
     if not s["physics"]:
         lines.append("Not compared: a run failed.")
     else:
-        lines += ["Sizes and emittances relative to the reference's largest value; energy in MeV; transmission absolute.",
-                  "", "| quantity | reference end | new end | diff end | largest diff | noise | verdict | first beyond |",
-                  "|---|---|---|---|---|---|---|---|"]
+        lines += ["Sizes and emittances relative to the reference's largest value; energy in MeV; transmission "
+                  "absolute. Emittances: change from the first row (start = difference of the initial values).", "",
+                  "| quantity | reference end | new end | start | diff end | largest diff | noise | verdict | first beyond |",
+                  "|---|---|---|---|---|---|---|---|---|"]
         for p in s["physics"]:
             q = p["quantity"]
             factor = 1e6 if q.startswith("emit") else 1e3
-            fmt = (lambda v: f"{v:.6g}") if q in unit else (lambda v: f"{v * factor:.5g}")
+            val = (lambda v: f"{v:.6g}") if q in unit else (lambda v: f"{v * factor:.5g}")
             pct = (lambda v: f"{v:.3g}") if q in unit else (lambda v: f"{v * 100:.3g} %")
-            lines.append(f"| {q} [{unit.get(q, 'mm' if q.startswith('rms') else 'mm·mrad')}] | {fmt(p['ref_end'])} | "
-                         f"{fmt(p['new_end'])} | {pct(p['diff_end'])} | {pct(p['diff_max'])} | {pct(p['noise'])} | "
-                         f"{p['verdict']} | {p['first']} |")
+            name = f"{q} [{unit.get(q, 'mm' if q.startswith('rms') else 'mm mrad')}]" + (" (growth)" if p["growth"] else "")
+            lines.append(f"| {name} | {val(p['ref_end'])} | {val(p['new_end'])} | {pct(p['start'])} | {pct(p['diff_end'])} | "
+                         f"{pct(p['diff_max'])} | {pct(p['noise'])} | {p['verdict']} | {p['first']} |")
+    if s["gpu"]:
+        lines += ["", f"## New kernel: device auto against the CPU (randomseed {s['seeds'][0]})", "",
+                  "| quantity | largest diff | diff end |", "|---|---|---|"]
+        for g in s["gpu"]:
+            pct = (lambda v: f"{v:.3g}") if g["quantity"] in unit else (lambda v: f"{v * 100:.3g} %")
+            lines.append(f"| {g['quantity']} | {pct(g['diff_max'])} | {pct(g['diff_end'])} |")
     c = s["compat_check"]
     lines += ["", "## Compatibility mode against the original kernel (same fixed seed)", ""]
     if c is None:
