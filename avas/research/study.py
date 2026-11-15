@@ -79,12 +79,11 @@ def strip_ini_section(text, section):
 
 def write_engine_section(input_dir, choice, gpus=None):
     """Put *choice* into ``[engine]`` of ``<input_dir>/ini.ini`` (the rest of the text unchanged, so the
-    fingerprint of the other sections stays that of the project's file).  An original-kernel choice
-    needs no file of its own (the child's default)."""
+    fingerprint of the other sections stays that of the project's file).  Every choice is written, the
+    original kernel too: the child's own default is the new kernel since M8b (and the global preference
+    could choose either), so leaving it out ran original-kernel studies on the new kernel."""
     path = os.path.join(input_dir, "ini.ini")
     exists = os.path.isfile(path)
-    if not choice.is_new and not exists:
-        return
     text = ""
     if exists:
         with open(path, encoding="utf-8", errors="replace") as fh:

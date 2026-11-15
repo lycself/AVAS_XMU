@@ -32,8 +32,12 @@ the larger of the two sides' run-to-run spread (max − min over the runs, large
 difference more than twice the noise is marked ``beyond`` and the first z where it appears is
 named with the lattice element there.  More repeats and seeds give a steadier noise estimate.
 Sizes and emittances are relative to the reference's largest value, energy in MeV, transmission
-absolute.  A project that reads its distribution from a file has no sampling noise; every
-difference is then the kernels'.
+absolute.  A project that reads its distribution from a file, or tracks a single particle, has no
+sampling noise: every run of a kernel gives the same result, the verdict is ``systematic`` (or
+``identical``) instead of ``beyond`` / ``within``, and every difference is the kernels' (corrected
+defects, arithmetic).  Single-particle runs are compared through the synchronous particle's columns of
+DataSet.txt (x, y, z, gamma*beta_z) step by step: their rms columns are NaN, and AVAS.dll (and
+compatibility mode) also writes NaN energy and centroid columns for one particle.
 
 Times: ``wall`` is the whole ``avas run`` child process, ``kernel`` the engine's own "Simulated
 total time" from engine.log (threads from its ``mulitthread:`` line when space charge is on).
@@ -142,14 +146,40 @@ def run_row(name, group, run):
             "seconds": run.record.get("seconds"), "kernel_seconds": kernel_s, "transmission": run.transmission}
 
 
-def physics(ref, new, z, doc, runs):
-    """Rows of the physics table and the curves of every run."""
+SYNC = (("x_sync", 29, 1e3, "mm"), ("y_sync", 31, 1e3, "mm"), ("z_sync", 33, 1e3, "mm"), ("gbz_sync", 34, 1.0, "1"))
+
+
+def single_particle(ref, new):
+    """Rows comparing the synchronous particle of the first reference run with the first new run, row by row
+    (both step in the same time step): largest and final difference of x, y, z and gamma*beta_z."""
+    from avas.post.analysis.run_diagnostics import read_dataset_array
+    a, b = (read_dataset_array(os.path.join(r.output_dir, "DataSet.txt")) for r in (ref[0], new[0]))
+    n = min(len(a), len(b))
+    rows = []
+    for q, col, factor, unit in SYNC:
+        da, db = a[:n, col], b[:n, col]
+        d = (db - da) * factor
+        rows.append({"quantity": f"{q} [{unit}]", "ref_end": float(da[-1] * factor), "new_end": float(db[-1] * factor),
+                     "diff_end": float(d[-1]), "diff_max": float(np.nanmax(np.abs(d))), "rows": [len(a), len(b)]})
+    return rows
+
+
+def physics(ref, new, z, doc, runs, quantities=QUANTITIES):
+    """Rows of the physics table, the curves of every run and whether the input is deterministic (every run
+    of each kernel identical: a particle file or a single particle)."""
     rows, table = [], {"z": z}
     for name, r in runs.items():
         if r.ok:
-            for q in QUANTITIES:
+            for q in quantities:
                 table[f"{q}:{name}"] = curve(r, q, z)
-    for q in QUANTITIES:
+    spread = 0.0
+    for q in quantities:
+        for side in (ref, new):
+            c = np.array([curve(r, q, z) for r in side])
+            if np.isfinite(c).any():
+                spread = max(spread, float(np.nanmax(np.ptp(c, axis=0))))
+    deterministic = spread == 0.0
+    for q in quantities:
         cr = np.array([curve(r, q, z) for r in ref])
         cn = np.array([curve(r, q, z) for r in new])
         mr, mn = cr.mean(axis=0), cn.mean(axis=0)
@@ -168,17 +198,22 @@ def physics(ref, new, z, doc, runs):
         if beyond:
             i = int(np.flatnonzero(np.abs(diff) > BEYOND * noise)[0])
             first = f"z = {z[i]:.4f} m, {element_at(doc, z[i])}"
+        if deterministic:
+            verdict = "systematic" if mx > 1e-12 else "identical"
+            first = ""
+        else:
+            verdict = "beyond" if beyond else "within"
         rows.append({"quantity": q, "ref_end": float(mr[-1]), "new_end": float(mn[-1]), "start": start,
                      "diff_end": float(diff[-1]), "diff_max": mx, "noise": noise,
-                     "verdict": "beyond" if beyond else "within", "first": first,
+                     "verdict": verdict, "first": first,
                      "growth": q.startswith("emit")})
-    return rows, table
+    return rows, table, deterministic
 
 
-def gpu_rows(gpu, cpu, z):
+def gpu_rows(gpu, cpu, z, quantities=QUANTITIES):
     """Largest difference of the GPU run against the CPU run with the same seed."""
     out = []
-    for q in QUANTITIES:
+    for q in quantities:
         a, b = curve(gpu, q, z), curve(cpu, q, z)
         s = scale_of(q, b)
         out.append({"quantity": q, "diff_max": float(np.nanmax(np.abs(a - b)) / s), "diff_end": float((a[-1] - b[-1]) / s)})
@@ -245,22 +280,28 @@ def main(argv=None):
               f"{r.record.get('error') or ''}", flush=True)
 
     rows = [run_row(n, groups[n], r) for n, r in runs.items()]
-    ref = [r for n, r in runs.items() if groups[n] == "reference"]
-    new = [r for n, r in runs.items() if groups[n] == "new CPU"]
+    # failed runs are listed in the table and left out of the comparison (AVAS.dll crashes at random on some
+    # projects); the physics needs at least one finished run on each side
+    ref = [r for n, r in runs.items() if groups[n] == "reference" and r.ok]
+    new = [r for n, r in runs.items() if groups[n] == "new CPU" and r.ok]
     summary = {"project": os.path.abspath(args.input), "reference": ref_name, "particles": args.particles,
                "repeats": args.repeats, "seeds": seeds, "runs": rows, "timing": timing(rows), "physics": [],
                "gpu": [], "compat_check": None, "platform": engines.platform_label(),
                "written": datetime.datetime.now().isoformat(timespec="seconds")}
 
-    if all(r.ok for r in ref + new):
+    single = bool(ref and new) and all(len(r.alive) and r.alive[0] <= 1 for r in ref + new)    # one macro particle
+    if single:
+        summary["single"] = single_particle(ref, new)
+    elif ref and new:
         z = common_z(ref + new, 600)
         st = Study(args.input, name="lattice", root=os.path.join(runs_dir, "_lattice"))
         with open(os.path.join(st.input_dir, st.lattice_name), encoding="utf-8", errors="replace") as fh:
             doc = LatticeDocument(fh.read())
-        summary["physics"], table = physics(ref, new, z, doc, runs)
+        qs = QUANTITIES
+        summary["physics"], table, summary["deterministic"] = physics(ref, new, z, doc, runs, qs)
         gpu = runs.get(f"new_auto_s{seeds[0]}")
         if gpu is not None and gpu.ok:
-            summary["gpu"] = gpu_rows(gpu, runs[f"new_s{seeds[0]}"], z)
+            summary["gpu"] = gpu_rows(gpu, runs[f"new_s{seeds[0]}"], z, qs)
         with open(os.path.join(out, "curves.csv"), "w", newline="", encoding="utf-8") as fh:
             w = csv.writer(fh)
             keys = list(table)
@@ -307,11 +348,23 @@ def report(s):
         lines.append(f"| {t['group']} | {t['runs']} | {t['device'] or '-'} | {t['precision'] or '-'} | {t['threads'] or '-'} | "
                      f"{_num(t['wall'], '.1f')} | {_num(t['kernel'], '.2f')} |")
     lines += ["", "## Physics (new - reference)", ""]
-    if not s["physics"]:
-        lines.append("Not compared: a run failed.")
+    if s.get("single"):
+        lines += ["Single particle: the synchronous particle of the first reference run and of the first new run, compared "
+                  "time step by time step (deterministic: every run of a kernel is the same).", "",
+                  "| quantity | reference end | new end | diff end | largest diff | rows (ref / new) |", "|---|---|---|---|---|---|"]
+        for p in s["single"]:
+            lines.append(f"| {p['quantity']} | {p['ref_end']:.6g} | {p['new_end']:.6g} | {p['diff_end']:.3g} | {p['diff_max']:.3g} | "
+                         f"{p['rows'][0]} / {p['rows'][1]} |")
+    elif not s["physics"]:
+        lines.append("Not compared: no finished run on one side.")
     else:
-        lines += ["Sizes and emittances relative to the reference's largest value; energy in MeV; transmission "
-                  "absolute. Emittances: change from the first row (start = difference of the initial values).", "",
+        lines += ["Sizes, centroids and emittances relative to the reference's largest value; energy in MeV; transmission "
+                  "absolute. Emittances: change from the first row (start = difference of the initial values).", ""]
+        if s.get("deterministic"):
+            lines += ["**Deterministic input** (a particle file or a single particle): every run of a kernel gives the same "
+                      "result, so there is no statistical noise; the differences are the kernels' (corrected defects, "
+                      "arithmetic), not fluctuations.", ""]
+        lines += [
                   "| quantity | reference end | new end | start | diff end | largest diff | noise | verdict | first beyond |",
                   "|---|---|---|---|---|---|---|---|---|"]
         for p in s["physics"]:
@@ -319,7 +372,7 @@ def report(s):
             factor = 1e6 if q.startswith("emit") else 1e3
             val = (lambda v: f"{v:.6g}") if q in unit else (lambda v: f"{v * factor:.5g}")
             pct = (lambda v: f"{v:.3g}") if q in unit else (lambda v: f"{v * 100:.3g} %")
-            name = f"{q} [{unit.get(q, 'mm' if q.startswith('rms') else 'mm mrad')}]" + (" (growth)" if p["growth"] else "")
+            name = f"{q} [{unit.get(q, 'mm mrad' if q.startswith('emit') else 'mm')}]" + (" (growth)" if p["growth"] else "")
             lines.append(f"| {name} | {val(p['ref_end'])} | {val(p['new_end'])} | {pct(p['start'])} | {pct(p['diff_end'])} | "
                          f"{pct(p['diff_max'])} | {pct(p['noise'])} | {p['verdict']} | {p['first']} |")
     if s["gpu"]:

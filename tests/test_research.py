@@ -239,3 +239,13 @@ def test_real_engine_run_of_the_example(tmp_path):
     assert gain_engine == pytest.approx(gain_model, rel=0.1)          # mean vs reference particle: within ~5 %
     again = study.run(Variant(particles=200), "engine")
     assert again.folder == run.folder and again.record["seconds"] == run.record["seconds"]
+
+
+def test_an_original_kernel_choice_is_written_to_the_run_inputs(tmp_path):
+    """The child's default is the new kernel (M8b): an original-kernel study must say so in its ini.ini."""
+    from avas import engines
+    from avas.research.study import write_engine_section
+    write_engine_section(str(tmp_path), engines.EngineChoice(kernel="original"))
+    text = (tmp_path / "ini.ini").read_text(encoding="utf-8")
+    assert "[engine]" in text and "kernel = original" in text
+    assert engines.resolve_choice(input_dir=str(tmp_path), env={}, preference="new").kernel == "original"
