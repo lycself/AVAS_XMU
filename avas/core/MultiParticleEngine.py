@@ -7,6 +7,7 @@ kernel (``engine/``, same C interface plus options and queries) is chosen with
 """
 import ctypes
 import json
+import ntpath
 import os
 import platform
 import sys
@@ -30,26 +31,53 @@ def _unbuffer_c_stdout():
     to ``_IONBF`` here makes every line show up immediately.  Harmless on a
     console and silently skipped when anything is missing.
 
-    The UCRT is the one already loaded in this process (the one the kernels' ``api-ms-win-crt``
-    imports resolve to), never loaded by name: in the packaged program a name lookup finds the
-    copy in ``_internal`` first, a second UCRT whose ``stdout`` the kernels do not use.
+    Every UCRT already loaded in this process gets it, and none is loaded by name.  The packaged
+    program has two: System32's, which the kernels' ``api-ms-win-crt`` imports resolve to, and
+    ``_internal\\ucrtbase.dll``, which PyInstaller's bootloader loads with python311.dll but
+    nothing imports from (XPS, 2026-11-15).  Which one ``GetModuleHandleW`` or a name lookup
+    returns depends on the load order, so all of them are switched.
     """
     if not _WINDOWS or sys.stdout is None or sys.stdout.isatty():
         return
+    for handle in _loaded_ucrts():
+        try:
+            ucrt = ctypes.CDLL(_UCRT, handle=handle)
+            ucrt.__acrt_iob_func.restype = ctypes.c_void_p
+            ucrt.setvbuf.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_size_t]
+            _IONBF = 4
+            ucrt.setvbuf(ucrt.__acrt_iob_func(1), None, _IONBF, 0)
+        except (OSError, AttributeError):
+            pass
+
+
+def _loaded_ucrts():
+    """Handles of every module named ucrtbase.dll in this process (Windows), [] on any failure."""
     try:
         kernel32 = ctypes.WinDLL("kernel32")
-        kernel32.GetModuleHandleW.restype = ctypes.c_void_p
-        kernel32.GetModuleHandleW.argtypes = [ctypes.c_wchar_p]
-        handle = kernel32.GetModuleHandleW(_UCRT)
-        if not handle:
-            return
-        ucrt = ctypes.CDLL(_UCRT, handle=handle)
-        ucrt.__acrt_iob_func.restype = ctypes.c_void_p
-        ucrt.setvbuf.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_size_t]
-        _IONBF = 4
-        ucrt.setvbuf(ucrt.__acrt_iob_func(1), None, _IONBF, 0)
+        process = kernel32.GetCurrentProcess
+        process.restype = ctypes.c_void_p
+        enum = kernel32.K32EnumProcessModules
+        enum.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p), ctypes.c_ulong, ctypes.POINTER(ctypes.c_ulong)]
+        name_of = kernel32.GetModuleFileNameW
+        name_of.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_ulong]
+        me = process()
+        count = 1024
+        while True:
+            mods = (ctypes.c_void_p * count)()
+            needed = ctypes.c_ulong(0)
+            if not enum(me, mods, ctypes.sizeof(mods), ctypes.byref(needed)):
+                return []
+            if needed.value <= ctypes.sizeof(mods):
+                break
+            count = needed.value // ctypes.sizeof(ctypes.c_void_p) + 16
+        found = []
+        buf = ctypes.create_unicode_buffer(32768)
+        for handle in mods[:needed.value // ctypes.sizeof(ctypes.c_void_p)]:
+            if handle and name_of(handle, buf, len(buf)) and ntpath.basename(buf.value).lower() == _UCRT:
+                found.append(handle)
+        return found
     except (OSError, AttributeError):
-        pass
+        return []
 
 
 def _load(path):

@@ -458,9 +458,10 @@ def test_research_refuses_a_device_that_cannot_run(rproject):
     assert ncalls(study) == 0
 
 
-def test_c_stdout_is_unbuffered_in_the_ucrt_already_loaded(monkeypatch):
-    """Windows: setvbuf goes to the UCRT the kernels use (GetModuleHandleW), never to a copy loaded
-    by name - in the packaged program that would be _internal's second UCRT (simulated here)."""
+
+def test_c_stdout_is_unbuffered_in_every_loaded_ucrt(monkeypatch):
+    """Windows: setvbuf goes to every UCRT already in the process (the packaged program has System32's
+    and _internal's, in an order set by PyInstaller's bootloader); none is loaded by name."""
     import ctypes
     import types
     from avas.core import MultiParticleEngine as mpe
@@ -474,24 +475,46 @@ def test_c_stdout_is_unbuffered_in_the_ucrt_already_loaded(monkeypatch):
             calls.append((self.name,) + args)
             return self.result
 
-    def win_dll(name):
-        assert name == "kernel32"
-        return types.SimpleNamespace(GetModuleHandleW=Fn("GetModuleHandleW", handle))
-
     def cdll(name, handle=None):
         assert handle is not None, "the UCRT must not be loaded by name"
-        calls.append(("CDLL", name, handle))
-        return types.SimpleNamespace(__acrt_iob_func=Fn("iob", 0x1234), setvbuf=Fn("setvbuf", 0))
+        calls.append(("CDLL", handle))
+        return types.SimpleNamespace(__acrt_iob_func=Fn("iob", handle + 1), setvbuf=Fn("setvbuf", 0))
 
     monkeypatch.setattr(mpe, "_WINDOWS", True)
     monkeypatch.setattr(mpe.sys, "stdout", types.SimpleNamespace(isatty=lambda: False))
-    monkeypatch.setattr(ctypes, "WinDLL", win_dll, raising=False)
     monkeypatch.setattr(ctypes, "CDLL", cdll)
-    handle = 0x7FF0
+    monkeypatch.setattr(mpe, "_loaded_ucrts", lambda: [0x100, 0x200])
     mpe._unbuffer_c_stdout()
-    assert calls == [("GetModuleHandleW", "ucrtbase.dll"), ("CDLL", "ucrtbase.dll", 0x7FF0),
-                     ("iob", 1), ("setvbuf", 0x1234, None, 4, 0)]
-    calls.clear()
-    handle = None                                   # no UCRT in the process: nothing is loaded
-    mpe._unbuffer_c_stdout()
-    assert calls == [("GetModuleHandleW", "ucrtbase.dll")]
+    assert calls == [("CDLL", 0x100), ("iob", 1), ("setvbuf", 0x101, None, 4, 0),
+                     ("CDLL", 0x200), ("iob", 1), ("setvbuf", 0x201, None, 4, 0)]
+
+
+def test_loaded_ucrts_lists_every_ucrtbase_module(monkeypatch):
+    import ctypes
+    import types
+    from avas.core import MultiParticleEngine as mpe
+    names = {0x10: r"C:\WINDOWS\System32\KERNEL32.DLL", 0x20: r"C:\WINDOWS\System32\ucrtbase.dll",
+             0x30: r"D:\AVAS\_internal\python311.dll", 0x40: r"D:\AVAS\_internal\UCRTBASE.DLL"}
+
+    class Fn:
+        def __init__(self, impl):
+            self.impl = impl
+
+        def __call__(self, *args):
+            return self.impl(*args)
+
+    def enum(proc, mods, size, needed):
+        handles = list(names)
+        needed._obj.value = len(handles) * ctypes.sizeof(ctypes.c_void_p)
+        for i, h in enumerate(handles[:size // ctypes.sizeof(ctypes.c_void_p)]):
+            mods[i] = h
+        return 1
+
+    def name_of(handle, buf, n):
+        buf.value = names[handle]
+        return len(buf.value)
+
+    k32 = types.SimpleNamespace(GetCurrentProcess=Fn(lambda: -1), K32EnumProcessModules=Fn(enum),
+                                GetModuleFileNameW=Fn(name_of))
+    monkeypatch.setattr(ctypes, "WinDLL", lambda name: k32, raising=False)
+    assert mpe._loaded_ucrts() == [0x20, 0x40]
