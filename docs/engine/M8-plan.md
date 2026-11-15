@@ -336,3 +336,9 @@ Metal 每步有一个与粒子数无关的网格开销：FFT 各遍的派发与�
 - 更新后的一次性说明（`shell/kernelNotice.tsx`）：只在有原内核的平台、用户没有自选默认内核时出现，可一键“默认使用原内核”。
 - 冒烟测试两个内核都跑。
 - README、使用说明、AI 提示词、AGENTS 第 1 节已更新。
+
+### 合并前的检查（CI 构建 4fb9910 的库，XPS）
+- HIAF 多粒子：新内核 CPU 43 s（之前的库 65 s，AVAS.dll 157 s），auto 选 CUDA 12.7 s；单粒子 auto 改选 CPU（76–80 s，之前选 CUDA 116 s）。
+- Windows 测试：CI 的快速测试加 engines、gui_engine、research、error_study、segment，共 211 项通过。修正了一项因默认内核改变而出现的测试顺序依赖（`test_run_record_of_the_original_kernel`）。凭据管理器测试在 SSH 会话中报 1312“登录会话不存在”，属环境限制。
+- 打包冒烟（临时 venv、PyInstaller、`--no-installer`）：打包版 `AVAS.exe run` 默认用新内核（示例项目选 CUDA fp32），`--engine original` 用原内核，两次都正常完成。
+- XPS、L40S、Mac 上的临时数据和项目副本都已删除。
