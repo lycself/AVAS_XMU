@@ -377,6 +377,31 @@ def test_mac_auto_uses_the_cpu_for_few_particles_per_mesh_cell(project, fake_que
         write_engine(project, None)
 
 
+def test_rfq_lattices_run_on_the_cpu_and_not_in_compatibility_mode(project, fake_query, monkeypatch):
+    """The kernel computes the rfq element on the CPU only and compatibility mode cannot run it: the check before
+    a run predicts the CPU for device auto and refuses a GPU or compat=dll before the run starts."""
+    from avas import paths
+    set_platform(monkeypatch, False)
+    lattice = paths.lattice_source_path(str(project / "InputFile"))
+    before = open(lattice, encoding="utf-8").read()
+    try:
+        with open(lattice, "w", encoding="utf-8") as fh:
+            fh.write("start\ndrift 0.02 0.02 0\nrfq 0.5 0.01 0 1 162.5e6 -90 rfqinput.txt\ndrift 0.05 0.02 0\nend\n")
+        write_engine(project, None)
+        got = ok("engine.check")
+        assert (got["device"], got["reasonCode"]) == ("cpu", "rfq_cpu_only")
+        write_engine(project, {"kernel": "new", "device": "metal", "precision": "fp32"})
+        reply = rpc("engine.check")
+        assert reply["ok"] is False and "CPU only" in reply["error"]
+        write_engine(project, {"kernel": "new", "device": "cpu", "compat": "dll"})
+        reply = rpc("engine.check")
+        assert reply["ok"] is False and "Reproduce AVAS.dll" in reply["error"]
+    finally:
+        with open(lattice, "w", encoding="utf-8") as fh:
+            fh.write(before)
+        write_engine(project, None)
+
+
 def test_assistant_sandbox_runs_are_checked_too(project, fake_query, monkeypatch):
     from avas.ai import sandbox
     from avas.gui import context

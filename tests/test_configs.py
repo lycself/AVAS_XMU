@@ -187,7 +187,7 @@ def test_input_missing_file():
 def test_constants_follow_schema():
     import avas.constants as C
     from avas.data import schema
-    assert C.mulpud_element == ["drift", "field", "quad", "solenoid", "bend", "steerer", "edge"]
+    assert C.mulpud_element == ["drift", "field", "rfq", "quad", "solenoid", "bend", "steerer", "edge"]
     assert C.control_diag_element == ["diag_energy", "diag_size", "diag_position"]
     assert list(C.all_element) == list(schema.ELEMENT_KEYWORDS) == C.mulpud_element + C.control_diag_element
     assert set(C.mulp_basic_command) == set(C.mulpud_element) | {

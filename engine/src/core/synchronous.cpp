@@ -181,6 +181,14 @@ private:
             for (int k = 0; k < 3; ++k) s.E[k] = s.B[k] = 0.0;
             return;
         }
+        if (e.kind == ElemKind::Rfq) {
+            if (rfq_cell(e, s.coord[4]) >= 0 && rfq_cells(e)[rfq_cell(e, s.coord[4])][3] <= r) {
+                say(kNoExit);
+                throw EngineError(kNoExit);
+            }
+            rfq_syn_field(s, e, t);
+            return;
+        }
         if (e.kind != ElemKind::Field) {  // hard-edge elements and steerers: no field here
             for (int k = 0; k < 3; ++k) s.E[k] = s.B[k] = 0.0;
             return;
@@ -322,6 +330,142 @@ private:
 
     void push(SynParticle& s, double dt) { sync_push(s.coord, s.E, s.B, s.qOverM, dt, s.fullPush); }
 
+    // ---- rfq (corrected engine; AVAS.dll never sets up the cells, M9-notes) -----------------
+    static const std::vector<std::array<double, 14>>& rfq_cells(const Element& e) { return e.rfqCells; }
+    // RFQ::getEleNum: the first cell with z <= its end, -1 past the last cell
+    static int rfq_cell(const Element& e, double z) {
+        for (size_t i = 0; i < e.rfqCells.size(); ++i)
+            if (z <= e.rfqCells[i][1]) return static_cast<int>(i);
+        return -1;
+    }
+    // RFQ::GetSynField (spec 20 2.10): axial field -V/2 (A1 k cos kz + 3 k A6 cos 3kz) s times the RF factor
+    void rfq_syn_field(SynParticle& s, const Element& e, double t) {
+        for (int q = 0; q < 3; ++q) s.E[q] = s.B[q] = 0.0;
+        const int i = rfq_cell(e, s.coord[4]);
+        if (i < 0) return;  // ezAmp unchanged
+        const auto& C = e.rfqCells[static_cast<size_t>(i)];
+        const double kk = k::pi / C[2];
+        const double zeta = s.coord[4] - C[0];
+        const double sg = i % 2 == 0 ? 1.0 : -1.0;
+        const double ez0 = -std::fabs(C[4]) * 0.5 * (C[7] * kk * dll_cos(kk * zeta) + dll_cos(3.0 * kk * zeta) * C[12] * 3.0 * kk) * sg;
+        const int c = e.cavIndex;
+        const double phase = s.cavPhase.at(c) * k::deg_to_rad + (t - s.cavTime.at(c)) * e.frequency * k::two_pi;
+        s.E[2] = dll_cos(phase) * ez0;
+        s.ezAmp = ez0;
+    }
+
+    struct RfqPass {
+        bool failed = false;
+        std::vector<double> phis, gbz;
+    };
+    // RFQ::GetField(t, SynParticle&) (spec 30 2.7.4): the synchronous particle cell by cell with step
+    // 0.05 / f / 500 and the synchronous phase of every cell.  AVAS.dll fails as soon as the energy drops
+    // from one cell to the next, which a bunching section near -90 deg does by a rounding; here the pass
+    // fails when the particle leaves with less energy than it came with, turns back or stalls.  t is the
+    // entry time on input and the exit time of the element on output (AVAS.dll returns the exit of the
+    // last cell in x and its main pass ignores it).  write: RFQsynPhaseEG.txt.
+    RfqPass rfq_pass(SynParticle& s, const Element& e, double& t, bool write = true) {
+        RfqPass out;
+        const double gIn = s.uz();
+        long long steps = 0;
+        const double f = e.frequency;
+        const double dt = (0.05 / f) / 500.0;
+        const int c = e.cavIndex;
+        const double mc2 = s.restMass;
+        say(Text().s("Entering RFQ time: ").g(t).s("  Entering energy ").g(kinetic(s.uz(), mc2)).str());
+        size_t i = 0;
+        double C = 0.0, S = 0.0, tau = t;
+        const size_t n = e.rfqCells.size();
+        while (true) {
+            rfq_syn_field(s, e, tau);
+            const double zp = s.z(), gp = s.uz();
+            push(s, dt);
+            if (s.z() < e.zStart || s.uz() <= 0.0 || ++steps > 2000000LL * static_cast<long long>(n)) {
+                out.failed = true;  // turned back or stalled
+                break;
+            }
+            const double zEnd = e.rfqCells[i][1];
+            if (s.z() <= zEnd) {
+                double sn, cs;
+                dll_sincos(s.cavPhase.at(c) * k::deg_to_rad + (tau - s.cavTime.at(c)) * f * k::two_pi, sn, cs);
+                tau += dt;
+                C += cs * s.ezAmp * (s.z() - zp);
+                S += s.ezAmp * sn * (s.z() - zp);
+                continue;
+            }
+            const double lam = (zEnd - zp) / (s.z() - zp);
+            s.z() = (s.z() - zp) * lam + zp + 1e-15;
+            s.uz() = (s.uz() - gp) * lam + gp;
+            double sn, cs;
+            dll_sincos(s.cavPhase.at(c) * k::deg_to_rad + (tau - s.cavTime.at(c)) * f * k::two_pi, sn, cs);
+            const double dz = s.z() - zp;
+            const double cc = cs * s.ezAmp * dz + C;
+            out.phis.push_back(cc == 0.0 ? -90.0 : std::atan((sn * s.ezAmp * dz + S) / cc) * k::rad_to_deg);
+            out.gbz.push_back(s.uz());
+            tau += lam * dt;
+            i += 1;
+            if (i >= n) break;
+            C = S = 0.0;
+        }
+        if (!out.failed && s.uz() < gIn) out.failed = true;
+        if (!out.failed) {
+            // the rest of the element after the last cell: field free
+            if (s.z() < e.zEnd) {
+                const double uz = s.uz();
+                tau += (e.zEnd - s.z()) / (k::c * uz / std::sqrt(uz * uz + 1.0));
+                s.z() = e.zEnd + 1e-15;
+            }
+            say(Text().s("Leaving RFQ time: ").g(tau).s("  Exit energy ").g(kinetic(s.uz(), mc2)).str());
+            if (write) {
+                Text tab;
+                for (size_t q = 0; q < out.phis.size(); ++q)
+                    tab.fixed(out.phis[q], 10).s("   ").fixed(kinetic(out.gbz[q], mc2), 10).nl();
+                write_file(paths().output + "RFQsynPhaseEG.txt", tab.str(), false);
+            }
+        }
+        t = tau;
+        return out;
+    }
+
+    // Scan stage (spec 20 2.6.5): RF phase +pi/2 at the entry (AVAS.dll; -pi/2 when that one fails), i.e.
+    // a synchronous phase of -90 deg in the first cell as in RFQ designs.  The corrected engine passes the RFQ with both and keeps the
+    // one with the higher exit energy; "RFQ scanning phase abnormality" when neither accelerates.
+    void scan_rfq(SynParticle& s, const Element& e, double prev[6], double& t, double dt) {
+        enter_element(s, e, prev, t, dt);
+        const double zIn = s.z(), gIn = s.uz(), tIn = t;
+        const double f = e.frequency;
+        const int c = e.cavIndex;
+        s.cavTime.push_back(t);
+        s.cavPhase.push_back(0.0);
+        double best = -1.0, bestPhi = 0.0;
+        for (const double half : {k::half_pi, -k::half_pi}) {
+            // AVAS.dll: ((+-pi/2 - f_beam 2 pi t_in) / pi) 180 with the RF phase measured from t_in, i.e. an
+            // entry phase that depends on the arrival time; the intent is +-90 deg at the entry
+            const double phi0 = half * k::rad_to_deg;
+            say(Text().s(half > 0 ? "RFQ Complete phase scanning, phi_0:" : "RFQ Rescan phase,phi_0:").g(phi0)
+                    .s("  frequency is ").g(f).str());
+            s.cavPhase.at(c) = phi0;
+            s.z() = zIn;
+            s.uz() = gIn;
+            for (int q = 0; q < 4; ++q) s.coord[q] = 0.0;
+            double tt = tIn;
+            const RfqPass r = rfq_pass(s, e, tt, false);
+            if (!r.failed && s.uz() > best) {
+                best = s.uz();
+                bestPhi = phi0;
+            }
+        }
+        if (best < 0.0) throw EngineError("RFQ scanning phase abnormality");
+        s.cavPhase.at(c) = bestPhi;
+        s.z() = zIn;
+        s.uz() = gIn;
+        for (int q = 0; q < 4; ++q) s.coord[q] = 0.0;
+        t = tIn;
+        rfq_pass(s, e, t);
+        s.elemIndex += 1;
+        if (s.elemIndex > nElem() - 1) s.elemIndex = nElem() - 1;
+    }
+
     // Linear interpolation of z, uz (and t) back to a plane crossed in the last step.
     static void interpolate(SynParticle& s, const double prev[2], double zPlane, double eps, double* t, double dt) {
         const double r = (zPlane - prev[0]) / (s.coord[4] - prev[0]);
@@ -376,6 +520,10 @@ private:
                     prev[1] = s.uz();
                     push(s, dt);
                     t += dt;
+                } else if (e.kind == ElemKind::Rfq) {
+                    scan_rfq(s, e, prev, t, dt);
+                    prev[0] = s.z();  // a cavity right after the rfq enters from its exit
+                    prev[1] = s.uz();
                 } else {
                     const double f = parse_double(e.words.at(5));
                     if (f == 0.0) {
@@ -773,6 +921,8 @@ private:
                 static_step(s, e, prev, t, dt);
             } else if (e.typeName == "field") {
                 done = main_cavity(s, e, prev, t, dt, row);
+            } else if (e.kind == ElemKind::Rfq) {
+                done = main_rfq(s, e, prev, t, dt, row);
             } else {
                 get_field(s, t);
                 prev[0] = s.z();
@@ -870,6 +1020,37 @@ private:
         }
         row.i(s.elemIndex).s(" exitPlane ").g(lat_.elements[s.elemIndex - 1].length, 17).s(" ").g(s.z(), 17).s(" ")
             .g(t, 17).s(" ").g(s.uz(), 17).s(" invalid invalid").nl();
+        return true;
+    }
+
+    // Main stage through an rfq: the phase of the scan stage, the transit time counted (AVAS.dll treats the
+    // rfq as a plain element here: no entry time, no transit time, the later cavities' times shifted).
+    bool main_rfq(SynParticle& s, const Element& e, double prevMain[6], double& t, double dt, Text& row) {
+        const int c = e.cavIndex;
+        if (s.z() != prevMain[0]) {
+            const double dzv = s.z() - prevMain[0];
+            const double r = (zStartOf(e.index) - prevMain[0]) / dzv;
+            s.coord[4] = r * dzv + prevMain[0] + 1e-15;
+            s.coord[5] = (s.uz() - prevMain[1]) * r + prevMain[1];
+            t = (t - dt) + dt * r;
+        }
+        if (s.cavTime.size() < s.cavPhase.size()) s.cavTime.push_back(t);
+        for (int q = 0; q < 4; ++q) s.coord[q] = 0.0;
+        const RfqPass r = rfq_pass(s, e, t);
+        if (r.failed) throw EngineError("RFQ scanning phase abnormality");
+        const double phis = r.phis.empty() ? 0.0 : r.phis.back();
+        s.elemIndex += 1;
+        row.s(" ").g(phis, 17).s(" ").g(s.cavPhase.at(c), 17).nl();
+        if (s.elemIndex <= nElem() - 1) {
+            const Element& n = lat_.elements[s.elemIndex];
+            row.i(s.elemIndex).s(" ").s(n.typeName).s(" ").g(n.length, 17).s(" ").g(s.z(), 17).s(" ").g(t, 17).s(" ")
+                .g(s.uz(), 17);
+            prevMain[0] = s.z();
+            prevMain[1] = s.uz();
+            return false;
+        }
+        row.i(s.elemIndex).s(" exitPlane ").g(e.length, 17).s(" ").g(s.z(), 17).s(" ").g(t, 17).s(" ").g(s.uz(), 17)
+            .s(" invalid invalid").nl();
         return true;
     }
 };

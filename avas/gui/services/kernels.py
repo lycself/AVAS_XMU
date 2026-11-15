@@ -145,6 +145,13 @@ def require_ready(input_dir):
         raise UserError("The new kernel's library is not available: {detail}", detail=new["error"])
     sc = engines.input_space_charge(input_dir)
     plan = (data.get("resolved") or {}).get("sc" if sc else "nosc") or {}
+    if engines.lattice_has_rfq(input_dir):   # the kernel runs rfq lattices on the CPU only
+        if choice.compat == "dll":
+            raise UserError("The rfq element cannot run in the mode “Reproduce AVAS.dll” (the original kernel never computes it). Choose the default mode in Simulation settings → Computing kernel.")
+        if choice.device not in ("auto", "cpu"):
+            raise UserError("The rfq element is computed on the CPU only. Choose Auto or CPU in Simulation settings → Computing kernel.")
+        if choice.device == "auto":
+            plan = dict(engines.RFQ_CPU_PLAN)
     plan = engines.size_adjusted_plan(plan, input_dir)
     if plan.get("error"):
         raise UserError("The new kernel cannot use the device chosen in Simulation settings ({device}) on this computer: {detail}. Choose Auto or CPU.", device=DEVICE_NAMES.get(choice.device, choice.device), detail=plan["error"])

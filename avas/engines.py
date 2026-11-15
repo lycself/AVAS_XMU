@@ -477,6 +477,21 @@ def space_charge_size(input_dir):
     return n, grid[0] * grid[1] * grid[2]
 
 
+def lattice_has_rfq(input_dir):
+    """Whether the lattice run from *input_dir* (ini.ini [lattice] source) has an active rfq element."""
+    try:
+        with open(paths.lattice_source_path(input_dir), encoding="utf-8", errors="replace") as fh:
+            text = fh.read()
+    except OSError:
+        return False
+    from avas.data.lattice_doc import LatticeDocument
+    return any(st.key == "rfq" for st in LatticeDocument(text).elements())
+
+
+RFQ_CPU_PLAN = {"device": "cpu", "precision": "fp64", "gpus": [], "error": None, "reason_code": "rfq_cpu_only",
+                "reason": "auto: the rfq element is computed on the CPU only"}
+
+
 def size_adjusted_plan(plan, input_dir):
     """*plan* (a device plan of :func:`describe` ``resolved``) for the run size of *input_dir*: device auto
     reports Metal with ``cpu_below_particles`` and ``cpu_below_particles_per_cell``, CUDA with

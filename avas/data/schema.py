@@ -181,6 +181,20 @@ _LATTICE = [
           doc_zh="场分布文件名（不含扩展名）"),
     ], ("Element described by a field map, tracked with the t-code.",
         "用户给出元件的电磁场分布文件，AVAS 采用 t-code 模拟。")),
+    Keyword("rfq", ("RFQ", "RFQ"), FIELD_ELEMENT, [
+        LENGTH, APERTURE, reserved(), reserved(),
+        P("f", "Frequency", "频率", "Hz"),
+        P("phase", "Phase", "相位", "°", doc_en="not used: the scan sets the RF phase (synchronous phase -90 deg in the first cell)",
+          doc_zh="不使用：相位由扫描确定（第一个 cell 的同步相位为 −90°）"),
+        P("file", "Structure file", "结构文件", kind=FILE,
+          doc_en="cell table in the input folder, one row per cell: number, length (cm), inter-vane voltage (kV), aperture a (cm), "
+                 "two unused columns, A0 .. A7; rfqinput.txt is written from rfqinputAnn.txt and rfqinputV.txt when both exist",
+          doc_zh="输入文件夹中的 cell 表，每个 cell 一行：序号、长度（cm）、极间电压（kV）、孔径 a（cm）、两列不使用、A0…A7；"
+                 "同时有 rfqinputAnn.txt 与 rfqinputV.txt 时由它们生成 rfqinput.txt"),
+    ], ("RFQ described cell by cell with the 8-term potential, tracked with the t-code.  New kernel only (CPU), default mode; "
+        "the original kernel cannot run it, so the results are not checked against it.  The linear preview treats it as a drift.",
+        "按 cell 用 8 项势函数描述的 RFQ，采用 t-code 模拟。只有新内核的默认模式支持（在 CPU 上计算）；原内核不能运行它，"
+        "所以结果没有与原内核核对。线性预览把它当作漂移段。")),
     # ---- matrix-model elements (z-code) -----------------------------------------------
     Keyword("quad", ("Quadrupole", "四极铁"), MATRIX_ELEMENT,
             [LENGTH, APERTURE, reserved(), P("G", "Gradient G", "磁场梯度 G", "T/m")],

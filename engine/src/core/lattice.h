@@ -47,6 +47,10 @@ struct Element {
     double keErr = 0, kbErr = 0, phaseErr = 0, fieldErr = 0;
     // superpose block: per sub-field {flag, dx, dy, dz, thx, thy, thz, kb, ke, phase, 0, 0} (SetErrPara)
     std::vector<std::array<double, 12>> subErr;
+    // rfq: one row per cell of the structure file (word 7), RFQ::SetParameter of libAVAS.so:
+    // {z start, z end, length (m), aperture a (m), inter-vane voltage V (V), column 4 (unused),
+    //  A0 .. A7 of the 8-term potential}
+    std::vector<std::array<double, 14>> rfqCells;
 
     bool is_matrix() const {
         return kind == ElemKind::Quad || kind == ElemKind::Solenoid || kind == ElemKind::Bend || kind == ElemKind::Edge;

@@ -159,6 +159,10 @@ class _Tracker:
             m = edge_matrix(to_float(st.param(3)), to_float(st.param(4)), to_float(st.param(5)),
                             to_float(st.param(6)), to_float(st.param(7)), _to_int(st.param(8)))
             self._push([m], [self.z], self.w, 0.0, self.w, aperture, line)
+        elif key == "rfq":
+            self.warn.add(f"Line {line + 1}: the linear preview has no RFQ model; the rfq is treated as a drift.",
+                          f"第 {line + 1} 行：线性预览没有 RFQ 模型，rfq 按漂移段处理。", ("rfq", line))
+            self.drift(length, aperture, line)
         elif length > 0:        # steerer / diagnostics have no length; anything else drifts
             self.drift(length, aperture, line)
 

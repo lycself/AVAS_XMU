@@ -25,6 +25,7 @@ struct LatHost {
     std::vector<double> segStart, segEnd;
     std::vector<double> bndZ;
     std::vector<int> bndR1, bndR2;
+    std::vector<double> rfqCells;  // 14 per rfq cell (kernels.h LatV::rfqCells)
     bool errOn = false;
     bool hasEff = false;
 

@@ -560,6 +560,78 @@ static void test_capi_queries() {
     fs::remove_all(dir, ec);
 }
 
+// rfq (corrected engine): the field is -grad of the 8-term potential (numerical gradient), zero past the
+// cells, the particle lost outside the cell aperture.
+static void test_rfq_field() {
+    using namespace avas;
+    const double f = 162.5e6, V = 70e3, t = 1.1e-9, phi = 0.4;
+    std::vector<double> cells = {
+        0.0,   0.012, 0.012, 0.006, V, 1.0, 0.95, 0.08, 0.01, 0.03, 0.02, 0.005, 0.04, 0.015,
+        0.012, 0.025, 0.013, 0.005, V, 1.0, 0.95, 0.09, 0.01, 0.03, 0.02, 0.005, 0.04, 0.015};
+    kern::ElemV e{};
+    e.kind = kern::kRfq;
+    e.zStart = 0.1;
+    e.length = 0.03;
+    e.radius = 0.01;
+    e.rfPlain = e.rfErr = 0;
+    e.rfq0 = 0;
+    e.rfqN = 2;
+    kern::RfSlotV slot{0, 0, f, 0.0};
+    double cavTime[1] = {0.0}, cavPhase[1] = {phi * 180.0 / 3.141592653589793};
+    double zs[1] = {0.1}, ze[1] = {0.13};
+    kern::LatV L{};
+    L.elems = &e;
+    L.rfSlots = &slot;
+    L.cavTime = cavTime;
+    L.cavPhase = cavPhase;
+    L.elemZStart = zs;
+    L.elemZEnd = ze;
+    L.nElem = 1;
+    L.totalLength = L.spExit = 0.2;
+    L.rfqCells = cells.data();
+    const kern::RfSrc rf{nullptr, t};
+    auto field = [&](double x, double y, double z, double* E, double* B) {
+        kern::FieldIn<double> in{};
+        in.x = x;
+        in.y = y;
+        in.fz = z;
+        in.spZ0 = -1e9;
+        in.spZ1 = 1e9;
+        return kern::element_field_t<PortableMath>(L, kern::AbsZ{&L}, 0, e, in, rf, E, B);
+    };
+    auto potential = [&](double x, double y, double z) {
+        const double zl = z - 0.1;
+        const int i = zl <= 0.012 ? 0 : 1;
+        const double* C = cells.data() + 14 * i;
+        const double kk = 3.141592653589793 / C[2], zeta = zl - C[0], sg = i == 0 ? 1.0 : -1.0, a = C[3];
+        const double r = std::sqrt(x * x + y * y), th = std::atan2(y, x);
+        auto I = [](int n, double v) { return kern::rfq_bessel_i(n, v); };
+        const double u = C[6] * std::pow(r / a, 2) * std::cos(2 * th) + C[8] * std::pow(r / a, 6) * std::cos(6 * th) +
+                         sg * (C[7] * I(0, kk * r) * std::sin(kk * zeta) + C[12] * I(0, 3 * kk * r) * std::sin(3 * kk * zeta) +
+                               C[9] * I(4, kk * r) * std::cos(4 * th) * std::sin(kk * zeta) +
+                               C[13] * I(4, 3 * kk * r) * std::cos(4 * th) * std::sin(3 * kk * zeta) +
+                               C[10] * I(2, 2 * kk * r) * std::cos(2 * th) * std::sin(2 * kk * zeta) +
+                               C[11] * I(6, 2 * kk * r) * std::cos(6 * th) * std::sin(2 * kk * zeta));
+        return V * 0.5 * u * std::cos(2 * 3.141592653589793 * f * t + phi);
+    };
+    const double pts[3][3] = {{0.0021, -0.0013, 0.1043}, {-0.0035, 0.0024, 0.1191}, {0.0004, 0.0047, 0.1245}};
+    for (const auto& q : pts) {
+        double E[3], B[3];
+        CHECK(field(q[0], q[1], q[2], E, B) == kern::kFieldWrite);
+        const double h = 1e-7;
+        const double num[3] = {-(potential(q[0] + h, q[1], q[2]) - potential(q[0] - h, q[1], q[2])) / (2 * h),
+                               -(potential(q[0], q[1] + h, q[2]) - potential(q[0], q[1] - h, q[2])) / (2 * h),
+                               -(potential(q[0], q[1], q[2] + h) - potential(q[0], q[1], q[2] - h)) / (2 * h)};
+        const double scale = std::fabs(num[0]) + std::fabs(num[1]) + std::fabs(num[2]);
+        for (int j = 0; j < 3; ++j) CHECK(std::fabs(E[j] - num[j]) <= 1e-6 * scale);
+        CHECK(B[0] == 0.0 && B[1] == 0.0 && B[2] == 0.0);
+    }
+    double E[3], B[3];
+    CHECK(field(0.0, 0.0, 0.128, E, B) == kern::kFieldWrite && E[0] == 0.0 && E[2] == 0.0);  // past the cells
+    CHECK(field(0.0055, 0.0, 0.11, E, B) == kern::kFieldWrite);                       // cell 0: inside a = 6 mm
+    CHECK(field(0.0055, 0.0, 0.12, E, B) == (kern::kFieldWrite | kern::kFieldLost));  // cell 1: outside a = 5 mm
+}
+
 int main() {
     test_split();
     test_numbers();
@@ -573,6 +645,7 @@ int main() {
     test_picnic();
     test_reduce();
     test_capi_queries();
+    test_rfq_field();
     std::printf("%s (%d failures)\n", failures ? "FAILED" : "OK", failures);
     return failures;
 }

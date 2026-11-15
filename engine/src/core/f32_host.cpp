@@ -47,6 +47,7 @@ struct ElemVF {
     float zStart, length, radius, strength, ke, kb, keErr, kbErr, phaseErr;
     float errDx, errDy, errDz;
     float esx, ecx, esy, ecy, esz, ecz;
+    int rfq0, rfqN;
 };
 struct SubVF {
     int type, map, hasErr, rfErr;
@@ -75,6 +76,7 @@ struct LatVF {
     int nSeg;
     std::uint64_t bndZ, bndR1, bndR2;
     int nBnd;
+    std::uint64_t rfqCells;  // never used on the GPU (rfq runs on the CPU only)
 };
 struct PartFH {  // PartF of kernels.metal
     std::uint64_t d[3], du[3], E[3], B[3], sc[3], rel[6], hq, tq, w, spz0, spz1;

@@ -144,7 +144,7 @@ private:
         } else if (k == "edge") {
             add_matrix(w, ElemKind::Edge, 5);
         } else if (k == "rfq") {
-            add_rfq();
+            add_rfq(w);
         } else if (k == "field") {
             add_field(w);
         } else if (k == "spacechargecomp") {
@@ -326,17 +326,66 @@ private:
         }
     }
 
-    // ReadRFQ: converts rfqinputAnn.txt / rfqinputV.txt into rfqinput.txt and E0-z.txt (in the
-    // input folder, as the original).  The RFQ element itself is not available: AVAS.dll crashes
-    // on it and libAVAS.so never reads its cell file (see M2-notes).
-    void add_rfq() {
+    // rfq L R V3 type f phase - file ...: ReadRFQ converts rfqinputAnn.txt / rfqinputV.txt into
+    // rfqinput.txt and E0-z.txt (in the input folder, as the original), then the cells of the structure
+    // file named by word 7 are read as RFQ::SetParameter of libAVAS.so does (spec 10 2.8.2, M9-notes).
+    // AVAS.dll cannot run the element (its RFQ::SetParameter is never called: the cells stay empty and
+    // it crashes), so compatibility mode stops with an error; the corrected engine runs it.
+    void add_rfq(std::vector<std::string> w) {
         read_rfq();
-        throw EngineError("Lattice keyword \"rfq\" is not implemented in the new engine yet (the original "
-                          "kernels cannot run it either)");
+        if (compat_dll()) {
+            throw EngineError("Lattice keyword \"rfq\" cannot be reproduced in compatibility mode: AVAS.dll never "
+                              "sets up the RFQ cells and crashes on the element; use the default mode");
+        }
+        if (w.size() < 8) throw EngineError("Error! parameter not enough in element : rfq (rfq L R V3 type f phase file)");
+        const double f = parse_double(w[5]);
+        if (f == 0.0) throw EngineError("RFQ frequency cannot be set to 0");
+        while (w.size() < 14) w.push_back("invalid");
+        w.push_back(std::to_string(cav_));
+        cav_ += 1;
+        p_.needSynPhase = 1;  // the RFQ phase always comes from the scan stage (spec 20 2.6.5)
+        const std::string file = w[7];
+        Element& e = push_element(w);
+        set_basic(e, w);
+        e.kind = ElemKind::Rfq;
+        e.frequency = f;
+        e.phaseRad = parse_double(w[6]) / 180.0 * k::pi;
+        e.cavIndex = parse_int(w.at(14));
+        std::string raw;
+        if (!read_file(paths().input + file, raw)) {
+            throw EngineError("RFQ Structure path ERROR! (" + file + " cannot be opened in the input folder)");
+        }
+        double z = e.zStart;
+        for (const std::string& line : split_lines(normalize_line_endings(raw))) {
+            const std::vector<std::string> c = split_words(line);
+            if (c.empty()) continue;
+            if (c.size() < 14) throw EngineError("RFQ structure file " + file + ": a cell row needs 14 columns");
+            std::array<double, 14> cell{};
+            const double len = parse_double(c[1]) / 100.0;  // cm -> m
+            if (!(len > 0.0)) throw EngineError("RFQ structure file " + file + ": cell length must be positive");
+            cell[0] = z;
+            cell[1] = z + len;
+            cell[2] = len;
+            cell[3] = parse_double(c[3]) / 100.0;  // aperture, cm -> m
+            cell[4] = parse_double(c[2]) * 1000.0;  // inter-vane voltage, kV -> V
+            cell[5] = parse_double(c[4]);
+            for (int j = 0; j < 8; ++j) cell[6 + j] = parse_double(c[6 + j]);
+            if (!(cell[3] > 0.0)) throw EngineError("RFQ structure file " + file + ": aperture must be positive");
+            e.rfqCells.push_back(cell);
+            z += len;
+        }
+        if (e.rfqCells.empty()) throw EngineError("RFQ structure file " + file + " has no cell");
+        say(Text().s("RFQ cell number : ").i(static_cast<long long>(e.rfqCells.size())).str());
+        say(Text().s("RFQ length      : ").g(z - e.zStart).str());
+        if (z - e.zStart > e.length + 1e-9) {
+            throw EngineError(Text().s("RFQ cells (").g(z - e.zStart).s(" m) are longer than the rfq element (")
+                                  .g(e.length).s(" m)").str());
+        }
     }
 
     void read_rfq() {
         auto load = [](const std::string& name, size_t ncol, const char* err, std::vector<std::vector<float>>& rows) {
+            const bool skipBlank = !compat_dll();  // AVAS.dll: a blank line throws out_of_range
             std::string raw;
             if (!read_file(paths().input + name, raw)) {
                 say(err);
@@ -346,6 +395,7 @@ private:
                 std::string l = line;
                 if (!l.empty() && l.back() == '\r') l.pop_back();
                 const std::vector<std::string> wd = split_words(l);
+                if (wd.empty() && skipBlank) continue;
                 if (wd.size() < ncol) throw std::out_of_range("vector::_M_range_check");
                 std::vector<float> r(ncol);
                 for (size_t i = 0; i < ncol; ++i) r[i] = static_cast<float>(parse_double_lenient(wd[i]));
@@ -353,6 +403,14 @@ private:
             }
         };
         std::vector<std::vector<float>> ann, vv;
+        const bool compat = compat_dll();
+        if (!compat) {
+            // corrected: convert only when both source files are there (AVAS.dll always rewrites
+            // rfqinput.txt, which empties a structure file written by hand)
+            std::string probe;
+            if (!read_file(paths().input + "rfqinputAnn.txt", probe) || !read_file(paths().input + "rfqinputV.txt", probe))
+                return;
+        }
         load("rfqinputAnn.txt", 13, "RFQ Structure path Ann ERROR!", ann);
         load("rfqinputV.txt", 14, "RFQ Structure path V ERROR!", vv);
         Text out, e0;

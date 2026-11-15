@@ -44,6 +44,7 @@ kern::ElemV elem_view(const Element& e) {
     dll_sincos(e.errRotY, v.esy, v.ecy);
     dll_sincos(e.errRotZ, v.esz, v.ecz);
     v.rfPlain = v.rfErr = -1;
+    v.rfq0 = v.rfqN = 0;
     return v;
 }
 
@@ -106,6 +107,7 @@ void LatHost::build(const Lattice& lat, const std::vector<char>& errUse, const s
     slots.clear();
     spOut.clear();
     geoms.clear();
+    rfqCells.clear();
     errOn = !errUse.empty();
     hasEff = !spEff.empty();
     const size_t ne = lat.elements.size();
@@ -117,6 +119,13 @@ void LatHost::build(const Lattice& lat, const std::vector<char>& errUse, const s
         if (e.kind == ElemKind::Field) {
             v.rfPlain = add_slot(slots, e.cavIndex, e.frequency, false, 0.0);
             v.rfErr = add_slot(slots, e.cavIndex, e.frequency, true, e.phaseErr);
+        } else if (e.kind == ElemKind::Rfq) {
+            v.rfPlain = v.rfErr = add_slot(slots, e.cavIndex, e.frequency, false, 0.0);
+            v.rfq0 = static_cast<int>(rfqCells.size() / 14);
+            v.rfqN = static_cast<int>(e.rfqCells.size());
+            for (const auto& c : e.rfqCells) {
+                for (int j = 0; j < 14; ++j) rfqCells.push_back(j < 2 ? c[j] - e.zStart : c[j]);
+            }
         }
         add_subs(e, v, subs, slots);
         elems.push_back(v);
@@ -193,6 +202,7 @@ kern::LatV LatHost::view(const Lattice& lat) const {
     v.cavTime = cavTime.data();
     v.cavPhase = cavPhase.data();
     v.rfSlots = slots.data();
+    v.rfqCells = rfqCells.empty() ? nullptr : rfqCells.data();
     v.nElem = static_cast<int>(elems.size());
     v.errOn = errOn ? 1 : 0;
     v.spOutCur = lat.spOutCur;

@@ -267,6 +267,8 @@ export function autoReason(reason: string | null | undefined, code?: string | nu
       return t("auto: this build of the new kernel has no GPU support");
     case "no_metal":
       return t("auto: this Mac's GPU does not support Metal 3");
+    case "rfq_cpu_only":
+      return t("auto: the rfq element is computed on the CPU only");
     case "few_particles":
       return t("auto: too few particles for the GPU, the CPU is faster");
     case "no_driver":

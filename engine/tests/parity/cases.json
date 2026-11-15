@@ -896,7 +896,7 @@
     "drift 0.05 0.02 0",
     "end"
    ],
-   "compat_expected_diff": "AVAS.dll crashes (access violation) on the rfq element; the new engine reports \"not implemented\""
+   "compat_expected_diff": "AVAS.dll crashes (access violation) on the rfq element; the new engine stops with an error in compatibility mode, and in the default mode because word 7 ('1') is not a structure file (M9-notes)"
   },
   {
    "name": "E1_quad_zero_gradient",

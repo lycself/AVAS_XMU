@@ -2,7 +2,7 @@
 
 When it leaves the low-energy transport, our proton is still part of a continuous 35 keV beam, with the protons ahead of and behind it spread uniformly in time. A few metres later it sits in a bunch with an rms length of about 1.2 mm, travelling with its companions at the 162.5 MHz rhythm, with a kinetic energy of 1.527 MeV. The radio-frequency quadrupole (RFQ) makes this change. It has to do three things at once that seem to contradict each other: hold the beam tightly where space charge is strongest; cut the continuous beam into bunches while losing almost no particles; and accelerate. Why can a buncher cavity followed by ordinary accelerating cavities not do the job? Why does the RFQ focus with electric rather than magnetic fields? Why are its electrode surfaces rippled? This chapter answers these questions one by one. The background is in [ion source and low-energy transport](#journey-source) and the [overview](#journey-overview-bunching); the basics of longitudinal motion are in [longitudinal motion](#longitudinal).
 
-> **AVAS does not simulate this section.** The RFQ is computed with dedicated design codes; its output particle distribution (`part_rfq.dst` in the example) or the Twiss parameters computed from it are AVAS's initial beam, as described in [In AVAS](#journey-rfq-in-avas) below.
+> **AVAS usually does not simulate this section.** The RFQ is normally computed with dedicated design codes; its output particle distribution (`part_rfq.dst` in the example) or the Twiss parameters computed from it are AVAS's initial beam. The new kernel also has an `rfq` element computed cell by cell, not yet checked against other codes. Both ways are described in [In AVAS](#journey-rfq-in-avas) below.
 
 ## A continuous beam meets an RF cavity {#journey-rfq-dc-problem}
 
@@ -143,9 +143,16 @@ drift 1.0 0.02 0
 
 ## In AVAS {#journey-rfq-in-avas}
 
-### AVAS does not simulate the RFQ
+### Usually starting at the RFQ exit
 
-AVAS has no RFQ element and does not simulate the RFQ. The vane modulation of an RFQ changes continuously from cell to cell and needs dedicated RFQ design and simulation codes. AVAS starts from the beam at the RFQ exit.
+The vane modulation of an RFQ changes continuously from cell to cell, and it is usually computed with dedicated RFQ design and simulation codes; AVAS starts from the beam at the RFQ exit. Two other ways:
+
+- **Field map**: write the RFQ's 3-D RF field as a field map (`.edx` … `.bdz`) and use it as an ordinary `field` element.
+- **`rfq` element** (new kernel, default mode only, computed on the CPU): `rfq L R 0 1 f 0 rfqinput.txt`.
+  - The structure file has one row per cell: number, length (cm), inter-vane voltage (kV), aperture $a$ (cm), two unused columns, the 8-term potential coefficients $A_0 \ldots A_7$.
+  - The field is the negative gradient of the Kapchinsky–Teplyakov 8-term potential.
+  - The synchronous phase comes from the scan: −90° in the first cell.
+  - The original kernel's rfq element never ran, so there are no original-kernel results to compare with; check it against other codes before using it for real designs.
 
 ### Particle file: `readparticledistribution`
 

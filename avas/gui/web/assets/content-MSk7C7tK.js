@@ -4216,7 +4216,7 @@ $$
 
 When it leaves the low-energy transport, our proton is still part of a continuous 35 keV beam, with the protons ahead of and behind it spread uniformly in time. A few metres later it sits in a bunch with an rms length of about 1.2 mm, travelling with its companions at the 162.5 MHz rhythm, with a kinetic energy of 1.527 MeV. The radio-frequency quadrupole (RFQ) makes this change. It has to do three things at once that seem to contradict each other: hold the beam tightly where space charge is strongest; cut the continuous beam into bunches while losing almost no particles; and accelerate. Why can a buncher cavity followed by ordinary accelerating cavities not do the job? Why does the RFQ focus with electric rather than magnetic fields? Why are its electrode surfaces rippled? This chapter answers these questions one by one. The background is in [ion source and low-energy transport](#journey-source) and the [overview](#journey-overview-bunching); the basics of longitudinal motion are in [longitudinal motion](#longitudinal).
 
-> **AVAS does not simulate this section.** The RFQ is computed with dedicated design codes; its output particle distribution (\`part_rfq.dst\` in the example) or the Twiss parameters computed from it are AVAS's initial beam, as described in [In AVAS](#journey-rfq-in-avas) below.
+> **AVAS usually does not simulate this section.** The RFQ is normally computed with dedicated design codes; its output particle distribution (\`part_rfq.dst\` in the example) or the Twiss parameters computed from it are AVAS's initial beam. The new kernel also has an \`rfq\` element computed cell by cell, not yet checked against other codes. Both ways are described in [In AVAS](#journey-rfq-in-avas) below.
 
 ## A continuous beam meets an RF cavity {#journey-rfq-dc-problem}
 
@@ -4357,9 +4357,16 @@ drift 1.0 0.02 0
 
 ## In AVAS {#journey-rfq-in-avas}
 
-### AVAS does not simulate the RFQ
+### Usually starting at the RFQ exit
 
-AVAS has no RFQ element and does not simulate the RFQ. The vane modulation of an RFQ changes continuously from cell to cell and needs dedicated RFQ design and simulation codes. AVAS starts from the beam at the RFQ exit.
+The vane modulation of an RFQ changes continuously from cell to cell, and it is usually computed with dedicated RFQ design and simulation codes; AVAS starts from the beam at the RFQ exit. Two other ways:
+
+- **Field map**: write the RFQ's 3-D RF field as a field map (\`.edx\` … \`.bdz\`) and use it as an ordinary \`field\` element.
+- **\`rfq\` element** (new kernel, default mode only, computed on the CPU): \`rfq L R 0 1 f 0 rfqinput.txt\`.
+  - The structure file has one row per cell: number, length (cm), inter-vane voltage (kV), aperture $a$ (cm), two unused columns, the 8-term potential coefficients $A_0 \\ldots A_7$.
+  - The field is the negative gradient of the Kapchinsky–Teplyakov 8-term potential.
+  - The synchronous phase comes from the scan: −90° in the first cell.
+  - The original kernel's rfq element never ran, so there are no original-kernel results to compare with; check it against other codes before using it for real designs.
 
 ### Particle file: \`readparticledistribution\`
 
@@ -4436,7 +4443,7 @@ $$
 
 离开低能传输段时，我们的质子还在一股 35 keV 的连续束里，前后的质子在时间上均匀分布；几米之后，它已经待在一个 rms 长度约 1.2 mm 的束团里，以 162.5 MHz 的节拍和同伴一起前进，动能 1.527 MeV。完成这一转变的是射频四极场加速器（RFQ）。它要同时做三件看起来互相矛盾的事：在空间电荷最强的地方把束流横向箍紧；把连续束切成束团，却几乎不丢粒子；还要加速。为什么不能用一个聚束腔加普通的加速腔来代替？为什么 RFQ 用电场而不用磁场聚焦？为什么它的电极表面要做成波纹状？本章逐一回答。前因见 [离子源与低能传输段](#journey-source) 和 [全貌](#journey-overview-bunching)，纵向运动的基本概念见 [纵向运动](#longitudinal)。
 
-> **AVAS 不模拟这一段。** RFQ 由专门的设计程序计算，它出口的粒子分布（示例中的 \`part_rfq.dst\`）或由它统计出的 Twiss 参数就是 AVAS 的初始束流，做法见本章 [在 AVAS 中](#journey-rfq-in-avas)。
+> **AVAS 通常不模拟这一段。** RFQ 一般由专门的设计程序计算，它出口的粒子分布（示例中的 \`part_rfq.dst\`）或由它统计出的 Twiss 参数就是 AVAS 的初始束流。新内核另有一个按 cell 计算的 \`rfq\` 元件，尚未与其他程序核对。两种做法都见本章 [在 AVAS 中](#journey-rfq-in-avas)。
 
 ## 连续束遇到射频腔 {#journey-rfq-dc-problem}
 
@@ -4577,9 +4584,16 @@ drift 1.0 0.02 0
 
 ## 在 AVAS 中 {#journey-rfq-in-avas}
 
-### AVAS 不模拟 RFQ
+### 通常从 RFQ 出口开始
 
-AVAS 没有 RFQ 元件，也不模拟 RFQ。RFQ 的电极调制随单元连续变化，需要专门的 RFQ 设计与模拟程序。AVAS 从 RFQ 出口的束流开始。
+RFQ 的电极调制随单元连续变化，通常用专门的 RFQ 设计与模拟程序计算，AVAS 从 RFQ 出口的束流开始。另外两种做法：
+
+- **场图**：把 RFQ 的三维射频场写成场图（\`.edx\` … \`.bdz\`），作为普通 \`field\` 元件。
+- **\`rfq\` 元件**（只有新内核的默认模式，在 CPU 上计算）：\`rfq L R 0 1 f 0 rfqinput.txt\`。
+  - 结构文件每个 cell 一行：序号、长度（cm）、极间电压（kV）、孔径 $a$（cm）、两列不用、8 项势系数 $A_0 \\ldots A_7$。
+  - 场取 Kapchinsky–Teplyakov 8 项势的负梯度。
+  - 同步相位由扫描确定：第一个 cell 为 −90°。
+  - 原内核的 rfq 元件从未能运行，所以这个元件没有原内核结果可比，用于正式设计前要与其他程序核对。
 
 ### 粒子文件：\`readparticledistribution\`
 

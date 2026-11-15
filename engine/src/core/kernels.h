@@ -133,6 +133,7 @@ struct ElemV {
     double zStart, length, radius, strength, ke, kb, keErr, kbErr, phaseErr;
     double errDx, errDy, errDz;
     double esx, ecx, esy, ecy, esz, ecz;  // sincos of errRotX, errRotY, errRotZ
+    int rfq0, rfqN;  // rfq: cells [rfq0, rfq0 + rfqN) of LatV::rfqCells
 };
 
 struct SpOutV {  // superposeout exit {z0, x0, y0, thz, thx, thy, z_exit} and sincos
@@ -174,6 +175,9 @@ struct LatV {
     const AVAS_G int* bndR1;
     const AVAS_G int* bndR2;
     int nBnd;
+    // rfq cells, 14 values each: z start and end relative to the element start, length, aperture a,
+    // inter-vane voltage V, column 4 of the file, A0 .. A7 (lattice.h Element::rfqCells)
+    const AVAS_G double* rfqCells;
 };
 
 #ifndef AVAS_FLOAT_ONLY
@@ -361,6 +365,93 @@ AVAS_HD inline int superpose_field_t(AVAS_T const LatV& L, AVAS_T const Z& zo, i
     return kFieldWrite;
 }
 
+// ---- rfq (corrected engine; the original never sets up the cells, M9-notes) ----
+
+// Modified Bessel function I_n(x), 20 terms of its series (as AVAS.dll's Bessin, spec 30 2.7.2).
+template <class R>
+AVAS_HD inline R rfq_bessel_i(int n, R x) {
+    const R h = x * R(0.5);
+    R term = R(1);
+    for (int j = 1; j <= n; ++j) term = term * h / R(j);  // (x/2)^n / n!
+    const R h2 = h * h;
+    R sum = R(0);
+    for (int q = 0; q < 20; ++q) {
+        sum = sum + term;
+        term = term * h2 / (R(q + 1) * R(n + q + 1));
+    }
+    return sum;
+}
+
+// RFQ field of cell i of element e: E = -grad U of the 8-term potential
+//   U = V/2 [A0 (r/a)^2 cos2t + A2 (r/a)^6 cos6t + s (A1 I0(kr) sin kz + A6 I0(3kr) sin 3kz
+//            + A3 I4(kr) cos4t sin kz + A7 I4(3kr) cos4t sin 3kz + A4 I2(2kr) cos2t sin 2kz + A5 I6(2kr) cos6t sin 2kz)]
+// with k = pi / cell length, z from the cell start and s = (-1)^i, times the RF factor (B = 0).  AVAS.dll's
+// RFQ::GetField (spec 30 2.7.3) uses +grad U off the axis and -dU/dz on it, and drops the Bessel factors of
+// the A3 .. A7 terms; the corrected engine uses -grad U everywhere (the axial field of the synchronous
+// particle, RFQ::GetSynField) and the full Bessel factors.  The aperture is the cell's (RFQ::getRadius).
+template <class P, class R, class Z>
+AVAS_HD inline int rfq_field_t(AVAS_T const LatV& L, AVAS_T const Z& zo, int k, AVAS_G const ElemV& e,
+                               AVAS_T const FieldIn<R>& in, AVAS_T const RfSrc& rf, AVAS_T R* E, AVAS_T R* B) {
+    zero3(E, B);
+    const R zl = in.fz - R(zo.estart(k, e));
+    int i = -1;
+    for (int c = 0; c < e.rfqN; ++c) {
+        if (zl <= R(L.rfqCells[14 * (e.rfq0 + c) + 1])) {
+            i = c;
+            break;
+        }
+    }
+    if (i < 0) return kFieldWrite | (aperture_lost_t(zo, k, e, in) ? kFieldLost : 0);  // past the cells
+    const AVAS_G double* C = L.rfqCells + 14 * (e.rfq0 + i);
+    const R x = in.x, y = in.y;
+    const R r = hm::sqrt(x * x + y * y);
+    const R a = R(C[3]);
+    if (a <= r && in.boundaryMode == 0 && zo.estart(k, e) + 1e-06 < in.spZ1 && in.spZ0 < in.fz) return kFieldWrite | kFieldLost;
+    const R kk = R(3.141592653589793) / R(C[2]);
+    const R zeta = zl - R(C[0]);
+    const R sg = (i % 2 == 0) ? R(1) : R(-1);
+    const R vh = hm::fabs(R(C[4])) * R(0.5);
+    const R A0 = R(C[6]), A1 = R(C[7]), A2 = R(C[8]), A3 = R(C[9]), A4 = R(C[10]), A5 = R(C[11]), A6 = R(C[12]), A7 = R(C[13]);
+    R s1, c1;
+    P::sincos(kk * zeta, s1, c1);
+    const R s2z = R(2) * s1 * c1, c2z = c1 * c1 - s1 * s1;
+    const R s3z = s1 * (R(3) - R(4) * s1 * s1), c3z = c1 * (R(4) * c1 * c1 - R(3));
+    double ced, cbd;
+    rf_factors<P>(L, rf, e.rfPlain, ced, cbd);
+    const R cph = R(ced);
+    if (r < R(1e-16)) {  // on the axis: only the axial terms
+        E[2] = -vh * sg * (A1 * kk * c1 + A6 * R(3) * kk * c3z) * cph;
+        return kFieldWrite;
+    }
+    const R ct = x / r, st = y / r;
+    const R c2 = ct * ct - st * st, s2 = R(2) * st * ct;
+    const R c4 = c2 * c2 - s2 * s2, s4 = R(2) * s2 * c2;
+    const R c6 = c4 * c2 - s4 * s2, s6 = s4 * c2 + c4 * s2;
+    const R x1 = kk * r, x2 = R(2) * kk * r, x3 = R(3) * kk * r;
+    const R I0a = rfq_bessel_i(0, x1), I1a = rfq_bessel_i(1, x1);
+    const R I3a = rfq_bessel_i(3, x1), I4a = rfq_bessel_i(4, x1), I5a = rfq_bessel_i(5, x1);
+    const R I1b = rfq_bessel_i(1, x2), I2b = rfq_bessel_i(2, x2), I3b = rfq_bessel_i(3, x2);
+    const R I5b = rfq_bessel_i(5, x2), I6b = rfq_bessel_i(6, x2), I7b = rfq_bessel_i(7, x2);
+    const R I0c = rfq_bessel_i(0, x3), I1c = rfq_bessel_i(1, x3);
+    const R I3c = rfq_bessel_i(3, x3), I4c = rfq_bessel_i(4, x3), I5c = rfq_bessel_i(5, x3);
+    const R ra = r / a, ra2 = ra * ra, ra5 = ra2 * ra2 * ra;
+    // dU/dr, (1/r) dU/dtheta, dU/dz (without V/2)
+    const R dur = A0 * R(2) * ra / a * c2 + A2 * R(6) * ra5 / a * c6 +
+                  sg * (A1 * kk * I1a * s1 + A6 * R(3) * kk * I1c * s3z + A3 * kk * R(0.5) * (I3a + I5a) * c4 * s1 +
+                        A7 * R(3) * kk * R(0.5) * (I3c + I5c) * c4 * s3z + A4 * R(2) * kk * R(0.5) * (I1b + I3b) * c2 * s2z +
+                        A5 * R(2) * kk * R(0.5) * (I5b + I7b) * c6 * s2z);
+    const R dut = -(A0 * R(2) * ra / a * s2 + A2 * R(6) * ra5 / a * s6) -
+                  sg * (A3 * R(4) * I4a / r * s4 * s1 + A7 * R(4) * I4c / r * s4 * s3z + A4 * R(2) * I2b / r * s2 * s2z +
+                        A5 * R(6) * I6b / r * s6 * s2z);
+    const R duz = sg * (A1 * I0a * kk * c1 + A6 * I0c * R(3) * kk * c3z + A3 * I4a * c4 * kk * c1 +
+                        A7 * I4c * c4 * R(3) * kk * c3z + A4 * I2b * c2 * R(2) * kk * c2z + A5 * I6b * c6 * R(2) * kk * c2z);
+    const R er = -vh * dur * cph, et = -vh * dut * cph;
+    E[0] = er * ct - et * st;
+    E[1] = er * st + et * ct;
+    E[2] = -vh * duz * cph;
+    return kFieldWrite;
+}
+
 // Field::GetField of element k (spec 30 2.4).
 
 template <class P, class R, class Z>
@@ -371,6 +462,7 @@ AVAS_HD inline int element_field_t(AVAS_T const LatV& L, AVAS_T const Z& zo, int
         zero3(E, B);
         return kFieldWrite | (lost ? kFieldLost : 0);
     }
+    if (e.kind == kRfq) return rfq_field_t<P>(L, zo, k, e, in, rf, E, B);
     if (e.kind != kField) {
         // t-code fields of the hard-edge elements: quad and solenoid simplified, others none
         zero3(E, B);

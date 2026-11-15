@@ -5,12 +5,13 @@
 ## 1. 结论
 
 - 对齐项 280 个：有算例或检验 267 个，无算例 13 个。
-  - RFQ（缺输入样例）：7 个（B-21、C-22、C-23、C-24、C-25、C-26、C-27）
+  - RFQ（原内核不能运行，没有参考结果）：7 个（B-21、C-22、C-23、C-24、C-25、C-26、C-27）。2026-11-16 起新内核默认模式实现，
+    用单元测试（数值梯度）与合成 RFQ 的物理检验做自洽核对，见 M9-notes
   - 只写控制台或含时间、不可比较：4 个（D-13、D-14、E-05、H-24）
   - 需要特殊输入（反射粒子、同步粒子偏轴等）：1 个（D-28）
   - 不适用（.so 的 glibc 行为）：1 个（E-01）
 - 函数 249 个（.so 214 个与 DLL 独有函数）全部有去处；其中“不需要”的是构造/析构、空壳、无调用者的旧路径与调试函数。
-- RFQ 是唯一未实现的 CPU 功能（`lattice.cpp` 解析并报 not implemented），等有输入样例后实现。
+- RFQ 在默认模式下已实现（M9-notes，CPU）：原内核的 RFQ 从未能运行，兼容模式遇到 rfq 报错。
 - M5b 审计中补上的遗漏：superpose 组内误差行、二次粒子、boundary.txt、lpboundary、longlimits、dumpperiodicity、pchistogram、track、importSCF、superposeout 结尾的 lattice、三个 DLL 工具，以及 FullParticle.txt 在“粒子全部丢失”时的输出、collisionData.txt 的粒子种类列。
 
 ## 10 input-lattice
@@ -64,7 +65,7 @@
 | A-45 | `cpl` 类误差、`adjust`、`diag_*`、`lattice`、`spacechargecomp`（.so）静默忽略 | lattice.cpp is_ignored / dispatch | ER13（cpl）、SC7（spacechargecomp） | 相同 |
 | A-46 | boundary：`start` 前忽略、`1`/`2` 形状、未知词报错、`end` 不结束读取、长度不足报错 | lattice.cpp read_boundary | LB1–LB4 | 默认读到 end 停止 |
 | A-47 | boundary superpose 块被结束行代替（缺陷） | lattice.cpp read_boundary(superpose) | EX_A47_boundary_sp_out、EX_A47b_boundary_sp_shape_end（任何块都在输出前 stoi 异常结束，Windows 0xe06d7363） | 默认按子几何加放置实现 |
-| A-48 | ReadRFQ 读写 inputFilePath 下的 4 个文件及格式 | lattice.cpp read_rfq | RFQ1（expected：DLL 崩溃） | RFQ 整体待输入样例 |
+| A-48 | ReadRFQ 读写 inputFilePath 下的 4 个文件及格式 | lattice.cpp read_rfq | RFQ1（expected：DLL 崩溃） | 默认模式只在两个源文件都在时转换（M9-notes） |
 | A-49 | `dt = (1/f)/stepPerCycle` | tracker.cpp run（dt_） | 全部算例 | 相同 |
 | A-50 | DLL 宽字符路径截断 | capi.cpp narrow | Windows 全部算例（ASCII 路径） | M1 清单：默认 UTF-8 |
 
@@ -92,7 +93,7 @@
 | B-18 | V3=1：φRF = word6，cavTime = 主阶段到达时刻 | synchronous.cpp register_cavity | S3c | 相同 |
 | B-19 | 最终 fm.cavPhase/cavTime 交给束团：三种 V3 的等价相位 | synchronous.cpp finish | S3a–S3c、D_* | 相同 |
 | B-20 | 反向运动报错 "Synchronous particle reverse motion, program stopped" | synchronous.cpp push | SI_B20_sync_reverse（hwr010 Ke 16、相位 180°，0.5 MeV）；SI_B20s_static_reverse（静电场反射：两边都挂起，超时） | 默认：静场中同步粒子回退到起点前也报反向错误（B-20s） |
-| B-21 | RFQ 扫描：φ0 = (π/2 − 2πf_beam t)·180/π，减速时重扫 −π/2，仍减速报 "RFQ scanning phase abnormality" | lattice.cpp read_rfq（未实现推进） | - 无算例：缺 RFQ 输入样例（RFQ1 为 expected） | RFQ 推迟 |
+| B-21 | RFQ 扫描：φ0 = (π/2 − 2πf_beam t)·180/π，减速时重扫 −π/2，仍减速报 "RFQ scanning phase abnormality" | lattice.cpp read_rfq（未实现推进） | - 无算例：缺 RFQ 输入样例（RFQ1 为 expected） | 默认模式实现，见 M9-notes；兼容模式报错 |
 | B-22 | superposeout 中同步粒子的坐标变换与出口插值 | synchronous.cpp static_step | SP4、SP5、SE* | 相同 |
 | B-23 | needSynPhase==0 时只 push RF field 的 word6，不处理 RFQ | synchronous.cpp finish | S1、S2a（无腔时） | 相同 |
 | B-24 | singlePartM：先 ReadBeam，gbzIn=−33，0.1 步长，synData 全 17 位 | synchronous.cpp single_particle_mode | S1（singleparticlemode 见 M1） | 相同 |
@@ -128,12 +129,12 @@
 | C-19 | 二进制场图：名以 b 结尾、int32/float64 头 + float32 数据 | fieldmap.cpp read_binary | SI_C19_binary_map_dst（sol 转成 solb）；单元测试 | 相同 |
 | C-20 | 打不开场图时的异常文本 | fieldmap.cpp | S5d | 相同 |
 | C-21 | 场图按名字去重，序号返回 | fieldmap.cpp intern | S3a（同一场图两次） | 相同 |
-| C-22 | RFQ getEleNum 边界（z == cellZEnd 属当前 cell）、getRadius 越界返回 1e99 | lattice.cpp read_rfq | - 无算例：RFQ 推迟 | RFQ 推迟 |
-| C-23 | RFQ 8 项势场公式（含省略的 Bessel 因子、E = +∇U） | - | - 无算例：RFQ 推迟 | RFQ 推迟 |
-| C-24 | RFQ 轴上（r<1e-16）Ez 与轴外反号 | - | - 无算例：RFQ 推迟 | RFQ 推迟 |
-| C-25 | RFQ getEleNum = −1 时原内核越界读 | - | - 无算例：RFQ 推迟（越界读，未定义） | RFQ 推迟 |
-| C-26 | Bessel 级数 20 项 | - | - 无算例：RFQ 推迟 | RFQ 推迟 |
-| C-27 | RFQ 同步粒子逐 cell 相位：dt = 1e-4/f、边界线性插值 + 1e-15、atan 相位、−90 特例、能量下降中止 | - | - 无算例：RFQ 推迟 | RFQ 推迟 |
+| C-22 | RFQ getEleNum 边界（z == cellZEnd 属当前 cell）、getRadius 越界返回 1e99 | lattice.cpp read_rfq | - 无算例：RFQ 推迟 | 默认模式实现，见 M9-notes；兼容模式报错 |
+| C-23 | RFQ 8 项势场公式（含省略的 Bessel 因子、E = +∇U） | - | - 无算例：RFQ 推迟 | 默认模式实现，见 M9-notes；兼容模式报错 |
+| C-24 | RFQ 轴上（r<1e-16）Ez 与轴外反号 | - | - 无算例：RFQ 推迟 | 默认模式实现，见 M9-notes；兼容模式报错 |
+| C-25 | RFQ getEleNum = −1 时原内核越界读 | - | - 无算例：RFQ 推迟（越界读，未定义） | 默认模式实现，见 M9-notes；兼容模式报错 |
+| C-26 | Bessel 级数 20 项 | - | - 无算例：RFQ 推迟 | 默认模式实现，见 M9-notes；兼容模式报错 |
+| C-27 | RFQ 同步粒子逐 cell 相位：dt = 1e-4/f、边界线性插值 + 1e-15、atan 相位、−90 特例、能量下降中止 | - | - 无算例：RFQ 推迟 | 默认模式实现，见 M9-notes；兼容模式报错 |
 | C-28 | 硬边调度：mode 0/1/2 的分派、tRef 取最小 t 或平均 t，edge 不改 mode/tRef | tracker.cpp zcode / het | Z1–Z5、SC5 | 相同 |
 | C-29 | 误差坐标变换 T_in/T_out（含非互逆） | tracker.cpp het_err_in / het_err_out | ER1、ER9 | M5a：默认 T_out 为 T_in 的精确逆 |
 | C-30 | 误差启用判据只看 dyn[idx+1][0] 与 flags[2]+flags[3] | tracker.cpp setup_errors(hetErr_) | ER1、ER8、ER9 | 相同 |

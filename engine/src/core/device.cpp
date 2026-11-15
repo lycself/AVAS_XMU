@@ -25,9 +25,14 @@ DevicePlan failed_plan(const std::string& error) {
 
 }  // namespace
 
-DevicePlan plan_device(long long nParticles, bool spaceCharge, long long meshCells) {
+DevicePlan plan_device(long long nParticles, bool spaceCharge, long long meshCells, bool cpuOnly) {
     const Options& o = options();
     if (o.device == Device::Cpu) return cpu_plan("requested", "requested");
+    if (cpuOnly) {
+        if (o.device != Device::Auto)
+            return failed_plan("the rfq element is computed on the CPU only; choose device auto or cpu");
+        return cpu_plan("auto: the rfq element is computed on the CPU only", "rfq_cpu_only");
+    }
     if (o.device == Device::Emu) {
         if (compat_dll()) return failed_plan("compat=dll is only available on the CPU (device emu was requested)");
         DevicePlan p;
@@ -111,9 +116,9 @@ void reset_used_device() {
     g_used.precision.clear();
 }
 
-std::unique_ptr<DeviceBackend> make_device_backend(long long nParticles, bool spaceCharge, long long meshCells) {
+std::unique_ptr<DeviceBackend> make_device_backend(long long nParticles, bool spaceCharge, long long meshCells, bool cpuOnly) {
     const Options& o = options();
-    DevicePlan plan = plan_device(nParticles, spaceCharge, meshCells);
+    DevicePlan plan = plan_device(nParticles, spaceCharge, meshCells, cpuOnly);
     if (!plan.error.empty()) throw EngineError(plan.error);
     plan.spaceCharge = spaceCharge;
     auto fallback = [&](const std::string& why) {

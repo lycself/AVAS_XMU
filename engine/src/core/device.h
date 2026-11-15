@@ -156,7 +156,7 @@ struct DevicePlan {
     // the same as a fixed code for programs (avas_engine_devices / avas_engine_last_run "reason_code"):
     // requested; auto_space_charge (Metal), auto_fp64_full_rate, auto_fp32 (CUDA); CPU fallbacks of auto:
     // compat_dll, no_space_charge, no_metal, no_cuda_build, no_driver, driver_too_old, no_gpu, bad_gpus,
-    // gpu_too_old, no_kernel_image, gpu_unusable, gpu_memory, run_time_failure, few_particles (Metal:
+    // gpu_too_old, no_kernel_image, gpu_unusable, gpu_memory, run_time_failure, rfq_cpu_only, few_particles (Metal:
     // fewer than kMetalMinParticles particles or than kMetalParticlesPerCell per mesh cell; CUDA: fewer than
     // kCudaMinParticles particles).  Empty with an error.
     std::string code;
@@ -181,13 +181,16 @@ constexpr long long kCudaMinParticles = 1000;
 // nParticles < 1: no memory estimate (query without a run).  meshCells: cells of the space-charge mesh
 // (0: unknown, a query; auto on macOS then reports Metal with cpuBelowParticlesPerCell).  The CUDA
 // probe creates a context on every selected GPU.
-DevicePlan plan_device(long long nParticles, bool spaceCharge, long long meshCells = 0);
+// cpuOnly: the lattice has an element only the CPU computes (rfq): auto picks the CPU (code rfq_cpu_only),
+// a requested GPU or emulation is an error.
+DevicePlan plan_device(long long nParticles, bool spaceCharge, long long meshCells = 0, bool cpuOnly = false);
 
 // Device chosen for a run (options device / precision / gpus, environment AVAS_ENGINE_DEVICE /
 // AVAS_ENGINE_PRECISION / AVAS_ENGINE_GPUS).  Returns null for the CPU; throws EngineError when a
 // GPU was required and cannot be used.  nParticles is used for the memory estimate.  The device
 // actually used (after a fallback of "auto" to the CPU) is kept for avas_engine_last_run().
-std::unique_ptr<DeviceBackend> make_device_backend(long long nParticles, bool spaceCharge, long long meshCells = 0);
+std::unique_ptr<DeviceBackend> make_device_backend(long long nParticles, bool spaceCharge, long long meshCells = 0,
+                                                   bool cpuOnly = false);
 // The last device make_device_backend() set up (plan.device empty: none since reset_used_device()).
 const DevicePlan& used_device();
 void reset_used_device();

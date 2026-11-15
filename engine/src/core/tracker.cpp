@@ -99,7 +99,7 @@ public:
 
         const std::vector<Segment> segs = segment_lattice();
         const long long cells = p_.spaceCharge == 1 ? static_cast<long long>(p_.numOfGrid[0]) * p_.numOfGrid[1] * p_.numOfGrid[2] : 0;
-        dev_ = make_device_backend(n, p_.spaceCharge == 1, cells);
+        dev_ = make_device_backend(n, p_.spaceCharge == 1, cells, has_rfq());
         if (dev_) dev_->begin_run(b_, latH_, lat_.spOutCount > 0);
         startClock_ = std::chrono::steady_clock::now();
         zStartRun_ = b_.z[n];
@@ -290,7 +290,7 @@ private:
         }
         say("Synchronized particles have completed simulation.");
         maxSec_ *= 10;
-        dev_ = make_device_backend(n, false);
+        dev_ = make_device_backend(n, false, 0, has_rfq());
         if (dev_) {
             // every particle alone through the lattice on the device; outputs written in particle order
             dev_->begin_run(b_, latH_, false);
@@ -1026,6 +1026,11 @@ private:
             }
             set_block_sums(ga, s);
         }
+    }
+    bool has_rfq() const {
+        for (const Element& e : lat_.elements)
+            if (e.kind == ElemKind::Rfq) return true;
+        return false;
     }
     std::vector<double> chunkSums_;
     std::vector<BlockAcc> chunkAcc_;

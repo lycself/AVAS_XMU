@@ -1581,5 +1581,8 @@
   "To use the original kernel again: Settings → Default computing kernel → Original kernel (all projects), or Simulation settings → Computing kernel for one project. The mode “Reproduce AVAS.dll” of the new kernel gives the original kernel's results bit for bit.": "如需改回原内核：设置 → 默认计算内核 → 原内核（所有项目），或在模拟设置 → 计算内核中单独设置某个项目。新内核的“复现 AVAS.dll”模式可以逐位得到原内核的结果。",
   "Keep the new kernel": "继续使用新内核",
   "Use the original kernel by default": "默认使用原内核",
-  "New default computing kernel": "默认计算内核已更换"
+  "New default computing kernel": "默认计算内核已更换",
+  "auto: the rfq element is computed on the CPU only": "自动：rfq 元件只在 CPU 上计算",
+  "The rfq element cannot run in the mode “Reproduce AVAS.dll” (the original kernel never computes it). Choose the default mode in Simulation settings → Computing kernel.": "rfq 元件不能在“复现 AVAS.dll”模式下运行（原内核从不计算它）。请在 模拟设置 → 计算内核 中选择默认模式。",
+  "The rfq element is computed on the CPU only. Choose Auto or CPU in Simulation settings → Computing kernel.": "rfq 元件只在 CPU 上计算。请在 模拟设置 → 计算内核 中选择自动或 CPU。"
 }
