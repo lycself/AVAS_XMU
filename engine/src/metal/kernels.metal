@@ -166,6 +166,96 @@ kernel void k_zrow(constant f32::ZArgs& Ac [[buffer(0)]], constant f32::PartF& F
     f32::zrow_particle(A, F, int(i));
 }
 
+// transform passes of the FFT solve line by line (1, 2: DST x, y; 3, 5: DFT z; 6, 7: DST x, y): G lines
+// per threadgroup, one thread per output node.  The lines and the table are read once into threadgroup
+// memory (sized by the host: 2 G N + 3 N + 2 floats); every node then sums exactly as sck::dst_node /
+// sck::dft_z_node (same order, same operations), so the floats equal those of k_fft.  DST threads run
+// line-fastest (neighbouring lines of x / y are neighbouring z indices: contiguous reads), DFT threads
+// node-fastest (a z line is contiguous).
+kernel void k_fft_line(constant sck::SpGrid& gc [[buffer(0)]], constant f32::FftP& Pc [[buffer(1)]],
+                       constant int* lg [[buffer(2)]], threadgroup float* sh [[threadgroup(0)]],
+                       uint grp [[threadgroup_position_in_grid]], uint t [[thread_position_in_threadgroup]]) {
+    const sck::SpGrid g = gc;
+    const f32::FftP P = Pc;
+    const int pass = P.pass;
+    const int G = lg[0], lines = lg[1];
+    const bool z = pass == 3 || pass == 5;
+    const bool x = pass == 1 || pass == 6;
+    const int N = z ? g.nz : (x ? g.nx : g.ny);
+    const int gl = z ? int(t) / N : int(t) % G;  // line in the group
+    const int m0 = z ? int(t) % N : int(t) / G;  // node in the line
+    const int L = int(grp) * G + gl;
+    threadgroup float* lre = sh;
+    threadgroup float* lim = sh + G * N;
+    threadgroup float* tab = sh + 2 * G * N;      // 2 (N + 1) (DST) or N (DFT cos)
+    threadgroup float* tab2 = tab + 2 * (N + 1);  // DFT sin
+    long base = 0, stride = 1;
+    if (z) {
+        base = g.at(L / g.ny, L % g.ny, 0);
+    } else if (x) {
+        base = g.at(0, L / g.nz, L % g.nz);
+        stride = long(g.ny) * g.nz;
+    } else {
+        base = g.at(L / g.nz, 0, L % g.nz);
+        stride = g.nz;
+    }
+    device const float* inRe = pass == 1 || pass == 3 || pass == 6 ? P.A : (pass == 2 ? P.B : P.C);
+    device const float* inIm = pass == 5 ? P.D : nullptr;
+    const bool live = L < lines && m0 < N;
+    if (live) {
+        lre[gl * N + m0] = inRe[base + m0 * stride];
+        if (inIm) lim[gl * N + m0] = inIm[base + m0 * stride];
+    }
+    const int nt = G * N;
+    if (z) {
+        for (int q = int(t); q < N; q += nt) {
+            tab[q] = P.cz[q];
+            tab2[q] = P.sz[q];
+        }
+    } else {
+        device const float* st = x ? P.sx : P.sy;
+        for (int q = int(t); q < 2 * (N + 1); q += nt) tab[q] = st[q];
+    }
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    if (!live) return;
+    threadgroup const float* re = lre + gl * N;
+    threadgroup const float* im = lim + gl * N;
+    const long id = base + m0 * stride;
+    if (z) {
+        const float sign = pass == 3 ? -1.0f : 1.0f;
+        const int k = m0;
+        float sr = 0.0f, si = 0.0f;
+        int q = 0;
+        for (int m = 0; m < N; ++m) {
+            const float c = tab[q], s = sign * tab2[q];
+            const float xr = re[m], xi = inIm ? im[m] : 0.0f;
+            sr = sr + (xr * c - xi * s);
+            si = si + (xr * s + xi * c);
+            q += k;
+            if (q >= N) q -= N;
+        }
+        if (pass == 3) {
+            P.C[id] = sr;
+            P.D[id] = si;
+        } else {
+            P.A[id] = sr;
+            P.B[id] = si;
+        }
+        return;
+    }
+    const int period = 2 * (N + 1);
+    const int step = m0 + 1;
+    int q = step;
+    float s = 0.0f;
+    for (int m = 0; m < N; ++m) {
+        s = s + re[m] * tab[q];
+        q += step;
+        if (q >= period) q -= period;
+    }
+    device float* out = pass == 1 ? P.B : (pass == 2 ? P.A : (pass == 6 ? P.C : P.D));
+    out[id] = 2.0f * s;
+}
+
 // one pass of the FFT solve (f32::fft_node)
 kernel void k_fft(constant sck::SpGrid& gc [[buffer(0)]], constant f32::FftP& Pc [[buffer(1)]], uint id [[thread_position_in_grid]]) {
     const sck::SpGrid g = gc;

@@ -89,6 +89,9 @@ public:
     virtual void grad(const void* g, F32Slice phi, const float* h, F32Slice ex, F32Slice ey, F32Slice ez) = 0;
     // one pass of the FFT solve (f32::fft_node, P = FftP with device addresses) over the n3 nodes
     virtual void fft(const void* g, const void* P, long long n3) = 0;
+    // optional: the transform passes (1, 2, 3, 5, 6, 7) line by line, with the arithmetic of fft_node;
+    // false when the device has no such kernel (fft() then runs the pass)
+    virtual bool fft_lines(const void* g, const void* P, int pass) { (void)g; (void)P; (void)pass; return false; }
 };
 
 // The accelerator of the device back end (device_emu.cpp) on an fp32 device.

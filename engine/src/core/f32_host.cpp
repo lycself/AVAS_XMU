@@ -308,7 +308,7 @@ public:
         D_->batch_begin();  // the ten passes: one submission
         for (int pass = 0; pass <= 9; ++pass) {
             P.pass = pass;
-            D_->fft(&g, &P, static_cast<long long>(n3));
+            if (!D_->fft_lines(&g, &P, pass)) D_->fft(&g, &P, static_cast<long long>(n3));
         }
         D_->batch_end();
         fieldN3_ = n3;

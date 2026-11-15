@@ -22,7 +22,12 @@
 #include "core/sc_kernels.h"
 #include "core/options.h"
 #include "core/physics.h"
+#include "core/workers.h"
 #include "third_party/pocketfft/pocketfft_hdronly.h"
+
+#if defined(_MSC_VER)
+#include <intrin.h>
+#endif
 
 namespace avas {
 
@@ -30,22 +35,13 @@ namespace {
 
 constexpr double kE = 8987551787.368176;  // 1/(4 pi eps0)
 
-// Runs task(0..n-1) on up to hardware_concurrency threads.  Every task writes its own output,
-// so the result never depends on the thread count.
-void run_tasks(int n, const std::function<void(int)>& task) {
-    int t = options().threads > 0 ? options().threads : static_cast<int>(std::thread::hardware_concurrency());
-    t = std::max(1, std::min(t, n));
-    if (t <= 1) {
-        for (int i = 0; i < n; ++i) task(i);
-        return;
-    }
-    std::vector<std::thread> th;
-    std::atomic<int> next{0};
-    for (int k = 0; k < t; ++k)
-        th.emplace_back([&] {
-            for (int i = next++; i < n; i = next++) task(i);
-        });
-    for (auto& x : th) x.join();
+// Integer add from several threads (the fixed-point deposit; integer sums do not depend on the order).
+inline void atomic_add(long long& x, long long v) {
+#if defined(_MSC_VER)
+    _InterlockedExchangeAdd64(reinterpret_cast<volatile __int64*>(&x), v);
+#else
+    __atomic_fetch_add(&x, v, __ATOMIC_RELAXED);
+#endif
 }
 
 std::vector<int> particle_blocks(int n, int& tasks) {
@@ -193,6 +189,29 @@ SpaceCharge::SpaceCharge(const Params& p, int nParticles) : compat_(compat_dll()
     ey_.assign(n3, 0.0);
     ez_.assign(n3, 0.0);
     if (method_ == 1 || method_ == 2) G_.assign(static_cast<size_t>(2 * nx_ + 1) * (2 * ny_ + 1) * (2 * nz_ + 1), 0.0);
+    nThreads_ = std::max(1, options().threads > 0 ? options().threads : static_cast<int>(std::thread::hardware_concurrency()));
+    if (nThreads_ > 1) workers_ = std::make_unique<WorkerPool>(nThreads_);
+}
+
+SpaceCharge::~SpaceCharge() = default;
+
+void SpaceCharge::par(int n, const std::function<void(int)>& task) const {
+    if (workers_ && n > 1) {
+        workers_->run(n, task);
+        return;
+    }
+    for (int i = 0; i < n; ++i) task(i);
+}
+
+void SpaceCharge::par_range(int n, const std::function<void(int, int)>& task) const {
+    const int chunks = std::min(n, workers_ ? nThreads_ : 1);
+    if (chunks <= 1) {
+        if (n > 0) task(0, n);
+        return;
+    }
+    par(chunks, [&](int c) {
+        task(static_cast<int>(static_cast<long long>(n) * c / chunks), static_cast<int>(static_cast<long long>(n) * (c + 1) / chunks));
+    });
 }
 
 bool SpaceCharge::begin(const Beam& b, const double* sync) {
@@ -287,10 +306,15 @@ void SpaceCharge::init_fix(const Beam& b) {
     fixInit_ = true;
 }
 
-void SpaceCharge::set_rho(const std::vector<long long>& acc, double factor) {
-    for (size_t e = 0; e < rho_.size(); ++e) rho_[e] = pm::scale2(static_cast<double>(acc[e]), static_cast<int>(-fixExp_));
-    if (factor != 1.0)
-        for (double& v : rho_) v = v * factor;
+void SpaceCharge::set_rho(const std::vector<long long>& acc, double factor, bool threaded) {
+    const int e3 = static_cast<int>(-fixExp_);
+    auto convert = [&](int e0, int e1) {
+        for (int e = e0; e < e1; ++e) rho_[e] = pm::scale2(static_cast<double>(acc[e]), e3);
+        if (factor != 1.0)
+            for (int e = e0; e < e1; ++e) rho_[e] = rho_[e] * factor;
+    };
+    if (threaded) par_range(static_cast<int>(rho_.size()), convert);
+    else convert(0, static_cast<int>(rho_.size()));
 }
 
 double SpaceCharge::total_charge() const {
@@ -309,18 +333,29 @@ void SpaceCharge::weight(Beam& b, double factor) {
         // corrected engine: every deposit is an exact 64-bit integer (charge * 2^e), so the sum
         // does not depend on the order -- the same on any thread count, GPU or number of GPUs
         init_fix(b);
-        fix_.assign(rho_.size(), 0);
+        fix_.resize(rho_.size());
+        par_range(static_cast<int>(fix_.size()), [&](int e0, int e1) { std::fill(fix_.begin() + e0, fix_.begin() + e1, 0LL); });
         const kern::MeshV M = mesh_view(b);
         const kern::PartV P = beam_view(b);
-        for (int p = 0; p < n; ++p) {
-            if (b.lost[p] == 1) continue;
-            int i, j, k;
-            double w[8];
-            if (!kern::mesh_cell(M, P, p, i, j, k, w)) continue;
-            const double q = b.charge[p];
-            for (int m = 0; m < 8; ++m) fix_[kern::mesh_corner(M, i, j, k, m)] += kern::fix_charge(w[m] * q, fixExp_);
-        }
-        set_rho(fix_, factor);
+        const bool threaded = workers_ && n >= 16384;  // fewer particles: not worth the atomics
+        auto deposit = [&](int p0, int p1) {
+            for (int p = p0; p < p1; ++p) {
+                if (b.lost[p] == 1) continue;
+                int i, j, k;
+                double w[8];
+                if (!kern::mesh_cell(M, P, p, i, j, k, w)) continue;
+                const double q = b.charge[p];
+                for (int m = 0; m < 8; ++m) {
+                    long long& cell = fix_[kern::mesh_corner(M, i, j, k, m)];
+                    const long long v = kern::fix_charge(w[m] * q, fixExp_);
+                    if (threaded) atomic_add(cell, v);
+                    else cell += v;
+                }
+            }
+        };
+        if (threaded) par_range(n, deposit);
+        else deposit(0, n);
+        set_rho(fix_, factor, true);
         return;
     }
     const bool lpRel = lp_ == 1 && (!compat_ || (pool_ && cores_[4] != 1));
@@ -362,36 +397,71 @@ void SpaceCharge::weight(Beam& b, double factor) {
     if (nb == 1) {
         deposit(0, n, rho_);
     } else {
-        std::vector<std::vector<double>> loc(nb, std::vector<double>(rho_.size(), 0.0));
-        run_tasks(nb, [&](int t) { deposit(bounds[t], bounds[t + 1], loc[t]); });
-        for (size_t e = 0; e < rho_.size(); ++e) {
-            double s = 0.0;
-            for (int t = 0; t < nb; ++t) s = s + loc[t][e];
-            rho_[e] = s;
-        }
+        if (loc_.size() != static_cast<size_t>(nb)) loc_.assign(static_cast<size_t>(nb), std::vector<double>());
+        par(nb, [&](int t) {
+            loc_[t].assign(rho_.size(), 0.0);
+            deposit(bounds[t], bounds[t + 1], loc_[t]);
+        });
+        par_range(static_cast<int>(rho_.size()), [&](int e0, int e1) {
+            for (int e = e0; e < e1; ++e) {
+                double s = 0.0;
+                for (int t = 0; t < nb; ++t) s = s + loc_[t][e];
+                rho_[e] = s;
+            }
+        });
     }
     if (factor < 0.999999999)
-        for (double& v : rho_) v = v * (1.0 - factor);
+        par_range(static_cast<int>(rho_.size()), [&](int e0, int e1) {
+            for (int e = e0; e < e1; ++e) rho_[e] = rho_[e] * (1.0 - factor);
+        });
 }
 
 // ---- FFT Poisson solver: DST-I in x, y (grounded walls), periodic FFT in z ----
 void SpaceCharge::fft() {
+    // Every transform is split into independent lines (DST in x, y for each z index; DFT in z for each
+    // (x, y)) and every loop into independent nodes: the same arithmetic as one thread, bit for bit.
     const size_t n3 = rho_.size();
-    std::vector<double> a(n3), bbuf(n3);
+    fa_.resize(n3);
+    fb_.resize(n3);
+    fc1_.resize(n3);
+    fc2_.resize(n3);
+    double* a = fa_.data();
+    double* bb = fb_.data();
+    std::complex<double>* c1 = fc1_.data();
+    std::complex<double>* c2 = fc2_.data();
+    const size_t plane = static_cast<size_t>(ny_) * nz_;
+    auto nodes = [&](const std::function<void(size_t, size_t)>& f) {
+        par_range(nx_, [&](int i0, int i1) { f(static_cast<size_t>(i0) * plane, static_cast<size_t>(i1) * plane); });
+    };
     const double s = ((1.0 / dx_) / dy_) / dz_;
-    for (size_t e = 0; e < n3; ++e) a[e] = rho_[e] * s;
+    nodes([&](size_t e0, size_t e1) {
+        for (size_t e = e0; e < e1; ++e) a[e] = rho_[e] * s;
+    });
     using pocketfft::shape_t;
     using pocketfft::stride_t;
-    const shape_t shape{static_cast<size_t>(nx_), static_cast<size_t>(ny_), static_cast<size_t>(nz_)};
     const stride_t sd{static_cast<std::ptrdiff_t>(sizeof(double) * ny_ * nz_), static_cast<std::ptrdiff_t>(sizeof(double) * nz_),
                       static_cast<std::ptrdiff_t>(sizeof(double))};
     const stride_t sc{static_cast<std::ptrdiff_t>(sizeof(std::complex<double>) * ny_ * nz_),
                       static_cast<std::ptrdiff_t>(sizeof(std::complex<double>) * nz_),
                       static_cast<std::ptrdiff_t>(sizeof(std::complex<double>))};
-    pocketfft::dst<double>(shape, sd, sd, {0, 1}, 1, a.data(), bbuf.data(), 1.0, false, 1);
-    std::vector<std::complex<double>> c1(n3), c2(n3);
-    for (size_t e = 0; e < n3; ++e) c1[e] = {bbuf[e], 0.0};
-    pocketfft::c2c<double>(shape, sc, sc, {2}, true, c1.data(), c2.data(), 1.0, 1);
+    auto dst_xy = [&](const double* in, double* out) {
+        par_range(nz_, [&](int k0, int k1) {
+            const shape_t sh{static_cast<size_t>(nx_), static_cast<size_t>(ny_), static_cast<size_t>(k1 - k0)};
+            pocketfft::dst<double>(sh, sd, sd, {0, 1}, 1, in + k0, out + k0, 1.0, false, 1);
+        });
+    };
+    auto dft_z = [&](const std::complex<double>* in, std::complex<double>* out, bool forward) {
+        par_range(nx_, [&](int i0, int i1) {
+            const shape_t sh{static_cast<size_t>(i1 - i0), static_cast<size_t>(ny_), static_cast<size_t>(nz_)};
+            const size_t o = static_cast<size_t>(i0) * plane;
+            pocketfft::c2c<double>(sh, sc, sc, {2}, forward, in + o, out + o, 1.0, 1);
+        });
+    };
+    dst_xy(a, bb);
+    nodes([&](size_t e0, size_t e1) {
+        for (size_t e = e0; e < e1; ++e) c1[e] = {bb[e], 0.0};
+    });
+    dft_z(c1, c2, true);
     std::vector<double> lx(nx_), ly(ny_), lz(nz_);
     for (int i = 0; i < nx_; ++i) {
         const double v = std::sin((i + 1) * (1.5707963267948966 / (nx_ + 1)));
@@ -405,20 +475,25 @@ void SpaceCharge::fft() {
         const double v = std::sin(k * (3.141592653589793 / nz_));
         lz[k] = ((4.0 / dz_) / dz_) * v * v;
     }
-    for (int i = 0; i < nx_; ++i)
+    par(nx_, [&](int i) {
         for (int j = 0; j < ny_; ++j)
             for (int k = 0; k < nz_; ++k) {
                 const double f = 112940906683.72818 / ((lx[i] + ly[j]) + lz[k]);
                 auto& v = c2[at(i, j, k)];
                 v = {v.real() * f, v.imag() * f};
             }
-    pocketfft::c2c<double>(shape, sc, sc, {2}, false, c2.data(), c1.data(), 1.0, 1);
-    for (size_t e = 0; e < n3; ++e) a[e] = c1[e].real();
-    pocketfft::dst<double>(shape, sd, sd, {0, 1}, 1, a.data(), bbuf.data(), 1.0, false, 1);
+    });
+    dft_z(c2, c1, false);
+    nodes([&](size_t e0, size_t e1) {
+        for (size_t e = e0; e < e1; ++e) a[e] = c1[e].real();
+    });
+    dst_xy(a, bb);
     const double norm = fft_norm(nx_, ny_, nz_, compat_);
-    for (size_t e = 0; e < n3; ++e) phi_[e] = bbuf[e] * norm;
+    nodes([&](size_t e0, size_t e1) {
+        for (size_t e = e0; e < e1; ++e) phi_[e] = bb[e] * norm;
+    });
     const double hx = 1.0 / (dx_ + dx_), hy = 1.0 / (dy_ + dy_), hz = 1.0 / (dz_ + dz_);
-    for (int i = 0; i < nx_; ++i)
+    par(nx_, [&](int i) {
         for (int j = 0; j < ny_; ++j)
             for (int k = 0; k < nz_; ++k) {
                 const double xp = i + 1 < nx_ ? phi_[at(i + 1, j, k)] : 0.0;
@@ -431,6 +506,7 @@ void SpaceCharge::fft() {
                 ey_[at(i, j, k)] = -(yp - ym) * hy;
                 ez_[at(i, j, k)] = -(zp - zm) * hz;
             }
+    });
 }
 
 // ---- SPICNIC ----
@@ -446,19 +522,19 @@ void SpaceCharge::tabulate() {
         const int ax = mx_ + 1, ay = my_ + 1, az = mz_ + 1;
         const sck::SpGrid g{nx_, ny_, nz_, mx_, my_, mz_};
         std::vector<double> F(static_cast<size_t>(ax) * ay * az);
-        run_tasks(ax, [&](int q) {
+        par(ax, [&](int q) {
             for (int r = 0; r < ay; ++r)
                 for (int t = 0; t < az; ++t)
                     F[(static_cast<size_t>(q) * ay + r) * az + t] = sck::green_corner(q, r, t, dx_, dy_, dz_);
         });
-        run_tasks(mx_, [&](int a) {
+        par(mx_, [&](int a) {
             for (int bb = 0; bb < my_; ++bb)
                 for (int c = 0; c < mz_; ++c) sck::green_cell(g, F.data(), vol_, a, bb, c, G_.data());
         });
         return;
     }
     const double hx = dx_ / 10.0, hy = dy_ / 10.0, hz = dz_ / 10.0;
-    run_tasks(mx_, [&](int a) {
+    par(mx_, [&](int a) {
         for (int bb = 0; bb < my_; ++bb)
             for (int c = 0; c < mz_; ++c) {
                 const int s2 = a * a + bb * bb + c * c;
@@ -518,15 +594,16 @@ void SpaceCharge::spicnic_prepare(std::vector<int>& corr, std::vector<double>& d
 void SpaceCharge::picnic() {
     tabulate();
     const sck::SpGrid g{nx_, ny_, nz_, mx_, my_, mz_};
-    run_tasks(nx_, [&](int i) {
+    par(nx_, [&](int i) {
         for (int j = 0; j < ny_; ++j)
             for (int k = 0; k < nz_; ++k) phi_[at(i, j, k)] = sck::picnic_node<double>(g, rho_.data(), G_.data(), i, j, k);
     });
     const double hx = 1.0 / (dx_ + dx_), hy = 1.0 / (dy_ + dy_), hz = 1.0 / (dz_ + dz_);
-    for (int i = 0; i < nx_; ++i)
+    par(nx_, [&](int i) {
         for (int j = 0; j < ny_; ++j)
             for (int k = 0; k < nz_; ++k)
                 sck::grad_spicnic_node(g, phi_.data(), hx, hy, hz, i, j, k, ex_.data(), ey_.data(), ez_.data());
+    });
 }
 
 void SpaceCharge::fft_tables(std::vector<double>& lx, std::vector<double>& ly, std::vector<double>& lz, double& scale,
@@ -587,7 +664,7 @@ void SpaceCharge::spicnic() {
     if (compat_) {
         const int nt = static_cast<int>(sTasks_.size());
         std::vector<std::vector<double>> C(nt, std::vector<double>(n3, 0.0));
-        run_tasks(nt, [&](int t) {
+        par(nt, [&](int t) {
             const auto& T = sTasks_[t];
             for (int i = T[0]; i <= T[2]; ++i) {
                 int j0, j1;
@@ -624,7 +701,7 @@ void SpaceCharge::spicnic() {
         // (accumulated, not assigned) as sum over the mirror points of (rho(P) - rho_sym) G
         const int hi = nx_ / 2, hj = ny_ / 2, hk = nz_ / 2;
         std::vector<double> symv(n3, 0.0);
-        run_tasks(nx_ - hi, [&](int ii) {
+        par(nx_ - hi, [&](int ii) {
             const int i = hi + ii;
             for (int j = hj; j < ny_; ++j)
                 for (int k = hk; k < nz_; ++k) symv[at(i, j, k)] = sym(i, j, k) * kE;
@@ -636,7 +713,7 @@ void SpaceCharge::spicnic() {
                         for (int J : {ny_ - 1 - j, j})
                             for (int K : {nz_ - 1 - k, k}) phi_[at(I, J, K)] = symv[at(i, j, k)];
         const size_t nc = dval.size();
-        run_tasks(nx_, [&](int a) {
+        par(nx_, [&](int a) {
             for (int bb = 0; bb < ny_; ++bb)
                 for (int c = 0; c < nz_; ++c) {
                     double s = 0.0;
@@ -652,7 +729,7 @@ void SpaceCharge::spicnic() {
         if (i == n - 1) return 2.0 * (-(p0 - pm) * h);
         return -(pp - pm) * h;
     };
-    for (int i = 0; i < nx_; ++i)
+    par(nx_, [&](int i) {
         for (int j = 0; j < ny_; ++j)
             for (int k = 0; k < nz_; ++k) {
                 const double p0 = phi_[at(i, j, k)];
@@ -660,6 +737,7 @@ void SpaceCharge::spicnic() {
                 ey_[at(i, j, k)] = grad(j, ny_, j > 0 ? phi_[at(i, j - 1, k)] : 0.0, p0, j + 1 < ny_ ? phi_[at(i, j + 1, k)] : 0.0, hy);
                 ez_[at(i, j, k)] = grad(k, nz_, k > 0 ? phi_[at(i, j, k - 1)] : 0.0, p0, k + 1 < nz_ ? phi_[at(i, j, k + 1)] : 0.0, hz);
             }
+    });
 }
 
 // ---- interpolation back to the particles (PIC::Allocate) ----
@@ -668,7 +746,11 @@ void SpaceCharge::allocate(Beam& b) {
     kern::MeshV M = mesh_view(b);
     M.Q = Q;
     const kern::PartV P = beam_view(b);
-    for (int p = 0; p < b.n; ++p) kern::mesh_interp(M, P, p, ex_.data(), ey_.data(), ez_.data(), kE);
+    auto interp = [&](int p0, int p1) {
+        for (int p = p0; p < p1; ++p) kern::mesh_interp(M, P, p, ex_.data(), ey_.data(), ez_.data(), kE);
+    };
+    if (b.n >= 4096) par_range(b.n, interp);
+    else interp(0, b.n);
     if (rec_ == 1) record(b, Q);
 }
 

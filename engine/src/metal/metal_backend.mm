@@ -76,7 +76,9 @@ public:
             bound_ = pipe("k_bound");
             zrow_ = pipe("k_zrow");
             fft_ = pipe("k_fft");
-            if (!sizes_ || !dep_ || !interp_ || !picnic_ || !sym_ || !corr_ || !grad_ || !step_ || !group_ || !bound_ || !zrow_ || !fft_)
+            fftLine_ = pipe("k_fft_line");
+            if (!sizes_ || !dep_ || !interp_ || !picnic_ || !sym_ || !corr_ || !grad_ || !step_ || !group_ || !bound_ || !zrow_ || !fft_ ||
+                !fftLine_)
                 return false;
             queue_ = [dev_ newCommandQueue];
             name_ = [[dev_ name] UTF8String];
@@ -149,6 +151,26 @@ public:
             [enc setBytes:g length:sz_[1] atIndex:0];
             [enc setBytes:P length:sz_[11] atIndex:1];
         });
+    }
+    bool fft_lines(const void* g, const void* P, int pass) override {
+        if (pass != 1 && pass != 2 && pass != 3 && pass != 5 && pass != 6 && pass != 7) return false;
+        const int* d = static_cast<const int*>(g);  // SpGrid: nx, ny, nz, ...
+        const bool z = pass == 3 || pass == 5, x = pass == 1 || pass == 6;
+        const int N = z ? d[2] : (x ? d[0] : d[1]);
+        const long long lines = z ? static_cast<long long>(d[0]) * d[1] : (x ? static_cast<long long>(d[1]) * d[2] : static_cast<long long>(d[0]) * d[2]);
+        const int maxT = static_cast<int>(std::min<NSUInteger>(1024, [fftLine_ maxTotalThreadsPerThreadgroup]));
+        if (N < 1 || N > maxT || lines > 0x7fffffff) return false;
+        const int G = std::max(1, std::min(256, maxT) / N);  // lines per threadgroup
+        const size_t shBytes = ((static_cast<size_t>(2 * G * N + 3 * N + 2) * 4) + 15) / 16 * 16;
+        if (shBytes > [dev_ maxThreadgroupMemoryLength]) return false;
+        const int lg[2] = {G, static_cast<int>(lines)};
+        run_groups(fftLine_, static_cast<size_t>((lines + G - 1) / G), static_cast<size_t>(G) * N, [&](id<MTLComputeCommandEncoder> enc) {
+            [enc setBytes:g length:sz_[1] atIndex:0];
+            [enc setBytes:P length:sz_[11] atIndex:1];
+            [enc setBytes:lg length:8 atIndex:2];
+            [enc setThreadgroupMemoryLength:shBytes atIndex:0];
+        });
+        return true;
     }
     void zrow(const void* A, const void* F, int n) override {
         run(zrow_, static_cast<size_t>(n), [&](id<MTLComputeCommandEncoder> enc) {
@@ -279,7 +301,8 @@ private:
     id<MTLDevice> dev_ = nil;
     id<MTLCommandQueue> queue_ = nil;
     id<MTLComputePipelineState> sizes_ = nil, dep_ = nil, interp_ = nil, picnic_ = nil, sym_ = nil, corr_ = nil, grad_ = nil,
-                                step_ = nil, group_ = nil, bound_ = nil, zrow_ = nil, fft_ = nil;
+                                step_ = nil, group_ = nil, bound_ = nil, zrow_ = nil, fft_ = nil,
+                                fftLine_ = nil;
     std::vector<void*> live_;  // every buffer: made resident for each dispatch (structures hold GPU addresses)
     std::string name_;
 
@@ -291,13 +314,26 @@ private:
 
     template <class Setup>
     void run(id<MTLComputePipelineState> ps, size_t threads, Setup&& setup) {
+        run_groups(ps, 0, threads, setup);
+    }
+
+    // groups == 0: `threads` threads in groups of up to 256; otherwise `groups` threadgroups of `threads`
+    template <class Setup>
+    void run_groups(id<MTLComputePipelineState> ps, size_t groups, size_t threads, Setup&& setup) {
         if (threads == 0) return;
+        auto dispatch = [&](id<MTLComputeCommandEncoder> enc) {
+            if (groups) {
+                [enc dispatchThreadgroups:MTLSizeMake(groups, 1, 1) threadsPerThreadgroup:MTLSizeMake(threads, 1, 1)];
+            } else {
+                const NSUInteger tg = std::min<NSUInteger>(256, [ps maxTotalThreadsPerThreadgroup]);
+                [enc dispatchThreads:MTLSizeMake(threads, 1, 1) threadsPerThreadgroup:MTLSizeMake(tg, 1, 1)];
+            }
+        };
         if (benc_) {  // in a batch: queued in the open encoder, ordered by a buffer barrier
             [benc_ setComputePipelineState:ps];
             setup(benc_);
             for (void* r : live_) [benc_ useResource:(__bridge id<MTLBuffer>)r usage:MTLResourceUsageRead | MTLResourceUsageWrite];
-            const NSUInteger tg = std::min<NSUInteger>(256, [ps maxTotalThreadsPerThreadgroup]);
-            [benc_ dispatchThreads:MTLSizeMake(threads, 1, 1) threadsPerThreadgroup:MTLSizeMake(tg, 1, 1)];
+            dispatch(benc_);
             [benc_ memoryBarrierWithScope:MTLBarrierScopeBuffers];
             return;
         }
@@ -307,8 +343,7 @@ private:
             [enc setComputePipelineState:ps];
             setup(enc);
             for (void* r : live_) [enc useResource:(__bridge id<MTLBuffer>)r usage:MTLResourceUsageRead | MTLResourceUsageWrite];
-            const NSUInteger tg = std::min<NSUInteger>(256, [ps maxTotalThreadsPerThreadgroup]);
-            [enc dispatchThreads:MTLSizeMake(threads, 1, 1) threadsPerThreadgroup:MTLSizeMake(tg, 1, 1)];
+            dispatch(enc);
             [enc endEncoding];
             [cb commit];
             [cb waitUntilCompleted];

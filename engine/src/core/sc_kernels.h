@@ -32,6 +32,14 @@ struct SpGrid {
         return (static_cast<avas_i64>(a) * (2 * ny + 1) + b) * (2 * nz + 1) + c;
     }
     AVAS_HD void ijk(avas_i64 id, AVAS_T int& i, AVAS_T int& j, AVAS_T int& k) const {
+        if (n3() <= avas_i64(0x7fffffff)) {
+            // 32-bit division, the same integers (64-bit division is emulated and slow on GPUs)
+            const unsigned u = static_cast<unsigned>(id), pl = static_cast<unsigned>(ny) * static_cast<unsigned>(nz);
+            i = static_cast<int>(u / pl);
+            j = static_cast<int>((u / static_cast<unsigned>(nz)) % static_cast<unsigned>(ny));
+            k = static_cast<int>(u % static_cast<unsigned>(nz));
+            return;
+        }
         i = static_cast<int>(id / (static_cast<avas_i64>(ny) * nz));
         j = static_cast<int>((id / nz) % ny);
         k = static_cast<int>(id % nz);
@@ -201,10 +209,16 @@ AVAS_HD inline double dst_node(AVAS_T const SpGrid& g, int axis, const AVAS_G do
     const int N = axis == 0 ? g.nx : g.ny;
     const int kk = axis == 0 ? i : j;
     const int period = 2 * (N + 1);
+    // table index ((m + 1)(kk + 1)) mod period, stepped (no integer division per term: slow on GPUs);
+    // the step kk + 1 <= N is below the period, so one subtraction keeps it in range
+    const int step = kk + 1;
+    int q = step;
     double s = double(0);
     for (int m = 0; m < N; ++m) {
         const double v = axis == 0 ? in[g.at(m, j, k)] : in[g.at(i, m, k)];
-        s = s + v * sinTab[((m + 1) * (kk + 1)) % period];
+        s = s + v * sinTab[q];
+        q += step;
+        if (q >= period) q -= period;
     }
     return double(2) * s;
 }
@@ -216,12 +230,14 @@ AVAS_HD inline void dft_z_node(AVAS_T const SpGrid& g, const AVAS_G double* re, 
     const avas_i64 base = g.at(i, j, 0);
     const int N = g.nz;
     double sr = double(0), si = double(0);
+    int q = 0;  // (m k) mod N, stepped like dst_node (0 <= k < N)
     for (int m = 0; m < N; ++m) {
-        const int q = static_cast<int>((static_cast<avas_i64>(m) * k) % N);
         const double c = cosTab[q], s = sign * sinTab[q];
         const double xr = re[base + m], xi = im ? im[base + m] : double(0);
         sr = sr + (xr * c - xi * s);
         si = si + (xr * s + xi * c);
+        q += k;
+        if (q >= N) q -= N;
     }
     ore = sr;
     oim = si;

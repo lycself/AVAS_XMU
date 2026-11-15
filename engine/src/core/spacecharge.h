@@ -2,6 +2,9 @@
 // SPICNIC or PICNIC solver, interpolation back to the particles (scE = (Ex/gamma, Ey/gamma, Ez), B = 0).
 #pragma once
 #include <array>
+#include <complex>
+#include <functional>
+#include <memory>
 #include <vector>
 
 #include "core/beam.h"
@@ -12,9 +15,12 @@ namespace avas {
 
 double fft_norm(int nx, int ny, int nz, bool compat);
 
+class WorkerPool;
+
 class SpaceCharge {
 public:
     SpaceCharge(const Params& p, int nParticles);
+    ~SpaceCharge();
     // One solve with the current beam (rel, centroid, rms, gamma); writes b.scx/scy/scz.
     // factor = space-charge factor of spacechargecomp.  Returns false when SPICNIC skipped the
     // step (autoPIC), in which case the particles keep their previous field.
@@ -36,7 +42,9 @@ public:
     void prepare_fix(const Beam& b) { init_fix(b); }
     bool recording() const { return rec_ == 1; }
     // rho from the summed fixed-point deposit, times the space-charge factor.
-    void set_rho(const std::vector<long long>& acc, double factor);
+    // threaded: on the solve's pool (the CPU solve); the device path converts its deposit serially,
+    // where waking the pool costs more than it saves (CUDA IF1 25 % slower, 2026-11-15)
+    void set_rho(const std::vector<long long>& acc, double factor, bool threaded = false);
     int method() const { return method_; }
     // SPICNIC: Green table, threshold and the asymmetric correction list (host part of spicnic()).
     void spicnic_prepare(std::vector<int>& corr, std::vector<double>& dval, double& thr);
@@ -89,6 +97,15 @@ private:
     bool fixInit_ = false;
     double prevRms_[3] = {0, 0, 0};
     long long calls_ = 0, solves_ = 0;
+    // Mesh work on a pool made once per run (options().threads; none for one thread).  Every task
+    // writes its own output with the arithmetic of the serial loop, so results do not depend on it.
+    std::unique_ptr<WorkerPool> workers_;
+    int nThreads_ = 1;
+    void par(int n, const std::function<void(int)>& task) const;
+    void par_range(int n, const std::function<void(int, int)>& task) const;  // [i0, i1) chunks
+    std::vector<double> fa_, fb_;                     // fft() work arrays, kept between solves
+    std::vector<std::complex<double>> fc1_, fc2_;
+    std::vector<std::vector<double>> loc_;            // compat threaded deposit: private meshes
 
     size_t at(int i, int j, int k) const { return (static_cast<size_t>(i) * ny_ + j) * nz_ + k; }
     size_t gat(int a, int b, int c) const {
