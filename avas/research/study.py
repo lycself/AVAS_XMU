@@ -40,8 +40,9 @@ TEXT_SUFFIXES = (".txt", ".ini", ".dat", ".csv")
 
 
 def input_folder(project):
-    """InputFile of a project folder, or the folder itself when it holds beam.txt."""
-    project = os.fspath(project)
+    """InputFile of a project folder, or the folder itself when it holds beam.txt (absolute: the engine
+    runs in the run folder, where a relative field map folder would not be found)."""
+    project = os.path.abspath(os.fspath(project))
     inp = os.path.join(project, "InputFile")
     return inp if os.path.isfile(os.path.join(inp, "beam.txt")) else project
 

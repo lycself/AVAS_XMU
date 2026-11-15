@@ -91,6 +91,14 @@ def test_engine_run_record_cache_and_force(project):
     assert "current 0.18409999999999999" in (project / "InputFile" / "beam.txt").read_text()
 
 
+def test_a_relative_project_path_becomes_absolute(project, monkeypatch):
+    # the engine runs in the run folder: a relative field map folder would not be found there
+    monkeypatch.chdir(project.parent)
+    st = research.Study("proj", name="rel", engine="original")
+    assert st.input_dir == str(project / "InputFile")
+    assert os.path.isabs(st.root) and st.root.startswith(str(project))
+
+
 def test_failures_are_recorded_and_do_not_stop_a_batch(project):
     study = make_study(project)
     runs = study.run_many([Variant(input={"failme": 1}), Variant(beam={"current": 1.0})], "engine")
