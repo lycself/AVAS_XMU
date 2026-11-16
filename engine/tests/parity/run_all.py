@@ -689,6 +689,229 @@ def m10_check(work):
     return fails
 
 
+def dst_count(path):
+    return struct.unpack_from("<i", open(path, "rb").read(), 2)[0] if os.path.exists(path) else -1
+
+
+def read_rc(work, case):
+    p = os.path.join(work, case, "summary", "rc.txt")
+    return open(p).read().strip() if os.path.exists(p) else "missing"
+
+
+def m11_check(work):
+    """M11: spacechargecomp before a hard-edge element (default: applied there; compat=dll: ignored as by AVAS.dll),
+    spacechargecomp at the lattice start, a particle reflected inside a superposeout block (both modes end), the long
+    stall loss of D-28 (both modes) and its loss line written once in the default mode."""
+    import re
+    none, dll = os.path.join(work, "none"), os.path.join(work, "dll")
+    fails = 0
+    print("\nM11 (spacechargecomp before hard-edge elements, reflection in a superposeout block, long stall):")
+
+    def report(label, ok, detail=""):
+        nonlocal fails
+        fails += 0 if ok else 1
+        print(f"{label:<36} {'ok  ' if ok else 'FAIL'} {detail}")
+
+    def ds(root, case):
+        return read_rows(os.path.join(root, case, "OutputFile", "DataSet.txt"))
+
+    # spacechargecomp right before the first quad (z = 0.05)
+    a, b, z1 = ds(none, "SC5_spicnic_Z1"), ds(none, "M11_scc_before_quad_dst"), ds(none, "Z1_quad_dst")
+    first = next((i for i, (x, y) in enumerate(zip(a, b)) if x != y), None)
+    # rows of the first drift (time-step segment, up to the quad at z = 0.05) identical, the first different row
+    # after the quad (z = 0.05-0.15)
+    before = first is not None and num(a[first][33]) > 0.1 and all(num(r[33]) < 0.1 for r in a[:first])
+    ratios = []
+    if a and b and z1:
+        for c in (16, 18):   # rms x, y at the exit: space-charge effect against the run without space charge
+            full = num(a[-1][c]) - num(z1[-1][c])
+            ratios.append((num(b[-1][c]) - num(z1[-1][c])) / full if full else math.nan)
+    ok = before and len(ratios) == 2 and all(0.3 < r < 0.8 for r in ratios)
+    zf = num(a[first][33]) if first is not None else math.nan
+    report("scc before quad (default)", ok, f"first different DataSet row {first} (z {zf:.4f} m), space-charge effect "
+           "on the exit rms x, y x " + ", ".join(f"{r:.3f}" for r in ratios) + " (V = 0.5)")
+    same = os.path.isdir(os.path.join(dll, "M11_scc_before_quad_dst", "OutputFile")) and \
+        output_digest(os.path.join(dll, "M11_scc_before_quad_dst", "OutputFile")) == \
+        output_digest(os.path.join(dll, "SC5_spicnic_Z1", "OutputFile"))
+    report("scc before quad (compat=dll)", same, "ignored: DataSet.txt and outData bytes = SC5_spicnic_Z1")
+    s = ds(none, "M11_scc_at_start_dst")
+    ok = read_rc(none, "M11_scc_at_start_dst") == "0" and bool(s) and bool(a) and s[0] == a[0] and s[-1] != a[-1]
+    report("scc at the lattice start (default)", ok, f"rc {read_rc(none, 'M11_scc_at_start_dst')}, {len(s)} rows")
+    # compat=dll as AVAS.dll 2026-04-02 (Windows reference): no "Tcode won't start" (zMax of a .dst beam is not set
+    # before the first check), the event at z = 0 restarts the time-step loop once the beam has passed it
+    sd = ds(dll, "M11_scc_at_start_dst")
+    restart = next((i for i in range(1, len(sd)) if num(sd[i][33]) < num(sd[i - 1][33])), None)
+    ok = read_rc(dll, "M11_scc_at_start_dst") == "0" and restart is not None and sd[restart][33] == sd[0][33]
+    report("scc at the lattice start (compat)", ok, f"rc {read_rc(dll, 'M11_scc_at_start_dst')}, restart from the "
+           f"start at DataSet row {restart}")
+    # reflection inside a superposeout block
+    rc_n, rc_d = read_rc(none, "M11_sp_reflect_static"), read_rc(dll, "M11_sp_reflect_static")
+    n_sp = dst_count(os.path.join(none, "M11_sp_reflect_static", "OutputFile", "outData_0.270000.dst"))
+    n_nb = dst_count(os.path.join(none, "M11_sp_reflect_noblock", "OutputFile", "outData_0.270000.dst"))
+    report("reflection in superposeout (default)", rc_n == "0" and 0 < n_sp < 500 and n_sp == n_nb,
+           f"rc {rc_n}, {n_sp} of 500 at the end ({n_nb} without the block)")
+    el = os.path.join(dll, "M11_sp_reflect_static", "OutputFile", "ErrorLog.txt")
+    ok = rc_d == "2" and os.path.exists(el) and "superposeout block" in open(el, encoding="latin-1").read()
+    report("reflection in superposeout (compat)", ok, f"rc {rc_d}, EngineError (AVAS.dll does not end)")
+    # long stall loss: one line, the particle number directly followed by x (spec 40 4.2.17)
+    line = re.compile(r"^3-0\.000500000000(  -?\d+\.\d{12}){5}$")
+    for root, label in ((none, "default"), (dll, "compat")):
+        out = os.path.join(root, "M11_D28_stall_long_dst", "OutputFile")
+        p = os.path.join(out, "LongitudinalBeamLoss.txt")
+        lines = open(p).read().splitlines() if os.path.exists(p) else []
+        counts = [dst_count(os.path.join(out, f"outData_{z}.dst")) for z in ("0.020000", "5.020000")]
+        rows = read_rows(os.path.join(out, "DataSet.txt"))
+        step = int(num(rows[-1][39])) if rows else -1
+        ok = len(lines) == 1 and bool(line.match(lines[0])) and counts == [3, 3] and step > 2000
+        report(f"D-28 long stall ({label})", ok, f"{len(lines)} loss line(s), particles at the planes {counts}, last step {step}")
+    p = os.path.join(none, "M11_D28_stall_overlap_dst", "OutputFile", "LongitudinalBeamLoss.txt")
+    lines = open(p).read().splitlines() if os.path.exists(p) else []
+    report("D-28 stall with open records", len(lines) == 1, f"{len(lines)} loss line(s) (default mode)")
+    return fails
+
+
+PROGRESS = r"^Simulate progress (-?\d+\.\d{2})%\. Estimated remaining time (-?\d+s|-?\d+\.\d{2}min|-?\d+\.\d{2}h)\. " \
+           r"Run time (\d+s|\d+\.\d{2}min|\d+\.\d{2}h)\.  (\d+)  (-?\d+\.\d{2})m {30}$"
+
+
+def run_seconds(s):
+    return float(s[:-1]) if s.endswith("s") else float(s[:-3]) * 60 if s.endswith("min") else float(s[:-1]) * 3600
+
+
+def progress_lines(log):
+    import re
+    return [ln for ln in re.split(r"[\r\n]", log) if ln.startswith("Simulate progress")]
+
+
+def log_format_check(doc, lib, work):
+    """D-13 progress line (format; interval: default every 5 % or 1 s, compat=dll every 3 s) and D-14
+    SimulationTime.txt (one line, precision 5, the core count c5 written twice) in both modes."""
+    import re
+    fails = 0
+    print("\nConsole progress line (D-13) and SimulationTime.txt (D-14):")
+    prog = re.compile(PROGRESS)
+    g = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[-+]?\d+)?"
+    st = re.compile(rf"^({g}) Exter:(\d+): ({g}) (\d+): ({g}) (\d+): ({g}) (\d+): ({g}) Inter:(\d+): ({g}) (\d+): ({g}) "
+                    rf"(\d+): ({g}) (\d+): ({g}) (\d+): ({g}) (\d+): ({g}) (\d+): ({g})\r?\n$")
+    bad_lines, bad_gap, n_lines, n_cases = [], [], 0, 0
+    for case in doc["cases"]:
+        p = os.path.join(work, "none", case["name"], "log.txt")
+        if not os.path.exists(p):
+            continue
+        lines = progress_lines(open(p, encoding="utf-8", errors="replace").read())
+        n_lines += len(lines)
+        n_cases += 1 if lines else 0
+        prev = None
+        for ln in lines:
+            m = prog.match(ln)
+            if not m:
+                bad_lines.append(f"{case['name']}: {ln!r}")
+                continue
+            cur = (float(m.group(1)), m.group(3))
+            # the same rounded run time: less than 1 s apart, so the 5 % rule wrote it (a lower percentage
+            # starts the next run of an error study)
+            if prev and prev[1] == cur[1] and prev[0] <= cur[0] < prev[0] + 4.99:
+                bad_gap.append(f"{case['name']}: {prev[0]} -> {cur[0]} at {cur[1]}")
+            prev = cur
+    ok = n_lines > 0 and not bad_lines and not bad_gap
+    fails += 0 if ok else 1
+    print(f"{'progress lines (default)':<36} {'ok  ' if ok else 'FAIL'} {n_lines} lines in {n_cases} cases"
+          + "".join(f"\n    format: {b}" for b in bad_lines[:5]) + "".join(f"\n    interval: {b}" for b in bad_gap[:5]))
+    # compat=dll writes a line only every 3 s: one run long enough (100000 particles with space charge)
+    tmp = os.path.join(work, "progress_compat")
+    case = {"name": "M11_progress_compat", "beam": {"particlenumber": 100000, "randomseed": 12345},
+            "input": {"spacecharge": 1, "scmethod": "FFT", "steppercycle": 100},
+            "lattice": ["start", "drift 0.05 0.02 0", "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 hwr010",
+                        "drift 0.3 0.02 0", "end"]}
+    os.makedirs(tmp, exist_ok=True)
+    cf = os.path.join(tmp, "cases.json")
+    json.dump({"common_input": doc.get("common_input", {}), "cases": [case]}, open(cf, "w"))
+    subprocess.run([sys.executable, os.path.join(HERE, "run_engine.py"), "--lib", lib, "--compat", "dll", "--work", tmp,
+                    "--cases", cf], check=True, stdout=subprocess.DEVNULL)
+    lines = progress_lines(open(os.path.join(tmp, case["name"], "log.txt"), encoding="utf-8", errors="replace").read())
+    stp = os.path.join(tmp, case["name"], "OutputFile", "SimulationTime.txt")
+    m = st.match(open(stp, newline="").read()) if os.path.exists(stp) else None
+    push = float(m.group(3)) if m else math.nan
+    times = [run_seconds(prog.match(ln).group(3)) if prog.match(ln) else math.nan for ln in lines]
+    ok = all(prog.match(ln) for ln in lines) and all(b - a >= 2 for a, b in zip(times, times[1:])) and \
+        all(t >= 3 for t in times[:1]) and (bool(lines) or push < 3.5)
+    fails += 0 if ok else 1
+    print(f"{'progress lines (compat=dll)':<36} {'ok  ' if ok else 'FAIL'} {len(lines)} lines at run time {times} s, "
+          f"{push:.1f} s in the pushes")
+    # SimulationTime.txt of every finished run
+    for mode in ("none", "dll"):
+        seen, bad = 0, []
+        for c in doc["cases"]:
+            p = os.path.join(work, mode, c["name"], "OutputFile", "SimulationTime.txt")
+            if not os.path.exists(p) or not os.path.getsize(p):
+                continue
+            seen += 1
+            m = st.match(open(p, newline="").read())
+            ints = [int(m.group(k)) for k in range(2, 23, 2)] if m else []
+            if not m or ints[5] != ints[8]:
+                bad.append(c["name"])
+        ok = seen > 0 and not bad
+        fails += 0 if ok else 1
+        print(f"{'SimulationTime.txt (' + mode + ')':<36} {'ok  ' if ok else 'FAIL'} {seen - len(bad)}/{seen}"
+              + (f" bad: {bad[:5]}" if bad else ""))
+    return fails
+
+
+def seed_check(doc, lib, work):
+    """E-05, default mode: randomseed 0 takes the time, writes it to inData.seed.txt, and a run with that seed gives the
+    same inData.dst (and the same DataSet.txt, outData_*.dst)."""
+    import copy
+    import time
+    print("\nrandomseed 0 is repeatable from inData.seed.txt (E-05, default mode):")
+    base = copy.deepcopy(next(c for c in doc["cases"] if c["name"] == "D_GS_GS"))
+    base.pop("default_indata_sha256", None)
+    tmp = os.path.join(work, "seed0")
+    os.makedirs(tmp, exist_ok=True)
+    outs, seed = [], None
+    for k in range(2):
+        c = copy.deepcopy(base)
+        c["name"] = f"M11_seed_{k}"
+        c["beam"]["randomseed"] = 0 if k == 0 else seed
+        cf = os.path.join(tmp, f"cases{k}.json")
+        json.dump({"common_input": doc.get("common_input", {}), "cases": [c]}, open(cf, "w"))
+        subprocess.run([sys.executable, os.path.join(HERE, "run_engine.py"), "--lib", lib, "--compat", "none", "--work", tmp,
+                        "--cases", cf], check=True, stdout=subprocess.DEVNULL)
+        out = os.path.join(tmp, c["name"], "OutputFile")
+        sp = os.path.join(out, "inData.seed.txt")
+        w = open(sp).read().split() if os.path.exists(sp) else []
+        if k == 0:
+            seed = int(w[1]) if len(w) == 2 and w[0] == "randomseed" else None
+            if seed is None:
+                break
+        outs.append(out)
+    ok = seed is not None and abs(seed - time.time()) < 3600 and len(outs) == 2
+    if ok:
+        same_in = open(os.path.join(outs[0], "inData.dst"), "rb").read() == open(os.path.join(outs[1], "inData.dst"), "rb").read()
+        ok = same_in and output_digest(outs[0]) == output_digest(outs[1])
+    print(f"{'seed 0 -> inData.seed.txt -> rerun':<36} {'ok  ' if ok else 'FAIL'} seed {seed}")
+    return 0 if ok else 1
+
+
+def stray_file_check(doc, work):
+    """H-24: the engine writes nothing in the working directory: every case folder (the working directory of its run)
+    holds only inputs/, OutputFile/, summary/, log.txt and the files the case exports."""
+    fails = 0
+    print("\nNo files outside the input and output folders (H-24):")
+    for mode in ("none", "dll"):
+        bad = []
+        for case in doc["cases"]:
+            d = os.path.join(work, mode, case["name"])
+            if not os.path.isdir(d):
+                continue
+            allowed = {"inputs", "OutputFile", "summary", "log.txt"} | {os.path.basename(t) for t in case.get("export", {}).values()}
+            extra = sorted(set(os.listdir(d)) - allowed)
+            if extra:
+                bad.append(f"{case['name']}: {extra}")
+        fails += 1 if bad else 0
+        print(f"{mode:<36} {'ok  ' if not bad else 'FAIL'}" + "".join(f"\n    {b}" for b in bad[:5]))
+    return fails
+
+
 def thread_check(lib, work, names):
     """Default mode: the same results with 1 thread and with OMP_NUM_THREADS / all cores."""
     one = os.path.join(work, "none_1thread")
@@ -741,6 +964,10 @@ def main():
     bad += m10_check(os.path.join(work, "none"))
     bad += superpose_rf_check(os.path.join(work, "none"))
     bad += stall_check(os.path.join(work, "none"))
+    bad += m11_check(work)
+    bad += log_format_check(doc, lib, work)
+    bad += seed_check(doc, lib, work)
+    bad += stray_file_check(doc, work)
     bad += thread_check(lib, work, ["SC1_spicnic_S1", "SC2_fft_S1", "SC5_spicnic_Z1", "PN1_picnic_S1", "PN2_picnic_Z1", "D_GS_GS",
                                     "ER3_quad_dyn_r2_step31_dst", "ER16_quad_dyn_spicnic_dst",
                                     "LP2_lpboundary_fft_dst", "LB2_boundary_mixed_dst", "M10_D4_close_planes",

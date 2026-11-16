@@ -533,6 +533,7 @@ z0, x0, y0, θz, θx, θy, 出口 z），并置 `elements.back()->inSuperposeOut
 1. 情形 A 的 RF 片头多了一个 `invalid`（21 个单词）。`Lattice::SetElement` 和 `Field::SetParameter` 都按 `words.size()/20` 和固定
    偏移 20+20j 找子块关键字，于是 **RF 片的所有子块都对不上位置**：不加载任何子场图，也不解析任何子元件。按伪代码，“腔放在
    superpose 块第一个”时该片没有场（推测其后果是腔不加速、扫相位失败或报错；必须用原内核实验，见第 5 节）。
+   （M11：原内核与兼容模式运行前，界面与 `avas run` 对 z0 = 0 的块内射频腔给出不阻止运行的提示。）
 2. 子块关键字为 `drift` 的检测用了错误的步长（`Field::SetParameter` 中比较 `words[15+15j]`），实际上 drift 子元件几乎不会被识别，
    被静默跳过（子元件 drift 的孔径不生效）。
 
@@ -695,6 +696,7 @@ Bz = 0
 - 打开 `inputFilePath + "boundary.txt"`，失败抛 `File "boundary.txt" cannot be opened, Check the inputFile routing and boundary.txt.`；
   打印 `"Initialising boundary..."` 换行；**不经 NormalizeLineEndings**，直接对 ifstream 逐行 `getline` + StringSplit（CRLF 行最后一个
   单词带 `\r`：数值不受影响，但 `end\r` ≠ `end`）。
+  **随附原内核的防护（M11）**：原内核在非 Windows 上运行时，`avas run` 把输入快照里的 boundary.txt 改为 LF（libAVAS.so 遇到 `start\r` 时段错误）；用户的 InputFile 不改。
 - 局部：`offsets = [0.0]`，`first = [0]`，`last = []`；`skip = true`。
 - 每行（非空）：`skip` 且不是 `start` → 丢弃；是 `start` → `skip = false`；否则分派：
   - `word[0]` 为 `"1"` 或 `"2"`：`new Geometry`，`Boundary::SetElement(words, g)`。
@@ -708,6 +710,8 @@ Bz = 0
   （无任何几何段时 `back()` 未定义）。
 
 #### 2.9.2 boundary superpose 块（确定，含缺陷）
+
+（M11：原内核与兼容模式不能运行任何 boundary superpose 块，界面运行前检查与 `avas run` 在 `boundary 1` 且 boundary.txt 有块时直接拒绝，提示改用新内核默认模式。）
 
 结构与 lattice 版相同：`superpose` 行（单词数 < 3 → `[V1,0,0,0,0,0]`；3–6 → 抛 `Abnormal number of parameters for keyword superpose in boundary.txt`；
 ≥ 7 → 前 6 个值），下一非空行是子几何行（`Rmin = min(1.0, word[2])`，`zEnd = z0 + stod(word[1])`），再下一行若为 `superposeout` → `iVar8 = 1` 结束，

@@ -868,6 +868,12 @@ private:
             const double L = lat_.elemLength[idx];
             const int mark = sg.marks[j];
             int mode = 0;
+            // spacechargecomp written right before a hard-edge element (M11): AVAS.dll makes events only in
+            // the time-step segments, so the record is never applied there; corrected engine: from this
+            // element on (the last record at this z wins, as in tcode)
+            if (!compat_)
+                for (const auto& row : lat_.spaceChargeComp)
+                    if (z0 <= row[0] && (row[0] < z0 + L || row[0] == z0)) b_.scComp = 1.0 - row[2];
             const bool split = (p_.spaceCharge == 1 || mark > -1.5) && e.kind != ElemKind::Edge;
             if (!split) {
                 het(pool, idx, z0, z0 + L, false, mode, tRef);
@@ -1414,6 +1420,23 @@ private:
         (void)events;
     }
 
+    // spacechargecomp records at z = zev (the last one wins)
+    void apply_scc(double zev) {
+        for (const auto& row : lat_.spaceChargeComp)
+            if (std::fabs(row[0] - zev) < 1e-9 && std::fabs(row[1] - 1.0) < 1e-9)
+                b_.scComp = compat_ ? row[2] : 1.0 - row[2];
+    }
+
+    // compat=dll: steps in a row with a live particle that moves backwards at z < 0 while a superposeout
+    // block is open.  That particle never reaches the exit and AVAS.dll waits for it for ever (M11).
+    static constexpr int kSpBackSteps = 10000;
+    bool sp_backward_particle() const {
+        const Beam& b = b_;
+        for (int i = 0; i < b.n; ++i)
+            if (b.lost[i] == 0 && spRec_[static_cast<size_t>(i)][7] == 0.0 && b.uz[i] < 0.0 && b.z[i] < 0.0) return true;
+        return false;
+    }
+
     // ---- the time-step loop of one segment (tcodeRun) ----
     void tcode(double& t, double& zSeg, const std::vector<double>& events, const std::vector<int>& marks,
                const std::vector<std::vector<std::string>>& names) {
@@ -1422,6 +1445,16 @@ private:
         segEnd_ = events.back() < lat_.total_length() ? events.back() : 1e300;
         Beam& b = b_;
         const int n = b.n;
+        if (!compat_ && events.size() > 1 && marks[0] == -4 && events[0] <= b.zMax) {
+            // spacechargecomp at the entrance of this segment with particles already past it (the lattice
+            // start: AVAS.dll stops with "Tcode won't start"): applied now instead of as an event (M11)
+            apply_scc(events[0]);
+            const std::vector<double> ev2(events.begin() + 1, events.end());
+            const std::vector<int> mk2(marks.begin() + 1, marks.end());
+            const std::vector<std::vector<std::string>> nm2(names.begin() + 1, names.end());
+            tcode(t, zSeg, ev2, mk2, nm2);
+            return;
+        }
         if (events[0] <= b.zMax) {
             char a[64], c[64];
             std::snprintf(a, sizeof a, "%f", b.zMax);
@@ -1478,6 +1511,7 @@ private:
         for (auto& a : acc) a.reset();
         size_t iEv = 0;
         int stall = 0, lastCross = 0;
+        int spBack = 0;  // compat=dll: steps in a row with sp_backward_particle()
         int nAlivePrev = b.nAlive;
         auto lastProgress = std::chrono::steady_clock::now();
 
@@ -1665,6 +1699,15 @@ private:
                 for (auto& r : spRec_) r.fill(0.0);
                 ul(kDevCoord | kDevLost | kDevSpz | kDevIdx | kDevSpRec);
             }
+            // compat=dll (CPU only): AVAS.dll never ends when a particle turns back in front of a superposeout
+            // exit (it is not lost at z < 0 while the block is open); stop with an error instead (M11)
+            if (compat_ && lat_.spOutCur < lat_.spOutCount) {
+                spBack = sp_backward_particle() ? spBack + 1 : 0;
+                if (spBack > kSpBackSteps)
+                    throw EngineError("A particle turned back and left the lattice entrance (z < 0) before the exit of "
+                                      "a superposeout block, so the block can never be left (AVAS.dll does not end in "
+                                      "this case; compat=dll stops after 10000 steps)");
+            }
 
             // events: output planes passed by every live particle
             {
@@ -1682,12 +1725,7 @@ private:
                     }
                     iEv += 1;
                     const int m = marks[iEv - 1];
-                    if (m == -4) {
-                        // spacechargecomp: the record at this element entrance
-                        for (const auto& row : lat_.spaceChargeComp)
-                            if (std::fabs(row[0] - zev) < 1e-9 && std::fabs(row[1] - 1.0) < 1e-9)
-                                b.scComp = compat_ ? row[2] : 1.0 - row[2];
-                    }
+                    if (m == -4) apply_scc(zev);  // spacechargecomp: the record at this element entrance
                     // AVAS.dll restarts the time-step loop at a spacechargecomp event as at a
                     // steerer (particles moved back along straight lines); corrected: no restart
                     if (m > 0 || (m == -4 && compat_)) {
@@ -1774,7 +1812,9 @@ private:
                 dl(kDevRec | kDevCoord | kDevLost);
                 Text lt;
                 for (int i = 0; i < n; ++i) {
-                    if (planeRec_[i][7] == 0.0) {
+                    // corrected engine: a particle lost before (the same stall a step earlier while the
+                    // records of overlapping planes are kept, M10 D4) is not written again (M11)
+                    if (planeRec_[i][7] == 0.0 && (compat_ || b.lost[i] != 1)) {
                         b.lost[i] = 1;
                         lt.i(i).fixed(b.x[i], 12).s("  ").fixed(b.ux[i], 12).s("  ").fixed(b.y[i], 12).s("  ")
                             .fixed(b.uy[i], 12).s("  ").fixed(b.z[i], 12).s("  ").fixed(b.uz[i], 12).nl();

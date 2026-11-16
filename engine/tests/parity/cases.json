@@ -4488,6 +4488,161 @@
     "drift 0.2 0.02 0",
     "end"
    ]
+  },
+  {
+   "name": "M11_scc_before_quad_dst",
+   "comment": "spacechargecomp 0.5 right before a quad (hard-edge element): AVAS.dll makes spacechargecomp events only in time-step segments, so the record is never applied (compat output = SC5_spicnic_Z1); the default mode applies it from the quad on (run_all scc_check)",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "SPICNIC",
+    "setnumberofcores": "64 54 1 24 1 48 96 12 48 12"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "spacechargecomp 0.5",
+    "quad 0.1 0.02 0 10",
+    "drift 0.1 0.02 0",
+    "quad 0.1 0.02 0 -10",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "space_charge": true,
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "compat_tolerance": 1e-10,
+   "compat_note": "M11 (2026-11-17); the compat=dll reference was written by AVAS.dll 2026-04-02 on Windows"
+  },
+  {
+   "name": "M11_scc_at_start_dst",
+   "comment": "spacechargecomp 0.5 before the first element (event at z = 0, behind the bunch head). AVAS.dll 2026-04-02 does not stop with 'Tcode won't start' (zMax of a .dst beam is uninitialised at that check) and restarts the time-step loop at the event once the beam has passed it (compat=dll does the same); the default mode applies the record at the start",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "input": {
+    "spacecharge": 1,
+    "scmethod": "SPICNIC",
+    "setnumberofcores": "64 54 1 24 1 48 96 12 48 12"
+   },
+   "lattice": [
+    "start",
+    "spacechargecomp 0.5",
+    "drift 0.05 0.02 0",
+    "quad 0.1 0.02 0 10",
+    "drift 0.1 0.02 0",
+    "quad 0.1 0.02 0 -10",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "space_charge": true,
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "compat_tolerance": 1e-10,
+   "compat_note": "M11 (2026-11-17); the compat=dll reference was written by AVAS.dll 2026-04-02 on Windows"
+  },
+  {
+   "name": "M11_sp_reflect_static",
+   "comment": "the hwr010 RF map read as a static electric map (Ke -1.2, 0.5 MeV, 10 % energy spread) inside a superposeout block reflects about 40 of 500 particles. AVAS.dll does not declare a particle lost at z < 0 while a superposeout block is open, so it waits for ever at the exit (hang). Default mode: lost behind the frame entrance (z < 0), the run ends like the same lattice without the block; compat=dll: EngineError after 10000 steps (run_all sp_reflect_check)",
+   "timeout": 60,
+   "beam": {
+    "particlenumber": 500,
+    "kneticenergy": 0.5,
+    "randomseed": 12345,
+    "twissz": "0 0.01 0.8"
+   },
+   "field_dir": "inputs",
+   "rename_maps": {
+    "efs.esx": "hwr010.edx",
+    "efs.esy": "hwr010.edy",
+    "efs.esz": "hwr010.edz"
+   },
+   "lattice": [
+    "start",
+    "drift 0.01 0.04 0",
+    "superpose 0 0 0 0 0 0",
+    "field 0.21 0.04 0 2 0 0 -1.2 0 efs",
+    "superposeout 0.21 0 0 0 0 0",
+    "drift 0.05 0.04 0",
+    "end"
+   ],
+   "console_check": [
+    "superposeout",
+    "all particles lost"
+   ],
+   "compat_expected_diff": "AVAS.dll never ends (rc timeout); compat=dll stops with an error after 10000 steps instead (M11)"
+  },
+  {
+   "name": "M11_sp_reflect_noblock",
+   "comment": "M11_sp_reflect_static without the superposeout block: the reflected particles are lost at z < 0 in both kernels",
+   "new_engine_only": true,
+   "beam": {
+    "particlenumber": 500,
+    "kneticenergy": 0.5,
+    "randomseed": 12345,
+    "twissz": "0 0.01 0.8"
+   },
+   "field_dir": "inputs",
+   "rename_maps": {
+    "efs.esx": "hwr010.edx",
+    "efs.esy": "hwr010.edy",
+    "efs.esz": "hwr010.edz"
+   },
+   "lattice": [
+    "start",
+    "drift 0.01 0.04 0",
+    "field 0.21 0.04 0 2 0 0 -1.2 0 efs",
+    "drift 0.05 0.04 0",
+    "end"
+   ]
+  },
+  {
+   "name": "M11_D28_stall_long_dst",
+   "comment": "D-28 long stall: three 1.527 MeV particles and one of 10 eV (data/stall_long.dst, all at z = 0). The fast ones cross the plane at 20 mm within 10 steps, the slow one needs about 3700 steps; after step 2000 the stall exceeds 80 % of the steps and the slow particle is declared lost (one LongitudinalBeamLoss.txt line, the id 3 directly followed by x = -0.0005). The 5 m drift keeps the fast particles before the last event (run_all stall_check) AVAS.dll writes uninitialised memory in the particle id of the loss line (the id of a .dst particle is not set) and in the first synParticle.txt row; those lines are not compared",
+   "beam": {
+    "readparticledistribution": "stall_long.dst"
+   },
+   "copy": {
+    "stall_long.dst": "data/stall_long.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.020 0.02 0",
+    "outputplane 0",
+    "drift 5 0.02 0",
+    "end"
+   ],
+   "compat_note": "M11 (2026-11-17); the compat=dll reference was written by AVAS.dll 2026-04-02 on Windows",
+   "compat_ignore_lines": {
+    "LongitudinalBeamLoss.txt": [
+     0
+    ],
+    "synParticle.txt": [
+     0
+    ]
+   }
+  },
+  {
+   "name": "M11_D28_stall_overlap_dst",
+   "comment": "M11_D28_stall_long_dst with a 0.2 m drift: the fast particles are past the last event when the slow one is lost (compat=dll: 'interval less than the bunch length'); the default mode keeps the records of both events (M10 D4) and must write the loss line once",
+   "new_engine_only": true,
+   "beam": {
+    "readparticledistribution": "stall_long.dst"
+   },
+   "copy": {
+    "stall_long.dst": "data/stall_long.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.020 0.02 0",
+    "outputplane 0",
+    "drift 0.2 0.02 0",
+    "end"
+   ]
   }
  ]
 }

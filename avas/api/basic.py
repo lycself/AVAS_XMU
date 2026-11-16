@@ -22,12 +22,13 @@ def stage_inputs(input_dir, output_dir):
     Field maps are not copied (the engine gets the original folder as field path).
     Returns the staged folder.
     """
-    from avas.data.inputs import copy_text_inputs
+    from avas.data.inputs import copy_text_inputs, prepare_for_original_kernel
     from avas.utils.tolattice import write_mulp_to_lattice_only_sim2
 
     staged = os.path.join(output_dir, STAGED_INPUTS_DIR)
     copy_text_inputs(input_dir, staged)
     write_mulp_to_lattice_only_sim2(lattice_source_path(input_dir), os.path.join(staged, "lattice.txt"))
+    prepare_for_original_kernel(staged)     # libAVAS.so: boundary.txt with LF line endings
     return staged
 
 
@@ -114,7 +115,7 @@ def _error_study(study_class, item):
     The study rewrites ``lattice.txt`` for every seed; that happens in ``<output>/inputs``
     (the field maps are read from the original folder), so the user's input folder is never touched.
     """
-    from avas.data.inputs import copy_text_inputs
+    from avas.data.inputs import copy_text_inputs, prepare_for_original_kernel
 
     study = dict(_ERROR_DEFAULTS)
     study.update(item)
@@ -122,6 +123,7 @@ def _error_study(study_class, item):
     os.makedirs(output_dir, exist_ok=True)
     field_path = study.get("field_path") or input_dir
     staged = copy_text_inputs(input_dir, os.path.join(output_dir, STAGED_INPUTS_DIR))
+    prepare_for_original_kernel(staged)     # libAVAS.so: boundary.txt with LF line endings
     study.update(input_file=staged, output_file=output_dir, field_path=field_path)
     return study_class(study).run()
 

@@ -933,7 +933,11 @@ AVAS_HD inline void trans_particle(const LatV& L, const PartV& b, int i, const S
         // fields of the hard-edge elements there)
         zero_field(b, i);
     }
-    if (b.uz[i] < 0.0 && L.spOutCount <= L.spOutCur && b.z[i] < 0.0) b.lost[i] = 1;
+    // a particle moving backwards behind the start of its frame is lost.  AVAS.dll tests z < 0 only after
+    // the last superposeout block: a particle reflected inside a block then never reaches the exit and the
+    // run never ends.  Corrected engine: behind the frame entrance (z = 0, or the exit of the previous
+    // superposeout block after a restart; spec 40 4.2.13)
+    if (b.uz[i] < 0.0 && (P::compat ? L.spOutCount <= L.spOutCur && b.z[i] < 0.0 : b.z[i] < b.spOutZ0[i])) b.lost[i] = 1;
     const int m = b.nextPlane[i];
     if (m + 1 <= a.nEvents) {
         const double pl = a.events[m];

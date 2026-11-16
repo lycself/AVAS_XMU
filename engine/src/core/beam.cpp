@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <limits>
 #include <cstdint>
 #include <cstring>
 #include <ctime>
@@ -1015,6 +1016,11 @@ void init_particles(Beam& b, Params& p, const Lattice& lat) {
     if (!hasDot) throw EngineError(kDistOpenError);
     if (ext == "dst") {
         init_from_dst(b, p, lat);
+        // AVAS.dll sets zMin / zMax in InitParticle only for a single particle; for a .dst beam the first
+        // "Tcode won't start" check (events[0] <= zMax) reads an uninitialised value, and AVAS.dll 2026-04-02 was
+        // observed not to stop there (M11_scc_at_start_dst: spacechargecomp at z = 0).  compat=dll: a value that
+        // never triggers the check; the default mode keeps 0 (it applies such a record at the start, M11)
+        if (compat_dll()) b.zMax = -std::numeric_limits<double>::infinity();
     } else if (ext == "edst") {
         init_from_edst(b, p, lat);
     } else {

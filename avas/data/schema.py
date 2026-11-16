@@ -283,11 +283,15 @@ _LATTICE = [
         P("V", "Compensation", "补偿度")],
             ("From this line onward the space charge is multiplied by (1 − V) (V = 0 no compensation, 0.5 half).  "
              "Original kernel: only the Windows AVAS.dll reads it (Linux libAVAS.so ignores the line); it ignores "
-             "the line for V ≥ 1 and amplifies the space charge for V < 0.  New kernel: the default mode limits "
-             "1 − V to [0, 1]; the compatibility mode (compat = dll) reproduces AVAS.dll.",
+             "the line for V ≥ 1 and amplifies the space charge for V < 0, and applies it only at the entrance of a "
+             "field-map or drift element (not before a quad, solenoid, bend or edge; before the first element "
+             "it takes effect only after the whole bunch has passed z = 0, where the time steps restart).  New kernel: the default mode limits 1 − V to [0, 1] and applies the line "
+             "wherever it stands; the compatibility mode (compat = dll) reproduces AVAS.dll.",
              "从这一行所在位置起，空间电荷乘以 (1 − V)（V = 0 不补偿，0.5 补偿一半）。原内核：只有 Windows 的 "
-             "AVAS.dll 读取（Linux 的 libAVAS.so 忽略这一行），V ≥ 1 时忽略这一行，V < 0 时放大空间电荷。"
-             "新内核：默认模式把 1 − V 限制在 [0, 1]；兼容模式（compat = dll）与 AVAS.dll 相同。"), min_params=0),
+             "AVAS.dll 读取（Linux 的 libAVAS.so 忽略这一行），V ≥ 1 时忽略这一行，V < 0 时放大空间电荷，"
+             "而且只在场图或漂移元件入口生效（写在 quad、solenoid、bend、edge 前不起作用；写在第一个元件前要等"
+             "束团全部越过起点后才生效，并从起点重新推进）。新内核：默认模式把 1 − V 限制在 [0, 1]，写在哪里都从该处生效；"
+             "兼容模式（compat = dll）与 AVAS.dll 相同。"), min_params=0),
     # ---- errors ---------------------------------------------------------------------
     Keyword("err_step", ("Error groups", "误差分组"), ERROR, [
         P("a", "Groups", "分组数", kind=INT), P("b", "Runs per group", "每组运行次数", kind=INT)],

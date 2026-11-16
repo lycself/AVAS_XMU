@@ -187,6 +187,16 @@ def _run(args, input_dir):
         engines.check_platform(choice)
     except engines.EngineChoiceError as exc:
         raise CliError(str(exc)) from exc
+    if engines.original_kernel_rules(choice):
+        # M11: limits of AVAS.dll 2026-04-02 that compat=dll reproduces
+        if engines.boundary_superpose(input_dir):
+            raise CliError("boundary.txt contains a superpose block, which the original kernel and compat=dll cannot "
+                           "run (AVAS.dll 2026-04-02 stops with an exception while it reads boundary.txt); use the new "
+                           "kernel's default mode (--engine new --compat none, or kernel = new and compat = none in "
+                           "ini.ini [engine]) or remove the block")
+        warning = engines.rf_superpose_warning(engines.rf_at_superpose_start(input_dir))
+        if warning:
+            print(f"[avas] warning: {warning[0]}")
     if choice.is_new:
         # load the library and check a required device before anything is written
         from avas.core.MultiParticleEngine import MultiParticleEngine

@@ -140,6 +140,10 @@ def require_ready(input_dir):
             raise UserError("The original kernel does not run on {platform}. Choose the new kernel in Simulation settings → Computing kernel.", platform=engines.platform_label())
         if engines.input_keywords(input_dir, "input.txt").get("scmethod", "").upper() == "PICNIC":
             raise UserError("The PICNIC space-charge solver is only supported by the new kernel. Choose FFT or SPICNIC, or switch to the new kernel in Simulation settings → Computing kernel.")
+    # M11: a superpose block of boundary.txt stops AVAS.dll 2026-04-02 (and compat=dll) before any output
+    if engines.original_kernel_rules(choice) and engines.boundary_superpose(input_dir):
+        raise UserError(engines.BOUNDARY_SUPERPOSE_ERROR)
+    if not choice.is_new:
         return {"kernel": "original", "predicted": True}
     data, error = _query(choice)
     if data is None:
@@ -171,7 +175,8 @@ def require_ready(input_dir):
 def input_warnings(input_dir):
     """Warnings about the inputs that do not stop a run (in the UI language; also logged), for ``run.check``.
     M10 D1: in the new kernel's default mode the synchronous particle of a .dst file starts with beam.txt
-    kneticenergy; a value more than 1 % away from the mean energy of the file is probably a mistake."""
+    kneticenergy; a value more than 1 % away from the mean energy of the file is probably a mistake.
+    M11: the original kernel and compat=dll give no field to an RF cavity at the start of a superpose block."""
     from avas.i18n import pick
     from avas.model.beam import dst_energies, reference_energy_note
     out = []
@@ -182,6 +187,10 @@ def input_warnings(input_dir):
     if choice.is_new and choice.compat != "dll":
         e = dst_energies(input_dir)
         note = reference_energy_note(e[0], e[1]) if e and e[0] > 0 else None
+        if note:
+            out.append(pick(note))
+    if engines.original_kernel_rules(choice):
+        note = engines.rf_superpose_warning(engines.rf_at_superpose_start(input_dir))
         if note:
             out.append(pick(note))
     for text in out:

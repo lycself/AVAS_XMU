@@ -208,7 +208,7 @@ packaging/        PyInstaller + Inno Setup 打包
   （`engine.info`，子进程查询并缓存，刷新按钮清缓存；壳层启动 5 秒后预取一次），auto 时用 `engine.preview` 显示本项目（按表单的空间电荷开关）会用什么；
   不合法的精度 / 兼容组合禁用并说明（`engine.ts` 的 `precisionProblem` / `compatProblem`，与后端 `engines.validate` 同一规则）；原内核下其余项禁用；新内核库缺失时不可选并说明。
   **每个运行入口在启动前调用 `kernels.require_ready(input_dir)`**：`run.check` / `run.start`、分段运行、研究页内核扫描与内核响应、AI 沙盒的 `Sandbox.run_in`；
-  它检查原内核的平台与 `scmethod PICNIC`（只有新内核支持）、新内核库、设备与组合，用带参数的 `UserError`（模板 + params，前端 `t(template, params)` 翻译）给出可操作的提示。
+  它检查原内核的平台与 `scmethod PICNIC`（只有新内核支持）、原内核与兼容模式不能读的 boundary.txt superpose 块（`engines.boundary_superpose`，`avas run` 同样拒绝；块首射频腔只提示，`kernels.input_warnings`，M11）、新内核库、设备与组合，用带参数的 `UserError`（模板 + params，前端 `t(template, params)` 翻译）给出可操作的提示。
   新增运行入口时也要调用它。运行状态的 `engine`（runner `Job.engine`、沙盒 activity）先是预计值（`predicted: true`），阶段结束后换成 avas_run.json 的实际值；
   标签文字只由 `engine.ts` 的 `engineLabel` / `engineShort` 生成（`EngineBadge` 组件），用于运行页、实时面板、运行记录、状态栏、结果页来源与运行对比；
   `results.sources`、`run.replay` 带 `engine`（`kernels.summary`，旧记录为 null，不显示标签）。input.txt `scanphase` 与 scanData.txt 没有内核读取（原内核、新内核两种模式、libPIC.so）：
@@ -314,7 +314,7 @@ packaging/        PyInstaller + Inno Setup 打包
 - **displacepos** 内核按 **mm** 读取（手册写 m，已在 schema.py 注明）。displacedpos 实际按 x′ = 数值 × 1e-5 rad 读取（300 即 3 mrad）。新内核默认模式另认 `initpos`（mm）与 `initmom`（x′、y′ mrad，δ 单位 1e-3），两套同时写时用新的并警告；2026-07-22 版原内核只认新名字，2026-04-02 版（随附原内核、兼容模式）只认旧名字，所以束流页继续写旧名字（M10 D2）。
 - **读入 `.dst` 粒子文件时的参考（同步）能量**（M10 D1，2026-11-16 与用户商定）：新内核默认模式取 beam.txt `kneticenergy`（≤ 0 或不写时取文件中粒子按权重的平均能量），与平均能量相差超过 1 % 时内核打印警告、`run.check` 返回 `warnings`；线性模型（`avas/model/beam.py`）用同一规则，rms 矩仍按平均值计算。原内核（2026-04-02）与兼容模式总是取平均能量。`.edst` 仍用文件里的同步记录。
 - **Ke = 0 的射频 field 行**（|Ke| < 1e-6，M10 D6）：新内核默认模式按漂移段处理（不读场图、不占腔号、不扫相位，superpose 块内同样），synData 中这一行是 drift；线性模型（`Statement.rf_off()`）与分段运行的重定相位同样跳过它。
-- **spacechargecomp V**（lattice，2026-11-15 由 AVAS.dll 反汇编与新内核兼容模式逐字符比对核实，docs/engine/60-space-charge.md F-28、M4-notes）：从这一行所在位置起空间电荷乘以 (1 − V)。原内核只有 Windows 的 AVAS.dll 认识（Linux libAVAS.so 忽略），V ≥ 1 时忽略这一行、V < 0 时放大空间电荷；新内核默认模式把 1 − V 限制在 [0, 1]，兼容模式与 AVAS.dll 相同。说明写在 schema。
+- **spacechargecomp V**（lattice，2026-11-15 由 AVAS.dll 反汇编与新内核兼容模式逐字符比对核实，docs/engine/60-space-charge.md F-28、M4-notes）：从这一行所在位置起空间电荷乘以 (1 − V)。原内核只有 Windows 的 AVAS.dll 认识（Linux libAVAS.so 忽略），V ≥ 1 时忽略这一行、V < 0 时放大空间电荷，且只在 t 段（场图、漂移）元件入口生效；新内核默认模式把 1 − V 限制在 [0, 1]，写在硬边元件前或第一个元件前也从该处生效（M11），兼容模式与 AVAS.dll 相同。说明写在 schema。
 - **`main_agent` 不读参数**：每次调用都完整运行一次模拟，旧的 `MultiParticle.stop()`（`main_agent(2)`）会让原内核把模拟重跑一遍，已删除；停止运行一律结束 `avas run` 子进程。
 - **randomseed**：原内核与新内核兼容模式在种子非 0 时生成的初始分布 x 与相位完全相关（相关系数 −1，C 库 rand() 横向、纵向各自用同一种子 srand）；新内核默认模式没有这个缺陷。beam.txt 的 randomseed 覆盖 input.txt。研究层默认种子 12345，用原内核时发射度、空间电荷类结果受影响，界面在研究页与模拟设置页提示。
 - **RF 相位 V3**：V3=2 是 t=0 时刻的绝对相位；synData.txt 的 φRF = phase_t0 + 360·f·t_in。分段运行把中段单独拿出来时，要用 φRF − 360·f·(t_in − T_entry) 重新换算（`segment.rephase`），不能直接沿用或改成 V3=0。
@@ -339,7 +339,7 @@ packaging/        PyInstaller + Inno Setup 打包
   - 没有参考结果，只有单元测试（数值梯度）与 `engine/tests/physics/rfq_check.py`（合成 RFQ）的自洽核对；线性预览按漂移段处理。
 - **GPU**：`avas/gpu/` 只封装了 Linux 预编译的 `libPIC.so`，没有源码；不要提议做 Windows GPU 版本。多线程（input.txt `multithreading 1`）是 CPU 上的加速手段。
 - **`multithreading` 只能写 1 或不写**：手册写 0 = 关闭，但内核遇到 `multithreading 0`（2、3 也一样）会在起点丢失全部粒子，报 `End of simulation, all particles lost`（2026-09-19 用示例项目核实，与 particlenumber 无关）。关闭多线程就删掉这一行；设置页（`services/simsettings.py`）已按此处理，`avas/utils/inputconfig.py` 对值为 None 的关键字不写行。新内核两种模式保留了这一行为（M6-notes：为保持 CPU 结果不变未改），所以这条规则对两个内核都适用。
-- **运行不写 InputFile**：`basic_mulp` 和误差研究（`api/basic._error_study`）都把文本输入复制到 `<输出>/inputs/`，`lattice.txt`（误差研究还有每个种子的 lattice）生成在那里，内核以副本为输入、原目录为场图目录。`tests/test_error_study.py` 用固定 randomseed 的示例做回归（误差参数文件必须逐字节相同）。
+- **运行不写 InputFile**：`basic_mulp` 和误差研究（`api/basic._error_study`）都把文本输入复制到 `<输出>/inputs/`，`lattice.txt`（误差研究还有每个种子的 lattice）生成在那里，内核以副本为输入、原目录为场图目录。原内核在非 Windows 上运行时副本里的 boundary.txt 改为 LF（`inputs.prepare_for_original_kernel`：libAVAS.so 不规范换行，`start\r` 时崩溃，M11）。`tests/test_error_study.py` 用固定 randomseed 的示例做回归（误差参数文件必须逐字节相同）。
 
 ## 7. 协作习惯
 

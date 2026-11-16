@@ -444,6 +444,134 @@ def test_check_warns_when_kneticenergy_is_far_from_the_dst_mean(project, fake_qu
         write_engine(project, None)
 
 
+BOUNDARY_SP = "start\n1 Copper 0.05 0.02\nsuperpose 0\n1 Copper 0.35 0.02\nsuperposeout\n1 Copper 0.05 0.02\nend\n"
+
+
+def _set_input_key(inp, key, value):
+    text = (inp / "input.txt").read_text(encoding="utf-8")
+    lines = [ln for ln in text.splitlines() if not ln.split() or ln.split()[0].lower() != key]
+    (inp / "input.txt").write_text("\n".join(lines + [f"{key} {value}"]) + "\n", encoding="utf-8")
+
+
+def test_boundary_superpose_block_is_refused_for_the_original_kernel_and_compat(project, fake_query, monkeypatch):
+    """M11: AVAS.dll 2026-04-02 (and compat=dll) stops with an exception while it reads a superpose block of boundary.txt
+    (spec 10 2.9.2).  With ``boundary 1`` the check before a run refuses the original kernel and compat=dll with a
+    translated message that points to the new kernel's default mode; the default mode, ``boundary 0`` and a
+    boundary.txt without a block pass.  ``avas run`` refuses it too (exit code 2) before anything is written."""
+    from avas import engines
+    from avas.cli.main import main as cli_main
+    inp = project / "InputFile"
+    input_txt = (inp / "input.txt").read_text(encoding="utf-8")
+    try:
+        (inp / "boundary.txt").write_bytes(BOUNDARY_SP.replace("\n", "\r\n").encode())   # CRLF as written on Windows
+        _set_input_key(inp, "boundary", 1)
+        set_platform(monkeypatch, True)
+        write_engine(project, {"kernel": "original"})
+        reply = rpc("run.check")
+        assert reply["ok"] is False and "boundary.txt contains a superpose block" in reply["error"]
+        assert "Reproduce AVAS.dll" in reply["error"] and "default mode" in reply["error"]
+        write_engine(project, {"kernel": "new", "device": "cpu", "compat": "dll"})
+        reply = rpc("engine.check")
+        assert reply["ok"] is False and "superpose block" in reply["error"]
+        zh = json.load(open(os.path.join(ROOT, "frontend", "src", "i18n", "zh_CN.json"), encoding="utf-8"))
+        assert engines.BOUNDARY_SUPERPOSE_ERROR in zh                # translated in the Chinese interface
+        out = project.parent / "cli_out"
+        assert cli_main(["run", "--input", str(inp), "--output", str(out), "--engine", "new", "--compat", "dll"]) == 2
+        assert not out.exists()                                    # refused before the output folder is made
+        write_engine(project, {"kernel": "new", "device": "cpu"})  # the default mode runs it (M10 D5)
+        assert ok("run.check")["kernel"] == "new"
+        write_engine(project, {"kernel": "original"})
+        _set_input_key(inp, "boundary", 0)                          # boundary.txt is not read
+        assert ok("run.check")["kernel"] == "original"
+        _set_input_key(inp, "boundary", 1)
+        (inp / "boundary.txt").write_text("start\n1 Copper 0.5 0.02\nend\n", encoding="utf-8")
+        assert ok("run.check")["kernel"] == "original"
+        (inp / "boundary.txt").write_text("superpose 0\n" + BOUNDARY_SP, encoding="utf-8")   # lines before start are skipped
+        assert rpc("run.check")["ok"] is False
+        (inp / "boundary.txt").write_text("superpose 0\n1 Copper 0.5 0.02\nend\n", encoding="utf-8")
+        assert ok("run.check")["kernel"] == "original"
+    finally:
+        (inp / "input.txt").write_text(input_txt, encoding="utf-8")
+        if (inp / "boundary.txt").exists():
+            os.remove(inp / "boundary.txt")
+        write_engine(project, None)
+
+
+def test_rf_cavity_at_the_start_of_a_superpose_block_warns_for_the_original_kernel(project, fake_query, monkeypatch):
+    """M11: an RF cavity whose superpose line has z0 = 0 ("case A", spec 10 2.6.5.2) gets no field in AVAS.dll 2026-04-02
+    and compat=dll (phase scan error or phi_s NaN, no acceleration).  ``run.check`` warns (the run is not stopped) with
+    the lattice line, only for the original kernel and compat=dll; a cavity later in the block does not warn."""
+    from avas import engines, paths
+    set_platform(monkeypatch, True)
+    lattice = paths.lattice_source_path(str(project / "InputFile"))
+    before = open(lattice, encoding="utf-8").read()
+    head = ["start", "drift 0.05 0.02 0", "superpose 0 0 0 0 0 0"]
+    case_a = head + ["field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 hwr010", "superpose 0 0 0 0 0 0",
+                     "field 0.35 0.02 0 3 0 0 1 0.3 sol", "superposeend", "drift 0.05 0.02 0", "end"]
+    later = head + ["drift 0.3 0.02 0", "superpose 0.09 0 0 0 0 0", "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 hwr010",
+                    "superposeend", "drift 0.05 0.02 0", "end"]
+    try:
+        with open(lattice, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(case_a) + "\n")
+        lines = engines.rf_at_superpose_start(str(project / "InputFile"))
+        assert len(lines) == 1
+        write_engine(project, {"kernel": "original"})
+        got = ok("run.check")
+        assert got["kernel"] == "original" and len(got["warnings"]) == 1
+        assert f"line {lines[0]}" in got["warnings"][0] and "superpose block" in got["warnings"][0]
+        write_engine(project, {"kernel": "new", "device": "cpu", "compat": "dll"})
+        assert len(ok("run.check")["warnings"]) == 1
+        write_engine(project, {"kernel": "new", "device": "cpu"})
+        assert ok("run.check")["warnings"] == []                   # the default mode computes the block correctly
+        with open(lattice, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(later) + "\n")
+        write_engine(project, {"kernel": "original"})
+        assert engines.rf_at_superpose_start(str(project / "InputFile")) == []
+        assert ok("run.check")["warnings"] == []
+    finally:
+        with open(lattice, "w", encoding="utf-8") as fh:
+            fh.write(before)
+        write_engine(project, None)
+
+
+def test_boundary_copy_gets_lf_line_endings_for_the_original_kernel_outside_windows(tmp_path):
+    """M11: libAVAS.so reads boundary.txt without normalising line endings and crashes on ``start\\r``.  The staged copy
+    of a run (never the user's folder) gets LF line endings when the original kernel runs outside Windows; the new
+    kernel and AVAS.dll on Windows read the copy unchanged."""
+    from avas.api.basic import stage_inputs
+    from avas.data.inputs import prepare_for_original_kernel
+    from avas.engines import EngineChoice, set_active
+    src = tmp_path / "InputFile"
+    shutil.copytree(EXAMPLE, src, ignore=lambda d, names: [n for n in names if not n.endswith((".txt", ".ini"))])
+    crlf = BOUNDARY_SP.replace("\n", "\r\n").encode()
+    (src / "boundary.txt").write_bytes(crlf)
+    original, new = EngineChoice(kernel="original"), EngineChoice(kernel="new")
+    staged = tmp_path / "copy"
+    shutil.copytree(src, staged)
+    assert prepare_for_original_kernel(str(staged), original, system_is_windows=False) is True
+    assert (staged / "boundary.txt").read_bytes() == BOUNDARY_SP.encode()
+    assert prepare_for_original_kernel(str(staged), original, system_is_windows=False) is False   # already LF
+    (staged / "boundary.txt").write_bytes(crlf)
+    assert prepare_for_original_kernel(str(staged), original, system_is_windows=True) is False
+    assert prepare_for_original_kernel(str(staged), new, system_is_windows=False) is False
+    assert (staged / "boundary.txt").read_bytes() == crlf
+    # the staging of a run (avas run sets the active choice) converts the copy only
+    previous = set_active(original)
+    try:
+        dest = stage_inputs(str(src), str(tmp_path / "out"))
+    finally:
+        set_active(previous)
+    want = BOUNDARY_SP.encode() if os.name != "nt" else crlf
+    assert open(os.path.join(dest, "boundary.txt"), "rb").read() == want
+    assert (src / "boundary.txt").read_bytes() == crlf                 # the user's file is untouched
+    previous = set_active(new)
+    try:
+        dest = stage_inputs(str(src), str(tmp_path / "out_new"))
+    finally:
+        set_active(previous)
+    assert open(os.path.join(dest, "boundary.txt"), "rb").read() == crlf
+
+
 def test_assistant_sandbox_runs_are_checked_too(project, fake_query, monkeypatch):
     from avas.ai import sandbox
     from avas.gui import context

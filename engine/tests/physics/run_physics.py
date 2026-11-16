@@ -6,7 +6,8 @@ usage: python engine/tests/physics/run_physics.py [--build DIR]   (after buildin
 2. dc KV beam in a 1 m drift: the space-charge growth of the rms converges to the KV envelope of
    avas/dynamics/kv.py (SPICNIC within 2 % at 40^3, PICNIC within 2 % at 24^3);
 3. rfq (rfq_check.py): a synthetic RFQ accelerates its synchronous particle to within 3 % of the design energy and
-   the captured particles follow it;
+   the captured particles follow it; the phase scan keeps the accelerating entry phase (+90 deg, or -90 deg when the
+   field is reversed) and stops with "RFQ scanning phase abnormality" when neither accelerates (B-21, M11);
 4. periodic longitudinal box (lpboundary 0 1, M10 D7): a short dc KV bunch (one 1.3 GHz period) follows the KV
    envelope of the infinite beam with every particle (within 2 %), the open box does not.
 Exit code 0 when all pass.

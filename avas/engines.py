@@ -488,6 +488,76 @@ def lattice_has_rfq(input_dir):
     return any(st.key == "rfq" for st in LatticeDocument(text).elements())
 
 
+def boundary_superpose(input_dir):
+    """input.txt ``boundary 1`` and a ``superpose`` block in boundary.txt (after its ``start`` line).  AVAS.dll 2026-04-02
+    and the new kernel's mode compat=dll stop with an exception (stoi) while reading such a block, before any output
+    (spec 10 2.9.2; cases EX_A47, EX_A47b); only the new kernel's default mode runs it (M10 D5)."""
+    if input_keywords(input_dir, "input.txt").get("boundary", "0") != "1":
+        return False
+    try:
+        with open(os.path.join(input_dir, "boundary.txt"), encoding="utf-8", errors="replace") as fh:
+            lines = fh.read().splitlines()
+    except OSError:
+        return False
+    started = False
+    for line in lines:
+        words = line.split()          # also drops the \r of a CRLF line
+        if not words:
+            continue
+        if not started:
+            started = words[0] == "start"
+        elif words[0] == "superpose":
+            return True
+    return False
+
+
+def rf_at_superpose_start(input_dir):
+    """Line numbers of RF cavities (field type 1) at the start of a superpose block in the lattice run from *input_dir*
+    (the superpose line before the cavity has z0 = 0; "case A" of spec 10 2.6.5.2).  AVAS.dll 2026-04-02 and compat=dll
+    load no field for such a block: the phase scan fails ("Scan phase error") or phi_s is NaN and the beam is not
+    accelerated (M10-notes 6.5); the new kernel's default mode builds the block correctly."""
+    try:
+        with open(paths.lattice_source_path(input_dir), encoding="utf-8", errors="replace") as fh:
+            text = fh.read()
+    except OSError:
+        return []
+    from avas.data.lattice_doc import LatticeDocument, to_float
+    out, in_block, z0 = [], False, None
+    for st in LatticeDocument(text).statements:
+        if not st.active:
+            continue
+        if st.key == "superpose":
+            in_block, z0 = True, to_float(st.param(0))
+        elif st.key in ("superposeend", "superposeout"):
+            in_block, z0 = False, None
+        elif st.is_element:
+            if in_block and z0 == 0.0 and st.field_type() == "1":
+                out.append(st.line_no)
+            z0 = None
+    return out
+
+
+def original_kernel_rules(choice):
+    """Whether *choice* runs with the original kernel's behaviour (the original kernel, or the new one with compat=dll)."""
+    return not choice.is_new or choice.compat == "dll"
+
+
+# one literal: tests/test_design_rules.py finds the translated text (zh_CN.json) in the sources
+BOUNDARY_SUPERPOSE_ERROR = "boundary.txt contains a superpose block, which the original kernel and the mode “Reproduce AVAS.dll” cannot run (AVAS.dll 2026-04-02 stops with an exception while it reads boundary.txt). Choose the new kernel in its default mode in Simulation settings → Computing kernel, or remove the block from boundary.txt."  # noqa: E501
+
+
+def rf_superpose_warning(lines):
+    """Warning (en, zh) for :func:`rf_at_superpose_start` with the original kernel or compat=dll, None without lines."""
+    if not lines:
+        return None
+    at = ", ".join(str(n) for n in lines)
+    return (f"Lattice line {at}: an RF cavity at the start of a superpose block gets no field with the original kernel "
+            "and in the mode “Reproduce AVAS.dll” (AVAS.dll 2026-04-02): the phase scan fails or phi_s is NaN, and the "
+            "beam is not accelerated. The new kernel's default mode computes this block correctly.",
+            f"lattice 第 {at} 行：位于 superpose 块开头的射频腔在原内核和“复现 AVAS.dll”模式（AVAS.dll 2026-04-02）中"
+            "没有场：扫相位失败或 φs 为 NaN，束流不加速。新内核的默认模式能正确计算这种叠加块。")
+
+
 RFQ_CPU_PLAN = {"device": "cpu", "precision": "fp64", "gpus": [], "error": None, "reason_code": "rfq_cpu_only",
                 "reason": "auto: the rfq element is computed on the CPU only"}
 

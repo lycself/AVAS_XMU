@@ -164,6 +164,7 @@ automaticoutput 重建，再在最后一个面 ≠ L 时补 L。最后检查单�
 
 1. 若 `events[0] <= beam.zMax`：抛 `"Tcode won't start, there are particles located behind the output plane. headParticleCoordinates: "
    + sprintf("%f", beam.zMax) + " line: " + sprintf("%f", events[0])`。注意此时 `beam.zMax` 是**上一段留下的值**（z 段不更新它，见 §8）。
+   **AVAS.dll（2026-11-17 实测）**：InitParticle 只给单粒子设置 zMin、zMax，读入 .dst 时第一次进入 tcodeRun 的 zMax 未初始化；`M11_scc_at_start_dst`（事件位于 z = 0、束团头部正好在 0 处）在 AVAS.dll 中不报错。新内核兼容模式读入 .dst 时初始 zMax 取 −∞，与之相同。
 2. 分块（多线程，§7）：`nCh = cores[0]`，`c = ceil(N / nCh)`，边界 `b = [0, c, 2c, …]`（`b.back()+c < N` 且已推入数 < nCh 时继续），
    最后 push N；**改写 `cores[0] = b.size()−1`**（持久修改，后续调用沿用）。`nCh < 1` 时 `b=[0]`，`cores[0]=0`。
 3. 每块累加器（大小 `cores[0]`）：`maxAbs[6]`、`sum2[6]`、`cross[3]`、`zmin`(1e10)、`zmax`(−1e10)、`sumGz2`、`cnt[2]`、`spCnt`(int)、`sum1[6]`；
@@ -287,6 +288,9 @@ rms 不再减均值的平方（偏差本身已对上一步质心取）。
     然后 OpenMP 并行求 `tmin = min{planeRec[i][6] : i<N, flag==1}`（`._omp_fn.0`，**无原子保护的竞争写**，§7）；
     `t = zTotcode(zev, beam, planeRec, tmin)`（返回 tmin）；`zSeg = zev`；以剩余的 `marks[iEv…]`、`events[iEv…]` **递归调用 tcodeRun** 后返回。
   - `m <= 0`（输出面）：`dstOut(zev, beam, planeRec 拷贝)`，然后 planeRec 全清 0，继续。
+  - `m == −4`（spacechargecomp，只有 DLL）：把 `|rec[0] − zev| < 1e-9` 的记录写入 Beam 的补偿系数，像 steerer 一样从记录重启时间步循环（新内核默认模式不重启）。
+    事件只在 t 段生成（`zS ≤ z < zE` 的 t 段元件），写在 quad、solenoid、bend、edge 前的记录两种原内核都不生效；新内核默认模式（M11）在 z 段元件开始时应用它，
+    并把位于本段入口、束团头部已越过的记录（lattice 起点，原来报 “Tcode won't start”）在段开始时直接应用。
 
 **4.2.13 进度**：距上次（初值为本次 tcodeRun 开始）超过 3.0 s → 重置计时并 `simulationProgress(beam, err)`。
 
@@ -306,6 +310,8 @@ rms 不再减均值的平方（偏差本身已对上一步质心取）。
 若 `stall > 0.8·step`（step 已自增，全局计数，含 z 段步数）：对 i<N 且 `planeRec[i][7] == 0.0`：`lost = 1`，并向 `LongitudinalBeamLoss.txt`
 追加 `fixed, precision 12`：`id(0x170)` 紧接 `x  γβx  y  γβy  z  γβz`（**id 与 x 之间没有分隔符**，其余两个空格）+ `'\n'`。
 **更正（2026-11-16）**：AVAS.dll 2026-04-02 的条件是 `stall > 0.8·step && step > 2000`（反编译 `FUN_180070b90`，实测 `M10_S4_stall_early_dst`）；上面按 2026-04-02 以前的 libAVAS.so 写的条件少了 `step > 2000`，2026-07-22 版 .so 才补上。新内核两种模式都按 DLL 的条件。没有这个条件时，运行开头步数很少，稀疏束团两次越过之间隔几步就已占到 80 %，会把尚未到达平面的粒子误判丢失。
+
+**新内核（M11）**：默认模式不重复记录已丢失的粒子（M10 D4 保留相邻事件面的记录时，被判丢的粒子下一步仍满足条件，原来会再写一行）；兼容模式照旧。
 
 **4.2.18** `longLimits[0] != 0` → `LongitudinalBunchLoss(beam)`。
 
@@ -469,7 +475,7 @@ T ≤ 60 用 `%.0fs`，60<T≤3600 用 `%.2fmin`（T/60），T>3600 用 `%.2fh`�
 | 来源 | 条件 | 置为 |
 |---|---|---|
 | 元件孔径（C，`Drift/Field::GetField`） | `boundaryMode == 0` 且越出孔径 | 1 |
-| TcodeTrans（B） | `γβz < 0` 且 `spOutCount <= spOutCur` 且 `z < 0` | 1 |
+| TcodeTrans（B） | `γβz < 0` 且 `spOutCount <= spOutCur` 且 `z < 0`（新内核默认模式，M11：`γβz < 0` 且 `z < spOutZ0`，即退到所在参考系入口之前；第一个 superposeout 块之前 spOutZ0 = 0。原条件下块内被反射的粒子永不丢失，出口重启要等它越过出口面，运行不结束；兼容模式保留原条件，连续 10000 步有这样的粒子时报错） | 1 |
 | TcodeTrans / tcodeRun 4.2.4 | `z > L` 且 `spOutCur == spOut.size()` 且 `lost == 0` | 2（无 superposeout 时 spOut 只有一行哑元，spOutCur=0≠1，**实际上不会发生**；越过 L 后外场被清零、粒子自由漂移） |
 | Geometry::Boundary | 碰壁 | 1，并写 collisionData.txt |
 | LongitudinalBunchLoss | ΔW 或 Δz 超限 | 1（会把 2 改成 1） |

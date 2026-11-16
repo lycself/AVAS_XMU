@@ -23,6 +23,7 @@
 | [M6-notes.md](M6-notes.md) | 新内核 M6（GPU）的实现记录：M6a CUDA 后端的架构、确定性、精度分档、构建与比对 / 性能结果；M6b PICNIC 与 SPICNIC 准备移到 GPU | — | — |
 | [M9-notes.md](M9-notes.md) | RFQ 元件在新内核默认模式中的实现（输入格式、修正的场与同步相位、验证）与原作者仓库 IMP-AVAS/AVAS 的发现 | — | — |
 | [M10-notes.md](M10-notes.md) | 原作者 2026-07-22 版原内核与 04-02 基准的差别（逐版本定位、按函数对比）、跟进决定 D1–D8 与默认模式中的实现（参考能量、initpos／initmom、单粒子输出面、命名与紧邻输出面、新边界形状、Ke = 0 射频场、纵向周期盒）及检验 | — | — |
+| [M11-notes.md](M11-notes.md) | M11：硬边元件前的 spacechargecomp 在默认模式生效、superposeout 块内反射粒子不再使运行挂起、停滞判丢不重复记录；Python 侧对原内核的防护（libAVAS.so 的 CRLF boundary.txt、boundary.txt 的 superpose 块、块首射频腔提示）；D-28、B-21、D-13、D-14、E-05、H-24 的补测 | — | — |
 | [feedback-imp-avas-20260722.md](feedback-imp-avas-20260722.md) | 给原作者 IMP-AVAS 的 2026-07-22 版问题反馈（崩溃与错误结果、旧项目静默改变、输出与一致性问题），每条注明实测或代码阅读 | — | — |
 | [M8-plan.md](M8-plan.md) | 第二阶段方案：新内核设为默认（切换前的比对与性能测量、切换内容、原内核保留期、待定点） | — | — |
 

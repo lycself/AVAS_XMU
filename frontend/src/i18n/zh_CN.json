@@ -1539,6 +1539,7 @@
   "The computing kernel settings are invalid: {detail}": "计算内核设置无效：{detail}",
   "The original kernel does not run on {platform}. Choose the new kernel in Simulation settings → Computing kernel.": "原内核不能在 {platform} 上运行。请在 模拟设置 → 计算内核 中选择新内核。",
   "The PICNIC space-charge solver is only supported by the new kernel. Choose FFT or SPICNIC, or switch to the new kernel in Simulation settings → Computing kernel.": "只有新内核支持 PICNIC 空间电荷算法。请选择 FFT 或 SPICNIC，或在 模拟设置 → 计算内核 中改用新内核。",
+  "boundary.txt contains a superpose block, which the original kernel and the mode “Reproduce AVAS.dll” cannot run (AVAS.dll 2026-04-02 stops with an exception while it reads boundary.txt). Choose the new kernel in its default mode in Simulation settings → Computing kernel, or remove the block from boundary.txt.": "boundary.txt 中有 superpose 块，原内核和“复现 AVAS.dll”模式都不能运行（AVAS.dll 2026-04-02 读取 boundary.txt 时异常结束）。请在 模拟设置 → 计算内核 中选择新内核的默认模式，或从 boundary.txt 中删去该块。",
   "The new kernel could not be queried: {detail}": "无法查询新内核：{detail}",
   "The new kernel's library is not available: {detail}": "新内核的库不可用：{detail}",
   "The new kernel cannot use the device chosen in Simulation settings ({device}) on this computer: {detail}. Choose Auto or CPU.": "新内核在本机不能使用模拟设置中选择的设备（{device}）：{detail}。请选择自动或 CPU。",

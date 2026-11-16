@@ -48,3 +48,35 @@ def copy_text_inputs(src, dest):
             os.makedirs(os.path.dirname(target), exist_ok=True)
             shutil.copy2(file, target)
     return dest
+
+
+def lf_line_endings(path):
+    """Rewrite the text file *path* with LF line endings (CRLF and lone CR become LF); True when it changed.
+    Used only on staged copies, never on a user's input folder."""
+    try:
+        with open(path, "rb") as fh:
+            raw = fh.read()
+    except OSError:
+        return False
+    fixed = raw.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+    if fixed == raw:
+        return False
+    with open(path, "wb") as fh:
+        fh.write(fixed)
+    return True
+
+
+def prepare_for_original_kernel(staged, choice=None, system_is_windows=None):
+    """Adapt a staged copy of the text inputs to the original kernel's limits.
+
+    libAVAS.so (Linux) reads boundary.txt line by line without normalising the line endings (spec 10 2.9.1): in a CRLF
+    file ``start\\r`` is not ``start`` and the kernel crashes.  When the original kernel runs outside Windows,
+    boundary.txt of the copy gets LF line endings (AVAS.dll on Windows reads CRLF in text mode; the new kernel
+    normalises every input).  *choice* defaults to the running ``avas run``'s.  Returns True when a file changed."""
+    from avas import engines
+    if system_is_windows is None:
+        system_is_windows = os.name == "nt"
+    choice = choice or engines.active_choice()
+    if choice.is_new or system_is_windows:
+        return False
+    return lf_line_endings(os.path.join(staged, "boundary.txt"))

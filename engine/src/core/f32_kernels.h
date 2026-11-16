@@ -293,7 +293,9 @@ AVAS_HD inline void step_particle(AVAS_T const kern::LatV& L, AVAS_T const StepU
         }
     if (dn[2] > U.segEnd)
         for (int j = 0; j < 3; ++j) F.E[j][i] = F.B[j][i] = 0.0f;
-    if (uz < 0.0f && L.spOutCount <= L.spOutCur && dn[2] < U.zNeg) F.lost[i] = 1;
+    // moving backwards behind the frame entrance (kernels.h trans_particle; spz0 = 0 before any
+    // superposeout exit, so that the bound is -zs = zNeg there)
+    if (uz < 0.0f && dn[2] < F.spz0[i] - U.zsPost) F.lost[i] = 1;
     const int mp = F.nextPlane[i];
     const bool cross = mp + 1 <= U.nEvents && evOk[mp] != 0.0f && evRel[mp] <= dn[2] + 1e-4f * hm::fabs(dn[2]) + 1e-9f;
     // superposeout exit: candidates (the host decides in double, as the CUDA fp32 tier does)

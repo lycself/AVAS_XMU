@@ -4,12 +4,11 @@
 
 ## 1. 结论
 
-- 对齐项 280 个：有算例或检验 267 个，无算例 13 个。
-  - RFQ（原内核不能运行，没有参考结果）：7 个（B-21、C-22、C-23、C-24、C-25、C-26、C-27）。2026-11-16 起新内核默认模式实现，
-    用单元测试（数值梯度）与合成 RFQ 的物理检验做自洽核对，见 M9-notes
-  - 只写控制台或含时间、不可比较：4 个（D-13、D-14、E-05、H-24）
-  - 需要特殊输入（反射粒子、同步粒子偏轴等）：1 个（D-28）
-  - 不适用（.so 的 glibc 行为）：1 个（E-01）
+- 对齐项 280 个：有算例或检验 279 个，不适用 1 个（E-01，.so 的 glibc rand；逐位基准是 AVAS.dll），无算例 0 个（2026-11-17 重新清点，M11-notes 第 3 节；原写“无算例 13 个”已过时）。
+  - RFQ（原内核不能运行，没有参考结果）：7 个（B-21、C-22、C-23、C-24、C-25、C-26、C-27）只有新内核默认模式的自洽核对：
+    单元测试（数值梯度）与合成 RFQ 的物理检验 `rfq_check.py`（M9-notes；B-21 的扫相位三个分支自 M11 起）
+  - M11 补上的检验：D-13、D-14（run_all `log_format_check`）、E-05（`seed_check`）、H-24（files.txt 比较与 `stray_file_check`）、
+    D-28 长期停滞（M11_D28_stall_long_dst，`m11_check`）、B-21（rfq_check 第 3 项）
 - 函数 249 个（.so 214 个与 DLL 独有函数）全部有去处；其中“不需要”的是构造/析构、空壳、无调用者的旧路径与调试函数。
 - RFQ 在默认模式下已实现（M9-notes，CPU）：原内核的 RFQ 从未能运行，兼容模式遇到 rfq 报错。
 - 原作者 2026-07-22 版原内核的新功能（M10 D1–D7）只在默认模式中实现，条目见 A-18、A-32、A-46、A-47、C-13、D-18、D-26、D-31、F-22；兼容模式与对齐结果不变，M10 新算例的兼容模式参考待在 Windows 上用 AVAS.dll 生成（M10-notes 第 6 节）。
@@ -58,14 +57,14 @@
 | A-37 | superpose 参数 3–6 个报错 | lattice.cpp superpose_block | E4 | 相同 |
 | A-38 | superposeout 少于 7 词报错；mode 1/2 判定 | lattice.cpp superpose_block | SP4、SP5、E4 | 相同 |
 | A-39 | 块中两个 RF 腔、RF + superposeout 报错 | lattice.cpp superpose_block | E5 | 相同 |
-| A-40 | 情形 A（腔在块首）的 RF 片丢失全部子场（缺陷） | lattice.cpp superpose_block rfHead | SP2、SP3 | 默认正确的场行（M2） |
+| A-40 | 情形 A（腔在块首）的 RF 片丢失全部子场（缺陷） | lattice.cpp superpose_block rfHead | SP2、SP3；原内核与兼容模式运行前提示（M11，`engines.rf_at_superpose_start`） | 默认正确的场行（M2） |
 | A-41 | superpose 子 drift 被跳过 | lattice.cpp parse_superpose_subs | SP3 | 默认识别 drift 子块 |
 | A-42 | multipole 生成 `.bsx/.bsy/.bsz`（6 位有效数字、x 最快）并按 Kb=G 叠乘 | lattice.cpp multipole_to_field / fieldmap.cpp | MP_sextupole_G1、G2 | M2 清单：默认 Kb = 1 |
 | A-43 | multipole 极数非 3/4/5 报错 | lattice.cpp multipole_to_field | E6 | 相同 |
 | A-44 | 误差关键字写入 ErrorParameter 的编码与补零规则 | lattice.cpp parse_error_line | ER1–ER21、SE1–SE4 | M5a 清单（束流开关补齐规则同 DLL） |
 | A-45 | `cpl` 类误差、`adjust`、`diag_*`、`lattice`、`spacechargecomp`（.so）静默忽略 | lattice.cpp is_ignored / dispatch | ER13（cpl）、SC7（spacechargecomp） | 相同 |
 | A-46 | boundary：`start` 前忽略、`1`/`2` 形状、未知词报错、`end` 不结束读取、长度不足报错 | lattice.cpp read_boundary | LB1–LB4；M10_D5_* | 默认读到 end 停止；M10 D5：默认另有形状 3、4 |
-| A-47 | boundary superpose 块被结束行代替（缺陷） | lattice.cpp read_boundary(superpose) | EX_A47_boundary_sp_out、EX_A47b_boundary_sp_shape_end（任何块都在输出前 stoi 异常结束，Windows 0xe06d7363）；M10_D5_composite_dst | 默认按子几何加放置实现；多个子形状为复合段（M10 D5） |
+| A-47 | boundary superpose 块被结束行代替（缺陷） | lattice.cpp read_boundary(superpose) | EX_A47_boundary_sp_out、EX_A47b_boundary_sp_shape_end（任何块都在输出前 stoi 异常结束，Windows 0xe06d7363）；M10_D5_composite_dst；界面与 `avas run` 对原内核和兼容模式在运行前拒绝（M11，tests/test_gui_engine.py） | 默认按子几何加放置实现；多个子形状为复合段（M10 D5） |
 | A-48 | ReadRFQ 读写 inputFilePath 下的 4 个文件及格式 | lattice.cpp read_rfq | RFQ1（expected：DLL 崩溃） | 默认模式只在两个源文件都在时转换（M9-notes） |
 | A-49 | `dt = (1/f)/stepPerCycle` | tracker.cpp run（dt_） | 全部算例 | 相同 |
 | A-50 | DLL 宽字符路径截断 | capi.cpp narrow | Windows 全部算例（ASCII 路径） | M1 清单：默认 UTF-8 |
@@ -94,7 +93,7 @@
 | B-18 | V3=1：φRF = word6，cavTime = 主阶段到达时刻 | synchronous.cpp register_cavity | S3c | 相同 |
 | B-19 | 最终 fm.cavPhase/cavTime 交给束团：三种 V3 的等价相位 | synchronous.cpp finish | S3a–S3c、D_* | 相同 |
 | B-20 | 反向运动报错 "Synchronous particle reverse motion, program stopped" | synchronous.cpp push | SI_B20_sync_reverse（hwr010 Ke 16、相位 180°，0.5 MeV）；SI_B20s_static_reverse（静电场反射：两边都挂起，超时） | 默认：静场中同步粒子回退到起点前也报反向错误（B-20s） |
-| B-21 | RFQ 扫描：φ0 = (π/2 − 2πf_beam t)·180/π，减速时重扫 −π/2，仍减速报 "RFQ scanning phase abnormality" | lattice.cpp read_rfq（未实现推进） | - 无算例：缺 RFQ 输入样例（RFQ1 为 expected） | 默认模式实现，见 M9-notes；兼容模式报错 |
+| B-21 | RFQ 扫描：φ0 = (π/2 − 2πf_beam t)·180/π，减速时重扫 −π/2，仍减速报 "RFQ scanning phase abnormality" | synchronous.cpp scan_rfq / rfq_pass | physics/rfq_check.py 第 3 项（M11，单粒子）：正常扫描保留 +90°；A1 取负时保留重扫的 −90°；1 keV 设计两相位都不加速时报错（返回 1）。无 AVAS.dll 参考（原内核不能运行 rfq） | 默认模式两相位都试、取出口能量高者（M9-notes）；兼容模式报错 |
 | B-22 | superposeout 中同步粒子的坐标变换与出口插值 | synchronous.cpp static_step | SP4、SP5、SE* | 相同 |
 | B-23 | needSynPhase==0 时只 push RF field 的 word6，不处理 RFQ | synchronous.cpp finish | S1、S2a（无腔时） | 相同 |
 | B-24 | singlePartM：先 ReadBeam，gbzIn=−33，0.1 步长，synData 全 17 位 | synchronous.cpp single_particle_mode | S1（singleparticlemode 见 M1） | 相同 |
@@ -166,8 +165,8 @@
 | D-10 | 第 35–38 列弯转/位移标志 | tracker.cpp tcode prev[14..17] | SP4、SP5 | 相同 |
 | D-11 | DataSet 数值格式（%g 6 位，单空格，行尾 '\n'） | format.cpp fmt_g | 全部算例 | 相同 |
 | D-12 | synParticle.txt 格式（fixed12，分隔符，18 字段） | tracker.cpp syn_out | 全部算例（synParticle.txt 去时间戳） | 相同 |
-| D-13 | 进度行格式、3 s 间隔、R 含 0.5 因子 | tracker.cpp progress | - 无算例：只写控制台，含运行时间 | 相同 |
-| D-14 | SimulationTime.txt 一行格式（precision 5、c5 重复） | tracker.cpp run（SimulationTime） | - 无算例：含计时，只比较存在性 | 相同 |
+| D-13 | 进度行格式、3 s 间隔、R 含 0.5 因子 | tracker.cpp progress | run_all `log_format_check`（M11）：默认模式全部算例的进度行正则核对、同一取整运行时间内相邻行至少差 5 %；兼容模式一次 10 万粒子运行的进度行格式与 ≥ 3 s 间隔 | 默认模式每 1 s 或每 5 % 一行（M6），格式相同 |
+| D-14 | SimulationTime.txt 一行格式（precision 5、c5 重复） | tracker.cpp run（SimulationTime） | run_all `log_format_check`（M11）：两种模式所有完成的运行，正则核对一行格式与 c5 重复 | 相同 |
 | D-15 | outData_<z>.dst TraceWin 格式、文件名 `%f`、φ=2πf(t−t_s)、W 用同步粒子 mc² | tracker.cpp dst_out | S4*、Z*、SC* | 相同 |
 | D-16 | .dstb（indweight 1）与 .edst（初始分布来自 .dst）格式 | tracker.cpp dst_out | D_dst_weight、D_edst | 相同 |
 | D-17 | 末端总写 outData_<L>.dst；输出面越界报 "Output plane anomaly…" | lattice.cpp finish | 全部算例（outData_<L>） | 相同 |
@@ -181,26 +180,26 @@
 | D-25 | LongitudinalBunchLoss 判据（相位按 βs 换成长度，能量差绝对值） | tracker.cpp longitudinal_loss | LL1 | 相同 |
 | D-26 | boundary.txt 直管/弯管碰撞与 collisionData.txt 一行格式 | tracker.cpp boundary_check / geometry_hit | LB1、LB2；M10_D5_*、单元测试 test_boundary_shapes | 默认几何段号夹取为 [r1, r2]；M10 D5：一步越过的段按入口面判、行偏移取 z − offset、collisionData 多一列 |
 | D-27 | lpboundary 周期折返 ±βλ/2（h 用同步粒子 γβz 与平均 γ̄） | tracker.cpp lp_fold / spacecharge.cpp weight | LP1–LP3 | M5b：默认周期 βλ、网格周期 βγλ |
-| D-28 | 停滞判丢及 LongitudinalBeamLoss.txt 格式（id 与 x 无分隔） | tracker.cpp tcode（停滞判丢） | M10_S4_stall_early_dst（前 2000 步不判：兼容模式与 AVAS.dll 逐字节相同，默认模式 `stall_check`）；长期停滞仍无算例：判丢要求粒子在 t-code 区 80 % 以上的步数里不越过下一平面；hwr010 强减速场反射的粒子在 z<0 处立即判丢，腔内往复的粒子最多约 2800 步（需要 >4000 步）；superposeout 块内反射粒子不判丢，两个内核都不结束（挂起） | 相同（两种模式都要求 step > 2000，M10 S4 更正） |
+| D-28 | 停滞判丢及 LongitudinalBeamLoss.txt 格式（id 与 x 无分隔） | tracker.cpp tcode（停滞判丢） | M10_S4_stall_early_dst（前 2000 步不判：兼容模式与 AVAS.dll 逐字节相同，默认模式 `stall_check`）；长期停滞：M11_D28_stall_long_dst（M11：10 eV 的慢粒子在第 2000 步后判丢，LongitudinalBeamLoss.txt 一行、编号紧接 x，两种模式 `m11_check`，AVAS.dll 参考待生成）；M11_D28_stall_overlap_dst（默认模式不重复记录）。superposeout 块内反射粒子原来两个内核都不结束（挂起），见 M11_sp_reflect_static | 两种模式都要求 step > 2000（M10 S4 更正）；默认模式不重复写已丢失的粒子（M11） |
 | D-29 | pchistogram → PCHistogram.dat 二进制格式与 else-if 范围更新 | tracker.cpp ex_output | LT1（PCHistogram.dat） | 默认 min/max 分别比较 |
 | D-30 | track → ParticleTracking.txt 20 列 | tracker.cpp single_track | LT1、LT2（ParticleTracking.txt） | 默认越界序号报错 |
 | D-31 | N==1 → SingleParticle.txt（能量用 938.271875） | tracker.cpp single_out | S1、Z*_single | M1 清单：默认实际 mc²；M10 D3：默认另写 SingleParticlePlane.txt |
 | D-32 | multithreading 0/2/3 → "End of simulation, all particles lost."；1 正常 | tracker.cpp tcode | EX_D32_multithreading0（ErrorLog.txt：粒子全部丢失） | 相同 |
 | D-33 | cores 表按 N 选取并截到 omp_get_max_threads/maxthreads；cores[0] 被改写为块数 | beam.cpp default_cores / spacecharge.cpp | SC*（SimulationTime 不比较） | M4：默认分区不随机器线程数截断 |
 | D-34 | 块内/块间求和顺序固定（同核数下结果可重复） | tracker.cpp tcode 块归约 | 全部算例；run_all thread_check | 相同 |
-| D-35 | superposeout 出口重启（t = tmin − dt，未越过者 lost=1） | tracker.cpp tcode（superposeout 重启） | SP4、SP5 | M2 清单 |
-| D-36 | "Tcode won't start…" 报错条件与消息（含两个 %f） | tracker.cpp tcode | EP_D36_tcode_wont_start（ErrorLog.txt） | 相同 |
+| D-35 | superposeout 出口重启（t = tmin − dt，未越过者 lost=1） | tracker.cpp tcode（superposeout 重启） | SP4、SP5；M11_sp_reflect_static（块内反射粒子：AVAS.dll 不结束） | M2 清单；M11：默认模式向后退到参考系入口之前即丢失（kernels.h trans_particle），兼容模式连续 10000 步后报错 |
+| D-36 | "Tcode won't start…" 报错条件与消息（含两个 %f） | tracker.cpp tcode | EP_D36_tcode_wont_start（ErrorLog.txt）；M11_scc_at_start_dst | 相同；M11：默认模式 lattice 起点的 spacechargecomp 不再触发；兼容模式读入 .dst 时初始 zMax 取 −∞（AVAS.dll 未初始化，实测不触发） |
 | D-37 | UpdateBeamParameters 的 betaGammaLambda 与 rms 定义（含 x−⟨x−xs⟩ 缺陷） | tracker.cpp update_beam_parameters | SC*（首个网格） | M4 清单：默认相对坐标 |
 
 ## 50 distribution-rng
 
 | ID | 行为 | 实现 | 覆盖 | compat 与默认 |
 |---|---|---|---|---|
-| E-01 | glibc `rand()` 序列 | rng.h | - 无算例：glibc rand 只用于 .so | 不需要（新内核以 DLL 为基准） |
+| E-01 | glibc `rand()` 序列 | rng.h | 不适用：glibc rand 只用于 .so，逐位基准是 AVAS.dll（MSVC rand，D_* 算例） | 不需要（新内核以 DLL 为基准） |
 | E-02 | MSVC `rand()` 序列 | rng.h MsvcRand | 单元测试 test_random；D_* | 相同 |
 | E-03 | 种子优先级 | params.cpp / beam.cpp default_seed | D_seed_input、D_seed_fraction | 相同 |
 | E-04 | 种子截断 | beam.cpp default_seed | D_seed_fraction | 相同 |
-| E-05 | seed 0 不可复现 | beam.cpp default_seed | - 无算例：时间种子不可复现（默认写 inData.seed.txt） | M3 清单 |
+| E-05 | seed 0 不可复现 | beam.cpp default_seed | run_all `seed_check`（M11）：默认模式 seed 0 写 inData.seed.txt，用其中的种子重跑 inData.dst、DataSet.txt、outData 逐字节相同（兼容模式取时间种子，不可复现） | M3 清单 |
 | E-06 | 横纵重播种导致相关 | distribution.cpp dll_generate | D_GS_GS（compat corr = −1） | M3 清单：默认独立流 |
 | E-07 | 不同分布类型也共用序列 | distribution.cpp dll_generate | D_KV_GS、D_GS_WB | 相同 |
 | E-08 | KV 超曲面 | distribution.cpp KV | D_KV_KV、run_all distribution_check | 相同 |
@@ -264,7 +263,7 @@
 | F-25 | t < times[0] 时 SC 场为 0 | spacecharge.cpp import_scf | LS1（前段） | 相同 |
 | F-26 | z-code 的 HESCFieldPre：同一时刻换算、不加权中心与 rms、不更新 γ | spacecharge.cpp hesc_field_pre | SC5、SC6、SC11 | M4 清单（DLL 数据竞争） |
 | F-27 | 多线程 Weight 与串行的差异 | spacecharge.cpp weight | SC*（cores[4]） | M4 清单 |
-| F-28 | spacechargecomp（仅 DLL）把电荷乘 (1 − V1)，V1 ≥ 0.999999999 不缩放 | spacecharge.cpp weight / lattice.cpp | SC7 | M3 清单 |
+| F-28 | spacechargecomp（仅 DLL）把电荷乘 (1 − V1)，V1 ≥ 0.999999999 不缩放 | spacecharge.cpp weight / lattice.cpp | SC7；M11_scc_before_quad_dst、M11_scc_at_start_dst（`m11_check`，AVAS.dll 参考待生成） | M3 清单；M11：默认模式在硬边元件前、lattice 起点也生效（DLL 只在 t 段元件入口） |
 | F-29 | spacechargelong / spacechargetype 内核不认识 | params.cpp read_input | CK_F29_spacechargelong（console_check.txt） | 相同 |
 | F-30 | FFT 归一化分母按 int 相乘可能溢出 | spacecharge.cpp fft_norm | 单元测试 test_fft_norm（1024³ 网格 compat 按 32 位 int 溢出） | 默认 64 位不溢出 |
 
@@ -331,9 +330,9 @@
 | H-19 | dataprocess：36 个统计量（εn、α、β、均值、σ、W̄、N） | tools.cpp process_index | tools_check.py（.ppj 逐字节相同） | 相同 |
 | H-20 | dataprocess：网格尺度取 FiveCube 的 σ，节点中心取当前数据集均值，双线性 CIC | tools.cpp process_index | tools_check.py（.ppj 逐字节相同） | 相同 |
 | H-21 | dataprocess：.ppj 头与记录布局 | tools.cpp process_index | tools_check.py（长度与布局相同） | 相同 |
-| H-22 | `spacechargecomp V1` 在元件入口把 Beam 补偿系数设为 V1（DLL）；.so 忽略 | lattice.cpp / spacecharge.cpp | SC7 | M3 清单 |
+| H-22 | `spacechargecomp V1` 在元件入口把 Beam 补偿系数设为 V1（DLL）；.so 忽略 | lattice.cpp / tracker.cpp zcode、tcode apply_scc | SC7；M11_scc_*（硬边元件前、lattice 起点） | M3 清单；M11 默认模式在 z 段元件开始时应用 |
 | H-23 | 相位扫描与读初始分布在 DLL 与 .so 中行为相同 | synchronous.cpp / beam.cpp | S3*、S4* | 相同 |
-| H-24 | 未引用字符串不产生任何输出文件 | - | - 无算例：不产生输出 | 不需要 |
+| H-24 | 未引用字符串不产生任何输出文件 | - | 全部算例 OutputFile 的文件名集合（files.txt）与 AVAS.dll 参考比较（compare.py）；run_all `stray_file_check`（M11）：两种模式的工作目录除输入、输出、摘要外没有任何文件 | 不需要 |
 
 ## 函数去处
 
