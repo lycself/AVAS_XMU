@@ -129,12 +129,12 @@
 | C-19 | 二进制场图：名以 b 结尾、int32/float64 头 + float32 数据 | fieldmap.cpp read_binary | SI_C19_binary_map_dst（sol 转成 solb）；单元测试 | 相同 |
 | C-20 | 打不开场图时的异常文本 | fieldmap.cpp | S5d | 相同 |
 | C-21 | 场图按名字去重，序号返回 | fieldmap.cpp intern | S3a（同一场图两次） | 相同 |
-| C-22 | RFQ getEleNum 边界（z == cellZEnd 属当前 cell）、getRadius 越界返回 1e99 | lattice.cpp read_rfq | - 无算例：RFQ 推迟 | 默认模式实现，见 M9-notes；兼容模式报错 |
-| C-23 | RFQ 8 项势场公式（含省略的 Bessel 因子、E = +∇U） | - | - 无算例：RFQ 推迟 | 默认模式实现，见 M9-notes；兼容模式报错 |
-| C-24 | RFQ 轴上（r<1e-16）Ez 与轴外反号 | - | - 无算例：RFQ 推迟 | 默认模式实现，见 M9-notes；兼容模式报错 |
-| C-25 | RFQ getEleNum = −1 时原内核越界读 | - | - 无算例：RFQ 推迟（越界读，未定义） | 默认模式实现，见 M9-notes；兼容模式报错 |
-| C-26 | Bessel 级数 20 项 | - | - 无算例：RFQ 推迟 | 默认模式实现，见 M9-notes；兼容模式报错 |
-| C-27 | RFQ 同步粒子逐 cell 相位：dt = 1e-4/f、边界线性插值 + 1e-15、atan 相位、−90 特例、能量下降中止 | - | - 无算例：RFQ 推迟 | 默认模式实现，见 M9-notes；兼容模式报错 |
+| C-22 | RFQ getEleNum 边界（z == cellZEnd 属当前 cell）、getRadius 越界返回 1e99 | kernels.h rfq_field_t | engine/tests unit_tests test_rfq_field、physics/rfq_check.py | 默认模式实现，见 M9-notes；兼容模式报错 |
+| C-23 | RFQ 8 项势场公式（含省略的 Bessel 因子、E = +∇U） | kernels.h rfq_field_t | engine/tests unit_tests test_rfq_field、physics/rfq_check.py | 默认模式实现，见 M9-notes；兼容模式报错 |
+| C-24 | RFQ 轴上（r<1e-16）Ez 与轴外反号 | kernels.h rfq_field_t | engine/tests unit_tests test_rfq_field、physics/rfq_check.py | 默认模式实现，见 M9-notes；兼容模式报错 |
+| C-25 | RFQ getEleNum = −1 时原内核越界读 | kernels.h rfq_field_t | engine/tests unit_tests test_rfq_field、physics/rfq_check.py | 默认模式实现，见 M9-notes；兼容模式报错 |
+| C-26 | Bessel 级数 20 项 | kernels.h rfq_bessel_i | engine/tests unit_tests test_rfq_field、physics/rfq_check.py | 默认模式实现，见 M9-notes；兼容模式报错 |
+| C-27 | RFQ 同步粒子逐 cell 相位：dt = 1e-4/f、边界线性插值 + 1e-15、atan 相位、−90 特例、能量下降中止 | synchronous.cpp rfq_pass | engine/tests unit_tests test_rfq_field、physics/rfq_check.py | 默认模式实现，见 M9-notes；兼容模式报错 |
 | C-28 | 硬边调度：mode 0/1/2 的分派、tRef 取最小 t 或平均 t，edge 不改 mode/tRef | tracker.cpp zcode / het | Z1–Z5、SC5 | 相同 |
 | C-29 | 误差坐标变换 T_in/T_out（含非互逆） | tracker.cpp het_err_in / het_err_out | ER1、ER9 | M5a：默认 T_out 为 T_in 的精确逆 |
 | C-30 | 误差启用判据只看 dyn[idx+1][0] 与 flags[2]+flags[3] | tracker.cpp setup_errors(hetErr_) | ER1、ER8、ER9 | 相同 |
@@ -366,7 +366,7 @@
 | 10 | PreTreatment | distribution.cpp pre_treatment |
 | 10 | Geometry::SetParameter | lattice.cpp（各元件 add_*、set_basic；参数直接存于 Element） |
 | 10 | StringSplit | text.cpp split_words |
-| 10 | ReadRFQ | lattice.cpp read_rfq（RFQ 推迟） |
+| 10 | ReadRFQ | lattice.cpp read_rfq（默认模式只在两个源文件都存在时转换，M9-notes） |
 | 10 | Initial::errorOut | engine.cpp error_out |
 | 10 | Initial::MultipoleFieldMapConverter | lattice.cpp multipole_to_field / fieldmap.cpp |
 | 10 | Initial::MultipoleFieldMapGenerator | lattice.cpp multipole_to_field / fieldmap.cpp |
@@ -377,7 +377,7 @@
 | 10 | Initial::Read | params.cpp read_input |
 | 10 | Initial::InitLattice | lattice.cpp LatticeReader / read_boundary |
 | 10 | Geometry::Geometry | 构造 / 析构：由 C++ 值语义（vector、默认成员）代替 |
-| 10 | RFQ::RFQ | 未实现：RFQ 推迟（缺输入样例），解析见 lattice.cpp read_rfq |
+| 10 | RFQ::RFQ | lattice.cpp add_rfq（默认模式；兼容模式报错，M9-notes） |
 | 10 | Lattice::Lattice | 构造 / 析构：由 C++ 值语义（vector、默认成员）代替 |
 | 10 | Lattice::~Lattice | 构造 / 析构：由 C++ 值语义（vector、默认成员）代替 |
 | 10 | Lattice::SetElement | lattice.cpp（各元件 add_*、set_basic；参数直接存于 Element） |
@@ -401,7 +401,7 @@
 | 20 | SynParticle::NormalizeLineEndings | text.cpp normalize_line_endings |
 | 20 | SynParticle::GetField | synchronous.cpp get_field |
 | 20 | SynParticle::Update | synchronous.cpp push |
-| 20 | RFQ::GetSynField | 未实现：RFQ 推迟（缺输入样例），解析见 lattice.cpp read_rfq |
+| 20 | RFQ::GetSynField | synchronous.cpp rfq_syn_field / rfq_pass / scan_rfq（默认模式，M9-notes） |
 | 20 | TcodeTrans | tracker.cpp trans |
 | 20 | monotonicSearch | spacecharge.cpp import_scf |
 | 20 | findClosest | spacecharge.cpp import_scf |
@@ -416,9 +416,9 @@
 | 30 | `Edge::GetField(double, SynParticle&, …)` 0x127770 | tracker.cpp element_field / superpose_field；synchronous.cpp get_field（同步粒子版） |
 | 30 | `Field::GetField(double, Particle&, …)` 0x12cb30 | tracker.cpp element_field / superpose_field；synchronous.cpp get_field（同步粒子版） |
 | 30 | `Field::GetField(double, SynParticle&, …)` 0x1305d0 | tracker.cpp element_field / superpose_field；synchronous.cpp get_field（同步粒子版） |
-| 30 | `Bessi0` 0x14a870 | 未实现：RFQ 推迟（缺输入样例），解析见 lattice.cpp read_rfq |
-| 30 | `Bessi1` 0x14a960 | 未实现：RFQ 推迟（缺输入样例），解析见 lattice.cpp read_rfq |
-| 30 | `Bessin` 0x14aa70 | 未实现：RFQ 推迟（缺输入样例），解析见 lattice.cpp read_rfq |
+| 30 | `Bessi0` 0x14a870 | kernels.h rfq_bessel_i（n = 0） |
+| 30 | `Bessi1` 0x14a960 | kernels.h rfq_bessel_i（n = 1） |
+| 30 | `Bessin` 0x14aa70 | kernels.h rfq_bessel_i（20 项级数） |
 | 30 | `Lattice::GetExternalField(double, Beam&)` 0x188180 | tracker.cpp external_field / synchronous.cpp |
 | 30 | `Lattice::GetExternalField(double, Particle&)` 0x1889e0 | tracker.cpp external_field / synchronous.cpp |
 | 30 | `Lattice::SetMatrix(string, int, FieldMatrix&)` 0x188bb0 | fieldmap.cpp |
@@ -440,10 +440,10 @@
 | 30 | `MethodMP::HardEdgeTrans(int, double, double, rows&, Beam&, Lattice&, int&, double&, ErrorSample&)` 0x1aa5c0 | tracker.cpp het / sync_het（physics.h 各 *_row） |
 | 30 | `Quadrupole::GetField(double, Particle&, …)` 0x1d02a0 | tracker.cpp element_field / superpose_field；synchronous.cpp get_field（同步粒子版） |
 | 30 | `Quadrupole::GetField(double, SynParticle&, …)` 0x1d05c0 | tracker.cpp element_field / superpose_field；synchronous.cpp get_field（同步粒子版） |
-| 30 | `RFQ::getEleNum(double)` 0x1d0ad0 | 未实现：RFQ 推迟（缺输入样例），解析见 lattice.cpp read_rfq |
-| 30 | `RFQ::getRadius(double)` 0x1d0bb0 | 未实现：RFQ 推迟（缺输入样例），解析见 lattice.cpp read_rfq |
-| 30 | `RFQ::GetField(double, Particle&, …)` 0x1d0be0 | 未实现：RFQ 推迟（缺输入样例），解析见 lattice.cpp read_rfq |
-| 30 | `RFQ::GetField(double, SynParticle&, …)` 0x1d29a0 | 未实现：RFQ 推迟（缺输入样例），解析见 lattice.cpp read_rfq |
+| 30 | `RFQ::getEleNum(double)` 0x1d0ad0 | kernels.h rfq_field_t（cell 定位）、synchronous.cpp rfq_cell |
+| 30 | `RFQ::getRadius(double)` 0x1d0bb0 | kernels.h rfq_field_t（cell 孔径，超出 cell 用元件孔径） |
+| 30 | `RFQ::GetField(double, Particle&, …)` 0x1d0be0 | kernels.h rfq_field_t（E = −∇U、完整 Bessel 因子，修正见 M9-notes） |
+| 30 | `RFQ::GetField(double, SynParticle&, …)` 0x1d29a0 | synchronous.cpp rfq_pass（逐 cell 推进，入口相位 ±90°） |
 | 30 | `Solenoid::GetField(double, Particle&, …)` 0x1d3540 | tracker.cpp element_field / superpose_field；synchronous.cpp get_field（同步粒子版） |
 | 30 | `Solenoid::GetField(double, SynParticle&, …)` 0x1d3890 | tracker.cpp element_field / superpose_field；synchronous.cpp get_field（同步粒子版） |
 | 30 | `Steerer::GetField(double, Particle&, …)` 0x1d3d50 | tracker.cpp element_field / superpose_field；synchronous.cpp get_field（同步粒子版） |
