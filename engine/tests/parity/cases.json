@@ -4471,6 +4471,23 @@
    "space_charge": true,
    "compat_tolerance": 1e-10,
    "compat_note": "M10 (2026-07-22 features, default mode only); the compat=dll reference was written by AVAS.dll 2026-04-02 on Windows (2026-11-16)"
+  },
+  {
+   "name": "M10_S4_stall_early_dst",
+   "comment": "S4: three particles, the head 60 mm before the other two, an output plane 10 mm after the start. The stall loss (80 % of the steps without a new crossing) applies only after 2000 steps in AVAS.dll 2026-04-02 (and the 2026-07-22 .so); without that condition the two trailing particles are lost before the first plane",
+   "beam": {
+    "readparticledistribution": "stall3.dst"
+   },
+   "copy": {
+    "stall3.dst": "data/stall3.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.010 0.02 0",
+    "outputplane 0",
+    "drift 0.2 0.02 0",
+    "end"
+   ]
   }
  ]
 }

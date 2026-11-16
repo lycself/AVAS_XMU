@@ -181,7 +181,7 @@
 | D-25 | LongitudinalBunchLoss 判据（相位按 βs 换成长度，能量差绝对值） | tracker.cpp longitudinal_loss | LL1 | 相同 |
 | D-26 | boundary.txt 直管/弯管碰撞与 collisionData.txt 一行格式 | tracker.cpp boundary_check / geometry_hit | LB1、LB2；M10_D5_*、单元测试 test_boundary_shapes | 默认几何段号夹取为 [r1, r2]；M10 D5：一步越过的段按入口面判、行偏移取 z − offset、collisionData 多一列 |
 | D-27 | lpboundary 周期折返 ±βλ/2（h 用同步粒子 γβz 与平均 γ̄） | tracker.cpp lp_fold / spacecharge.cpp weight | LP1–LP3 | M5b：默认周期 βλ、网格周期 βγλ |
-| D-28 | 停滞判丢及 LongitudinalBeamLoss.txt 格式（id 与 x 无分隔） | tracker.cpp tcode（停滞判丢） | - 无算例：判丢要求粒子在 t-code 区 80 % 以上的步数里不越过下一平面；hwr010 强减速场反射的粒子在 z<0 处立即判丢，腔内往复的粒子最多约 2800 步（需要 >4000 步）；superposeout 块内反射粒子不判丢，两个内核都不结束（挂起） | 相同 |
+| D-28 | 停滞判丢及 LongitudinalBeamLoss.txt 格式（id 与 x 无分隔） | tracker.cpp tcode（停滞判丢） | M10_S4_stall_early_dst（前 2000 步不判：兼容模式与 AVAS.dll 逐字节相同，默认模式 `stall_check`）；长期停滞仍无算例：判丢要求粒子在 t-code 区 80 % 以上的步数里不越过下一平面；hwr010 强减速场反射的粒子在 z<0 处立即判丢，腔内往复的粒子最多约 2800 步（需要 >4000 步）；superposeout 块内反射粒子不判丢，两个内核都不结束（挂起） | 相同（两种模式都要求 step > 2000，M10 S4 更正） |
 | D-29 | pchistogram → PCHistogram.dat 二进制格式与 else-if 范围更新 | tracker.cpp ex_output | LT1（PCHistogram.dat） | 默认 min/max 分别比较 |
 | D-30 | track → ParticleTracking.txt 20 列 | tracker.cpp single_track | LT1、LT2（ParticleTracking.txt） | 默认越界序号报错 |
 | D-31 | N==1 → SingleParticle.txt（能量用 938.271875） | tracker.cpp single_out | S1、Z*_single | M1 清单：默认实际 mc²；M10 D3：默认另写 SingleParticlePlane.txt |

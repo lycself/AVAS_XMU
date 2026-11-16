@@ -21,6 +21,7 @@ import json
 import math
 import os
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
@@ -554,6 +555,22 @@ def libpic_keyword_check(work):
     return fails
 
 
+def stall_check(work):
+    """Default mode, M10 S4: the stall loss waits for 2000 steps (as AVAS.dll; the libAVAS.so before 2026-07-22 does
+    not), so the two particles 60 mm behind the head of M10_S4_stall_early_dst reach both output planes."""
+    print("\nStall loss in the first 2000 steps, default mode:")
+    out = os.path.join(work, "M10_S4_stall_early_dst", "OutputFile")
+    loss = read_rows(os.path.join(out, "LongitudinalBeamLoss.txt"))
+    counts = {}
+    for z in ("0.010000", "0.210000"):
+        f = os.path.join(out, f"outData_{z}.dst")
+        counts[z] = struct.unpack_from("<i", open(f, "rb").read(), 2)[0] if os.path.exists(f) else 0
+    ok = not loss and all(n == 3 for n in counts.values())
+    print(f"{'M10_S4_stall_early_dst':<28} {'ok  ' if ok else 'FAIL'} stall losses {len(loss)}, particles at the planes "
+          + ", ".join(f"{z}: {n}" for z, n in counts.items()))
+    return 0 if ok else 1
+
+
 def superpose_rf_check(work):
     """Default mode: an RF cavity at the start of a superpose block keeps its field (spec 10 2.6.5.2 defect 1;
     AVAS.dll 2026-04-02 stops with "Scan phase error" or gives phi_s = NaN, and the 2026-07-22 original runs
@@ -723,6 +740,7 @@ def main():
     bad += libpic_keyword_check(work)
     bad += m10_check(os.path.join(work, "none"))
     bad += superpose_rf_check(os.path.join(work, "none"))
+    bad += stall_check(os.path.join(work, "none"))
     bad += thread_check(lib, work, ["SC1_spicnic_S1", "SC2_fft_S1", "SC5_spicnic_Z1", "PN1_picnic_S1", "PN2_picnic_Z1", "D_GS_GS",
                                     "ER3_quad_dyn_r2_step31_dst", "ER16_quad_dyn_spicnic_dst",
                                     "LP2_lpboundary_fft_dst", "LB2_boundary_mixed_dst", "M10_D4_close_planes",

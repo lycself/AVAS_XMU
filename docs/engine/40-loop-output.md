@@ -305,6 +305,7 @@ rms 不再减均值的平方（偏差本身已对上一步质心取）。
 **4.2.17 停滞判丢**：`nc = #{i<N : planeRec[i][7] == 1}`；若 `nc == lastCross && nc != 0` 则 `stall++`，否则 `stall = 0`；`lastCross = nc`。
 若 `stall > 0.8·step`（step 已自增，全局计数，含 z 段步数）：对 i<N 且 `planeRec[i][7] == 0.0`：`lost = 1`，并向 `LongitudinalBeamLoss.txt`
 追加 `fixed, precision 12`：`id(0x170)` 紧接 `x  γβx  y  γβy  z  γβz`（**id 与 x 之间没有分隔符**，其余两个空格）+ `'\n'`。
+**更正（2026-11-16）**：AVAS.dll 2026-04-02 的条件是 `stall > 0.8·step && step > 2000`（反编译 `FUN_180070b90`，实测 `M10_S4_stall_early_dst`）；上面按 2026-04-02 以前的 libAVAS.so 写的条件少了 `step > 2000`，2026-07-22 版 .so 才补上。新内核两种模式都按 DLL 的条件。没有这个条件时，运行开头步数很少，稀疏束团两次越过之间隔几步就已占到 80 %，会把尚未到达平面的粒子误判丢失。
 
 **4.2.18** `longLimits[0] != 0` → `LongitudinalBunchLoss(beam)`。
 

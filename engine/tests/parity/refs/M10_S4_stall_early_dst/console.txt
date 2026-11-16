@@ -1,0 +1,10 @@
+The input path has been set to C:\Users\lycself\avas_m11_tmp\wo\M10_S4_stall_early_dst\inputs\
+The fieldMap path has been set to C:\Users\lycself\avas_m11_tmp\src\examples\hwr010\InputFile\
+The output path has been set to C:\Users\lycself\avas_m11_tmp\wo\M10_S4_stall_early_dst\OutputFile\
+The programme is running.
+Lattice initialisation complete, total length 0.21 m
+A total of 2 output planes
+Average beam energy: 1.52703 (MeV)
+Exit bunch energy: 1.52703
+The total distance simulated is 0.21 (m)
+[parity] main_agent -> 0

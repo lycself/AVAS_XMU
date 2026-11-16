@@ -1768,7 +1768,9 @@ private:
             if (nc == lastCross && nc != 0) stall += 1;
             else stall = 0;
             lastCross = nc;
-            if (static_cast<double>(stall) > 0.8 * static_cast<double>(step_)) {
+            // AVAS.dll (and the 2026-07-22 libAVAS.so; the earlier .so does not test it): not in the first 2000
+            // steps, where a gap of a few steps between two crossings of a sparse bunch is already 80 % of the run
+            if (static_cast<double>(stall) > 0.8 * static_cast<double>(step_) && step_ > 2000) {
                 dl(kDevRec | kDevCoord | kDevLost);
                 Text lt;
                 for (int i = 0; i < n; ++i) {
