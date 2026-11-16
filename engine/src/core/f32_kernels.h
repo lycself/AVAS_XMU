@@ -385,7 +385,8 @@ AVAS_HD inline void bound_particle(AVAS_T const BoundU& U, AVAS_T const PartF& F
     if (!cand) {
         const int ri = F.spOutCount[i];
         if (ri >= U.nBnd) return;
-        const float zz = bndZ[ri] + z;
+        // boundary file z of the section and of the geometry (corrected engine: z - row offset, M10 D5)
+        const float zz = z - bndZ[ri];
         const int r1 = bndR1[ri], r2 = bndR2[ri];
         if (near_f(zz, segStart[r1]) || near_f(zz, segEnd[r2])) {
             cand = true;
@@ -393,9 +394,11 @@ AVAS_HD inline void bound_particle(AVAS_T const BoundU& U, AVAS_T const PartF& F
             if (!(segStart[r1] <= zz && zz <= segEnd[r2])) return;
             int gi = F.geomIndex[i];
             if (gi < r1 || r2 < gi) gi = r1;
+            const int g0 = gi;
             while (gi > 0 && zz < segStart[gi]) --gi;
             while (gi + 1 < U.nSeg && segEnd[gi] <= zz) ++gi;
-            if (near_f(zz, segStart[gi]) || near_f(zz, segEnd[gi])) {
+            // a changed segment: segments crossed in one step are tested on the host (M10 D5)
+            if (gi != g0 || near_f(zz, segStart[gi]) || near_f(zz, segEnd[gi])) {
                 cand = true;
             } else {
                 F.geomIndex[i] = gi;
@@ -404,16 +407,24 @@ AVAS_HD inline void bound_particle(AVAS_T const BoundU& U, AVAS_T const PartF& F
                 const float dx = x - g.place[1], dy = y - g.place[2];
                 const float u0 = g.s3 * dy + g.c3 * dx;
                 const float v0 = g.c3 * dy - g.s3 * dx;
-                const float dz = (z - g.zStart) - g.place[0];
+                const float dz = (zz - g.zStart) - g.place[0];
                 const float w = dz * g.c5 + u0 * g.s5;
                 const float u = u0 * g.c5 - dz * g.s5;
                 const float v = w * g.s4 + v0 * g.c4;
                 const float zl = w * g.c4 - v0 * g.s4;
-                if (g.npar < (g.shape == 1 ? 2 : 4) || near_f(zl, 0.0f) || near_f(zl, g.par[0])) {
+                const int need = g.shape == 1 ? 2 : (g.shape == 2 ? 4 : 3);
+                if (g.shape == 0 || g.npar < need || near_f(zl, 0.0f) || near_f(zl, g.par[0]) ||
+                    (g.shape != 2 && zl >= g.par[0])) {
+                    // composite (shape 0), missing parameters, ends of the pipe, beyond a straight pipe
                     cand = true;
                 } else if (0.0f < zl && zl < g.par[0]) {
                     if (g.shape == 1) {
                         cand = hm::sqrt(v * v + u * u) >= g.par[1] * (1.0f - 1e-5f) - 1e-9f;
+                    } else if (g.shape == 3) {
+                        cand = hm::fabs(u) >= g.par[1] * (1.0f - 1e-5f) - 1e-9f || hm::fabs(v) >= g.par[2] * (1.0f - 1e-5f) - 1e-9f;
+                    } else if (g.shape == 4) {
+                        const float a = u / g.par[1], c = v / g.par[2];
+                        cand = a * a + c * c >= 1.0f - 1e-4f;
                     } else {
                         const float rho = g.par[2];
                         float phi = 0.0f, cx = 0.0f, cy = 0.0f, cz = 0.0f;

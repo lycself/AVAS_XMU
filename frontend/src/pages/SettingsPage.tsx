@@ -9,7 +9,7 @@ import { useEditable } from "./useEditable";
 import { PathPicker, isFloat, isInt } from "./widgets";
 import { reportError } from "../components/overlays";
 import { FileHistoryButton } from "../files/FileHistory";
-import { BOUNDARY_COLUMNS, TokenTable } from "../files/tables";
+import { boundaryColumns, TokenTable } from "../files/tables";
 import { formProblems, seedDefect, type EngineForm } from "../engine";
 import { defaultKernelOf, engineKernelOf, EngineSettings, type EngineSettingsData } from "./EngineSettings";
 
@@ -287,7 +287,7 @@ export default function SettingsPage() {
                       text={comp.boundary.text}
                       editable={!locked}
                       onChange={(text) => setCompanion("boundary", text)}
-                      columns={BOUNDARY_COLUMNS}
+                      columns={boundaryColumns()}
                       wrapStartEnd
                       hint={missing(comp.boundary) ?? tt("Loss boundary; the lattice apertures are ignored while it is applied.")}
                     />

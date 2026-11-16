@@ -16,10 +16,12 @@ struct MeshV {
     int lpRel;            // lpboundary: stretch about the synchronous particle
     int lpc;              // lpboundary: out-of-mesh distance from the mesh centre
     int compat;
+    int lpWrap;           // corrected engine, lpboundary V1 1: z periodic with period lpLen (nz cells)
     const AVAS_G double* xs;  // node coordinates
     const AVAS_G double* ys;
     const AVAS_G double* zs;
     double Q;             // total mesh charge (for particles outside the mesh)
+    double lpLen;         // period of lpWrap (rest frame, = nz dz)
     int rotMode;
     double rs, rc;
     avas_i64 fixScaleExp;  // corrected engine: fixed-point deposit, charge * 2^fixScaleExp
@@ -32,16 +34,26 @@ AVAS_HD inline bool mesh_cell_t(AVAS_T const MeshV& M, R x, R y, R z4, AVAS_T in
     // lpboundary 1: AVAS.dll stretches about the synchronous particle only in the threaded deposit,
     // the serial one about the centroid; the corrected engine always about the synchronous particle
     const R g = R(M.gamma), c4 = R(M.c4);
-    const R zr = M.lpRel ? (M.compat ? z4 * g + c4 : z4 * g) : (z4 - c4) * g + c4;
+    R zr = M.lpRel ? (M.compat ? z4 * g + c4 : z4 * g) : (z4 - c4) * g + c4;
     i = static_cast<int>(hm::floor((x - R(M.xs[0])) / R(M.dx)));
     j = static_cast<int>(hm::floor((y - R(M.ys[0])) / R(M.dy)));
-    k = static_cast<int>(hm::floor((zr - R(M.zs[0])) / R(M.dz)));
-    if (0 <= i && i < M.nx - 1 && 0 <= j && j < M.ny - 1 && 0 <= k && k < M.nz - 1) {
+    if (M.lpWrap) {
+        // periodic in z: zr into [zs0, zs0 + period); the last cell joins node nz - 1 to node 0
+        const R per = R(M.lpLen), z0 = R(M.zs[0]);
+        zr = zr - per * hm::floor((zr - z0) / per);
+        k = static_cast<int>(hm::floor((zr - z0) / R(M.dz)));
+        if (k < 0) k = 0;
+        if (k > M.nz - 1) k = M.nz - 1;
+    } else {
+        k = static_cast<int>(hm::floor((zr - R(M.zs[0])) / R(M.dz)));
+    }
+    if (0 <= i && i < M.nx - 1 && 0 <= j && j < M.ny - 1 && 0 <= k && k < (M.lpWrap ? M.nz : M.nz - 1)) {
         for (int m = 0; m < 8; ++m) {
             const int ii = i + ((m & 1) ^ 1);
             const int jj = j + (((m & 3) == 1 || (m & 3) == 0) ? 1 : 0);
             const int kk = k + (m < 4 ? 1 : 0);
-            w[m] = hm::fabs(x - R(M.xs[ii])) * hm::fabs(y - R(M.ys[jj])) * hm::fabs(zr - R(M.zs[kk])) / R(M.vol);
+            const R zk = kk == M.nz ? R(M.zs[M.nz - 1]) + R(M.dz) : R(M.zs[kk]);
+            w[m] = hm::fabs(x - R(M.xs[ii])) * hm::fabs(y - R(M.ys[jj])) * hm::fabs(zr - zk) / R(M.vol);
         }
         return true;
     }
@@ -56,16 +68,18 @@ AVAS_HD inline avas_i64 mesh_at(AVAS_T const MeshV& M, int i, int j, int k) {
 // Node of corner m of cell (i, j, k), in the order of the deposit.
 AVAS_HD inline avas_i64 mesh_corner(AVAS_T const MeshV& M, int i, int j, int k, int m) {
     const int di = m & 1, dj = (m >> 1) & 1, dk = (m >> 2) & 1;
-    return mesh_at(M, i + di, j + dj, k + dk);
+    const int kz = k + dk == M.nz ? 0 : k + dk;  // only with lpWrap (else k + dk < nz)
+    return mesh_at(M, i + di, j + dj, kz);
 }
 
 // CIC interpolation of one mesh field g in cell (i, j, k) with the weights w (no lambda: MSL has none).
 template <class R>
 AVAS_HD inline R mesh_trilinear(AVAS_T const MeshV& M, const AVAS_G double* g, int i, int j, int k, AVAS_T const R* w) {
+    const int k1 = k + 1 == M.nz ? 0 : k + 1;  // only with lpWrap (else k + 1 < nz)
     return R(g[mesh_at(M, i, j, k)]) * w[0] + R(g[mesh_at(M, i + 1, j, k)]) * w[1] +
            R(g[mesh_at(M, i, j + 1, k)]) * w[2] + R(g[mesh_at(M, i + 1, j + 1, k)]) * w[3] +
-           R(g[mesh_at(M, i, j, k + 1)]) * w[4] + R(g[mesh_at(M, i + 1, j, k + 1)]) * w[5] +
-           R(g[mesh_at(M, i, j + 1, k + 1)]) * w[6] + R(g[mesh_at(M, i + 1, j + 1, k + 1)]) * w[7];
+           R(g[mesh_at(M, i, j, k1)]) * w[4] + R(g[mesh_at(M, i + 1, j, k1)]) * w[5] +
+           R(g[mesh_at(M, i, j + 1, k1)]) * w[6] + R(g[mesh_at(M, i + 1, j + 1, k1)]) * w[7];
 }
 
 // Space-charge field of a particle at rel = (x, y, z4) from the mesh field (lab frame, E_perp / gamma).

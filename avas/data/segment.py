@@ -76,7 +76,8 @@ class Item:
         self.z0 = min(zs) if zs else 0.0
         self.z1 = max(ze) if ze else self.z0
         self.elements = els
-        self.rf = [s for s in statements if s.key == "field" and s.field_type() == "1"]
+        # RF fields with Ke = 0 are drifts in the new kernel (no synData phase): not rephased
+        self.rf = [s for s in statements if s.key == "field" and s.field_type() == "1" and not s.rf_off()]
 
     @property
     def length(self):

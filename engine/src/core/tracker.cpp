@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <cstring>
 #include <functional>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -77,6 +78,8 @@ public:
             write_file(out + f, "", false);
         if (p_.recScField == 1)
             for (const char* f : {"SpaceChargeMesh.txt", "SpaceChargeSet.plt"}) write_file(out + f, "", false);
+        // corrected engine (M10 D3): single particle at the output planes
+        if (!compat_ && n == 1) write_file(out + "SingleParticlePlane.txt", "", false);
         dataSet_.open(out + "DataSet.txt");
         synFile_.open(out + "synParticle.txt");
         setup_errors();
@@ -119,7 +122,7 @@ public:
         }
         for (const Segment& sg : segs) {
             if (sg.zcode) zcode(sg, t, zSeg);
-            else tcode(t, zSeg, sg.ev, sg.marks);
+            else tcode(t, zSeg, sg.ev, sg.marks, sg.names);
         }
 
         say("Simulation completed, completion time " + time_stamp() + std::string(77, ' '));
@@ -565,6 +568,8 @@ private:
         std::vector<double> ev;  // t segment: event positions
         std::vector<int> elems;  // z segment: element indices
         std::vector<int> marks;
+        // names of the output planes of each event (t) / element (z); "" = unnamed (outData_<z>)
+        std::vector<std::vector<std::string>> names;
     };
 
     // The original segments by type name: an element left with the default name "drift" after
@@ -572,6 +577,8 @@ private:
     static bool is_z(const Element& e) {
         return e.typeName == "quad" || e.typeName == "solenoid" || e.typeName == "bend" || e.typeName == "edge";
     }
+
+    std::string plane_name(size_t q) const { return q < p_.outputNames.size() ? p_.outputNames[q] : std::string(); }
 
     std::vector<Segment> segment_lattice() const {
         std::vector<Segment> segs;
@@ -589,16 +596,19 @@ private:
                 while (true) {
                     if (!is_z(lat_.elements[i])) break;
                     sg.elems.push_back(i);
+                    std::vector<std::string> nm;
                     if (flag) {
                         sg.marks.push_back(i - 1);
                         flag = false;
                     } else {
-                        for (double pl : P) {
-                            if (pl == zE(i)) { sg.marks.push_back(-2); break; }
-                            if (zS(i) < pl && pl < zE(i)) { sg.marks.push_back(-1); break; }
+                        for (size_t q = 0; q < P.size(); ++q) {
+                            const double pl = P[q];
+                            if (pl == zE(i)) { sg.marks.push_back(-2); nm.push_back(plane_name(q)); break; }
+                            if (zS(i) < pl && pl < zE(i)) { sg.marks.push_back(-1); nm.push_back(plane_name(q)); break; }
                         }
                     }
                     if (sg.marks.size() < sg.elems.size()) sg.marks.push_back(-3);
+                    sg.names.push_back(nm);
                     i += 1;
                     if (i >= ne) break;
                     if (isSteerer(i)) {
@@ -607,17 +617,22 @@ private:
                     }
                 }
             } else {
-                std::vector<std::pair<double, int>> ev;
+                struct Ev {
+                    double first;
+                    int second;
+                    std::string name;
+                };
+                std::vector<Ev> ev;
                 while (true) {
                     if (i >= ne || is_z(lat_.elements[i])) break;
                     if (flag) {
-                        ev.push_back({zS(i) + 0.5 * lat_.elemLength[i], i - 1});
+                        ev.push_back({zS(i) + 0.5 * lat_.elemLength[i], i - 1, std::string()});
                         flag = false;
                     }
-                    for (double pl : P)
-                        if (zS(i) < pl && pl <= zE(i)) ev.push_back({pl, -1});
+                    for (size_t q = 0; q < P.size(); ++q)
+                        if (zS(i) < P[q] && P[q] <= zE(i)) ev.push_back({P[q], -1, plane_name(q)});
                     for (const auto& row : lat_.spaceChargeComp)
-                        if (zS(i) <= row[0] && row[0] < zE(i)) ev.push_back({zS(i), -4});
+                        if (zS(i) <= row[0] && row[0] < zE(i)) ev.push_back({zS(i), -4, std::string()});
                     i += 1;
                     if (i >= ne) break;
                     if (isSteerer(i)) {
@@ -625,19 +640,25 @@ private:
                         flag = true;
                     }
                 }
-                std::stable_sort(ev.begin(), ev.end(),
-                                 [](const std::pair<double, int>& a, const std::pair<double, int>& b) {
-                                     return a.first < b.first;
-                                 });
+                std::stable_sort(ev.begin(), ev.end(), [](const Ev& a, const Ev& b) { return a.first < b.first; });
                 for (const auto& e : ev) {
+                    // corrected engine (M10 D4): output planes at the same z are one event with every name
+                    // (AVAS.dll keeps both, which then fails as "interval less than the bunch length")
+                    if (!compat_ && e.second == -1 && !sg.ev.empty() && sg.ev.back() == e.first && sg.marks.back() == -1) {
+                        auto& nm = sg.names.back();
+                        if (std::find(nm.begin(), nm.end(), e.name) == nm.end()) nm.push_back(e.name);
+                        continue;
+                    }
                     sg.ev.push_back(e.first);
                     sg.marks.push_back(e.second);
+                    sg.names.push_back(e.second == -1 ? std::vector<std::string>{e.name} : std::vector<std::string>{});
                 }
                 const int last = std::min(i, ne) - 1;
                 const double zEnd = zE(last);
                 if (sg.ev.empty() || zEnd != sg.ev.back()) {
                     sg.ev.push_back(zEnd);
                     sg.marks.push_back(-2);
+                    sg.names.push_back({});
                 }
             }
             segs.push_back(std::move(sg));
@@ -867,13 +888,13 @@ private:
                 if (mark == -1) {
                     dl(kDevRec);
                     if (compat_) {
-                        dst_out(zMid, planeRec_);
+                        dst_out(zMid, planeRec_, sg.names[j]);
                     } else {
                         // the reference time of the dst file is the synchronous particle at the
                         // middle of the element (AVAS.dll uses its entrance time)
                         std::vector<Rec> copy = planeRec_;
                         sync_het(e, copy[n].data(), true);
-                        dst_out(zMid, copy);
+                        dst_out(zMid, copy, sg.names[j]);
                     }
                 } else if (mark >= 0) {
                     if (dev_) {
@@ -894,7 +915,7 @@ private:
             step_ += 1;
             if (mark == -2) {
                 dl(kDevRec);
-                dst_out(zEnd, planeRec_);
+                dst_out(zEnd, planeRec_, sg.names[j]);
             }
         }
         t = ztot(zEnd, tRef);
@@ -1223,13 +1244,32 @@ private:
         write_file(paths().output + "FullParticle.txt", s.str(), true);
     }
 
-    void dst_out(double z, const std::vector<Rec>& rec) {
+    // names: the output plane names of this z ("" or none: outData_<z>; NAME: NAME_<z>, M10 D4)
+    void dst_out(double z, const std::vector<Rec>& rec, const std::vector<std::string>& names = {}) {
         const Beam& b = b_;
         const int s = b.n;
         const double t0 = rec[s][6];
         const double mc2 = b.restMass[s];
         char zname[64];
         std::snprintf(zname, sizeof zname, "%f", z);
+        std::vector<std::string> bases;
+        for (const std::string& nm : names)
+            if (std::find(bases.begin(), bases.end(), nm.empty() ? "outData" : nm) == bases.end())
+                bases.push_back(nm.empty() ? "outData" : nm);
+        if (bases.empty()) bases.push_back("outData");
+        if (!compat_ && s == 1 && rec[0][7] == 1.0) {
+            // corrected engine (M10 D3, format of the 2026-07-22 original): one line per output plane
+            const Rec& r = rec[0];
+            const double g = std::sqrt(r[1] * r[1] + r[3] * r[3] + r[5] * r[5] + 1.0);
+            Text sp;
+            sp.fixed(z, 12).s("  ").fixed((g - 1.0) * b.restMass[0], 12).s("  ").fixed(r[0], 12).s("  ").fixed(r[1], 12)
+                .s("  ").fixed(r[2], 12).s("  ").fixed(r[3], 12).s("  ").fixed(r[6], 12).nl();
+            write_file(paths().output + "SingleParticlePlane.txt", sp.str(), true);
+        }
+        auto put = [&](const std::string& ext, const std::string& data) {
+            for (const std::string& base : bases)
+                if (!write_file(paths().output + base + "_" + zname + ext, data, false, true)) say("output error");
+        };
         if (b.fromDstFile) {
             // .edst: every selected particle (synchronous one included) with charge, mass, weight
             std::vector<double> rows;
@@ -1255,7 +1295,7 @@ private:
             out.push_back(static_cast<char>(0x7D));
             out.append(reinterpret_cast<const char*>(rows.data()), rows.size() * 8);
             out.append(reinterpret_cast<const char*>(&mc2), 8);
-            if (!write_file(paths().output + "outData_" + zname + ".edst", out, false, true)) say("output error");
+            put(".edst", out);
             return;
         }
         std::vector<double> rows;
@@ -1285,13 +1325,13 @@ private:
         out.push_back(static_cast<char>(0x7D));
         out.append(reinterpret_cast<const char*>(rows.data()), rows.size() * 8);
         out.append(reinterpret_cast<const char*>(&mc2), 8);
-        if (!write_file(paths().output + "outData_" + zname + ".dst", out, false, true)) say("output error");
+        put(".dst", out);
         if (b.useWeightFile) {
             std::string wb;
             wb.append(reinterpret_cast<const char*>(&cnt), 4);
             for (int i = 0; i < s; ++i)
                 if (rec[i][7] == 1.0) wb.append(reinterpret_cast<const char*>(&b.weight[i]), 8);
-            if (!write_file(paths().output + "outData_" + zname + ".dstb", wb, false, true)) say("output error");
+            put(".dstb", wb);
         }
     }
 
@@ -1375,7 +1415,9 @@ private:
     }
 
     // ---- the time-step loop of one segment (tcodeRun) ----
-    void tcode(double& t, double& zSeg, const std::vector<double>& events, const std::vector<int>& marks) {
+    void tcode(double& t, double& zSeg, const std::vector<double>& events, const std::vector<int>& marks,
+               const std::vector<std::vector<std::string>>& names) {
+        planeStore_.clear();
         // the last element of this segment ends here (the lattice end for the last segment)
         segEnd_ = events.back() < lat_.total_length() ? events.back() : 1e300;
         Beam& b = b_;
@@ -1509,7 +1551,8 @@ private:
             {
                 const double zev = events[iEv];
                 if (zev < b.zMin && zev <= lat_.sp_exit() && events.size() <= iEv + 1) {
-                    if (marks[iEv] == -1) final_output(zev, t);
+                    settle_records(iEv);
+                    if (marks[iEv] == -1) final_output(zev, t, names[iEv]);
                     return;
                 }
             }
@@ -1627,12 +1670,14 @@ private:
             {
                 const double zev = events[iEv];
                 if (zev < b.zMin && zev <= lat_.sp_exit()) {
-                    if (iEv + 2 <= events.size() && events[iEv + 1] <= b.zMax) {
+                    // corrected engine (M10 D4): planes closer than the bunch length are recorded together
+                    if (compat_ && iEv + 2 <= events.size() && events[iEv + 1] <= b.zMax) {
                         throw EngineError("The output plane interval is less than the bunch length. Increase the "
                                           "output plane interval and restart the program");
                     }
                     if (events.size() <= iEv + 1) {
-                        if (marks[iEv] == -1) final_output(zev, t);
+                        settle_records(iEv);
+                        if (marks[iEv] == -1) final_output(zev, t, names[iEv]);
                         return;
                     }
                     iEv += 1;
@@ -1648,6 +1693,7 @@ private:
                     if (m > 0 || (m == -4 && compat_)) {
                         // steerer: kick at the middle of the following element, then restart the
                         // time-step loop from the crossing records (MethodMP::tcodeRun)
+                        settle_records(iEv - 1);
                         dl(kDevRec | kDevCoord | kDevIdx);
                         detach_device_rows_ = true;
                         if (m > 0) {
@@ -1668,12 +1714,22 @@ private:
                         zSeg = zev;
                         const std::vector<double> ev2(events.begin() + static_cast<long>(iEv), events.end());
                         const std::vector<int> mk2(marks.begin() + static_cast<long>(iEv), marks.end());
-                        tcode(t, zSeg, ev2, mk2);
+                        const std::vector<std::vector<std::string>> nm2(names.begin() + static_cast<long>(iEv), names.end());
+                        tcode(t, zSeg, ev2, mk2, nm2);
                         return;
                     }
-                    if (m != -4) {  // -4: spacechargecomp change (no output)
+                    if (!planeStore_.empty()) {
+                        // records of several events are open (M10 D4)
+                        if (m != -4) {
+                            store_output(iEv - 1, zev, names[iEv - 1]);
+                        } else {
+                            harvest_records();
+                            planeStore_.erase(iEv - 1);
+                            clear_event_records(iEv - 1);
+                        }
+                    } else if (m != -4) {  // -4: spacechargecomp change (no output)
                         dl(kDevRec);
-                        dst_out(zev, planeRec_);
+                        dst_out(zev, planeRec_, names[iEv - 1]);
                         for (auto& r : planeRec_) r.fill(0.0);
                         if (dev_) {
                             dev_->zero_rec(false);
@@ -1687,6 +1743,8 @@ private:
                 lastProgress = now;
                 progress(events);
             }
+            // corrected engine (M10 D4): keep the records of open events before the next pushes
+            if (!planeStore_.empty() || overlap_possible(events, iEv)) harvest_records();
             t = dt_ + t;
             prepare(t);
             capture_sync_tot(zSeg);
@@ -1876,20 +1934,6 @@ private:
         }
     }
 
-    // Geometry::Boundary of particle i with geometry gi (collisionData.txt line on a hit).
-    void geometry_hit(int gi, double t, int i) {
-        Beam& b = b_;
-        const kern::PartV P = pview();
-        const kern::GeomV& gv = latH_.geoms[static_cast<size_t>(gi)];
-        double Pp[6], tHit = t;
-        const int code = compat_ ? kern::geometry_hit<DllMath>(gv, P, i, t, dt_, Pp, tHit)
-                                 : kern::geometry_hit<PortableMath>(gv, P, i, t, dt_, Pp, tHit);
-        if (code < 0) (void)lat_.bnd.geoms[static_cast<size_t>(gi)].par.at(static_cast<size_t>(-code - 10));
-        if (code != 1) return;
-        collision_line(gv.shape, Pp, tHit, i);
-        b.lost[i] = 1;
-    }
-
     void collision_line(int shape, const double* P, double tHit, int i) {
         const Beam& b = b_;
         const double gm = shape == 1 ? std::sqrt(P[5] * P[5] + P[3] * P[3] + P[1] * P[1] + 1.0)
@@ -1898,15 +1942,88 @@ private:
         Text s;
         s.g(P[0]).s(" ").g(P[2]).s("  ").g(P[4]).s("  ").g(P[1] * k::c * ig).s("  ").g(P[3] * k::c * ig).s("  ")
             .g(P[5] * k::c * ig).s("  ").g(b.charge[i] * 6.241509479607718e+18).s("  ").g(b.restMass[i]).s("  ")
-            .g(b.weight[i]).s("  ").g(tHit).s("  ").s(b.kind.empty() ? p_.kind : b.kind[static_cast<size_t>(i)]).nl();
+            .g(b.weight[i]).s("  ").g(tHit).s("  ").s(b.kind.empty() ? p_.kind : b.kind[static_cast<size_t>(i)]);
+        // corrected engine (M10 D5, as the 2026-07-22 original): superposeout sections the particle passed
+        if (!compat_) s.s(" ").i(b.spOutCount.empty() ? 0 : b.spOutCount[static_cast<size_t>(i)]);
+        s.nl();
         write_file(paths().output + "collisionData.txt", s.str(), true);
     }
 
-    void final_output(double zev, double t) {
+    void final_output(double zev, double t, const std::vector<std::string>& names) {
         full_particle_out();
         dl(kDevRec | kDevRel);
-        dst_out(zev, planeRec_);
+        dst_out(zev, planeRec_, names);
         beam_out(0, t, b_.z[b_.n], step_);
+    }
+
+    // ---- output planes closer than the bunch length (corrected engine, M10 D4) ----
+    // A particle keeps one crossing record (planeRec_) for the next event.  When a particle may cross a
+    // later event before every particle passed the current one, the records are copied into planeStore_
+    // (by event) before each push that could overwrite them; an event is written from its copies.
+    std::map<size_t, std::vector<Rec>> planeStore_;
+
+    bool overlap_possible(const std::vector<double>& events, size_t iEv) const {
+        if (compat_ || iEv + 1 >= events.size()) return false;
+        const Beam& b = b_;
+        // zMax is from before the last push; the next push moves every particle by less than c dt more
+        const double head = std::max(b.zMax, b.z[b.n]) + 2.000001 * k::c * dt_;
+        return events[iEv + 1] <= head;
+    }
+
+    void harvest_records() {
+        dl(kDevRec | kDevIdx);
+        const int n = b_.n;
+        for (int i = 0; i <= n; ++i) {
+            const Rec& r = planeRec_[static_cast<size_t>(i)];
+            if (r[7] != 1.0 || b_.nextPlane[i] < 1) continue;
+            std::vector<Rec>& v = planeStore_[static_cast<size_t>(b_.nextPlane[i] - 1)];
+            if (v.empty()) v.assign(static_cast<size_t>(n) + 1, Rec{});
+            v[static_cast<size_t>(i)] = r;
+        }
+    }
+
+    // planeRec_ = the records of event k (last event of the segment or a restart); the store is emptied.
+    void settle_records(size_t k) {
+        if (planeStore_.empty()) return;
+        harvest_records();
+        auto it = planeStore_.find(k);
+        for (size_t i = 0; i < planeRec_.size(); ++i) planeRec_[i] = it != planeStore_.end() ? it->second[i] : Rec{};
+        planeStore_.clear();
+        ul(kDevRec);
+        devRecCount_ = 0;
+        for (int i = 0; i < b_.n; ++i)
+            if (planeRec_[static_cast<size_t>(i)][7] == 1.0) ++devRecCount_;
+    }
+
+    // Writes event k from the store and clears the records of k (the later ones stay).
+    void store_output(size_t k, double zev, const std::vector<std::string>& names) {
+        harvest_records();
+        auto it = planeStore_.find(k);
+        std::vector<Rec> recs = it != planeStore_.end() ? std::move(it->second) : std::vector<Rec>(planeRec_.size(), Rec{});
+        if (it != planeStore_.end()) planeStore_.erase(it);
+        dst_out(zev, recs, names);
+        clear_event_records(k);
+    }
+
+    void clear_event_records(size_t k) {
+        const int n = b_.n;
+        bool later = false;
+        for (int i = 0; i <= n; ++i) {
+            Rec& r = planeRec_[static_cast<size_t>(i)];
+            if (r[7] != 1.0) continue;
+            if (b_.nextPlane[i] - 1 == static_cast<int>(k)) r.fill(0.0);
+            else later = true;
+        }
+        if (!later) {
+            for (auto& r : planeRec_) r.fill(0.0);
+            if (dev_) dev_->zero_rec(false);
+            devRecCount_ = 0;
+            return;
+        }
+        ul(kDevRec);
+        devRecCount_ = 0;
+        for (int i = 0; i < n; ++i)
+            if (planeRec_[static_cast<size_t>(i)][7] == 1.0) ++devRecCount_;
     }
 };
 

@@ -97,6 +97,8 @@ outputplane V1 writes a distribution at a relative downstream (positive) or upst
 
 Verified engine restrictions: planes beyond the lattice end fail; 5 mm from the end can fail, while a 2 cm test worked. Segment generation omits planes within 5 cm of the end. The engine writes a final distribution at the endpoint.
 
+New kernel, default mode (2026-11, as the authors' 2026-07-22 original kernel): outputplane V1 NAME may carry a name and is then written as NAME_<z>.dst; planes closer together than the bunch length are recorded at the same time instead of stopping with “The output plane interval is less than the bunch length”. Of two planes closer than the travel of one time step (about βλ/steppercycle) the second is recorded by straight extrapolation over the next step. The compatibility mode and the 2026-04-02 original kernel ignore the name and still stop for such planes.
+
 ## Input organization and simulation settings {#ref-inputs}
 
 beam.txt describes the beam, input.txt simulation settings, and the ini.ini-selected lattice describes elements. Keywords are case-insensitive and ! begins comments. Full/error runs generate engine lattice.txt in the output inputs/ snapshot without rewriting original inputs.
@@ -107,7 +109,7 @@ randomseed: with the original kernel or the new kernel's compatibility mode (com
 
 scanphase: read by neither kernel; see scanData.txt.
 
-meshRms dimensions are Lx=V1×2×rms_x, Ly=V2×2×rms_y and Lz=V3×2×rms_z. The source states that longitudinal periodic boundaries select FFT and set longitudinal mesh length to the bunch period; sufficient longitudinal grid points are needed. Separate boundary mode ignores lattice aperture radii and uses Boundary.txt. Secondary transport requires synchronous-particle settings.
+meshRms dimensions are Lx=V1×2×rms_x, Ly=V2×2×rms_y and Lz=V3×2×rms_z. The source states that longitudinal periodic boundaries select FFT and set longitudinal mesh length to the bunch period; sufficient longitudinal grid points are needed. lpboundary V1 V2: the new kernel's default mode accepts a second value; V2 = 1 gives a periodic longitudinal space-charge box (FFT, one RF period γβλ in the beam rest frame) without folding the particles, for continuous beams and long bunches (V1 is then not used). The compatibility mode and the 2026-04-02 original kernel read V1 only. nplanes (a keyword of the 2026-07-22 original kernel) is accepted and not needed. Separate boundary mode ignores lattice aperture radii and uses Boundary.txt. Secondary transport requires synchronous-particle settings.
 
 [Multithreading](#input-multithreading)
 
@@ -149,6 +151,13 @@ type material Length r1 r2 RLP z0 x0 y0 θz0 θx0 θy0
 int string m m m m m m m deg deg deg
 ```
 
+New kernel, default mode (2026-11, extended after the authors' 2026-07-22 original kernel):
+- shapes 1 round pipe (column 4 the radius) and 2 bent pipe; new 3 rectangular pipe (columns 4 and 5: half width in x, half height in y) and 4 elliptical pipe (the two semi-axes);
+- a superpose block with several “superpose placement line + shape line” pairs is one composite segment; every sub-shape is a wall in its own z range (the aperture is the intersection);
+- a short pipe crossed completely within one step (a thin collimator) is tested at its entrance face; after a superposeout the geometry is evaluated at the boundary-file z (z minus the section offset);
+- with boundary.txt the radii of superposed sub-fields no longer cause losses; every CollisionData.txt line ends with one more column, the number of superposeout blocks the particle has passed;
+- the compatibility mode and the 2026-04-02 original kernel know shapes 1 and 2 only, and a superpose block ends the program abnormally.
+
 ## edst mixed distributions {#ref-edst}
 
 Original binary specification, not byte-verified for mixed species in this migration. The source spelling esdt is corrected to edst. ReadParticleDistribution with .edst switches to mixed distributions, and distribution outputs use .edst.
@@ -163,7 +172,9 @@ The last particle is synchronous. weight is the number of real particles represe
 
 ## inData.dst and outData_x.dst {#ref-dst}
 
-inData.dst records the initial simulated distribution; outData_x.dst records the binary distribution at output position x. Use the inputs snapshot alongside a kept result to understand the run settings.
+inData.dst records the initial simulated distribution; outData_x.dst records the binary distribution at output position x. Use the inputs snapshot alongside a kept result to understand the run settings. A named output plane (new kernel, default mode) is written as NAME_x.dst.
+
+Synchronous energy of a particle file (readparticledistribution x.dst): the new kernel's default mode takes beam.txt kneticenergy (a negative value: the mean energy of the particles) and warns, in the run log and in the check before the run, when it differs from the mean by more than 1 %; the original kernel (2026-04-02) and the compatibility mode always take the mean.
 
 ## DataSet.txt {#ref-dataset}
 
@@ -285,7 +296,11 @@ CHAR + Index(INT) + V2(INT)
 
 particlenumber=1 enables single-particle tracking. Fields: x/y/z (m), γβx/γβy/γβz, Ek (MeV), time (s). Multi-particle generation settings such as Twiss/current/distribution do not apply as in bunch tracking.
 
-Verified correction: displacepos dx dy dz is read by the engine in mm, despite metres in the original manual. displacedpos dpx dpy dpz uses percent. rms columns may be NaN; interpret trajectory and survivor data instead.
+Verified correction: displacepos dx dy dz is read by the engine in mm, despite metres in the original manual. displacedpos dpx dpy dpz uses percent; the engine reads x′ = value × 1e-5 rad (300 = 3 mrad). rms columns may be NaN; interpret trajectory and survivor data instead.
+
+initpos dx dy dz (mm) and initmom x′ y′ δ (x′, y′ in mrad, δ = Δp/p in 1e-3) are the names of the new kernel's default mode and of the 2026-07-22 original kernel, which reads only these; when both sets are written the new one is used, with a warning. The compatibility mode and the 2026-04-02 original kernel know only displacepos and displacedpos. The Beam page still writes the old names.
+
+The new kernel's default mode also writes SingleParticlePlane.txt: one line per output plane the particle crosses, z (m), kinetic energy W (MeV), x (m), γβx, y (m), γβy and the crossing time t (s).
 
 ## errors_par.txt {#ref-error-summary}
 

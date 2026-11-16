@@ -277,6 +277,7 @@ rms 不再减均值的平方（偏差本身已对上一步质心取）。
 **4.2.12 事件处理**：`zev = events[iEv]`；若 `zev < beam.zMin` 且 `zev <= spOut[spOutCur][6]`（全部活粒子已越过）：
 - 若 `iEv+2 <= events.size()` 且 `events[iEv+1] <= beam.zMax`：抛 `"The output plane interval is less than the bunch length. Increase the output plane interval and restart the program"`
   （AGENTS.md "离末端 5 mm 失败、2 cm 可以" 的原因：最后两个面间距小于束长）。
+  **默认模式（M10 D4）**：不报错。每个粒子只有一个穿越记录槽（planeRec），当本步可能有粒子越过下一个事件（zMax + 2c·dt ≥ 下一事件）而当前事件还未输出时，推进前把所有带标记的记录按事件号（nextPlane − 1）复制到主机的 planeStore_；事件输出时从 planeStore_ 取该事件的记录，只清掉属于它的记录，其后事件的记录保留；段末、校正铁重启前把该事件的记录放回 planeRec 并清空 planeStore_。内核不变，所以所有设备一致。同一步越过两个面时后一个在下一步按直线外推记录（07-22 版相同）。
 - 若是最后一个事件：同 4.2.6（`-1` 时三项输出）后返回。
 - 否则 `iEv++`，`m = marks[iEv−1]`：
   - `m > 0`（steerer）：`par = elements[m].GetParameter()`（vtable+0x18），`L' = elements[m+1].length`，`k = L'·particles[0].qOverM`；
@@ -392,6 +393,8 @@ Particle 版本开头多一次无用的 sqrt。这是标准 Boris（旋转为 Ca
   `char 0x7D, char 0x64, int32 (n−1), double I, double f/1e6, char 0x7D`，每个选中粒子 `{X,X',Y,Y',φ,W, charge/w/e, (mass/w/m_p)·938.271875, w}`（9 double），末尾 `double mc²_s`。
   （头里写 n−1 而记录有 n 条，见 §9。）
 
+> **默认模式（M10 D3、D4）**：文件名按该面的名称 `NAME_<z>`（未命名为 `outData_<z>`；同一 z 有多个名称时每个各写一份）。单粒子运行（N = 1）每次 dstOut 另向 SingleParticlePlane.txt 追加一行（运行开始时截断）：`z  W  x  γβx  y  γβy  t`，fixed 12 位、两个空格分隔，W 由记录的完整动量和粒子 mc² 算出，t 为穿过时刻；粒子没有记录（已丢失）时不写。outData、DataSet 行和 SingleParticle.txt 照旧（07-22 版去掉了它们，不跟）。
+
 ### 6.5 FullParticleOutput(beam) → FullParticle.txt（追加，默认格式）
 对 i<N 一行：`lost charge x γβx y γβy z γβz`（单空格分隔，charge 为宏粒子电荷 C）。只在末事件为输出面时调用。
 
@@ -432,6 +435,8 @@ T ≤ 60 用 `%.0fs`，60<T≤3600 用 `%.2fmin`（T/60），T>3600 用 `%.2fh`�
 - 碰撞：向 `collisionData.txt` 追加（默认格式）：`X " " Y "  " Z "  " vx "  " vy "  " vz "  " charge/e "  " mc² "  " w "  " t_hit "  " kind` + `'\n'`
   （`v = γβ·c/γ`），然后 `lost = 1`。
 - `Geometry::Boundary(double,double,SynParticle&,vector)` 重载（0x147e20）只做类型检查（>2 报同样错误并退出），无调用者。
+
+> **默认模式（M10 D5）**：形状 3（|u| < a 且 |v| < b）、4（u²/a² + v²/b² < 1）与复合形状 0（按顺序检查子形状，第一个碰撞即返回；07-22 版会对同一粒子记录多次，弯管角度越界时还中断其余子形状）。矩形、椭圆管的碰撞点在这一步的直线上二分求出；粒子从入口面进入且在面上已在孔径外时，碰撞点取入口面（圆管同样，并把插值系数限制在本步之内）。几何段搜索向下游走过的每一段都检查“一步越过整段”：zl ≥ L 且上一步 zl0 ≤ 0 时在入口面（局部坐标）插值判孔径——07-22 版用全局 x、y，椭圆还把 y 写成 x 动量，不照抄。superposeout 之后段的选择与几何都用 z − 行偏移（04-02 版选段用 z + 偏移、几何用 z）。collisionData.txt 每行末尾加 ` <superposeout 块数>`（粒子的 spOutCount）。fp32 设备的预筛选对复合段、换段的粒子与新形状一律交给主机双精度判断。二次粒子用同一几何判断（无行偏移）。
 
 ### 6.13 无调用者的输出函数
 `MethodMP::testOut(beam)`：向 test.txt / testP.txt 追加（每个 `lost==0` 粒子 12 个量：坐标与 rel；以及一行质心、rms、rotAngle 等）；

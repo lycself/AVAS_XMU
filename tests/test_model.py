@@ -211,3 +211,46 @@ def test_model_of_a_project_folder():
     prev = lo.linear_preview(text, beam, [os.path.join(EXAMPLE, "InputFile")])
     assert res.energy[-1] == pytest.approx(prev["energy"][-1], rel=1e-12)
     assert res.rf and res.info["centroid_checked"] is True
+
+
+# --------------------------------------------------------------------------- M10 (new kernel's default mode)
+def test_dst_beam_reference_energy_is_kneticenergy(tmp_path):
+    """M10 D1: the linear model takes beam.txt kneticenergy as the reference energy of a .dst beam, like the new
+    kernel's default mode (a negative value: the mean of the file), and warns beyond 1 %."""
+    import struct
+    from avas.model.beam import dst_energies, read_beam
+    rng = np.random.default_rng(3)
+    n = 400
+    data = b"\x7d\x64" + struct.pack("<idd", n, 0.0, 162.5) + b"\x7d"
+    for _ in range(n):
+        data += struct.pack("<6d", rng.normal(0, 0.1), rng.normal(0, 1e-3), rng.normal(0, 0.1), rng.normal(0, 1e-3),
+                            rng.normal(0, 0.05), 1.5 + rng.normal(0, 0.002))
+    data += struct.pack("<d", PROTON)
+    (tmp_path / "b.dst").write_bytes(data)
+    base = "readparticledistribution b.dst\nparticlerestmass 938.272088\nnumofcharge 1\nfrequency 162500000\n"
+    (tmp_path / "beam.txt").write_text(base + "kneticenergy -1\n")
+    mean = read_beam(str(tmp_path))
+    assert mean["source"] == "dst" and mean["energy"] == pytest.approx(mean["meanEnergy"]) and not mean["warnings"]
+    (tmp_path / "beam.txt").write_text(base + "kneticenergy 1.5005\n")
+    near = read_beam(str(tmp_path))
+    assert near["energy"] == 1.5005 and not near["warnings"]
+    assert near["twiss"]["x"] == pytest.approx(mean["twiss"]["x"], rel=1e-3)     # rms moments about the mean
+    (tmp_path / "beam.txt").write_text(base + "kneticenergy 1.6\n")
+    far = read_beam(str(tmp_path))
+    assert far["energy"] == 1.6 and len(far["warnings"]) == 1 and "kneticenergy" in far["warnings"][0][0]
+    ref, m, name = dst_energies(str(tmp_path))
+    assert (ref, name) == (1.6, "b.dst") and m == pytest.approx(mean["meanEnergy"])
+
+
+@needs_example
+def test_rf_field_with_zero_ke_is_a_drift():
+    """M10 D6: an RF field row with Ke = 0 is a drift for the new kernel; the linear model does the same (no field
+    map is read, no cavity), so a missing map does not matter and the result equals a drift."""
+    beam = make_beam(energy=1.527)
+    dirs = [os.path.join(EXAMPLE, "InputFile")]
+    off = "start\ndrift 0.05 0.02 0\nfield 0.21 0.02 0 1 162.5e6 -30 0 0 nomap\ndrift 0.05 0.02 0\nend\n"
+    drift = "start\ndrift 0.05 0.02 0\ndrift 0.21 0.02 0\ndrift 0.05 0.02 0\nend\n"
+    a, b = LinearModel(off, beam, dirs).evaluate(), LinearModel(drift, beam, dirs).evaluate()
+    assert not a.rf
+    assert a.energy[-1] == pytest.approx(b.energy[-1], rel=1e-12)
+    assert np.allclose(a.sigma[-1], b.sigma[-1], rtol=1e-12, atol=0)

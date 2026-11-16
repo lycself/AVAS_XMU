@@ -141,7 +141,9 @@ export async function prepareRun(): Promise<{ ok: boolean; error?: string }> {
   }
   if (!(await saveAll(true))) return { ok: false, error: "The pages could not be saved." };
   try {
-    await call("run.check");
+    // warnings that do not stop the run (e.g. beam.txt kneticenergy far from the mean of a .dst file)
+    const res = await call<{ warnings?: string[] } | null>("run.check");
+    for (const w of res?.warnings ?? []) toast(w, "warning", 9000);
   } catch (e: any) {
     await reportError(e, t("Project check"));
     return { ok: false, error: e?.message ?? String(e) };

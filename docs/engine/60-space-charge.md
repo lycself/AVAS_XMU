@@ -224,6 +224,8 @@ ys[j], zs[k] 同理，不加中心
 纵向周期长度 = Nz·dz = βγλ·Nz/(Nz−1)，**比 βγλ 长一个格距**（推测为实现缺陷）。粒子纵坐标的拉伸见 2.5（串行与多线程两条路径公式不同）。
 如 2.2.3 第 1 步所述，lpboundary 并不强制 FFT。
 
+> **默认模式（M10 D7）**：`lpboundary V1 1`（`Params::lpPeriodic`，此时 lpBoundary = 0，粒子不折叠）：强制 FFT；纵向网格是束流静止系中的一个射频周期 L = λ·(γβz)_s，dz = L/Nz，节点 (k − Nz/2 + 0.5)·dz，拉伸 γ 用同步粒子的完整 γ_s、以同步粒子为原点（lpRel）；横向网格与中心同一般情况。沉积与插值时 zr 折回 [zs0, zs0 + L)，最后一格连接节点 Nz−1 与节点 0（`MeshV::lpWrap/lpLen`，mesh_kernels.h，CPU、CUDA、Metal 共用），没有粒子落在纵向网格外。FFT 的 z 方向本来就是周期为 Nz·dz 的 DFT。beam.gamma 与 DataSet 不受影响（07-22 版改写 beam.gamma 并用 βλ 作周期，短 γ 倍，不跟）。检验：1.3 GHz 一个周期长（13 mm）的 DC KV 束、20 mA、1 m 漂移，全部粒子的 rms 增长与 KV 包络之比 0.9949／0.9957（开放盒 0.891），见 physics/dc_kv_envelope.py --periodic-check。
+
 #### 2.4.3 其他量
 
 PIC+0x2a0 = γ，+0x2a8 = 1/γ，+0x278 = V = dx·dy·dz，+0x280 = 0（随后累加网格内粒子的 weight）。

@@ -20,11 +20,15 @@
 #include "core/text.h"
 #include "avas_engine.h"
 #include "core/device.h"
+#include "core/dllmath.h"
+#include "core/mesh_kernels.h"
 
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
+#include <iterator>
 
 static int failures = 0;
 #define CHECK(cond)                                                       \
@@ -632,6 +636,263 @@ static void test_rfq_field() {
     CHECK(field(0.0055, 0.0, 0.12, E, B) == (kern::kFieldWrite | kern::kFieldLost));  // cell 1: outside a = 5 mm
 }
 
+// ---- M10 (2026-07-22 original features in the corrected engine) ----
+
+// boundary.txt shapes 3 / 4 / composite 0 and the "whole short pipe in one step" check (D5)
+static void test_boundary_shapes() {
+    using namespace avas;
+    auto geom = [](int shape, double L, double a, double b, double dx, double dy, double thz) {
+        kern::GeomV g{};
+        g.shape = shape;
+        g.npar = shape == 1 ? 2 : 3;
+        g.zStart = 0.1;
+        g.par[0] = L;
+        g.par[1] = a;
+        g.par[2] = b;
+        g.place[1] = dx;
+        g.place[2] = dy;
+        g.place[3] = thz;
+        g.s3 = std::sin(thz);
+        g.c3 = std::cos(thz);
+        g.s4 = g.s5 = 0.0;
+        g.c4 = g.c5 = 1.0;
+        return g;
+    };
+    // one particle: old -> new
+    double x[1], ux[1], y[1], uy[1], z[1], uz[1], old[6];
+    kern::PartV P{};
+    P.x = x; P.ux = ux; P.y = y; P.uy = uy; P.z = z; P.uz = uz; P.old = old;
+    auto set = [&](double x0, double y0, double z0, double x1, double y1, double z1) {
+        old[0] = x0; old[1] = 0.01; old[2] = y0; old[3] = 0.0; old[4] = z0; old[5] = 0.06;
+        x[0] = x1; ux[0] = 0.01; y[0] = y1; uy[0] = 0.0; z[0] = z1; uz[0] = 0.06;
+    };
+    double Pp[6], tHit = 0.0;
+    // rectangular pipe 3: half width 4 mm, half height 2 mm
+    kern::GeomV r = geom(3, 0.2, 0.004, 0.002, 0.0, 0.0, 0.0);
+    set(0.0035, 0.0015, 0.15, 0.0035, 0.0015, 0.16);
+    CHECK(kern::geom_hit_one<PortableMath>(r, P, 0, 1.0, 1e-9, 0.0, Pp, tHit) == 0);
+    set(0.0035, 0.0015, 0.15, 0.0035, 0.0025, 0.16);  // leaves through the top
+    CHECK(kern::geom_hit_one<PortableMath>(r, P, 0, 1.0, 1e-9, 0.0, Pp, tHit) == 1);
+    CHECK(std::fabs(Pp[2] - 0.002) < 1e-12 && std::fabs(Pp[4] - 0.155) < 1e-9);  // on the wall, half way
+    CHECK(std::fabs(tHit - (1.0 - 0.5e-9)) < 1e-15);
+    // elliptical pipe 4: semi-axes 4 mm, 2 mm
+    kern::GeomV e = geom(4, 0.2, 0.004, 0.002, 0.0, 0.0, 0.0);
+    set(0.0035, 0.0, 0.15, 0.0035, 0.0, 0.16);
+    CHECK(kern::geom_hit_one<PortableMath>(e, P, 0, 1.0, 1e-9, 0.0, Pp, tHit) == 0);
+    set(0.0035, 0.0012, 0.15, 0.0035, 0.0012, 0.16);  // (3.5/4)^2 + (1.2/2)^2 = 1.13
+    CHECK(kern::geom_hit_one<PortableMath>(e, P, 0, 1.0, 1e-9, 0.0, Pp, tHit) == 1);
+    // a thin collimator (1 mm long) crossed in one step: hit in the default mode, not in compat
+    kern::GeomV c = geom(1, 0.001, 0.003, 0.0, 0.0, 0.0, 0.0);
+    set(0.004, 0.0, 0.0995, 0.004, 0.0, 0.1015);
+    CHECK(kern::geom_hit_one<PortableMath>(c, P, 0, 1.0, 1e-9, 0.0, Pp, tHit) == 1);
+    CHECK(std::fabs(Pp[4] - 0.1) < 1e-12 && std::fabs(tHit - (1.0 - 0.75e-9)) < 1e-15);  // entrance face
+    CHECK(kern::geom_hit_one<DllMath>(c, P, 0, 1.0, 1e-9, 0.0, Pp, tHit) == 0);
+    set(0.002, 0.0, 0.0995, 0.002, 0.0, 0.1015);
+    CHECK(kern::geom_hit_one<PortableMath>(c, P, 0, 1.0, 1e-9, 0.0, Pp, tHit) == 0);
+    // the test is made in the local frame: a collimator displaced by dx = 3 mm and turned by 90 degrees
+    kern::GeomV cr = geom(3, 0.001, 0.001, 0.004, 0.003, 0.0, 1.5707963267948966);
+    set(0.0035, 0.0, 0.0995, 0.0035, 0.0, 0.1015);  // local u = 0, v = -0.5 mm: inside
+    CHECK(kern::geom_hit_one<PortableMath>(cr, P, 0, 1.0, 1e-9, 0.0, Pp, tHit) == 0);
+    set(0.0035, 0.0015, 0.0995, 0.0035, 0.0015, 0.1015);  // local u = 1.5 mm > 1 mm: hit
+    CHECK(kern::geom_hit_one<PortableMath>(cr, P, 0, 1.0, 1e-9, 0.0, Pp, tHit) == 1);
+    // ellipse collimator: y is tested with y (the 2026-07-22 original uses the x momentum)
+    kern::GeomV ce = geom(4, 0.001, 0.004, 0.001, 0.0, 0.0, 0.0);
+    set(0.0, 0.0015, 0.0995, 0.0, 0.0015, 0.1015);
+    CHECK(kern::geom_hit_one<PortableMath>(ce, P, 0, 1.0, 1e-9, 0.0, Pp, tHit) == 1);
+    // row offset zOff: the geometry at z - zOff
+    set(0.0035, 0.0015, 0.35, 0.0035, 0.0025, 0.36);
+    CHECK(kern::geom_hit_one<PortableMath>(r, P, 0, 1.0, 1e-9, 0.1, Pp, tHit) == 1);
+    CHECK(kern::geom_hit_one<PortableMath>(r, P, 0, 1.0, 1e-9, 0.0, Pp, tHit) == 0);
+    // composite: two overlapping sub-shapes, the aperture is the intersection
+    kern::GeomV tab[3] = {kern::GeomV{}, geom(1, 0.2, 0.005, 0.0, 0.0, 0.0, 0.0), geom(3, 0.1, 0.006, 0.002, 0.0, 0.0, 0.0)};
+    tab[0].shape = 0;
+    tab[0].npar = 1;
+    tab[0].par[0] = 0.2;
+    tab[0].sub0 = 1;
+    tab[0].nsub = 2;
+    set(0.0, 0.0018, 0.15, 0.0, 0.0018, 0.16);  // inside both
+    CHECK(kern::geometry_hit<PortableMath>(tab, 0, P, 0, 1.0, 1e-9, 0.0, Pp, tHit) == 0);
+    set(0.0, 0.0018, 0.15, 0.0, 0.0025, 0.16);  // inside the circle, outside the rectangle (z < 0.2)
+    CHECK(kern::geometry_hit<PortableMath>(tab, 0, P, 0, 1.0, 1e-9, 0.0, Pp, tHit) == 1);
+    set(0.0, 0.0018, 0.25, 0.0, 0.0025, 0.26);  // past the rectangle: only the circle
+    CHECK(kern::geometry_hit<PortableMath>(tab, 0, P, 0, 1.0, 1e-9, 0.0, Pp, tHit) == 0);
+}
+
+// lpboundary V1 1 (D7): the deposit cell is periodic in z, the last cell joins node nz-1 to node 0
+static void test_periodic_mesh() {
+    using namespace avas;
+    const int nx = 4, ny = 4, nz = 8;
+    std::vector<double> xs(nx), ys(ny), zs(nz);
+    const double dx = 0.001, dz = 0.002;
+    for (int i = 0; i < nx; ++i) xs[i] = (i - nx * 0.5 + 0.5) * dx;
+    for (int j = 0; j < ny; ++j) ys[j] = (j - ny * 0.5 + 0.5) * dx;
+    for (int k = 0; k < nz; ++k) zs[k] = (k - nz * 0.5 + 0.5) * dz;
+    kern::MeshV M{};
+    M.nx = nx; M.ny = ny; M.nz = nz;
+    M.dx = M.dy = dx;
+    M.dz = dz;
+    M.vol = dx * dx * dz;
+    M.gamma = M.igamma = 1.0;
+    M.lpRel = 1;
+    M.lpWrap = 1;
+    M.lpLen = nz * dz;
+    M.xs = xs.data(); M.ys = ys.data(); M.zs = zs.data();
+    int i, j, k, i2, j2, k2;
+    double w[8], w2[8];
+    CHECK(kern::mesh_cell_t<double>(M, 0.0002, -0.0001, 0.0031, i, j, k, w));
+    CHECK(kern::mesh_cell_t<double>(M, 0.0002, -0.0001, 0.0031 + 3 * M.lpLen, i2, j2, k2, w2));
+    CHECK(i == i2 && j == j2 && k == k2);
+    double sum = 0.0;
+    for (int m = 0; m < 8; ++m) {
+        sum += w[m];
+        CHECK(std::fabs(w[m] - w2[m]) < 1e-9);
+    }
+    CHECK(std::fabs(sum - 1.0) < 1e-12);
+    // beyond the last node: cell nz-1, its upper corners are node 0
+    CHECK(kern::mesh_cell_t<double>(M, 0.0, 0.0, zs[nz - 1] + 0.25 * dz, i, j, k, w));
+    CHECK(k == nz - 1);
+    CHECK(kern::mesh_corner(M, i, j, k, 4) == kern::mesh_at(M, i, j, 0));
+    CHECK(std::fabs(w[0] + w[1] + w[2] + w[3] - 0.75) < 1e-12);  // weight 3/4 on node nz-1
+    M.lpWrap = 0;
+    CHECK(!kern::mesh_cell_t<double>(M, 0.0, 0.0, zs[nz - 1] + 0.25 * dz, i, j, k, w));
+}
+
+// a small run in a temporary folder; returns the exit code and leaves the outputs in dir/out
+static int run_small(const std::filesystem::path& dir, const std::string& beam, const std::string& lattice,
+                     const std::string& input = "spacecharge 0\nsteppercycle 20\n") {
+    namespace fs = std::filesystem;
+    fs::remove_all(dir);
+    fs::create_directories(dir / "out");
+    write_text(dir / "input.txt", input.c_str());
+    write_text(dir / "beam.txt", ("numofcharge 1\nparticlerestmass 938.272088159928\ncurrent 0\nfrequency 162500000.0\n"
+                                  "distribution GS GS\ntwissx -0.65785 0.37743 0.13768\ntwissy -0.6341 0.37292 0.14059\n"
+                                  "twissz 0.04275 0.37292 0.26506\n" + beam).c_str());
+    write_text(dir / "lattice.txt", lattice.c_str());
+#if defined(_WIN32)
+    const std::wstring in = dir.wstring(), out = (dir / "out").wstring();
+#else
+    const std::string in = dir.string(), out = (dir / "out").string();
+#endif
+    path(in.c_str(), out.c_str(), in.c_str());
+    int state = 1;
+    return main_agent(&state);
+}
+
+static std::string slurp(const std::filesystem::path& f) {
+    std::ifstream i(f, std::ios::binary);
+    return std::string(std::istreambuf_iterator<char>(i), std::istreambuf_iterator<char>());
+}
+
+// initpos / initmom (D2): new units, the new names win; RF field with Ke = 0 is a drift (D6);
+// SingleParticlePlane.txt (D3); reference energy of a .dst file (D1)
+static void test_m10_runs() {
+    namespace fs = std::filesystem;
+    CHECK(avas_set_option("compat", "none") == 0);
+    CHECK(avas_set_option("threads", "1") == 0);
+    const fs::path dir = fs::temp_directory_path() / ("avas_unit_m10_" + std::to_string(std::rand()));
+    const std::string drift = "start\ndrift 0.05 0.02 0\noutputplane -0.02 MID\nend\n";
+    auto header = [&](const std::string& beam) {
+        CHECK(run_small(dir, "particlenumber 1\nkneticenergy 1.5\n" + beam, drift) == 0);
+        return slurp(dir / "out" / "SingleParticle.txt");
+    };
+    // initpos 1 2 0 mm, initmom 3 -4 mrad
+    std::string h = header("initpos 1 2 0\ninitmom 3 -4 0\n");
+    CHECK(h.find("dx:1mm  dy:2mm") != std::string::npos);
+    CHECK(h.find("dpx:3mrad  dpy:-4mrad") != std::string::npos);
+    // displacedpos keeps its unit (300 -> 3 mrad)
+    h = header("displacepos 1 2 0\ndisplacedpos 300 -400 0\n");
+    CHECK(h.find("dx:1mm  dy:2mm") != std::string::npos);
+    CHECK(h.find("dpx:3mrad  dpy:-4mrad") != std::string::npos);
+    // both: the new names win
+    h = header("displacepos 5 5 0\ndisplacedpos 100 100 0\ninitpos 1 2 0\ninitmom 3 -4 0\n");
+    CHECK(h.find("dx:1mm  dy:2mm") != std::string::npos && h.find("dpx:3mrad") != std::string::npos);
+    // SingleParticlePlane.txt: one line per output plane (MID at 0.03, the end at 0.05), 7 columns
+    {
+        std::istringstream ls(slurp(dir / "out" / "SingleParticlePlane.txt"));
+        std::string line;
+        int rows = 0;
+        while (std::getline(ls, line)) {
+            std::istringstream ws(line);
+            std::vector<double> v;
+            double d;
+            while (ws >> d) v.push_back(d);
+            CHECK(v.size() == 7);
+            if (v.size() == 7 && rows == 0) CHECK(std::fabs(v[0] - 0.03) < 1e-12 && std::fabs(v[1] - 1.5) < 1e-4);
+            ++rows;
+        }
+        CHECK(rows == 2);
+        CHECK(fs::exists(dir / "out" / "MID_0.030000.dst") && fs::exists(dir / "out" / "outData_0.050000.dst"));
+    }
+    // compat=dll: initpos unknown (particle on the axis), no SingleParticlePlane.txt
+    CHECK(avas_set_option("compat", "dll") == 0);
+    h = header("initpos 1 2 0\n");
+    CHECK(h.find("dx:0mm  dy:0mm") != std::string::npos);
+    CHECK(!fs::exists(dir / "out" / "SingleParticlePlane.txt"));
+    CHECK(avas_set_option("compat", "none") == 0);
+    // RF field with Ke = 0: a drift (no map is read), also in a superpose block; too few words: error
+    const std::string beam1 = "particlenumber 1\nkneticenergy 1.5\n";
+    CHECK(run_small(dir, beam1, "start\ndrift 0.05 0.02 0\ndrift 0.21 0.02 0\nend\n") == 0);
+    const std::string ref = slurp(dir / "out" / "SingleParticle.txt");
+    CHECK(run_small(dir, beam1, "start\ndrift 0.05 0.02 0\nfield 0.21 0.02 0 1 162.5e6 -30 0 0 nomap\nend\n") == 0);
+    CHECK(slurp(dir / "out" / "SingleParticle.txt") == ref);
+    CHECK(run_small(dir, beam1, "start\ndrift 0.05 0.02 0\nsuperpose 0\nfield 0.21 0.02 0 1 162.5e6 -30 0 0 nomap\n"
+                                "superpose 0.01\ndrift 0.1 0.03 0\nsuperposeend\nend\n") == 0);
+    CHECK(run_small(dir, beam1, "start\ndrift 0.05 0.02 0\nfield 0.21 0.02 0 1 162.5e6\nend\n") != 0);
+    // .dst input: the synchronous particle starts with kneticenergy (D1), negative kneticenergy: the mean
+    {
+        const int n = 10;
+        std::string dst;
+        dst.push_back(static_cast<char>(0x7D));
+        dst.push_back(static_cast<char>(0x64));
+        const std::int32_t n32 = n;
+        const double ib = 0.0, fm = 162.5, mc2 = 938.272088159928;
+        dst.append(reinterpret_cast<const char*>(&n32), 4);
+        dst.append(reinterpret_cast<const char*>(&ib), 8);
+        dst.append(reinterpret_cast<const char*>(&fm), 8);
+        dst.push_back(static_cast<char>(0x7D));
+        for (int q = 0; q < n; ++q) {
+            const double row[6] = {0.0, 0.0, 0.0, 0.0, -0.01 * q, 1.0 + 0.01 * q};
+            dst.append(reinterpret_cast<const char*>(row), 48);
+        }
+        dst.append(reinterpret_cast<const char*>(&mc2), 8);
+        for (const char* w : {"1.2", "-1"}) {
+            fs::remove_all(dir);
+            fs::create_directories(dir / "out");
+            {
+                std::ofstream o(dir / "p.dst", std::ios::binary);
+                o << dst;
+            }
+            write_text(dir / "input.txt", "spacecharge 0\nsteppercycle 20\n");
+            write_text(dir / "beam.txt", (std::string("readparticledistribution p.dst\nnumofcharge 1\nkneticenergy ") + w + "\n").c_str());
+            write_text(dir / "lattice.txt", "start\ndrift 0.05 0.02 0\nend\n");
+#if defined(_WIN32)
+            const std::wstring in = dir.wstring(), out = (dir / "out").wstring();
+#else
+            const std::string in = dir.string(), out = (dir / "out").string();
+#endif
+            path(in.c_str(), out.c_str(), in.c_str());
+            int state = 1;
+            CHECK(main_agent(&state) == 0);
+            std::istringstream ds(slurp(dir / "out" / "DataSet.txt"));
+            std::string line;
+            std::getline(ds, line);
+            std::istringstream ws(line);
+            std::vector<std::string> v;
+            std::string tok;
+            while (ws >> tok) v.push_back(tok);  // (rms columns may be nan with zero emittance)
+            CHECK(v.size() == 41);
+            if (v.size() == 41) {
+                const double u = std::strtod(v[34].c_str(), nullptr);  // synchronous gamma*beta_z
+                const double W = (std::sqrt(1.0 + u * u) - 1.0) * mc2;
+                CHECK(std::fabs(W - (w[0] == '1' ? 1.2 : 1.045)) < 1e-4);  // DataSet: 6 digits
+            }
+        }
+    }
+    CHECK(avas_set_option("threads", "0") == 0);
+    std::error_code ec;
+    fs::remove_all(dir, ec);
+}
+
 int main() {
     test_split();
     test_numbers();
@@ -646,6 +907,9 @@ int main() {
     test_reduce();
     test_capi_queries();
     test_rfq_field();
+    test_boundary_shapes();
+    test_periodic_mesh();
+    test_m10_runs();
     std::printf("%s (%d failures)\n", failures ? "FAILED" : "OK", failures);
     return failures;
 }

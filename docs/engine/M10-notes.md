@@ -130,3 +130,59 @@
 - D4（多面同时记录、命名）和 D5（新几何、局部坐标）各需要新增对齐算例和单元测试；
 - D7 要改空间电荷网格的纵向边界，并做物理检验。
 所有改动只在默认模式中进行，兼容模式与对齐结果不变。
+
+## 6. 实现（2026-11-16，D1–D7；D8 不改代码）
+
+用户同意第 5 节的全部推荐项。所有改动只在默认模式中生效；兼容模式在 Mac 上对全部 197 个对齐算例的输出与改动前逐字节相同（只差时间戳），`run_all.py` 的兼容模式最大相对差仍为 3.4e-11。
+
+### 6.1 各项的做法与实施中的决定
+
+- **D1 参考能量**（beam.cpp `init_from_dst`、synchronous.cpp `setup`）：
+  - beam.txt `kneticenergy` > 0 时取它；≤ 0 或不写（默认 −1）时取文件按权重的平均 W（不跟 07-22 版的“平均纵向动量”）。推荐项写“负值用平均”，W = 0 没有物理意义，一并按“不写”处理。
+  - 相差超过 1 % 时内核打印警告；单粒子模式的 .dst 分支同样处理。`.edst` 文件自带同步记录，07-22 版也不变，保持取同步记录。
+  - 界面：`run.check` 返回 `warnings`（`kernels.input_warnings`，只对新内核默认模式），运行前以提示条显示并写入日志；`engine.check` 的返回不变。
+  - 线性模型 `avas/model/beam.py` 用同一规则取参考能量，rms 矩仍关于平均值，并给出同样的警告（`dst_energies`、`reference_energy_note`）。
+- **D2 initpos／initmom**（params.cpp、beam.cpp `init_single`）：新单位（mm；mrad 与 1e-3）；同时写了旧名字时用新的并分别警告；兼容模式仍是未知关键字。schema 的 initmom 第三个参数改为 δ（1e-3），并写明两版原内核各认哪套名字。束流页仍写旧名字。
+- **D3 SingleParticlePlane.txt**（tracker.cpp `dst_out`）：每次写输出面时追加一行 `z W x γβx y γβy t`（fixed 12 位），z 段内的输出面（元件中点）与末端都写；粒子没有记录（已丢失）时不写。运行开始时截断；DataSet 行、outData、SingleParticle.txt 及其表头不变。
+- **D4 输出面**：
+  - 命名：`outputplane d NAME`（检查文件名字符），名称跟随输出面进入 t 段事件和 z 段元件；z 段里的命名面保留名称（07-22 版丢失）。同一 z 的几个输出面合成一个事件、每个名称写一份；一个命名面放在末端时既写 `NAME_<L>.dst` 也写 `outData_<L>.dst`。
+  - 同时记录：不改内核，在 tracker 的主机端加 `planeStore_`（见 40 §4.2.6 的说明）。条件 zMax + 2c·dt ≥ 下一事件时才复制，正常间距的运行不经过这条路径，所以已有算例逐字节不变；所有设备用同一套 download／upload，结果一致。
+  - 限制：两个面的间距小于一步行程时，后一个面在下一步按直线外推记录（07-22 版相同），漂移段中与单独放这个面的结果只差舍入（M10_D4_close_planes 的 P3：2.5e-16）。
+  - `nplanes` 接受并忽略（打印说明）。
+  - “steerer 之后的输出面不再丢弃”：默认模式（和兼容模式）自 M2 起就按 DLL 的做法不丢弃（M2-notes 第 8 条：DLL 不检查 `p > ev.back()`；丢弃的是 .so），无需改动。
+- **D5 边界**（lattice.cpp `read_boundary`、kernels.h `geom_hit_one`／`geometry_hit`／`boundary_particle`、f32_kernels.h 预筛选、secondary.h）：
+  - 形状 3、4。superpose 块只有一个子形状时同以前；多个子形状合成复合段（形状 0，长度与 lattice superpose 相同），子形状按顺序检查、第一个碰撞即返回。superposeend 被吃掉（以前会被当作未知形状）。
+  - “一步越过整段”在段搜索向下游走过的每一段和复合段的每个子形状上检查，用局部坐标与 y 坐标。
+  - 圆管粒子从入口面进入时在面上已在孔径外的，碰撞点取入口面，插值系数限制在本步之内（以前可能外推到本步之外）；矩形、椭圆管用二分求壁上的点。这两点不改变已有算例（LB1–LB4 的碰撞记录除新增的一列外相同）。
+  - z − 行偏移；L4（有 boundary.txt 时不判叠加子场孔径）；collisionData.txt 末尾加 superposeout 块数（avas/ 中没有程序按列读取 collisionData.txt）。
+  - GPU：CUDA fp64 直接用共享的 kernels.h；Metal 和 emu fp32 的浮点预筛选对复合段、换段的粒子一律交给主机双精度判断，新形状加了保守的阈值。
+  - 模拟设置页（以及文件页）的边界表格列标题与提示改为可翻译，说明四种形状与 a、b 列的含义。
+- **D6 Ke = 0**（lattice.cpp `rf_off`）：需要完整的 10 个词；不足时照常报错，不越界。线性模型（`Statement.rf_off()`）同样当漂移段（不读场图、不建腔），分段运行重定相位时跳过它（synData 中是 drift 行）。
+- **D7 纵向周期盒**（params.cpp、spacecharge.cpp、mesh_kernels.h、f32_host.cpp `MeshF`）：见 60 §2.4.2 的说明。在 GPU 上同样支持（Metal、CUDA 共用 `mesh_cell_t`／`mesh_corner`／`mesh_trilinear` 的周期折回），没有设 CPU 限制。
+
+### 6.2 检验
+
+- **单元测试**：`test_boundary_shapes`（形状 3、4，复合段，薄准直器默认／兼容，局部坐标，椭圆用 y，行偏移）、`test_periodic_mesh`（周期折回、最后一格的角点、权重和）、`test_m10_runs`（initpos／initmom 与 displacedpos 单位、新名字优先、兼容模式忽略 initpos、SingleParticlePlane.txt 与命名面、Ke = 0 场等于漂移、superpose 块内 Ke = 0、参数不足报错、.dst 参考能量 1.2 MeV 与 −1 时的平均 1.045 MeV），全部通过。
+- **新对齐算例**（cases.json `M10_*`，`run_all.py` 的 `m10_check` 检查默认模式）：
+  - D1 平均回退与 1.6 MeV（警告）；D2 新单位与 S2a 的 DataSet 同步粒子列相同（相对差 0）、两套都写时等于只写新名字；D3 S2a 的 SingleParticlePlane 与 outData 的 x、W 一致。
+  - D4 命名面；三个间距 3 mm、0.5 mm 的面（束长 9 mm、步长 2.1 mm）：P1、P2 与单独放置时逐字节相同，P3 差 2.5e-16。
+  - D5 矩形／椭圆管 3041 次碰撞都在壁上或入口面上（collisionData 6 位有效数字内）；复合段 2030 次；1 mm 薄准直器 2342 次碰撞，对照算例中在入口处 r ≥ 1.5 mm 的粒子 2341 个。
+  - D6 Ke = 0 腔与漂移段的 DataSet、outData 逐字节相同；D7 周期盒运行正常。
+- **物理检验**（run_physics.py 第 4 项）：1.3 GHz 的 DC KV 束一个周期只有 13 mm（7 个束半径），周期盒下全部粒子的 rms 增长与 KV 之比 x 0.9949、y 0.9957；同一束用开放盒为 0.891（端部效应）。其余三项照旧通过。
+- **设备**（Mac M2，`run_gpu.py`，35 个相关算例）：emu fp64 与 CPU 逐字节相同 30/30（另 5 个空间电荷算例与以前一样只差舍入），Metal 与 emu fp32 逐字节相同 35/35、重跑相同；全部 203 个算例 Metal 与 emu fp32 逐字节相同。
+- **Windows**（XPS，MSVC 17.12 + CUDA 12.4，2026-11-16）：`run_all.py --strict` 兼容模式与 AVAS.dll 参考逐字节相同（ALL IDENTICAL，含下面新增的 11 个参考），默认模式各项检查与单线程对多线程全部通过；GTX 1650 上 fp64 无空间电荷算例与 CPU 逐字节相同 172/172，fp32 与 CPU 上的 fp32 参考逐字节相同 203/203、重跑相同；rfq_check 通过。
+- **兼容模式参考**：11 个 `M10_*` 算例（D1_dst_mean、D1_dst_far、D2_initpos_single、D2_both_single、D4_named_planes、D4_close_planes、D5_rect_ellipse_dst、D5_composite_dst、D5_thin_collimator_dst、D6_ke0_cavity_dst、D7_periodic_fft_dst）的 `refs/` 由 Windows 上的 AVAS.dll 2026-04-02（SHA-1 9f6331949208）生成，新内核兼容模式与之逐字节相同：D2 两套名字都被当作未知关键字（粒子在轴上）、D4 两例报 “interval less than the bunch length”、D5 矩形报 “Unknown geometric shapes” 退出、D5 复合段在 stoi 异常处结束（`windows_process_end`，其他平台以信号结束）、D6 扫相失败、D7 忽略 V2。
+
+### 6.3 默认模式输出的变化
+
+与改动前的默认模式相比，变化都来自这些决定：
+
+- 所有读 `hwr010_seed12345.dst` 的算例（S4*、Z*_dst、SC*、LP*、LB2、ER*_dst 等）：D1。kneticenergy 1.527029 MeV 与文件平均 1.526941 MeV 相差 5.7e-5，例如 S4a 的 φs 相对 DLL 偏 −0.07°。
+- 所有单粒子算例：多了 SingleParticlePlane.txt（D3）；LB1、LB3：collisionData.txt 多一列（D5）。
+- EP_D18_plane_interval：不再报错，写出两个输出面（D4）。
+- 其余输出逐字节不变。
+
+### 6.4 留待处理
+
+- L40S（Linux CUDA）待 CI 预编译库就绪后复核。
+- 预编译库 `avas/engine/new/` 需要由 CI 按本次源码重新构建（`test_new_engine_libraries_are_current` 在那之前失败）。

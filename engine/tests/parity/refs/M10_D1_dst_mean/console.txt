@@ -1,0 +1,14 @@
+The input path has been set to C:\Users\lycself\avas_m10_tmp\wo\M10_D1_dst_mean\inputs\
+The fieldMap path has been set to C:\Users\lycself\avas_m10_tmp\src\examples\hwr010\InputFile\
+The output path has been set to C:\Users\lycself\avas_m10_tmp\wo\M10_D1_dst_mean\OutputFile\
+The programme is running.
+Lattice initialisation complete, total length 0.31 m
+A total of 1 output planes
+Average beam energy: 1.52694 (MeV)
+The number of macroparticle representative particles is 1344.33
+The 1 field, phi_0:52.6476    phi_s:-33  Frequency is 1.625e+08
+Entry  time 2.92696e-09  Entering energy 1.52694
+Export time 1.488e-08    Export energy 1.86641
+Exit bunch energy: 1.86641
+The total distance simulated is 0.31 (m)
+[parity] main_agent -> 0

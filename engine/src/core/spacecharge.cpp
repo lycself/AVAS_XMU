@@ -108,6 +108,7 @@ SpaceCharge::SpaceCharge(const Params& p, int nParticles) : compat_(compat_dll()
     for (int i = 0; i < 3; ++i) mr_[i] = p.scPar[1 + i];
     negligible_ = p.scPar[8];
     lp_ = p.lpBoundary;
+    periodic_ = compat_ ? 0 : p.lpPeriodic;
     rec_ = p.recScField;
     imp_ = p.impScField == 1;
     if (imp_) {
@@ -133,6 +134,10 @@ SpaceCharge::SpaceCharge(const Params& p, int nParticles) : compat_(compat_dll()
     // AVAS.dll: lpboundary 1 asks for FFT, but scmethod overwrites it right after (no effect);
     // the corrected engine honours it
     if (lp_ == 1 && !compat_) method_ = 0;
+    if (periodic_ == 1) {
+        if (method_ != 0) say("lpboundary V1 1: the periodic longitudinal box uses the FFT solver");
+        method_ = 0;
+    }
     pool_ = static_cast<int>(p.scPar[9]) == 1;
     for (int k = 0; k < 10; ++k) cores_[k] = pool_ ? static_cast<int>(p.scPar[10 + k]) : 1;
     if (nx_ < 2 || ny_ < 2 || nz_ < 2) throw EngineError("numofgrid must be at least 2 in every direction");
@@ -254,7 +259,18 @@ void SpaceCharge::mesh(const Beam& b) {
         // lpboundary 1: one period of beta*gamma*lambda exactly (AVAS.dll: one cell longer)
         dz_ = lp_ == 1 ? b.betaGammaLambda / static_cast<double>(nz_) : ((b.rms[2] + b.rms[2]) * mr_[2]) / static_cast<double>(nz_ - 1);
     }
-    const double cx = lp_ == 1 ? 0.0 : c[0], cy = lp_ == 1 ? 0.0 : c[2], cz = lp_ == 1 ? 0.0 : c[4];
+    double cz = lp_ == 1 ? 0.0 : c[4];
+    if (periodic_ == 1) {
+        // M10 D7: the box is one RF period of the synchronous particle in the beam rest frame,
+        // gamma_s beta_s lambda = lambda (gamma beta_z)_s, the stretch gamma_s about the synchronous particle
+        const double* s = sync_;
+        gamma_ = std::sqrt(s[1] * s[1] + s[3] * s[3] + s[5] * s[5] + 1.0);
+        lpLen_ = (k::c / b.frequency) * s[5];
+        if (!(lpLen_ > 0.0)) throw EngineError("lpboundary V1 1: the synchronous particle does not move forward");
+        dz_ = lpLen_ / static_cast<double>(nz_);
+        cz = 0.0;
+    }
+    const double cx = lp_ == 1 ? 0.0 : c[0], cy = lp_ == 1 ? 0.0 : c[2];
     for (int i = 0; i < nx_; ++i) xs_[i] = ((i - nx_ * 0.5) + 0.5) * dx_ + cx;
     for (int j = 0; j < ny_; ++j) ys_[j] = ((j - ny_ * 0.5) + 0.5) * dy_ + cy;
     for (int k = 0; k < nz_; ++k) zs_[k] = ((k - nz_ * 0.5) + 0.5) * dz_ + cz;
@@ -276,8 +292,10 @@ kern::MeshV SpaceCharge::mesh_view(const Beam& b) const {
     M.c0 = b.centroid[0];
     M.c2 = b.centroid[2];
     M.c4 = b.centroid[4];
-    M.lpRel = lp_ == 1 && (!compat_ || (pool_ && cores_[4] != 1)) ? 1 : 0;
+    M.lpRel = (lp_ == 1 && (!compat_ || (pool_ && cores_[4] != 1))) || periodic_ == 1 ? 1 : 0;
     M.lpc = lp_ == 1 && (!compat_ || (pool_ && cores_[9] != 1)) ? 1 : 0;
+    M.lpWrap = periodic_;
+    M.lpLen = lpLen_;
     M.compat = compat_ ? 1 : 0;
     M.xs = xs_.data();
     M.ys = ys_.data();

@@ -12,6 +12,7 @@
   - 不适用（.so 的 glibc 行为）：1 个（E-01）
 - 函数 249 个（.so 214 个与 DLL 独有函数）全部有去处；其中“不需要”的是构造/析构、空壳、无调用者的旧路径与调试函数。
 - RFQ 在默认模式下已实现（M9-notes，CPU）：原内核的 RFQ 从未能运行，兼容模式遇到 rfq 报错。
+- 原作者 2026-07-22 版原内核的新功能（M10 D1–D7）只在默认模式中实现，条目见 A-18、A-32、A-46、A-47、C-13、D-18、D-26、D-31、F-22；兼容模式与对齐结果不变，M10 新算例的兼容模式参考待在 Windows 上用 AVAS.dll 生成（M10-notes 第 6 节）。
 - M5b 审计中补上的遗漏：superpose 组内误差行、二次粒子、boundary.txt、lpboundary、longlimits、dumpperiodicity、pchistogram、track、importSCF、superposeout 结尾的 lattice、三个 DLL 工具，以及 FullParticle.txt 在“粒子全部丢失”时的输出、collisionData.txt 的粒子种类列。
 
 ## 10 input-lattice
@@ -35,7 +36,7 @@
 | A-15 | schema 的 `scanphase`、`sim_type`、`spacechargelong/type` 内核不读 | params.cpp read_input | S3c（scanphase 被忽略） | 相同 |
 | A-16 | `twissx/y/z` 必须恰 4 词，文件顺序 α β ε | params.cpp read_beam | D_twiss_*、D_GS_GS 等生成算例 | 相同 |
 | A-17 | `beamtype dc` 与 `twissz` 的顺序相关 | params.cpp read_beam | D_GS_dc_spread、D_KV_dc、D_WB_no_twissz | 相同 |
-| A-18 | `displacepos/displacedpos` 乘 0.001 | params.cpp read_beam / beam.cpp init_single | S2a、S2b、Z*_single | 相同 |
+| A-18 | `displacepos/displacedpos` 乘 0.001 | params.cpp read_beam / beam.cpp init_single | S2a、S2b、Z*_single；M10_D2_*、单元测试 test_m10_runs | M10 D2：默认另认 initpos／initmom（新单位，优先） |
 | A-19 | `distribution` 必须 3 词 | params.cpp read_beam | D_*（distribution 两值） | 相同 |
 | A-20 | beam 未知关键字（`initpos`、`use_dst`）只警告 | params.cpp read_beam | 全部算例（example beam.txt 含 use_dst） | 相同 |
 | A-21 | `start` 之前的行忽略；`end` 之后的行忽略 | lattice.cpp LatticeReader::run | 全部算例 | 相同 |
@@ -49,7 +50,7 @@
 | A-29 | Field 类型 0 不报错、类型 ≥5 打印 “Field type error!” 继续 | lattice.cpp add_field | CK_A29_field_type5（“Field type error!” 后继续；类型 0 不可观测） | 相同 |
 | A-30 | V3==0 才置 needSynPhase | lattice.cpp add_field | S3a–S3c（V3 0/1/2） | 相同 |
 | A-31 | 腔序号按 RF 元件出现顺序（field、rfq、superpose RF 片）编号 | lattice.cpp add_field / superpose_block | S3a、SP2、E5 | 相同 |
-| A-32 | `outputplane` 相对当前末端；按出现顺序 | lattice.cpp dispatch(outputplane) | S4d、SB1、LB* | 相同 |
+| A-32 | `outputplane` 相对当前末端；按出现顺序 | lattice.cpp dispatch(outputplane) | S4d、SB1、LB*；M10_D4_named_planes | M10 D4：默认 `outputplane d NAME` 写 NAME_<z>.dst |
 | A-33 | 超出末端或降序的输出面报 `Output plane anomaly, check automaticoutput` | lattice.cpp finish | EP_A33_plane_beyond_end、EP_A33b_plane_descending | 相同 |
 | A-34 | `automaticoutput` 覆盖所有 `outputplane`；逐次累加；末端面补齐 | lattice.cpp finish | SP4、SP5（automaticoutput） | 相同 |
 | A-35 | superpose 块长度、半径以 `%f` 舍入到 1e-6 | lattice.cpp superpose_block num() | SP1–SP7、SE* | M2 清单：默认 %.17g |
@@ -63,8 +64,8 @@
 | A-43 | multipole 极数非 3/4/5 报错 | lattice.cpp multipole_to_field | E6 | 相同 |
 | A-44 | 误差关键字写入 ErrorParameter 的编码与补零规则 | lattice.cpp parse_error_line | ER1–ER21、SE1–SE4 | M5a 清单（束流开关补齐规则同 DLL） |
 | A-45 | `cpl` 类误差、`adjust`、`diag_*`、`lattice`、`spacechargecomp`（.so）静默忽略 | lattice.cpp is_ignored / dispatch | ER13（cpl）、SC7（spacechargecomp） | 相同 |
-| A-46 | boundary：`start` 前忽略、`1`/`2` 形状、未知词报错、`end` 不结束读取、长度不足报错 | lattice.cpp read_boundary | LB1–LB4 | 默认读到 end 停止 |
-| A-47 | boundary superpose 块被结束行代替（缺陷） | lattice.cpp read_boundary(superpose) | EX_A47_boundary_sp_out、EX_A47b_boundary_sp_shape_end（任何块都在输出前 stoi 异常结束，Windows 0xe06d7363） | 默认按子几何加放置实现 |
+| A-46 | boundary：`start` 前忽略、`1`/`2` 形状、未知词报错、`end` 不结束读取、长度不足报错 | lattice.cpp read_boundary | LB1–LB4；M10_D5_* | 默认读到 end 停止；M10 D5：默认另有形状 3、4 |
+| A-47 | boundary superpose 块被结束行代替（缺陷） | lattice.cpp read_boundary(superpose) | EX_A47_boundary_sp_out、EX_A47b_boundary_sp_shape_end（任何块都在输出前 stoi 异常结束，Windows 0xe06d7363）；M10_D5_composite_dst | 默认按子几何加放置实现；多个子形状为复合段（M10 D5） |
 | A-48 | ReadRFQ 读写 inputFilePath 下的 4 个文件及格式 | lattice.cpp read_rfq | RFQ1（expected：DLL 崩溃） | 默认模式只在两个源文件都在时转换（M9-notes） |
 | A-49 | `dt = (1/f)/stepPerCycle` | tracker.cpp run（dt_） | 全部算例 | 相同 |
 | A-50 | DLL 宽字符路径截断 | capi.cpp narrow | Windows 全部算例（ASCII 路径） | M1 清单：默认 UTF-8 |
@@ -120,7 +121,7 @@
 | C-10 | 静电（type 2）、静磁（type 3）场的分量位置与乘法顺序 | tracker.cpp element_field(type 2/3) | S2a（sol）、SP1 | 相同 |
 | C-11 | 场图元件孔径丢失后本步外场保持旧值 | tracker.cpp element_field | S4a（孔径丢失） | 相同 |
 | C-12 | 叠加组：局部坐标变换（P[1],P[2] 偏移，P[3]→P[5]→P[4] 旋转）、子类型编码 1 磁/2 RF/3 电、旋转回实验室系 | tracker.cpp superpose_field | SP1–SP7 | 相同 |
-| C-13 | 叠加组孔径：不看 boundary；按元件 +0x6c 选局部坐标或相对坐标；丢失时保留部分和 | tracker.cpp superpose_field | SP4、SP5 | 相同 |
+| C-13 | 叠加组孔径：不看 boundary；按元件 +0x6c 选局部坐标或相对坐标；丢失时保留部分和 | tracker.cpp superpose_field | SP4、SP5 | M10 D5：默认有 boundary.txt 时不判子场孔径 |
 | C-14 | 叠加组 RF 子场共用组的频率与 cavIndex | tracker.cpp superpose_field | SP2 | 相同 |
 | C-15 | 同步粒子 RF 只算 Ez 并写 EzAmp；静场正确清另一场 | synchronous.cpp get_field | S3* | 相同 |
 | C-16 | 同步粒子在场图元件超孔径时输出 GBK 文本并 exit(1) | synchronous.cpp get_field | SI_C16_sync_field_aperture（GBK 文本，console_check.txt） | 默认 ErrorLog（英文） |
@@ -170,7 +171,7 @@
 | D-15 | outData_<z>.dst TraceWin 格式、文件名 `%f`、φ=2πf(t−t_s)、W 用同步粒子 mc² | tracker.cpp dst_out | S4*、Z*、SC* | 相同 |
 | D-16 | .dstb（indweight 1）与 .edst（初始分布来自 .dst）格式 | tracker.cpp dst_out | D_dst_weight、D_edst | 相同 |
 | D-17 | 末端总写 outData_<L>.dst；输出面越界报 "Output plane anomaly…" | lattice.cpp finish | 全部算例（outData_<L>） | 相同 |
-| D-18 | 面间距 < 束长报 "The output plane interval is less than the bunch length…" | tracker.cpp tcode | EP_D18_plane_interval（ErrorLog.txt、出错前的输出） | 相同 |
+| D-18 | 面间距 < 束长报 "The output plane interval is less than the bunch length…" | tracker.cpp tcode | EP_D18_plane_interval（ErrorLog.txt、出错前的输出）；M10_D4_close_planes | M10 D4：默认同时记录（planeStore_），不报错 |
 | D-19 | 输出面在 z 段元件内部 → 元件中点输出；在出口 → 出口输出 | tracker.cpp zcode | S4d、ER*（中点 dst） | M2 清单：默认参考时间在中点 |
 | D-20 | 校正铁冲量方向与大小（磁 −By·L·q/(mc)，电 Ex·L·q/(mc²β)），施加于其后元件中点 | tracker.cpp kick | ST1–ST6 | 相同 |
 | D-21 | zTotcode 重建（x−γβx·Δt/γ·c，z=zPlane−vzΔt，同步粒子强制在轴） | tracker.cpp ztot | Z*、ST* | M2 清单：默认完整 γ |
@@ -178,12 +179,12 @@
 | D-23 | Boris 推进公式（§4.5） | physics.h boris_push | 全部多粒子算例；单元测试 test_physics | 相同 |
 | D-24 | 空间电荷每 t 步一次、位置在推进前 | tracker.cpp tcode / spacecharge.cpp solve | SC1–SC14 | 相同 |
 | D-25 | LongitudinalBunchLoss 判据（相位按 βs 换成长度，能量差绝对值） | tracker.cpp longitudinal_loss | LL1 | 相同 |
-| D-26 | boundary.txt 直管/弯管碰撞与 collisionData.txt 一行格式 | tracker.cpp boundary_check / geometry_hit | LB1、LB2 | 默认几何段号夹取为 [r1, r2] |
+| D-26 | boundary.txt 直管/弯管碰撞与 collisionData.txt 一行格式 | tracker.cpp boundary_check / geometry_hit | LB1、LB2；M10_D5_*、单元测试 test_boundary_shapes | 默认几何段号夹取为 [r1, r2]；M10 D5：一步越过的段按入口面判、行偏移取 z − offset、collisionData 多一列 |
 | D-27 | lpboundary 周期折返 ±βλ/2（h 用同步粒子 γβz 与平均 γ̄） | tracker.cpp lp_fold / spacecharge.cpp weight | LP1–LP3 | M5b：默认周期 βλ、网格周期 βγλ |
 | D-28 | 停滞判丢及 LongitudinalBeamLoss.txt 格式（id 与 x 无分隔） | tracker.cpp tcode（停滞判丢） | - 无算例：判丢要求粒子在 t-code 区 80 % 以上的步数里不越过下一平面；hwr010 强减速场反射的粒子在 z<0 处立即判丢，腔内往复的粒子最多约 2800 步（需要 >4000 步）；superposeout 块内反射粒子不判丢，两个内核都不结束（挂起） | 相同 |
 | D-29 | pchistogram → PCHistogram.dat 二进制格式与 else-if 范围更新 | tracker.cpp ex_output | LT1（PCHistogram.dat） | 默认 min/max 分别比较 |
 | D-30 | track → ParticleTracking.txt 20 列 | tracker.cpp single_track | LT1、LT2（ParticleTracking.txt） | 默认越界序号报错 |
-| D-31 | N==1 → SingleParticle.txt（能量用 938.271875） | tracker.cpp single_out | S1、Z*_single | M1 清单：默认实际 mc² |
+| D-31 | N==1 → SingleParticle.txt（能量用 938.271875） | tracker.cpp single_out | S1、Z*_single | M1 清单：默认实际 mc²；M10 D3：默认另写 SingleParticlePlane.txt |
 | D-32 | multithreading 0/2/3 → "End of simulation, all particles lost."；1 正常 | tracker.cpp tcode | EX_D32_multithreading0（ErrorLog.txt：粒子全部丢失） | 相同 |
 | D-33 | cores 表按 N 选取并截到 omp_get_max_threads/maxthreads；cores[0] 被改写为块数 | beam.cpp default_cores / spacecharge.cpp | SC*（SimulationTime 不比较） | M4：默认分区不随机器线程数截断 |
 | D-34 | 块内/块间求和顺序固定（同核数下结果可重复） | tracker.cpp tcode 块归约 | 全部算例；run_all thread_check | 相同 |
@@ -257,7 +258,7 @@
 | F-19 | Ny ≠ Nz 时 SPICNIC 的 j 起点用 Nz/2 | spacecharge.cpp spicnic | X_ny_nz_a、X_ny_nz_b（实验） | M4 清单 |
 | F-20 | autoPIC 只比较 rms_z 的相对变化（< 1e-8 跳过） | spacecharge.cpp solve(autoPIC) | SC1、SC12 | 相同 |
 | F-21 | 跳过求解时粒子保留旧 scE | spacecharge.cpp solve | SC1 | 相同 |
-| F-22 | lpboundary 1：dz = βγλ/(Nz−1)、网格以同步粒子为原点、并**不**强制 FFT | spacecharge.cpp weight（lpBoundary） | LP2、LP3 | M5b：默认周期 βγλ、FFT |
+| F-22 | lpboundary 1：dz = βγλ/(Nz−1)、网格以同步粒子为原点、并**不**强制 FFT | spacecharge.cpp weight（lpBoundary） | LP2、LP3；M10_D7_periodic_fft_dst、物理检验 dc_kv_envelope.py --periodic-check | M5b：默认周期 βγλ、FFT；M10 D7：默认 `lpboundary V1 1` 周期盒不折叠粒子 |
 | F-23 | recordSCF 文件格式：二进制追加、k-j-i 顺序、静止系场；文本行 12 列 6 位有效数字 | spacecharge.cpp record | SC12–SC14（SpaceChargeMesh.txt、SpaceChargeSet.plt） | 相同 |
 | F-24 | importSCF 时间折叠（改写 Beam.time）、按最近中心 z 选记录、点电荷用拉伸 z | spacecharge.cpp import_scf | LS1 | 相同 |
 | F-25 | t < times[0] 时 SC 场为 0 | spacecharge.cpp import_scf | LS1（前段） | 相同 |

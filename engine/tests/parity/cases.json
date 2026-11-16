@@ -4101,6 +4101,376 @@
     "drift 0.05 0.02 0",
     "end"
    ]
+  },
+  {
+   "name": "M10_D1_dst_mean",
+   "comment": "D1: kneticenergy < 0, the reference energy is the mean of the .dst file (as before M10)",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "kneticenergy": -1
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "compat_note": "M10 (2026-07-22 features, default mode only); the compat=dll reference was written by AVAS.dll 2026-04-02 on Windows (2026-11-16)"
+  },
+  {
+   "name": "M10_D1_dst_far",
+   "comment": "D1: kneticenergy 1.6 MeV (5 % above the mean): the synchronous particle starts with it, with a warning",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "kneticenergy": 1.6
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "compat_note": "M10 (2026-07-22 features, default mode only); the compat=dll reference was written by AVAS.dll 2026-04-02 on Windows (2026-11-16)",
+   "console_check": [
+    "differs from the mean energy",
+    "Synchronous particle energy"
+   ]
+  },
+  {
+   "name": "M10_D2_initpos_single",
+   "comment": "D2: initpos / initmom in the new units, the same start as S2a (displacepos 1 0 0, displacedpos 300 200 0)",
+   "beam": {
+    "particlenumber": 1,
+    "initpos": "1 0 0",
+    "initmom": "3 2 0"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 hwr010",
+    "drift 0.05 0.02 0",
+    "field 0.35 0.02 0 3 0 0 1 1 sol",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "compat_note": "M10 (2026-07-22 features, default mode only); the compat=dll reference was written by AVAS.dll 2026-04-02 on Windows (2026-11-16)"
+  },
+  {
+   "name": "M10_D2_both_single",
+   "comment": "D2: both old and new names: the new ones win (= M10_D2_initpos_single), with a warning",
+   "beam": {
+    "particlenumber": 1,
+    "displacepos": "5 5 0",
+    "displacedpos": "100 100 0",
+    "initpos": "1 0 0",
+    "initmom": "3 2 0"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 hwr010",
+    "drift 0.05 0.02 0",
+    "field 0.35 0.02 0 3 0 0 1 1 sol",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "compat_note": "M10 (2026-07-22 features, default mode only); the compat=dll reference was written by AVAS.dll 2026-04-02 on Windows (2026-11-16)",
+   "console_check": [
+    "has both initpos and displacepos",
+    "has both initmom and displacedpos"
+   ]
+  },
+  {
+   "name": "M10_D4_named_planes",
+   "comment": "D4: outputplane d NAME -> NAME_<z>.dst; a named plane at the end also gives outData_<end>.dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "outputplane -0.02 MID",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "outputplane 0 EXIT",
+    "end"
+   ],
+   "compat_note": "M10 (2026-07-22 features, default mode only); the compat=dll reference was written by AVAS.dll 2026-04-02 on Windows (2026-11-16)"
+  },
+  {
+   "name": "M10_D4_close_planes",
+   "comment": "D4: planes 3 mm and 0.5 mm apart (bunch 9 mm long, step 2.1 mm; AVAS.dll stops with an error). P1, P2 equal runs with that plane alone byte for byte; P3, crossed in the same step as P2, is recorded by linear extrapolation over the next step (equal to rounding in this drift)",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "outputplane -0.03 P1",
+    "outputplane -0.027 P2",
+    "outputplane -0.0265 P3",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "compat_note": "M10 (2026-07-22 features, default mode only); the compat=dll reference was written by AVAS.dll 2026-04-02 on Windows (2026-11-16)"
+  },
+  {
+   "name": "M10_D4_close_P1",
+   "comment": "D4 reference: one of the planes of M10_D4_close_planes",
+   "new_engine_only": true,
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "outputplane -0.03 P1",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "M10_D4_close_P2",
+   "comment": "D4 reference: one of the planes of M10_D4_close_planes",
+   "new_engine_only": true,
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "outputplane -0.027 P2",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "M10_D4_close_P3",
+   "comment": "D4 reference: one of the planes of M10_D4_close_planes",
+   "new_engine_only": true,
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "outputplane -0.0265 P3",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "M10_D5_rect_ellipse_dst",
+   "comment": "D5: rectangular (3) and elliptical (4) pipes; every hit lies on the wall",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.1 0.02 0",
+    "drift 0.1 0.02 0",
+    "drift 0.1 0.02 0",
+    "end"
+   ],
+   "input": {
+    "boundary": 1
+   },
+   "compat_note": "M10 (2026-07-22 features, default mode only); the compat=dll reference was written by AVAS.dll 2026-04-02 on Windows (2026-11-16)",
+   "files": {
+    "boundary.txt": [
+     "start",
+     "1 Copper 0.1 0.02",
+     "3 Copper 0.1 0.003 0.0012",
+     "4 Copper 0.1 0.003 0.0012",
+     "1 Copper 0.05 0.02",
+     "end"
+    ]
+   }
+  },
+  {
+   "name": "M10_D5_composite_dst",
+   "comment": "D5: superpose block of a round and a rectangular pipe (composite shape 0, aperture = intersection)",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.1 0.02 0",
+    "drift 0.1 0.02 0",
+    "drift 0.1 0.02 0",
+    "end"
+   ],
+   "input": {
+    "boundary": 1
+   },
+   "compat_note": "M10 (2026-07-22 features, default mode only); the compat=dll reference was written by AVAS.dll 2026-04-02 on Windows (2026-11-16)",
+   "files": {
+    "boundary.txt": [
+     "start",
+     "1 Copper 0.1 0.02",
+     "superpose 0",
+     "1 Copper 0.15 0.0025",
+     "superpose 0.05",
+     "3 Copper 0.05 0.004 0.0015",
+     "superposeend",
+     "1 Copper 0.15 0.02",
+     "end"
+    ]
+   },
+   "windows_process_end": "a boundary superpose block with two sub-shapes goes to stoi in AVAS.dll: the exception leaves AVAS.dll (C++ exception 0xe06d7363), before any output"
+  },
+  {
+   "name": "M10_D5_thin_collimator_dst",
+   "comment": "D5: a 1 mm collimator (r 1.5 mm), shorter than one step: hit by the particles that cross it outside the aperture",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.1 0.02 0",
+    "drift 0.1 0.02 0",
+    "drift 0.1 0.02 0",
+    "end"
+   ],
+   "input": {
+    "boundary": 1
+   },
+   "compat_note": "M10 (2026-07-22 features, default mode only); the compat=dll reference was written by AVAS.dll 2026-04-02 on Windows (2026-11-16)",
+   "files": {
+    "boundary.txt": [
+     "start",
+     "1 Copper 0.1 0.02",
+     "1 Copper 0.001 0.0015",
+     "1 Copper 0.249 0.02",
+     "end"
+    ]
+   }
+  },
+  {
+   "name": "M10_D5_thin_reference_dst",
+   "comment": "D5 reference: the particles at the collimator entrance (z = 0.1) without boundary.txt",
+   "new_engine_only": true,
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.1 0.02 0",
+    "outputplane 0 COLL",
+    "drift 0.1 0.02 0",
+    "drift 0.1 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "M10_D6_ke0_cavity_dst",
+   "comment": "D6: RF field with Ke = 0 is a drift (no map, no cavity number); = M10_D6_drift_dst",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -30 0 0 efield",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "compat_note": "M10 (2026-07-22 features, default mode only); the compat=dll reference was written by AVAS.dll 2026-04-02 on Windows (2026-11-16)"
+  },
+  {
+   "name": "M10_D6_drift_dst",
+   "comment": "D6 reference: the Ke = 0 cavity replaced by a drift",
+   "new_engine_only": true,
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst"
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "drift 0.21 0.02 0",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ]
+  },
+  {
+   "name": "M10_D7_periodic_fft_dst",
+   "comment": "D7: lpboundary 0 1, periodic longitudinal space-charge box gamma beta lambda (FFT)",
+   "beam": {
+    "readparticledistribution": "hwr010_seed12345.dst",
+    "randomseed": 12345
+   },
+   "copy": {
+    "hwr010_seed12345.dst": "data/hwr010_seed12345.dst"
+   },
+   "lattice": [
+    "start",
+    "drift 0.05 0.02 0",
+    "field 0.21 0.02 0 1 162.5e6 -33 1.36 -1.36 efield",
+    "drift 0.05 0.02 0",
+    "end"
+   ],
+   "input": {
+    "lpboundary": "0 1",
+    "spacecharge": 1,
+    "scmethod": "FFT",
+    "numofgrid": "32 32 32"
+   },
+   "space_charge": true,
+   "compat_tolerance": 1e-10,
+   "compat_note": "M10 (2026-07-22 features, default mode only); the compat=dll reference was written by AVAS.dll 2026-04-02 on Windows (2026-11-16)"
   }
  ]
 }

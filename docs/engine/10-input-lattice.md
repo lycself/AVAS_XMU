@@ -282,6 +282,8 @@ ReadBeam 不检查必需参数是否给出（未给的保持 −1/−2027.041 �
 `beamlength`、`bunchnumber`、`recscfield`、`impscfield`。schema 的 twiss 参数顺序（α, β, ε）与内核一致；`frequency` 单位 schema 写 Hz、
 内核按 MHz；`displacedpos` 单位 schema 写 %、内核乘 0.001。
 
+> **默认模式（M10 D1、D2、D4、D7）**：beam.txt 另认 `initpos dx dy dz`（mm，×0.001）与 `initmom x' y' δ`（x′、y′ mrad，δ 单位 1e-3，各 ×0.001；单粒子 γβx = x′·γβ0，γβz = (1 + δ)·γβ0），同时写了旧名字时用新的并警告；兼容模式按未知关键字处理（同 04-02 版）。`kneticenergy` 在读 .dst 时是参考能量（见 50 §2.4.7）。input.txt：`lpboundary V1 V2` 的 V2 = 1 设 `Params::lpPeriodic`、并把 V1 置 0（60 §2.4.2），V2 只能是 0 或 1；`nplanes` 接受并忽略（打印说明）。兼容模式不读 V2，`nplanes` 为未知关键字。
+
 ### 2.6 lattice.txt：`Initial::InitLattice(Lattice&, ErrorParameter&, Boundary&)`（确定，另注）
 
 调用约定：`this = Initial`，`param_2 = Lattice`，`param_3 = ErrorParameter`，第 4 参数（Ghidra 的 `in_RCX`）= `Boundary`。
@@ -434,6 +436,8 @@ word[3] = "0"; word[4] = "3"; word[5] = "0"; word[6] = "0"; word[7] = "1"
 所以有效磁场 ∝ G²（推测为缺陷，需实验，见第 5 节）。独立 multipole 行随后与 field 行同样处理（加 fieldMapPath 前缀；f="0"
 不加腔号），建 Field 元件。multipole 行至少需要 10 个单词，Generator 不检查（越界读）。
 
+> **默认模式（M10 D6，2026-11-16）**：射频 field 行（类型 1）|Ke| < 1e-6 时按漂移段处理：不读场图、不占腔号、不设 needSynPhase、不扫相位；superpose 块内的子行同样改成 drift（不再算作块内的射频腔）。判断在“参数不足”检查之后（少于 10 个词照常报错；07-22 版在补齐之前读 word[4]、word[7]，参数不足时越界）。兼容模式照常读场图。
+
 ##### 2.6.4.8 `rfq`
 
 `ReadRFQ(inputFilePath, outputFilePath)`（2.8）；单词补 `"invalid"` 到 14 个；追加 `"%d"(cav)`，`cav += 1`；`new RFQ`；SetElement。
@@ -569,6 +573,8 @@ z0, x0, y0, θz, θx, θy, 出口 z），并置 `elements.back()->inSuperposeOut
 7. 打印：`"Lattice initialisation complete, total length " << L_tot << " m"` endl；`"A total of " << outputPlanes.size() << " output planes"` endl；
    `"  "` endl（`<<double` 为默认 6 位有效数字）。
 8. 结束读取。
+
+> **默认模式（M10 D4）**：`outputplane d NAME` 的第三个词是名称（不能含路径分隔符等文件名字符），该面写成 `NAME_<z>.dst`／`.dstb`／`.edst`；未命名为 `outData_<z>`；automaticoutput 替换输出面时名称一并清除。同一 z 的多个输出面合成一个事件，文件按每个名称各写一份。兼容模式忽略名称。
 
 #### 2.6.7 误差关键字（解析部分；含义属 G）（确定）
 
@@ -736,6 +742,8 @@ geoms(+0x00).push(g)
   子块从 20 起步长 20：子块首词为 `1` 或 `2` 时 `subShape(+0xb8).push((int)stod)`，`subLen(+0xd0).push(stod(w+2))`，解析到 `RLP` 的形状参数（随后被丢弃，推测）、
   RLP 后的 place，再读子块 `[14..16]` 原值与 `[17..19]` 度→弧度，各加上 place 后推入 `+0x88`。
 - 其他 shape：打印 `"Unknown geometric shapes have been set"` endl 并 `exit(1)`（InitLattice 只把 `1`/`2` 行交进来，正常不可达）。
+
+> **默认模式（M10 D5）**：形状行另接受 3（矩形管：par[1]、par[2] 为 x 半宽、y 半高）与 4（椭圆管：两个半轴），参数不足或非正时报错。superpose 块读入全部“superpose 行 + 形状行”对，直到第一条不是 superpose 的行（superposeend／superposeout 被吃掉，其他行重新处理）：只有一个子形状时同以前（子几何加放置）；多个子形状时合成一个复合段（形状 0），长度 max(z0+L) − min(z0)（与 lattice 的 superpose 相同），子形状 i 的局部 z 从段起点加 z0_i 与自身放置算起，各自在自己的 z 范围内是壁（孔径取交集）。子形状存于 `Boundary::subs`，内核视图放在各段几何之后（`GeomV::sub0/nsub`）。兼容模式不变（形状 3、4 报 “Undefined shape exists”，superpose 块 stoi 异常结束）。
 
 ### 2.10 `Initial::InitMethodMP(MethodMP&)`（确定）
 

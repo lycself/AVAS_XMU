@@ -297,20 +297,23 @@ export function TokenTable({ text, editable, onChange, columns, wrapStartEnd, ro
   );
 }
 
-export const BOUNDARY_COLUMNS: TokenColumn[] = [
-  ["type", "int - boundary type"],
-  ["material", "string - e.g. copper"],
-  ["length (m)", "double - length along z"],
-  ["r1 (m)", "double - aperture at the entrance"],
-  ["r2 (m)", "double - aperture at the exit"],
-  ["RLP", "string - shape keyword (RLP)"],
-  ["z0 (m)", "double - z offset"],
-  ["x0 (m)", "double - x offset"],
-  ["y0 (m)", "double - y offset"],
-  ["θz0 (deg)", "double - rotation about z"],
-  ["θx0 (deg)", "double - rotation about x"],
-  ["θy0 (deg)", "double - rotation about y"],
-].map(([caption, tip]) => ({ caption, tip }));
+/** boundary.txt shape lines: type name length a b [RLP z0 x0 y0 θz θx θy] (shapes 3, 4: new kernel). */
+export function boundaryColumns(): TokenColumn[] {
+  return [
+    { caption: t("type"), tip: t("1 round pipe, 2 bent pipe, 3 rectangular pipe, 4 elliptical pipe (3 and 4: new kernel, default mode)") },
+    { caption: t("name"), tip: t("material or name, e.g. Copper") },
+    { caption: t("length (m)"), tip: t("length along z") },
+    { caption: t("a (m)"), tip: t("radius (1, 2); half width in x (3); semi-axis in x (4)") },
+    { caption: t("b (m)"), tip: t("bend radius (2); half height in y (3); semi-axis in y (4)") },
+    { caption: "RLP", tip: t("RLP, then the placement (optional; a bent pipe has its angle, plane and direction before RLP)") },
+    { caption: t("z0 (m)"), tip: t("z offset") },
+    { caption: t("x0 (m)"), tip: t("x offset") },
+    { caption: t("y0 (m)"), tip: t("y offset") },
+    { caption: t("θz0 (deg)"), tip: t("rotation about z") },
+    { caption: t("θx0 (deg)"), tip: t("rotation about x") },
+    { caption: t("θy0 (deg)"), tip: t("rotation about y") },
+  ];
+}
 
 export function scanDataColumns(): TokenColumn[] {
   return [

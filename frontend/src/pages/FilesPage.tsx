@@ -9,7 +9,7 @@ import { LatticeEditor, type LatticeEditorHandle } from "../lattice/LatticeEdito
 import { loadSchema, type Schema } from "../lattice/types";
 import { refreshProject, setPage, useApp, useInputsLocked } from "../store/app";
 import { fileSaved, getPage, markDirty, onFileSaved, registerPage } from "../store/pages";
-import { BOUNDARY_COLUMNS, IniTable, KeywordTable, scanDataColumns, TokenTable, TraceWinTable } from "../files/tables";
+import { boundaryColumns, IniTable, KeywordTable, scanDataColumns, TokenTable, TraceWinTable } from "../files/tables";
 import { FieldMapView, ParticlesView, PlainEditor, type PlainEditorHandle } from "../files/views";
 import { NoProject, PageHeader, RunLockBanner } from "./common";
 import { FileHistoryDock, FileHistoryWorkspace } from "../files/FileHistory";
@@ -412,7 +412,7 @@ export default function FilesPage() {
     else if (opened.kind === "input") table = <KeywordTable {...tprops} file="input" />;
     else if (opened.kind === "gui_ini") table = <IniTable {...tprops} />;
     else if (opened.kind === "boundary")
-      table = <TokenTable {...tprops} columns={BOUNDARY_COLUMNS} wrapStartEnd hint={tt("Used when 'Apply boundary' is enabled on the Simulation settings page; lattice apertures are then ignored.")} />;
+      table = <TokenTable {...tprops} columns={boundaryColumns()} wrapStartEnd hint={tt("Used when 'Apply boundary' is enabled on the Simulation settings page; lattice apertures are then ignored.")} />;
     else if (opened.kind === "scandata")
       table = <TokenTable {...tprops} columns={scanDataColumns()} rowLabels={cavities} hint={tt("No kernel reads scanData.txt (nor scanphase in input.txt); the file is only kept for old projects.")} />;
     else if (opened.kind === "separticle")

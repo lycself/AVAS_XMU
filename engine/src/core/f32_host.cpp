@@ -30,9 +30,9 @@ struct MeshF {
     int nx, ny, nz;
     float dx, dy, dz, vol, gamma, igamma;
     float c0, c2, c4;
-    int lpRel, lpc, compat;
+    int lpRel, lpc, compat, lpWrap;
     std::uint64_t xs, ys, zs;
-    float Q;
+    float Q, lpLen;
     int rotMode;
     float rs, rc;
     std::int64_t fixScaleExp;
@@ -1490,6 +1490,8 @@ private:
         F.lpRel = M.lpRel;
         F.lpc = M.lpc;
         F.compat = M.compat;
+        F.lpWrap = M.lpWrap;
+        F.lpLen = static_cast<float>(M.lpLen);
         const std::uint64_t a = b.dev;
         F.xs = a;
         F.ys = a + static_cast<std::uint64_t>(M.nx) * 4;

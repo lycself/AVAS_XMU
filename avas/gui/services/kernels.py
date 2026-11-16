@@ -5,7 +5,8 @@
   (:func:`avas.engines.query_subprocess`, cached per library file and choice until ``refresh``).
 * ``engine.preview``: what a choice of the Simulation settings form would run on for this project.
 * ``engine.check`` / :func:`require_ready`: the check before every run (run page, segment runs, the Study
-  page's engine runs, the assistant's sandbox) -- a clear message instead of a failing child process.
+  page's engine runs, the assistant's sandbox) -- a clear message instead of a failing child process;
+  :func:`input_warnings`: warnings that do not stop a run (``run.check`` returns them, the page shows them).
 * ``engine.effective``: the kernel a run of the open project resolves to (hints of the beam and research
   pages that depend on the kernel), without a child process.
 * :func:`summary`: the ``engine`` entry of a run record (avas_run.json) shortened for the labels of the
@@ -14,6 +15,7 @@
   page (ini.ini ``[engine]``, written only when it changed).
 """
 import json
+import logging
 import os
 
 from avas import engines
@@ -22,6 +24,8 @@ from avas.gui import context
 from avas.gui.bridge import UserError, rpc
 from avas.gui.project import RUN_INFO_FILE
 from avas.utils.iniconfig import read_engine_settings, write_engine_settings
+
+log = logging.getLogger(__name__)
 
 DEVICE_NAMES = {"cpu": "CPU", "cuda": "CUDA", "metal": "Metal", "emu": "emu", "auto": "auto"}
 
@@ -162,6 +166,27 @@ def require_ready(input_dir):
             "requestedDevice": choice.device, "reason": plan.get("reason") if choice.device == "auto" else None,
             "reasonCode": plan.get("reason_code") if choice.device == "auto" else None,
             "version": (new.get("info") or {}).get("version"), "predicted": True}
+
+
+def input_warnings(input_dir):
+    """Warnings about the inputs that do not stop a run (in the UI language; also logged), for ``run.check``.
+    M10 D1: in the new kernel's default mode the synchronous particle of a .dst file starts with beam.txt
+    kneticenergy; a value more than 1 % away from the mean energy of the file is probably a mistake."""
+    from avas.i18n import pick
+    from avas.model.beam import dst_energies, reference_energy_note
+    out = []
+    try:
+        choice = engines.resolve_choice(input_dir=input_dir)
+    except EngineChoiceError:
+        return out
+    if choice.is_new and choice.compat != "dll":
+        e = dst_energies(input_dir)
+        note = reference_energy_note(e[0], e[1]) if e and e[0] > 0 else None
+        if note:
+            out.append(pick(note))
+    for text in out:
+        log.warning("%s", text)
+    return out
 
 
 @rpc("engine.effective")

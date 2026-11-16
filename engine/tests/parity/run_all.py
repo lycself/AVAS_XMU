@@ -554,6 +554,101 @@ def libpic_keyword_check(work):
     return fails
 
 
+def m10_check(work):
+    """Default mode, M10 (features of the 2026-07-22 original): reference energy of a .dst file (D1), initpos /
+    initmom (D2), SingleParticlePlane.txt (D3), named and close output planes (D4), boundary shapes 3 / 4 / 0
+    and the thin collimator (D5), RF field with Ke = 0 (D6), periodic longitudinal box (D7)."""
+    fails = 0
+    print("\nM10 features in the default mode:")
+
+    def out(case):
+        return os.path.join(work, case, "OutputFile")
+
+    def report(label, ok, detail=""):
+        nonlocal fails
+        fails += 0 if ok else 1
+        print(f"{label:<34} {'ok  ' if ok else 'FAIL'} {detail}")
+
+    def sync_w0(case):  # synchronous kinetic energy of the first DataSet row (gamma*beta_z, column 34)
+        r = read_rows(os.path.join(out(case), "DataSet.txt"))
+        return (math.hypot(1.0, num(r[0][34])) - 1.0) * 938.272088 if r else math.nan
+
+    wm = dst_mean_w(os.path.join(HERE, "data", "hwr010_seed12345.dst"))
+    w = sync_w0("M10_D1_dst_mean")
+    report("D1 kneticenergy -1: mean", abs(w - wm) < 2e-5 * wm, f"W_s {w:.6f}, mean {wm:.6f} MeV")
+    w = sync_w0("M10_D1_dst_far")
+    lg = open(os.path.join(work, "M10_D1_dst_far", "log.txt"), encoding="utf-8", errors="replace").read()
+    report("D1 kneticenergy 1.6: reference", abs(w - 1.6) < 2e-5 and "differs from the mean energy" in lg, f"W_s {w:.6f} MeV, warned")
+    # D2: the new units give the start of S2a; both names: the new ones win
+    a, b = (read_rows(os.path.join(out(c), "DataSet.txt")) for c in ("M10_D2_initpos_single", "S2a_single_offaxis_hwr_sol"))
+    dev = max((abs(num(x) - num(y)) / max(abs(num(y)), 1e-30) for ra, rb in zip(a, b) for x, y in zip(ra[29:35], rb[29:35])
+               if math.isfinite(num(x)) and math.isfinite(num(y)) and abs(num(y)) > 1e-12), default=math.inf)
+    sp = lambda c: open(os.path.join(out(c), "SingleParticle.txt"), "rb").read() if os.path.exists(os.path.join(out(c), "SingleParticle.txt")) else b"?"
+    report("D2 initpos / initmom = S2a", len(a) == len(b) > 0 and dev < 1e-9, f"{len(a)} rows, largest relative difference {dev:.2e}")
+    report("D2 both names: new ones win", sp("M10_D2_both_single") == sp("M10_D2_initpos_single"))
+    # D3: one line per output plane, x and W as in outData_*.dst
+    rows = read_rows(os.path.join(out("S2a_single_offaxis_hwr_sol"), "SingleParticlePlane.txt"))
+    dsts = sorted(f for f in os.listdir(out("S2a_single_offaxis_hwr_sol")) if f.startswith("outData_") and f.endswith(".dst"))
+    ok = len(rows) == len(dsts) and all(len(r) == 7 for r in rows)
+    for r, f in zip(rows, dsts):
+        p0, _ = read_dst(os.path.join(out("S2a_single_offaxis_hwr_sol"), f))
+        ok = ok and abs(float(f[8:-4]) - num(r[0])) < 1e-6 and abs(p0[0][0] / 100 - num(r[2])) < 1e-12 and abs(p0[0][5] - num(r[1])) < 1e-9
+    report("D3 SingleParticlePlane.txt", ok, f"{len(rows)} planes")
+    # D4
+    files = set(os.listdir(out("M10_D4_named_planes")))
+    same_end = "EXIT_0.310000.dst" in files and open(os.path.join(out("M10_D4_named_planes"), "EXIT_0.310000.dst"), "rb").read() == \
+        open(os.path.join(out("M10_D4_named_planes"), "outData_0.310000.dst"), "rb").read()
+    report("D4 named planes", "MID_0.030000.dst" in files and same_end, "MID_0.030000.dst, EXIT = outData at the end")
+    for k, f, exact in (("P1", "P1_0.020000.dst", True), ("P2", "P2_0.023000.dst", True), ("P3", "P3_0.023500.dst", False)):
+        pa, pb = os.path.join(out("M10_D4_close_planes"), f), os.path.join(out(f"M10_D4_close_{k}"), f)
+        if not (os.path.exists(pa) and os.path.exists(pb)):
+            report(f"D4 close planes {k}", False, "missing")
+            continue
+        ra, rb = read_dst(pa)[0], read_dst(pb)[0]
+        big = max((abs(x - y) for r, q in zip(ra, rb) for x, y in zip(r, q)), default=math.inf)
+        ok = open(pa, "rb").read() == open(pb, "rb").read() if exact else (len(ra) == len(rb) and big < 1e-12)
+        report(f"D4 close planes {k}", ok, ("byte-identical to the plane alone" if exact else
+                                            f"extrapolated over one step: largest difference {big:.1e}"))
+    # D5: hits on the walls
+    hits = read_rows(os.path.join(out("M10_D5_rect_ellipse_dst"), "collisionData.txt"))
+    worst = 0.0
+    faces = 0
+    for h in hits:
+        x, y, z = num(h[0]), num(h[1]), num(h[2])
+        d = max(abs(x) / 0.003, abs(y) / 0.0012) if 0.1 <= z < 0.2 else ((x / 0.003) ** 2 + (y / 0.0012) ** 2 if 0.2 <= z <= 0.3 else 9)
+        if min(abs(z - 0.1), abs(z - 0.2)) < 1e-12 and d >= 1.0:   # on the entrance face, outside the aperture
+            faces += 1
+            continue
+        worst = max(worst, abs(d - 1.0))
+    # collisionData.txt has 6 significant digits
+    report("D5 rectangle / ellipse walls", len(hits) > 100 and worst < 2e-5 and all(len(h) == 12 for h in hits),
+           f"{len(hits)} hits ({faces} on an entrance face), largest distance from the wall {worst:.1e} (relative), 12 columns")
+    hits = read_rows(os.path.join(out("M10_D5_composite_dst"), "collisionData.txt"))
+    worst = 0.0
+    for h in hits:
+        x, y, z = num(h[0]), num(h[1]), num(h[2])
+        dc = math.hypot(x, y) / 0.0025
+        dr = max(abs(x) / 0.004, abs(y) / 0.0015) if 0.15 <= z <= 0.2 else 0.0
+        if (abs(z - 0.1) < 1e-12 and dc >= 1.0) or (abs(z - 0.15) < 1e-12 and dr >= 1.0):
+            continue   # entrance face of a sub-shape, outside its aperture
+        worst = max(worst, min(abs(dc - 1), abs(dr - 1)))
+    report("D5 composite block", len(hits) > 100 and worst < 2e-5 and 0.1 - 1e-12 <= min(num(h[2]) for h in hits),
+           f"{len(hits)} hits on a wall or an entrance face")
+    ref = read_dst(os.path.join(out("M10_D5_thin_reference_dst"), "COLL_0.100000.dst"))[0]
+    want = sum(1 for r in ref if math.hypot(r[0], r[2]) / 100 >= 0.0015)
+    hits = read_rows(os.path.join(out("M10_D5_thin_collimator_dst"), "collisionData.txt"))
+    report("D5 thin collimator", abs(len(hits) - want) <= max(2, want // 500) and all(0.1 - 1e-9 <= num(h[2]) <= 0.101 for h in hits),
+           f"{len(hits)} hits, {want} particles outside r = 1.5 mm at its entrance")
+    # D6
+    same = all(open(os.path.join(out("M10_D6_ke0_cavity_dst"), f), "rb").read() == open(os.path.join(out("M10_D6_drift_dst"), f), "rb").read()
+               for f in ("DataSet.txt", "outData_0.570000.dst")) if os.path.isdir(out("M10_D6_ke0_cavity_dst")) else False
+    report("D6 Ke = 0 cavity = drift", same, "DataSet.txt and outData bytes")
+    # D7: runs, no particle off the mesh longitudinally (all deposited)
+    ds = read_rows(os.path.join(out("M10_D7_periodic_fft_dst"), "DataSet.txt"))
+    report("D7 periodic box (FFT)", len(ds) > 10 and int(ds[-1][28]) > 5000, f"{len(ds)} rows")
+    return fails
+
+
 def thread_check(lib, work, names):
     """Default mode: the same results with 1 thread and with OMP_NUM_THREADS / all cores."""
     one = os.path.join(work, "none_1thread")
@@ -603,9 +698,11 @@ def main():
     bad += loop_feature_check(doc, os.path.join(work, "none"))
     bad += secondary_steerer_check(work)
     bad += libpic_keyword_check(work)
+    bad += m10_check(os.path.join(work, "none"))
     bad += thread_check(lib, work, ["SC1_spicnic_S1", "SC2_fft_S1", "SC5_spicnic_Z1", "PN1_picnic_S1", "PN2_picnic_Z1", "D_GS_GS",
                                     "ER3_quad_dyn_r2_step31_dst", "ER16_quad_dyn_spicnic_dst",
-                                    "LP2_lpboundary_fft_dst", "LB2_boundary_mixed_dst"])
+                                    "LP2_lpboundary_fft_dst", "LB2_boundary_mixed_dst", "M10_D4_close_planes",
+                                    "M10_D5_composite_dst", "M10_D7_periodic_fft_dst"])
     if bad:
         print(f"DEFAULT-MODE CHECKS FAILED: {bad}")
         return 1

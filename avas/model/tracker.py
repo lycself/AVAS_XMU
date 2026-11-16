@@ -243,6 +243,8 @@ class _Tracker:
                 aperture[inside] = np.minimum(aperture[inside], radius)
             ftype = st.field_type()
             ke, kb = to_float(st.param(6)), to_float(st.param(7))
+            if st.rf_off():
+                continue        # an RF field with Ke = 0 is a drift (new kernel, M10 D6): no map, no cavity
             if ftype in ("1", "2"):
                 exts = _RF_EXT if ftype == "1" else _ES_EXT
                 prof = self._load(st, exts)

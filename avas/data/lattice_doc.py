@@ -118,6 +118,16 @@ class Statement:
         value = self.param(3)
         return schema.LATTICE_KEYWORDS["field"].params[3].choice_value(value) or value
 
+    def rf_off(self):
+        """An RF field (type 1) with |Ke| < 1e-6: the new kernel treats it as a drift (no field map, no cavity
+        number, no phase scan; M10 D6, as the 2026-07-22 original kernel)."""
+        if self.field_type() != "1":
+            return False
+        try:
+            return abs(float(self.param(6))) < 1e-6
+        except (TypeError, ValueError):
+            return False
+
     def worst_issue(self):
         if any(i.level == ERROR for i in self.issues):
             return ERROR

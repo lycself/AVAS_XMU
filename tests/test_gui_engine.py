@@ -402,6 +402,48 @@ def test_rfq_lattices_run_on_the_cpu_and_not_in_compatibility_mode(project, fake
         write_engine(project, None)
 
 
+def _write_dst(path, energies, phases=None, mc2=938.272088159928):
+    import struct
+    n = len(energies)
+    data = b"\x7d\x64" + struct.pack("<idd", n, 0.0, 162.5) + b"\x7d"
+    for k, w in enumerate(energies):
+        data += struct.pack("<6d", 0.0, 0.0, 0.0, 0.0, (phases or [0.0] * n)[k], w)
+    data += struct.pack("<d", mc2)
+    with open(path, "wb") as fh:
+        fh.write(data)
+
+
+def test_check_warns_when_kneticenergy_is_far_from_the_dst_mean(project, fake_query, monkeypatch):
+    """M10 D1: with a .dst particle file the new kernel (default mode) starts the synchronous particle with beam.txt
+    kneticenergy; the check before a run warns when it differs from the mean energy of the file by more than 1 %
+    (not with a negative kneticenergy, not in the compatibility mode); ``run.check`` returns the warnings."""
+    set_platform(monkeypatch, False)
+    inp = project / "InputFile"
+    beam = (inp / "beam.txt").read_text(encoding="utf-8")
+    _write_dst(inp / "m10.dst", [1.0, 1.1])      # mean 1.05 MeV
+
+    def with_energy(w):
+        lines = [ln for ln in beam.splitlines() if not ln.split() or ln.split()[0].lower() not in ("kneticenergy", "readparticledistribution")]
+        (inp / "beam.txt").write_text("\n".join(lines + ["readparticledistribution m10.dst", f"kneticenergy {w}"]) + "\n", encoding="utf-8")
+    try:
+        write_engine(project, None)
+        with_energy(1.2)
+        got = ok("run.check")
+        assert len(got["warnings"]) == 1 and "kneticenergy" in got["warnings"][0] and "1.05" in got["warnings"][0]
+        assert "warnings" not in ok("engine.check")
+        with_energy(1.055)                                        # within 1 %
+        assert ok("run.check")["warnings"] == []
+        with_energy(-1)                                           # the mean is used
+        assert ok("run.check")["warnings"] == []
+        with_energy(1.2)
+        write_engine(project, {"kernel": "new", "device": "cpu", "compat": "dll"})
+        assert ok("run.check")["warnings"] == []                  # AVAS.dll takes the mean anyway
+    finally:
+        (inp / "beam.txt").write_text(beam, encoding="utf-8")
+        os.remove(inp / "m10.dst")
+        write_engine(project, None)
+
+
 def test_assistant_sandbox_runs_are_checked_too(project, fake_query, monkeypatch):
     from avas.ai import sandbox
     from avas.gui import context

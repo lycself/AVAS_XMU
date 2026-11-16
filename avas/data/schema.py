@@ -265,8 +265,16 @@ _LATTICE = [
     # ---- output ---------------------------------------------------------------------
     Keyword("outputplane", ("Output plane", "输出平面"), OUTPUT, [
         P("V1", "Relative position", "相对位置", "m", doc_en="downstream (>0) or upstream (<0) of this line",
-          doc_zh="在关键字所在位置的下游（正值）或上游（负值）输出束流分布")],
-        ("Dump the beam distribution at a plane.", "输出束流分布。")),
+          doc_zh="在关键字所在位置的下游（正值）或上游（负值）输出束流分布"),
+        P("name", "Name", "名称", kind=TEXT, doc_en="optional: the file is NAME_<z>.dst (new kernel, default mode)",
+          doc_zh="可选：文件名为 NAME_<z>.dst（新内核默认模式）")],
+        ("Dump the beam distribution at a plane (outData_<z>.dst).  New kernel, default mode (as the 2026-07-22 "
+         "original kernel): with a name the file is NAME_<z>.dst, and planes closer together than the bunch length are "
+         "recorded at the same time.  The 2026-04-02 original kernel and the compatibility mode ignore the name and stop "
+         "with \"The output plane interval is less than the bunch length\" for such planes.",
+         "输出束流分布（outData_<z>.dst）。新内核默认模式（与 2026-07-22 版原内核相同）：写了名称时文件为 "
+         "NAME_<z>.dst；间距小于束团长度的输出面可以同时记录。2026-04-02 版原内核和兼容模式忽略名称，"
+         "遇到这样的输出面报 “The output plane interval is less than the bunch length”。"), min_params=1),
     Keyword("automaticoutput", ("Automatic output planes", "自动输出平面"), OUTPUT, [
         P("V1", "First plane", "第一个输出平面位置", "m"), P("V2", "Spacing", "输出平面间距", "m"),
         P("V3", "Maximum span", "第一个到最后一个的最大间距", "m")],
@@ -376,16 +384,37 @@ _BEAM = [
     Keyword("frequency", ("Beam frequency", "束流频率"), "beam", [P("V1", "f", "f", "Hz")]),
     Keyword("current", ("Beam current", "束流电流"), "beam", [P("V1", "I", "I", "mA")]),
     Keyword("kneticenergy", ("Kinetic energy", "动能"), "beam", [P("V1", "W", "W", "MeV")],
-            ("Not in the manual table; written by the Beam page.", "手册表格未收录，由束流页写入。")),
+            ("Not in the manual table; written by the Beam page.  With a particle file (readparticledistribution "
+             "x.dst) the new kernel's default mode starts the synchronous particle with this energy (a negative value: "
+             "the mean energy of the file) and warns when it differs from the mean by more than 1 %; the original "
+             "kernel (2026-04-02) and the compatibility mode always use the mean.",
+             "手册表格未收录，由束流页写入。读入粒子文件（readparticledistribution x.dst）时，新内核默认模式以这个"
+             "能量作为同步粒子能量（写负值则用文件中粒子的平均能量），与平均能量相差超过 1 % 时给出警告；"
+             "原内核（2026-04-02 版）和兼容模式总是用平均能量。")),
     Keyword("beamtype", ("Beam type", "束流类型"), "beam", [
         P("V1", "Type", "类型", kind=ENUM, choices=[("dc", ("DC beam", "直流束")), ("notdc", ("bunched", "束团"))])],
         ("dc generates a DC beam.", "设置为 dc 时生成直流束流。")),
     Keyword("randomseed", ("Random seed", "随机数种子"), "beam", [P("V1", "Seed", "种子", kind=INT)],
             ("Seed used when generating the beam.  " + _SEED_DOC[0], "生成束流时所用的随机数。" + _SEED_DOC[1])),
     Keyword("initpos", ("Initial offset", "初始位置偏移"), "beam", [
-        P("x", "x", "x", "mm"), P("y", "y", "y", "mm"), P("z", "z", "z", "mm")]),
+        P("x", "x", "x", "mm"), P("y", "y", "y", "mm"), P("z", "z", "z", "mm")],
+        ("Single-particle mode (particlenumber 1): start offset, the same as displacepos.  Read by the new kernel "
+         "(default mode) and the 2026-07-22 original kernel, which reads only these names; the 2026-04-02 original "
+         "kernel and the compatibility mode know only displacepos.  When both are written initpos is used (warning).",
+         "单粒子模拟（particlenumber 1）的起点偏移，与 displacepos 相同。新内核（默认模式）和 2026-07-22 版原内核"
+         "读取（后者只认这个名字）；2026-04-02 版原内核和兼容模式只认 displacepos。两者都写时用 initpos（给出警告）。"),
+        min_params=1),
     Keyword("initmom", ("Initial angle", "初始角度偏移"), "beam", [
-        P("xp", "x'", "x'", "mrad"), P("yp", "y'", "y'", "mrad"), P("zp", "z'", "z'", "mrad")]),
+        P("xp", "x'", "x'", "mrad"), P("yp", "y'", "y'", "mrad"),
+        P("dp", "δ", "δ", "1e-3", doc_en="relative momentum offset Δp/p in units of 1e-3",
+          doc_zh="相对动量偏差 Δp/p，单位 1e-3")],
+        ("Single-particle mode: start angles x', y' (mrad) and Δp/p (1e-3).  Read by the new kernel (default mode) and "
+         "the 2026-07-22 original kernel, which reads only these names; the 2026-04-02 original kernel and the "
+         "compatibility mode know only displacedpos, whose values are 100 times smaller (300 there = 3 mrad here).  "
+         "When both are written initmom is used (warning).",
+         "单粒子模拟的起点角度 x'、y'（mrad）与 Δp/p（1e-3）。新内核（默认模式）和 2026-07-22 版原内核读取"
+         "（后者只认这个名字）；2026-04-02 版原内核和兼容模式只认 displacedpos，其数值单位小 100 倍"
+         "（那里的 300 相当于这里的 3 mrad）。两者都写时用 initmom（给出警告）。"), min_params=1),
     Keyword("displacepos", ("Single-particle offset", "单粒子位置偏移"), "beam", [
         P("dx", "dx", "dx", "m"), P("dy", "dy", "dy", "m"), P("dz", "dz", "dz", "m")],
         ("Single-particle mode (particlenumber 1).  The manual gives metres, but the engine was found to "
@@ -393,7 +422,10 @@ _BEAM = [
          "单粒子模拟时生效。手册写单位为米，但经核对引擎实际按毫米读取（2026-09-17）。")),
     Keyword("displacedpos", ("Single-particle momentum offset", "单粒子动量偏移"), "beam", [
         P("dpx", "dpx", "dpx", "%"), P("dpy", "dpy", "dpy", "%"), P("dpz", "dpz", "dpz", "%")],
-        ("Single-particle mode (particlenumber 1).", "单粒子模拟时生效。")),
+        ("Single-particle mode (particlenumber 1).  The engine reads x' = value × 1e-5 rad (300 = 3 mrad).  The "
+         "2026-07-22 original kernel ignores this name and reads initmom (mrad).",
+         "单粒子模拟时生效。内核按 x' = 数值 × 1e-5 rad 读取（300 即 3 mrad）。2026-07-22 版原内核不认这个名字，"
+         "改读 initmom（mrad）。")),
 ]
 
 # --------------------------------------------------------------------------- input.txt
@@ -435,6 +467,26 @@ _INPUT = [
     Keyword("longlimits", ("Longitudinal loss limits", "纵向损失边界"), "input", [
         P("V1", "Enabled", "启用", kind=ENUM, choices=[("0", ("disabled", "禁用")), ("1", ("enabled", "启用"))]),
         P("V2", "Phase limit", "相位边界", "°"), P("V3", "Energy limit", "能量边界", "MeV")]),
+    Keyword("lpboundary", ("Longitudinal periodic boundary", "纵向周期边界"), "input", [
+        P("V1", "Fold into one period", "折叠到一个周期", kind=ENUM, choices=_ONOFF,
+          doc_en="1: particles folded into one RF period around the synchronous particle, periodic space-charge box",
+          doc_zh="1：粒子折叠到同步粒子前后一个射频周期内，空间电荷用周期盒"),
+        P("V2", "Periodic space-charge box", "周期空间电荷盒", kind=ENUM, choices=_ONOFF,
+          doc_en="1 (new kernel, default mode): FFT with a periodic longitudinal box of one RF period, the particles "
+                 "are not folded (continuous beams, long bunches)",
+          doc_zh="1（新内核默认模式）：FFT，纵向用一个射频周期长的周期盒，粒子不折叠（连续束、长束团）")],
+        ("V2 = 1: the space-charge box is one RF period long in the beam rest frame, γβλ of the synchronous particle "
+         "(the 2026-07-22 original kernel uses βλ, which is γ times too short); V1 is then not used.  The 2026-04-02 "
+         "original kernel and the compatibility mode read V1 only.",
+         "V2 = 1 时空间电荷盒在束流静止系中长一个射频周期，即同步粒子的 γβλ（2026-07-22 版原内核用 βλ，短了 γ 倍）；"
+         "这时不用 V1。2026-04-02 版原内核和兼容模式只读 V1。"), min_params=1),
+    Keyword("nplanes", ("Output planes recorded together", "同时记录的输出面数"), "input", [
+        P("V1", "Number", "数量", kind=INT)],
+        ("Keyword of the 2026-07-22 original kernel (memory for planes closer than the bunch length, default 3).  The "
+         "new kernel accepts it in the default mode and records as many planes as needed; the 2026-04-02 original "
+         "kernel and the compatibility mode do not know it.",
+         "2026-07-22 版原内核的关键字（间距小于束长的输出面预分配数，默认 3）。新内核默认模式接受但不需要，"
+         "按需记录；2026-04-02 版原内核和兼容模式不认识。")),
     Keyword("boundary", ("Separate loss boundary", "单独设置损失边界"), "input", [
         P("V1", "Use boundary.txt", "使用 boundary.txt", kind=ENUM, choices=[("0", ("no", "否")), ("1", ("yes", "是"))])],
         ("When on, lattice apertures are ignored and boundary.txt is used.",

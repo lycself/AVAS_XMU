@@ -6,7 +6,9 @@ usage: python engine/tests/physics/run_physics.py [--build DIR]   (after buildin
 2. dc KV beam in a 1 m drift: the space-charge growth of the rms converges to the KV envelope of
    avas/dynamics/kv.py (SPICNIC within 2 % at 40^3, PICNIC within 2 % at 24^3);
 3. rfq (rfq_check.py): a synthetic RFQ accelerates its synchronous particle to within 3 % of the design energy and
-   the captured particles follow it.
+   the captured particles follow it;
+4. periodic longitudinal box (lpboundary 0 1, M10 D7): a short dc KV bunch (one 1.3 GHz period) follows the KV
+   envelope of the infinite beam with every particle (within 2 %), the open box does not.
 Exit code 0 when all pass.
 """
 import argparse
@@ -34,7 +36,8 @@ def main():
                 if os.path.exists(p)), None)
     r2 = subprocess.run([sys.executable, os.path.join(HERE, "dc_kv_envelope.py"), "--check"] + (["--lib", lib] if lib else []))
     r3 = subprocess.run([sys.executable, os.path.join(HERE, "rfq_check.py"), "--check"] + (["--lib", lib] if lib else []))
-    ok = r1.returncode == 0 and r2.returncode == 0 and r3.returncode == 0
+    r4 = subprocess.run([sys.executable, os.path.join(HERE, "dc_kv_envelope.py"), "--periodic-check"] + (["--lib", lib] if lib else []))
+    ok = r1.returncode == 0 and r2.returncode == 0 and r3.returncode == 0 and r4.returncode == 0
     print("PHYSICS CHECKS OK" if ok else "PHYSICS CHECKS FAILED")
     return 0 if ok else 1
 

@@ -72,6 +72,17 @@ void read_input(Params& p) {
             p.scPar[8] = parse_double(word(w, 1));
         } else if (k == "lpboundary") {
             p.lpBoundary = parse_int(word(w, 1));
+            if (!compat_dll() && w.size() >= 3) {
+                // M10 D7 (as the 2026-07-22 original): lpboundary V1 1 is a periodic longitudinal
+                // space-charge box of length gamma*beta*lambda without folding the particles
+                // (AVAS.dll 2026-04-02 reads V1 only)
+                const int v2 = parse_int(w[2]);
+                if (v2 != 0 && v2 != 1) throw EngineError("lpboundary: the second value must be 0 or 1");
+                if (v2 == 1) {
+                    p.lpPeriodic = 1;
+                    p.lpBoundary = 0;
+                }
+            }
         } else if (k == "indweight") {
             p.indWeight = parse_int(word(w, 1));
         } else if (k == "longlimits") {
@@ -88,6 +99,11 @@ void read_input(Params& p) {
             p.scanTStep = parse_double(word(w, 1));
         } else if (k == "dumpperiodicity") {
             p.dumpPeriodicity = static_cast<int>(parse_double(word(w, 1)));
+        } else if (k == "nplanes" && !compat_dll()) {
+            // 2026-07-22 original: number of output planes recorded at the same time (preallocated);
+            // this engine keeps as many as needed (M10 D4)
+            (void)parse_int(word(w, 1));
+            say("input.txt: nplanes is not needed by this engine (output planes are recorded as needed), ignored");
         } else if (k == "statoutputinterval" && !compat_dll()) {
             // libPIC.so: one DataSet row every N steps (0: none); AVAS.dll does not know it
             p.statOutputInterval = parse_int(word(w, 1));
@@ -180,8 +196,18 @@ void read_beam(Params& p) {
             p.particleNumber = parse_int(word(w, 1));
         } else if (k == "displacepos") {
             for (size_t i = 1; i < w.size() && i <= 3; ++i) p.displacePos[i - 1] = parse_double(w[i]) * 0.001;
+            p.hasDisplacePos = true;
         } else if (k == "displacedpos") {
             for (size_t i = 1; i < w.size() && i <= 3; ++i) p.displacedPos[i - 1] = parse_double(w[i]) * 0.001;
+            p.hasDisplacedPos = true;
+        } else if (!compat_dll() && (k == "initpos" || k == "initmom")) {
+            // M10 D2 (keywords of the 2026-07-22 original; unknown to AVAS.dll 2026-04-02): initpos in mm,
+            // initmom x', y' in mrad and delta in 1e-3 (displacedpos has an effective factor 1e-5)
+            const bool pos = k == "initpos";
+            std::array<double, 3>& a = pos ? p.initPos : p.initMom;
+            a = {0.0, 0.0, 0.0};
+            for (size_t i = 1; i < w.size() && i <= 3; ++i) a[i - 1] = parse_double(w[i]) * 0.001;
+            (pos ? p.hasInitPos : p.hasInitMom) = true;
         } else if (k == "frequency") {
             p.frequency = parse_double(word(w, 1));
         } else if (k == "kneticenergy") {

@@ -9,6 +9,11 @@ phase, followed by index) see the field of an infinitely long beam.  Their entra
 (inData.dst) give the KV start (a = 2 rms, a' = 2 <xx'>/rms, full emittance 4 eps_rms) and, drifted
 without force, the zero-current reference; the space-charge growth of the exit rms (outData.dst)
 is compared with the KV envelope.  --check runs a mesh / particle sweep with thresholds.
+
+--periodic-check (M10 D7): at 1.3 GHz the dc bunch is only 13 mm long (7 beam radii), so its ends matter.  With
+lpboundary 0 1 (periodic longitudinal box of one RF period, gamma beta lambda in the rest frame) every particle,
+not only the middle half, must follow the KV envelope of the infinite beam (within 2 %); the same bunch with the
+open FFT box falls clearly short of it (the end effects the periodic box removes).
 """
 import argparse
 import math
@@ -44,7 +49,7 @@ def moments(q, p):
     return sqq, sqp, spp
 
 
-def run_case(lib, current, scmethod, grid, particles, frequency, negligible=None, meshrms=None):
+def run_case(lib, current, scmethod, grid, particles, frequency, negligible=None, meshrms=None, extra=None, middle=True):
     work = tempfile.mkdtemp(prefix="avas_dckv_")
     base = os.path.join(REPO, "examples", "hwr010", "InputFile")
     inp, out = os.path.join(work, "inputs"), os.path.join(work, "OutputFile")
@@ -62,6 +67,7 @@ def run_case(lib, current, scmethod, grid, particles, frequency, negligible=None
         keys["negligibleratio"] = negligible
     if meshrms:
         keys["meshrms"] = meshrms
+    keys.update(extra or {})
     run_engine.set_keys(os.path.join(inp, "input.txt"), keys)
     with open(os.path.join(inp, "lattice.txt"), "w") as fl:
         fl.write("\n".join(["start", f"drift {LENGTH} 0.05 0", "end", ""]))
@@ -80,7 +86,7 @@ def run_case(lib, current, scmethod, grid, particles, frequency, negligible=None
     if len(ext) != len(ent):
         raise SystemExit(f"particles lost: {len(ent)} -> {len(ext)}")
     phis = sorted(r[4] for r in ent)
-    lo, hi = phis[len(phis) // 4], phis[3 * len(phis) // 4]
+    lo, hi = (phis[len(phis) // 4], phis[3 * len(phis) // 4]) if middle else (phis[0], phis[-1])
     idx = [i for i, r in enumerate(ent) if lo <= r[4] <= hi]
     w0, mc2 = float(beam["kneticenergy"][0]), 938.272029
     perv = kv.perveance(current, w0, mc2)
@@ -114,6 +120,7 @@ def main():
     ap.add_argument("--particles", type=int, default=20000)
     ap.add_argument("--frequency", type=float, default=32.5e6)
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--periodic-check", action="store_true", help="lpboundary 0 1 against the open box (M10 D7)")
     ap.add_argument("--negligible", default=None)
     ap.add_argument("--meshrms", default="2.5 2.5 2.0",
                     help="mesh half width in rms; the KV edge is at 2 rms, the dc bunch end at 1.73 rms_z")
@@ -121,6 +128,19 @@ def main():
     lib = a.lib or next(p for p in (os.path.join(REPO, "engine", "build", n) for n in
                                      ("libavas_engine.dylib", "libavas_engine.so", "avas_engine.dll",
                                       os.path.join("Release", "avas_engine.dll"))) if os.path.exists(p))
+    if a.periodic_check:
+        f = 1.3e9
+        print(f"DC KV beam, {a.current} mA, 1 m drift, bunch = one period at {f / 1e6:g} MHz (13 mm), FFT 32^3, all particles:")
+        res = {}
+        for label, extra in (("periodic (lpboundary 0 1)", {"lpboundary": "0 1"}), ("open box", {})):
+            perv, nall, o = run_case(lib, a.current, "FFT", "32 32 32", 40000, f, None, a.meshrms, extra, middle=False)
+            res[label] = (o["x"][3], o["y"][3])
+            print(f"  {label}: {nall} particles, K = {perv:.3e}; growth ratio x {o['x'][3]:.4f}, y {o['y'][3]:.4f}")
+        per, opn = res["periodic (lpboundary 0 1)"], res["open box"]
+        ok = all(abs(g - 1) <= 0.02 for g in per) and all(g <= 0.95 for g in opn)
+        print(f"  threshold: periodic within 2 % of KV, open box below 0.95 (end effects): {'ok' if ok else 'FAIL'}")
+        print("DC PERIODIC CHECK OK" if ok else "DC PERIODIC CHECK FAILED")
+        sys.exit(0 if ok else 1)
     runs = [(a.scmethod, a.grid, a.particles)]
     if a.check:
         runs = [("SPICNIC", "20 20 20", 20000), ("SPICNIC", "30 30 30", 80000), ("SPICNIC", "40 40 40", 160000),

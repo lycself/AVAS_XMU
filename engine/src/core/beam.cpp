@@ -86,12 +86,24 @@ void init_single(Beam& b, Params& p, const Lattice& lat, double betaGamma0, doub
     // AVAS.dll leaves the kind of the single particle empty (collisionData.txt)
     if (compat_dll()) b.kind.assign(2, std::string());
     b.weight[1] = 1.0;
-    b.x[0] = p.displacePos[0];
-    b.y[0] = p.displacePos[1];
-    b.z[0] = p.displacePos[2];
-    b.ux[0] = p.displacedPos[0] * 0.01 * b.uz[0];
-    b.uy[0] = p.displacedPos[1] * 0.01 * b.uz[0];
-    b.uz[0] = (p.displacedPos[2] * 0.01 + 1.0) * b.uz[0];
+    // corrected engine (M10 D2): initpos / initmom (new units) win over displacepos / displacedpos
+    const bool newPos = !compat_dll() && p.hasInitPos, newMom = !compat_dll() && p.hasInitMom;
+    if (newPos && p.hasDisplacePos) say("Warning: beam.txt has both initpos and displacepos; initpos is used");
+    if (newMom && p.hasDisplacedPos) say("Warning: beam.txt has both initmom and displacedpos; initmom is used");
+    const std::array<double, 3>& pos = newPos ? p.initPos : p.displacePos;
+    b.x[0] = pos[0];
+    b.y[0] = pos[1];
+    b.z[0] = pos[2];
+    if (newMom) {
+        // x' = initmom[0] mrad, y' = initmom[1] mrad, delta = initmom[2] 1e-3 (2026-07-22 original)
+        b.ux[0] = p.initMom[0] * b.uz[0];
+        b.uy[0] = p.initMom[1] * b.uz[0];
+        b.uz[0] = (p.initMom[2] + 1.0) * b.uz[0];
+    } else {
+        b.ux[0] = p.displacedPos[0] * 0.01 * b.uz[0];
+        b.uy[0] = p.displacedPos[1] * 0.01 * b.uz[0];
+        b.uz[0] = (p.displacedPos[2] * 0.01 + 1.0) * b.uz[0];
+    }
     if (berr) {
         // beam errors on the single particle: dx, dy, dx', dy' (slopes), dphi as a shift in z at
         // the particle velocity, dE on the kinetic energy (direction kept)
@@ -529,6 +541,16 @@ void init_generated(Beam& b, Params& p, const Lattice& lat) {
     finish_sp_out(b, lat);
 }
 
+// Corrected engine: reference energy of a particle file from beam.txt (M10 D1).
+void reference_energy_note(double wRef, double wMean) {
+    say(Text().s("Synchronous particle energy (beam.txt kneticenergy): ").g(wRef).s(" (MeV)").str());
+    if (wMean > 0.0 && std::fabs(wRef - wMean) / wMean > 0.01) {
+        say(Text().s("Warning: beam.txt kneticenergy ").g(wRef).s(" MeV differs from the mean energy ").g(wMean)
+                .s(" MeV of the particle file by more than 1 %; the synchronous particle starts with kneticenergy "
+                   "(write a negative kneticenergy to use the mean)").str());
+    }
+}
+
 void init_from_dst(Beam& b, Params& p, const Lattice& lat) {
     say("Start reading initial beam distribution...");
     std::string raw;
@@ -598,8 +620,14 @@ void init_from_dst(Beam& b, Params& p, const Lattice& lat) {
         say("0 current, ignoring space charge effects");
     }
     const double wMean = sumW / b.totalWeight;
-    p.kineticEnergy = wMean;
     say(Text().s("Average beam energy: ").g(wMean).s(" (MeV)").str());
+    if (!compat_dll() && p.kineticEnergy > 0.0) {
+        // corrected engine (M10 D1, as the 2026-07-22 original): the reference (synchronous) energy is
+        // beam.txt kneticenergy; AVAS.dll 2026-04-02 always takes the mean energy of the particles
+        reference_energy_note(p.kineticEnergy, wMean);
+    } else {
+        p.kineticEnergy = wMean;
+    }
     const double gammaS = p.kineticEnergy / mc2 + 1.0;
     const double igS = 1.0 / gammaS;
     const double betaS = std::sqrt(1.0 - igS * igS);

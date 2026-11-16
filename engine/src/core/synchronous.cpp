@@ -87,7 +87,9 @@ void setup(SynParticle& s, const Params& p, double gbzIn) {
         }
         std::memcpy(&mc2, raw.data() + 23 + static_cast<size_t>(n) * 48, 8);
         s.frequency = fMHz * 1000000.0;
-        const double g = (sum / static_cast<double>(n)) / mc2 + 1.0;
+        // corrected engine (M10 D1): beam.txt kneticenergy is the reference energy when it is given
+        const double wRef = (!compat_dll() && p.kineticEnergy > 0.0) ? p.kineticEnergy : sum / static_cast<double>(n);
+        const double g = wRef / mc2 + 1.0;
         gbz = gbzIn == -33.0 ? std::sqrt(1.0 - 1.0 / (g * g)) * g : gbzIn;
     }
     const double a = mc2 * k::inv_proton_mc2;

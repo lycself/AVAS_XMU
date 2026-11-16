@@ -1,0 +1,7 @@
+The input path has been set to C:\Users\lycself\avas_m10_tmp\wo\M10_D5_rect_ellipse_dst\inputs\
+The fieldMap path has been set to C:\Users\lycself\avas_m10_tmp\src\examples\hwr010\InputFile\
+The output path has been set to C:\Users\lycself\avas_m10_tmp\wo\M10_D5_rect_ellipse_dst\OutputFile\
+The programme is running.
+Lattice initialisation complete, total length 0.3 m
+A total of 1 output planes
+[parity] main_agent -> 1

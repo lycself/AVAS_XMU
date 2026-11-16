@@ -144,6 +144,7 @@ struct SpOutV {  // superposeout exit {z0, x0, y0, thz, thx, thy, z_exit} and si
 struct GeomV {  // boundary.txt geometry
     int shape;
     int npar;
+    int sub0, nsub;  // composite (shape 0): sub-shapes geoms[sub0, sub0 + nsub), stored after the segments
     double zStart;
     double par[6];
     double place[6];
@@ -291,7 +292,9 @@ AVAS_HD inline int superpose_field_t(AVAS_T const LatV& L, AVAS_T const Z& zo, i
         const R w = u * s5 + dz * c5;
         const R zl = w * c4 - v * s4;
         const R yl = s4 * w + v * c4;
-        if (R(0) < zl && zl < R(S.length) && zo.estart(k, e) + 1e-06 < in.spZ1 && in.spZ0 < in.fz) {
+        // sub-field aperture; corrected engine (M10 D5, as the 2026-07-22 original): not with boundary.txt
+        if (R(0) < zl && zl < R(S.length) && zo.estart(k, e) + 1e-06 < in.spZ1 && in.spZ0 < in.fz &&
+            (P::compat || in.boundaryMode == 0)) {
             const R r = e.rotMode == 0 ? hm::sqrt(xl * xl + yl * yl) : hm::sqrt(in.rel0 * in.rel0 + in.rel2 * in.rel2);
             if (R(S.radius) <= r) return kFieldWrite | kFieldLost;  // the partial sum stays in the particle
         }
@@ -1225,31 +1228,101 @@ AVAS_HD inline void geom_local(const GeomV& g, double x, double y, double z, dou
     zl = w * g.c4 - v0 * g.s4;
 }
 
-// Collision of particle i with geometry g during the step that ended at time t (step dt).
-// Returns 1 for a hit (P = coordinates at the wall, tHit), 0 for none, and -(10 + j) when shape
-// parameter j is missing (the host then raises the error of the original, vector::at).
+// Inside the cross-section of a straight pipe (shapes 1, 3, 4) at local (u, v); the caller checked npar.
+AVAS_HD inline bool geom_inside(const GeomV& g, double u, double v) {
+    if (g.shape == 1) return hm::sqrt(v * v + u * u) < g.par[1];
+    if (g.shape == 3) return hm::fabs(u) < g.par[1] && hm::fabs(v) < g.par[2];
+    const double a = u / g.par[1], c = v / g.par[2];
+    return a * a + c * c < 1.0;
+}
+
+// Collision of particle i with one geometry g (shapes 1-4) during the step that ended at time t (step dt);
+// zOff: corrected engine, the boundary row offset (geometry evaluated at z - zOff).  Returns 1 for a hit
+// (P = coordinates at the wall, tHit), 0 for none, and -(10 + j) when shape parameter j is missing (the
+// host then raises the error of the original, vector::at).
 template <class P>
-AVAS_HD inline int geometry_hit(const GeomV& g, const PartV& b, int i, double t, double dt, double* Pp, double& tHit) {
+AVAS_HD inline int geom_hit_one(const GeomV& g, const PartV& b, int i, double t, double dt, double zOff, double* Pp,
+                                double& tHit) {
     double u, v, zl;
-    geom_local(g, b.x[i], b.y[i], b.z[i], u, v, zl);
+    geom_local(g, b.x[i], b.y[i], b.z[i] - zOff, u, v, zl);
     if (g.npar < 1) return -10;
-    if (!(0.0 < zl && zl < g.par[0])) return 0;
+    const double* old = b.old + 6 * static_cast<long long>(i);
+    if (!(0.0 < zl && zl < g.par[0])) {
+        // corrected engine (M10 D5): the particle crossed the whole of a short straight pipe (1, 3, 4) in this
+        // step; the entrance face is tested in the local frame of the pipe (the 2026-07-22 original uses the
+        // global x, y, and the x momentum in place of y for the ellipse)
+        if (P::compat || g.shape == 2 || !(zl >= g.par[0])) return 0;
+        double u0, v0, zl0;
+        geom_local(g, old[0], old[2], old[4] - zOff, u0, v0, zl0);
+        if (!(zl0 <= 0.0) || !(zl0 < zl)) return 0;
+        if (g.npar < (g.shape == 1 ? 2 : 3)) return g.shape == 1 ? -11 : -12;
+        const double f = zl0 / (zl0 - zl);
+        if (geom_inside(g, (u - u0) * f + u0, (v - v0) * f + v0)) return 0;
+        const double cur[6] = {b.x[i], b.ux[i], b.y[i], b.uy[i], b.z[i], b.uz[i]};
+        for (int j = 0; j < 6; ++j) Pp[j] = (cur[j] - old[j]) * f + old[j];
+        tHit = t - (1.0 - f) * dt;
+        return 1;
+    }
     Pp[0] = b.x[i]; Pp[1] = b.ux[i]; Pp[2] = b.y[i]; Pp[3] = b.uy[i]; Pp[4] = b.z[i]; Pp[5] = b.uz[i];
     tHit = t;
-    const double* old = b.old + 6 * static_cast<long long>(i);
-    if (g.shape == 1) {
-        const double r = hm::sqrt(v * v + u * u);
-        if (g.npar < 2) return -11;
-        const double R = g.par[1];
-        if (r < R) return 0;
-        double u0, v0, zl0;
-        geom_local(g, old[0], old[2], old[4], u0, v0, zl0);
-        const double r0 = hm::sqrt(v0 * v0 + u0 * u0);
-        double f = (R - r0) / (r - r0);
-        const double zh = (zl - zl0) * f + zl0;
-        if (zh < 0.0) f = -(zl0 / (zl - zl0));
-        for (int j = 0; j < 6; ++j) Pp[j] = (Pp[j] - old[j]) * f + old[j];
-        tHit = t - (1.0 - f) * dt;
+    if (g.shape == 1 || g.shape == 3 || g.shape == 4) {
+        if (g.shape == 1) {
+            const double r = hm::sqrt(v * v + u * u);
+            if (g.npar < 2) return -11;
+            const double R = g.par[1];
+            if (r < R) return 0;
+            double u0, v0, zl0;
+            geom_local(g, old[0], old[2], old[4] - zOff, u0, v0, zl0);
+            const double r0 = hm::sqrt(v0 * v0 + u0 * u0);
+            double f = (R - r0) / (r - r0);
+            const double zh = (zl - zl0) * f + zl0;
+            if (zh < 0.0) f = -(zl0 / (zl - zl0));
+            if (!P::compat) {
+                // corrected (M10 D5): a particle that came in through the entrance face outside the aperture
+                // hits the face; the wall point stays on this step (AVAS.dll can extrapolate beyond it)
+                if (zl0 <= 0.0 && zl0 < zl) {
+                    const double ff = zl0 / (zl0 - zl);
+                    if (!geom_inside(g, (u - u0) * ff + u0, (v - v0) * ff + v0)) f = ff;
+                }
+                if (!(f >= 0.0)) f = 0.0;
+                if (f > 1.0) f = 1.0;
+            }
+            for (int j = 0; j < 6; ++j) Pp[j] = (Pp[j] - old[j]) * f + old[j];
+            tHit = t - (1.0 - f) * dt;
+        } else {
+            // rectangular (3) / elliptical (4) pipe: the wall point on the step, by bisection on the
+            // fraction f (the inside test is not linear for the ellipse); the entrance face when the
+            // particle came in through it outside the aperture
+            if (g.npar < 3) return -12;
+            if (geom_inside(g, u, v)) return 0;
+            double u0, v0, zl0;
+            geom_local(g, old[0], old[2], old[4] - zOff, u0, v0, zl0);
+            double f;
+            if (!(zl0 > 0.0) && zl0 < zl) {
+                f = zl0 / (zl0 - zl);  // through the entrance face: the face itself if outside there
+                if (geom_inside(g, (u - u0) * f + u0, (v - v0) * f + v0)) {
+                    double lo = f, hi = 1.0;
+                    for (int it = 0; it < 60; ++it) {
+                        const double m = 0.5 * (lo + hi);
+                        if (geom_inside(g, (u - u0) * m + u0, (v - v0) * m + v0)) lo = m;
+                        else hi = m;
+                    }
+                    f = hi;
+                }
+            } else if (geom_inside(g, u0, v0)) {
+                double lo = 0.0, hi = 1.0;
+                for (int it = 0; it < 60; ++it) {
+                    const double m = 0.5 * (lo + hi);
+                    if (geom_inside(g, (u - u0) * m + u0, (v - v0) * m + v0)) lo = m;
+                    else hi = m;
+                }
+                f = hi;
+            } else {
+                f = 0.0;  // already outside at the start of the step (e.g. a pipe that narrows)
+            }
+            for (int j = 0; j < 6; ++j) Pp[j] = (Pp[j] - old[j]) * f + old[j];
+            tHit = t - (1.0 - f) * dt;
+        }
     } else {
         if (g.npar < 3) return -12;
         const double rho = g.par[2];
@@ -1289,6 +1362,19 @@ AVAS_HD inline int geometry_hit(const GeomV& g, const PartV& b, int i, double t,
     return 1;
 }
 
+// Geometry gi of the table (a composite tests its sub-shapes in order, each one as a wall).
+template <class P>
+AVAS_HD inline int geometry_hit(const GeomV* geoms, int gi, const PartV& b, int i, double t, double dt, double zOff,
+                                double* Pp, double& tHit) {
+    const GeomV& g = geoms[gi];
+    if (g.shape != 0) return geom_hit_one<P>(g, b, i, t, dt, zOff, Pp, tHit);
+    for (int j = 0; j < g.nsub; ++j) {
+        const int code = geom_hit_one<P>(geoms[g.sub0 + j], b, i, t, dt, zOff, Pp, tHit);
+        if (code != 0) return code;
+    }
+    return 0;
+}
+
 // tcodeRun 4.2.4 for particle i: geometry search and Geometry::Boundary.  Returns the code of
 // geometry_hit (1 hit) and the geometry index; may set lost = 2 past the lattice end.
 template <class P>
@@ -1301,16 +1387,30 @@ AVAS_HD inline int boundary_particle(const LatV& L, const PartV& b, int i, doubl
     }
     const int ri = b.spOutCount[i];
     if (ri >= L.nBnd) return 0;
-    const double zz = L.bndZ[ri] + z;
+    // the boundary file z of the section: AVAS.dll adds the row offset (and evaluates the geometry at z);
+    // corrected (M10 D5, as the 2026-07-22 original): z - offset for both
+    const double zOff = compat ? 0.0 : L.bndZ[ri];
+    const double zz = compat ? L.bndZ[ri] + z : z - zOff;
     const int r1 = L.bndR1[ri], r2 = L.bndR2[ri];
     if (!(L.segStart[r1] <= zz && zz <= L.segEnd[r2])) return 0;
     int gi = b.geomIndex[i];
     if (compat ? (r2 < gi && gi < r1) : (gi < r1 || r2 < gi)) gi = compat ? r2 : r1;
     while (gi > 0 && zz < L.segStart[gi]) --gi;
-    while (gi + 1 < L.nSeg && L.segEnd[gi] <= zz) ++gi;
+    while (gi + 1 < L.nSeg && L.segEnd[gi] <= zz) {
+        if (!compat) {
+            // corrected (M10 D5): a segment the particle crossed completely in this step
+            const int code = geometry_hit<P>(L.geoms, gi, b, i, t, dt, zOff, Pp, tHit);
+            if (code != 0) {
+                b.geomIndex[i] = gi;
+                gOut = gi;
+                return code;
+            }
+        }
+        ++gi;
+    }
     b.geomIndex[i] = gi;
     gOut = gi;
-    return geometry_hit<P>(L.geoms[gi], b, i, t, dt, Pp, tHit);
+    return geometry_hit<P>(L.geoms, gi, b, i, t, dt, zOff, Pp, tHit);
 }
 
 // ---- lpboundary and longlimits ----

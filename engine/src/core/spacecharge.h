@@ -78,6 +78,8 @@ private:
     double mr_[3];
     double negligible_;
     int lp_;
+    int periodic_;  // corrected engine, lpboundary V1 1 (M10 D7): periodic longitudinal box gamma beta lambda
+    double lpLen_ = 0.0;
     int rec_;  // recscfield 1: append the mesh field to SpaceChargeSet.plt / SpaceChargeMesh.txt
     bool pool_;  // multithreading 1: AVAS.dll task partitions
     std::array<int, 10> cores_{};

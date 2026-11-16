@@ -49,8 +49,14 @@ def read_beam(input_dir):
         dst_path = dst if os.path.isabs(dst) else os.path.join(input_dir, dst)
         if dst_path.lower().endswith(".dst") and os.path.isfile(dst_path):
             try:
-                beam.update(_beam_from_dst(dst_path))
+                # the reference energy is beam.txt kneticenergy when it is positive, else the mean of the
+                # file (the new kernel's default mode, M10 D1)
+                ref = num("kneticenergy")
+                beam.update(_beam_from_dst(dst_path, ref if ref is not None and ref > 0 else None))
                 beam["source"] = "dst"
+                note = reference_energy_note(beam["energy"], beam["meanEnergy"]) if ref is not None and ref > 0 else None
+                if note:
+                    beam["warnings"].append(note)
             except (OSError, ValueError, struct.error) as exc:
                 beam["warnings"].append((f"Particle file '{dst}' could not be read ({exc}); Twiss keywords used.",
                                          f"无法读取粒子文件“{dst}”（{exc}），改用 Twiss 参数。"))
@@ -60,8 +66,68 @@ def read_beam(input_dir):
     return beam
 
 
-def _beam_from_dst(path):
-    """Energy, current, frequency, mass and rms Twiss of a TraceWin .dst file."""
+REFERENCE_ENERGY_TOLERANCE = 0.01   # relative difference of kneticenergy and the mean energy that is warned about
+
+
+def reference_energy_note(reference, mean):
+    """Warning (en, zh) when the reference energy (beam.txt kneticenergy) differs from the mean energy of the
+    particle file by more than 1 %, else None."""
+    if not (mean and mean > 0) or abs(reference - mean) <= REFERENCE_ENERGY_TOLERANCE * mean:
+        return None
+    return (f"beam.txt kneticenergy {reference:.6g} MeV differs from the mean energy {mean:.6g} MeV of the particle file "
+            f"by {abs(reference - mean) / mean * 100:.2g} %; the new kernel (default mode) starts the synchronous particle "
+            "with kneticenergy, the original kernel and the compatibility mode with the mean. Write a negative "
+            "kneticenergy to use the mean.",
+            f"beam.txt 的 kneticenergy {reference:.6g} MeV 与粒子文件的平均能量 {mean:.6g} MeV 相差 "
+            f"{abs(reference - mean) / mean * 100:.2g} %；新内核（默认模式）以 kneticenergy 作为同步粒子能量，"
+            "原内核和兼容模式用平均能量。kneticenergy 写负值则使用平均能量。")
+
+
+def dst_energies(input_dir):
+    """``(kneticenergy, mean energy, file name)`` when beam.txt reads a .dst particle file (main beam), else None.
+    The mean is weighted with the .dstb file under input.txt ``indweight 1``, as in the kernel."""
+    def keys(name):
+        out = {}
+        try:
+            with open(os.path.join(input_dir, name), encoding="utf-8", errors="replace") as fh:
+                for line in fh:
+                    tokens = line.split("!")[0].split()
+                    if tokens:
+                        out[tokens[0].lower()] = tokens[1:]
+        except OSError:
+            pass
+        return out
+    beam, inp = keys("beam.txt"), keys("input.txt")
+    dst = (beam.get("readparticledistribution") or [""])[0]
+    if not dst.lower().endswith(".dst") or (inp.get("secondarybeam") or ["0"])[0] == "1":
+        return None
+    try:
+        ref = float(beam["kneticenergy"][0])
+    except (KeyError, IndexError, ValueError):
+        ref = -1.0
+    path = dst if os.path.isabs(dst) else os.path.join(input_dir, dst)
+    try:
+        with open(path, "rb") as fh:
+            raw = fh.read()
+        n = struct.unpack_from("<i", raw, 2)[0]
+        if n < 1 or len(raw) < 23 + 48 * n + 8:
+            return None
+        w = np.frombuffer(raw, dtype="<f8", count=6 * n, offset=23).reshape(n, 6)[:, 5]
+        weights = None
+        if (inp.get("indweight") or ["0"])[0] == "1" and os.path.isfile(path + "b"):
+            with open(path + "b", "rb") as fh:
+                rb = fh.read()
+            if len(rb) >= 4 + 8 * n and struct.unpack_from("<i", rb, 0)[0] == n:
+                weights = np.frombuffer(rb, dtype="<f8", count=n, offset=4)
+    except (OSError, struct.error, ValueError):
+        return None
+    mean = float(np.average(w, weights=weights)) if weights is not None else float(w.mean())
+    return ref, mean, dst
+
+
+def _beam_from_dst(path, reference=None):
+    """Energy, current, frequency, mass and rms Twiss of a TraceWin .dst file.  *reference*: the reference
+    energy (MeV, beam.txt kneticenergy); None: the mean energy of the particles.  ``meanEnergy`` is the mean."""
     with open(path, "rb") as fh:
         raw = fh.read()
     n = struct.unpack_from("<i", raw, 2)[0]
@@ -70,14 +136,15 @@ def _beam_from_dst(path):
         raise ValueError("truncated file")
     parts = np.frombuffer(raw, dtype="<f8", count=6 * n, offset=23).reshape(n, 6)
     mass = struct.unpack_from("<d", raw, 23 + 48 * n)[0]
-    energy = float(parts[:, 5].mean())
+    mean = float(parts[:, 5].mean())
+    energy = mean if reference is None else float(reference)
     gamma = 1.0 + energy / mass
     bg = math.sqrt(gamma * gamma - 1.0)
     beta = bg / gamma
     freq = freq_mhz * 1e6
     wavelength = C_LIGHT / freq if freq > 0 else 1.0
     z = -(parts[:, 4] - parts[:, 4].mean()) * beta * wavelength / (2 * math.pi)
-    delta = (parts[:, 5] - energy) / (beta * beta * gamma * mass)
+    delta = (parts[:, 5] - mean) / (beta * beta * gamma * mass)   # spread about the mean (rms moments)
     twiss = {}
     for plane, (u, up) in (("x", (parts[:, 0] * 0.01, parts[:, 1])), ("y", (parts[:, 2] * 0.01, parts[:, 3])),
                            ("z", (z, delta))):
@@ -87,7 +154,7 @@ def _beam_from_dst(path):
             twiss[plane] = (0.0, 1.0, 0.0)
         else:
             twiss[plane] = (-cov[0, 1] / emit, cov[0, 0] / emit, emit * bg * 1e6)
-    return {"mass": mass, "energy": energy, "current": current, "frequency": freq, "twiss": twiss}
+    return {"mass": mass, "energy": energy, "meanEnergy": mean, "current": current, "frequency": freq, "twiss": twiss}
 
 
 def _check_beam(beam):

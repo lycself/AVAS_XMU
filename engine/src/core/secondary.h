@@ -301,15 +301,23 @@ AVAS_HD inline void se_trun(const LatV& L, const PartV& b, const SeV& V, int sg,
                 if (Lt < zz && L.spOutCur == L.spOutSize && b.lost[i] == 0) b.lost[i] = 2;
             } else {
                 int gi = b.geomIndex[i];
+                for (int j = 0; j < 6; ++j) oldp[j] = old[j];
+                double Pp[6], tHit = b.t[i];
+                int code = 0;
                 if (zz < L.segStart[gi]) {
                     do { --gi; } while (gi > 0 && zz < L.segStart[gi]);
                 } else {
-                    while (gi + 1 < L.nSeg && L.segEnd[gi] <= zz) ++gi;
+                    while (gi + 1 < L.nSeg && L.segEnd[gi] <= zz) {
+                        // corrected (M10 D5): a segment crossed completely in this step
+                        if (!P::compat) {
+                            code = geometry_hit<P>(L.geoms, gi, b, i, b.t[i], dt, 0.0, Pp, tHit);
+                            if (code != 0) break;
+                        }
+                        ++gi;
+                    }
                 }
                 b.geomIndex[i] = gi;
-                for (int j = 0; j < 6; ++j) oldp[j] = old[j];
-                double Pp[6], tHit = b.t[i];
-                const int code = geometry_hit<P>(L.geoms[gi], b, i, b.t[i], dt, Pp, tHit);
+                if (code == 0) code = geometry_hit<P>(L.geoms, gi, b, i, b.t[i], dt, 0.0, Pp, tHit);
                 if (code == 1) b.lost[i] = 1;
                 if (code != 0) sink.hit(gi, code, Pp, tHit, i);
                 if (code < 0) return;

@@ -619,7 +619,7 @@ def ini_error_mode(project):
 @rpc("run.check")
 def check():
     """The engine's own pre-run checks (lattice syntax, ini values) and the kernel choice; returns the
-    kernel the run is expected to use."""
+    kernel the run is expected to use, with ``warnings`` (:func:`kernels.input_warnings`)."""
     p = context.project().require()
     from avas.api.qt.api import project_check
     from avas.gui.services import kernels
@@ -627,13 +627,15 @@ def check():
         project_check(p.item())
     except Exception as exc:  # noqa: BLE001 - shown to the user as is
         raise UserError(str(exc)) from exc
-    return kernels.require_ready(p.input_dir)
+    # warnings that do not stop the run (shown by the page before it starts the run)
+    return dict(kernels.require_ready(p.input_dir), warnings=kernels.input_warnings(p.input_dir))
 
 
 @rpc("run.start")
 def start():
     p = context.project().require()
     engine = check()
+    engine.pop("warnings", None)
     _runner.start(p, ini_error_mode(p), engine)
     return _runner.state()
 

@@ -399,6 +399,8 @@ else:
   ```
 - 打印 `Synchron particle addition completed`、`Bunch initialisation complete`、`  `，`return 0`。不写 inData.dst，不应用束流误差，不写 spOutZ0/Z1。
 
+> **默认模式（M10 D2）**：`initpos`／`initmom` 写了时优先（x′ = initmom[0]·1e-3，γβz = (1 + initmom[2]·1e-3)·γβ0；displacedpos 的有效系数是 1e-5），否则用 displacepos／displacedpos。
+
 #### 2.4.4 DC 束（beamtype dc，或不写 twissz）
 
 第 15 步不生成纵向；第 16 步改为（i = 0..N−1，N = beam.n）：
@@ -479,6 +481,8 @@ beam.tMin      =  φ_min / (f*2π)                     // ≤ 0
     打印 `Synchronised particles have been added`、`Beam initialisation complete`。（`this+0x130 ≠ 1` 时不换算，打印 `zCode only` 或
     `Inlet particle distribution is not appropriate`；不可达。）
 14. 不设 `beam.fromDstFile`（structures.md 的说法需更正，§6）。
+
+> **默认模式（M10 D1，2026-11-16 与用户商定）**：第 9 步仍打印平均能量 W̄，但 beam.txt `kneticenergy` > 0 时同步粒子能量取 kneticenergy（打印 “Synchronous particle energy (beam.txt kneticenergy)”），与 W̄ 相差超过 1 % 时警告；≤ 0 或未写（默认 −1）时取 W̄（07-22 版此时取按权重平均的纵向动量，不跟）。单粒子模式（singleparticlemode 1）的 .dst 分支同样。`.edst` 仍取同步记录。兼容模式总取 W̄。
 
 #### 2.4.8 `.edst` 路径（扩展格式，带每粒子电荷、质量、权重）
 

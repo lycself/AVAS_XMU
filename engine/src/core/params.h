@@ -17,6 +17,7 @@ struct Params {
     int boundary = 0;
     int probe = 0;
     int lpBoundary = 0;
+    int lpPeriodic = 0;  // corrected engine: lpboundary V1 1, periodic longitudinal space-charge box (M10 D7)
     int indWeight = 0;
     int indCharge = 0;
     int spaceCharge = 1;
@@ -49,6 +50,9 @@ struct Params {
                                  kTwissUnset, kTwissUnset, kTwissUnset}};
     std::array<double, 3> displacePos{};   // m (beam.txt value in mm x 0.001)
     std::array<double, 3> displacedPos{};  // beam.txt value x 0.001
+    // corrected engine (M10 D2): initpos dx dy dz (mm) and initmom x' y' (mrad) delta (1e-3), both x 0.001
+    std::array<double, 3> initPos{}, initMom{};
+    bool hasDisplacePos = false, hasDisplacedPos = false, hasInitPos = false, hasInitMom = false;
     double restMass = 938.272029;          // MeV
     double current = -1.0;                 // mA in beam.txt, A after InitParticle
     double frequency = -1.0;               // Hz
@@ -63,6 +67,7 @@ struct Params {
     // filled by the lattice reader
     int needSynPhase = 0;
     std::vector<double> outputPlanes;
+    std::vector<std::string> outputNames;  // corrected engine: outputplane d NAME (parallel, "" = unnamed)
 };
 
 // Read input.txt / beam.txt from the input directory.  Throws EngineError with the original

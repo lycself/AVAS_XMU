@@ -128,6 +128,15 @@ private:
         } else if (k == "outputplane") {
             if (w.size() < 2) throw EngineError("keyword: outputplane, Insufficient parameters");
             p_.outputPlanes.push_back(lat_.elemZEnd.empty() ? parse_double(w[1]) : current_end() + parse_double(w[1]));
+            // corrected engine (M10 D4, as the 2026-07-22 original): outputplane d NAME writes NAME_<z>.dst
+            std::string name;
+            if (!compat_dll() && w.size() >= 3 && w[2][0] != '!') {
+                name = w[2];
+                if (name.find_first_of("/\\:*?\"<>|") != std::string::npos || name == "." || name == "..")
+                    throw EngineError("outputplane: the name \"" + name + "\" cannot be used in a file name");
+            }
+            p_.outputNames.resize(p_.outputPlanes.size() - 1);
+            p_.outputNames.push_back(name);
         } else if (k == "superpose") {
             superpose_block(w);
         } else if (k == "multipole") {
@@ -484,7 +493,21 @@ private:
         w[7] = "1";
     }
 
+    // corrected engine (M10 D6, as the 2026-07-22 original): an RF field row (type 1) with |Ke| < 1e-6 is a
+    // drift -- no cavity number, no field map, no phase scan.  The row must be complete (10 words).
+    static bool rf_off(const std::vector<std::string>& w) {
+        return !compat_dll() && w.size() >= 10 && w[0] == "field" && parse_int(w[4]) == 1 &&
+               std::fabs(parse_double(w[7])) < 1e-6;
+    }
+
     void add_field(std::vector<std::string> w) {
+        if (rf_off(w)) {
+            say("lattice.txt: RF field " + w[9] + " with Ke = 0 is treated as a drift");
+            Element& e = push_element(w);
+            e.kind = ElemKind::Drift;
+            set_basic(e, {"drift", w[1], w[2], "0"});
+            return;
+        }
         if (w.size() < 10) {
             if (!compat_dll()) throw EngineError("Error! parameter not enough in element : field");
             if (w.size() < 6 || parse_double(w[5]) == 0.0) {  // undefined behaviour, then exit(1)
@@ -637,6 +660,10 @@ private:
                 w = block_line();
             }
             if (w[0] == "multipole") multipole_to_field(w);
+            if (rf_off(w)) {
+                say("lattice.txt: RF field " + w[9] + " with Ke = 0 in a superpose block is treated as a drift");
+                w = {"drift", w[1], w[2], "0"};
+            }
             if (w.size() < 3) throw EngineError("Error! parameter not enough in element : " + w[0]);
             const double r = parse_double_lenient(w[2]);
             if (r < rmin) rmin = parse_double(w[2]);
@@ -760,7 +787,9 @@ private:
                 for (double z = r.first; z <= r.span + r.first; z += r.spacing) planes.push_back(z);
             }
             if (planes.empty() || planes.back() != L) planes.push_back(L);
+            p_.outputNames.clear();  // automaticoutput replaces the output planes (and their names)
         }
+        p_.outputNames.resize(planes.size());
         for (size_t i = 0; i + 1 < planes.size(); ++i)
             if (planes[i + 1] < planes[i]) throw EngineError("Output plane anomaly, check automaticoutput");
         if (lat_.spOut.empty()) {
@@ -789,16 +818,29 @@ void set_geometry(Geometry& g, int index, double zStart, const std::vector<std::
         g.name = w[1];
         g.zStart = zStart;
     }
-    if (g.shape != 1 && g.shape != 2) {
+    const bool known = g.shape == 1 || g.shape == 2 || (!compat_dll() && (g.shape == 3 || g.shape == 4));
+    if (!known) {
         say("Unknown geometric shapes have been set");
         compat_exit(1);
     }
     size_t k = 2;
     for (; k < w.size() && w[k] != "RLP"; ++k) g.par.push_back(parse_double(w[k]));
+    if ((g.shape == 3 || g.shape == 4) && (g.par.size() < 3 || !(g.par[0] >= 0.0) || !(g.par[1] > 0.0) || !(g.par[2] > 0.0))) {
+        throw EngineError(std::string("boundary.txt: shape ") + (g.shape == 3 ? "3 (rectangular pipe)" : "4 (elliptical pipe)") +
+                          " needs a length and two positive half axes: " + w[0] + " name L a b [RLP ...]");
+    }
     if (k >= w.size()) return;
     // AVAS.dll writes past the 6 placement values when more are given; the extra ones are ignored
     for (size_t j = 0; j < 6 && k + 1 + j < w.size(); ++j) g.place[j] = parse_double(w[k + 1 + j]);
     for (int j = 3; j < 6; ++j) g.place[j] = g.place[j] * 0.017453292519943295;
+}
+
+// Superpose placement {z0 (m), dx, dy (mm), thz, thx, thy (deg)} added to the placement of a sub-shape.
+void place_sub(Geometry& g, const std::array<double, 6>& sp) {
+    g.place[0] += sp[0];
+    g.place[1] += sp[1] * 0.001;
+    g.place[2] += sp[2] * 0.001;
+    for (int j = 3; j < 6; ++j) g.place[j] += sp[j] * 0.017453292519943295;
 }
 
 // Boundary::SetElement: the segment length is word 2.
@@ -841,21 +883,32 @@ void read_boundary(Lattice& lat) {
         skip = false;
         const std::string& k = w[0];
         if (k == "start") continue;
-        if (k == "1" || k == "2") {
+        if (k == "1" || k == "2" || (!compat && (k == "3" || k == "4"))) {
             add_geometry(b, w);
         } else if (k == "superpose") {
-            double sp[6] = {0, 0, 0, 0, 0, 0};
-            if (w.size() < 3) {
-                sp[0] = w.size() > 1 ? parse_double(w[1]) : 0.0;
-            } else if (w.size() < 7) {
-                throw EngineError("Abnormal number of parameters for keyword superpose in boundary.txt");
-            } else {
-                for (int j = 0; j < 6; ++j) sp[j] = parse_double(w[1 + j]);
+            auto placement = [](const std::vector<std::string>& s) {
+                std::array<double, 6> sp{};
+                if (s.size() < 3) {
+                    sp[0] = s.size() > 1 ? parse_double(s[1]) : 0.0;
+                } else if (s.size() < 7) {
+                    throw EngineError("Abnormal number of parameters for keyword superpose in boundary.txt");
+                } else {
+                    for (int j = 0; j < 6; ++j) sp[j] = parse_double(s[1 + j]);
+                }
+                return sp;
+            };
+            // superpose / sub-shape pairs up to the line that ends the block
+            std::vector<std::array<double, 6>> sps;
+            std::vector<std::vector<std::string>> parts;
+            std::vector<std::string> endw = w;
+            while (endw[0] == "superpose") {
+                sps.push_back(placement(endw));
+                std::vector<std::string> sub;
+                if (!next(sub)) throw EngineError("A superpose block is not closed before the end of boundary.txt");
+                parts.push_back(sub);
+                if (!next(endw)) throw EngineError("A superpose block is not closed before the end of boundary.txt");
+                if (compat) break;
             }
-            std::vector<std::string> sub;
-            if (!next(sub)) throw EngineError("A superpose block is not closed before the end of boundary.txt");
-            std::vector<std::string> endw;
-            if (!next(endw)) throw EngineError("A superpose block is not closed before the end of boundary.txt");
             const bool out = endw[0] == "superposeout";
             if (compat) {
                 // AVAS.dll does not pass the composed word list to SetElement (spec 10 2.9.2); measured
@@ -863,14 +916,46 @@ void read_boundary(Lattice& lat) {
                 // the stoi exception before any output (EX_A47_boundary_sp_out, LB5_boundary_sp_shape_end)
                 compat_abort("stoi");
             } else {
-                // corrected: the sub-geometry, displaced by the superpose placement
-                add_geometry(b, sub);
-                Geometry& g = b.geoms.back();
-                g.place[0] += sp[0];
-                g.place[1] += sp[1] * 0.001;
-                g.place[2] += sp[2] * 0.001;
-                for (int j = 3; j < 6; ++j) g.place[j] += sp[j] * 0.017453292519943295;
-                if (!out) {
+                for (const auto& sub : parts) {
+                    const std::string& s0 = sub[0];
+                    if (s0 != "1" && s0 != "2" && s0 != "3" && s0 != "4")
+                        throw EngineError("Undefined shape exists in a superpose block, check boundary.txt");
+                }
+                if (parts.size() == 1) {
+                    // one sub-shape: the sub-geometry, displaced by the superpose placement
+                    add_geometry(b, parts[0]);
+                    place_sub(b.geoms.back(), sps[0]);
+                } else {
+                    // M10 D5 (2026-07-22 original): one composite segment; every sub-shape is a wall in its
+                    // own z range (the aperture is the intersection).  Block length and sub-shape positions
+                    // as in a lattice superpose block: length max(z0 + L) - min(z0), sub-shape i at z0_i.
+                    double z0min = 1e300, zEndMax = -1e300;
+                    const double zStart = b.segStart.empty() ? 0.0 : b.segStart.back() + b.segLen.back();
+                    Geometry comp;
+                    comp.index = static_cast<int>(b.geoms.size());
+                    comp.shape = 0;
+                    comp.name = "superpose";
+                    comp.zStart = zStart;
+                    comp.sub0 = static_cast<int>(b.subs.size());
+                    for (size_t q = 0; q < parts.size(); ++q) {
+                        Geometry g;
+                        set_geometry(g, comp.index, zStart, parts[q]);
+                        if (g.par.empty()) throw EngineError("boundary.txt: a sub-shape of a superpose block has no length");
+                        place_sub(g, sps[q]);
+                        z0min = std::min(z0min, sps[q][0]);
+                        zEndMax = std::max(zEndMax, sps[q][0] + g.par[0]);
+                        b.subs.push_back(g);
+                    }
+                    comp.nsub = static_cast<int>(parts.size());
+                    comp.par = {zEndMax - z0min};
+                    b.segStart.push_back(zStart);
+                    b.segLen.push_back(zEndMax - z0min);
+                    b.segEnd.push_back(zStart + (zEndMax - z0min));
+                    b.geoms.push_back(comp);
+                }
+                // the line that ended the block: superposeend / superposeout are consumed, any other line
+                // is read again
+                if (!out && endw[0] != "superposeend") {
                     w = endw;
                     pending = true;
                 }

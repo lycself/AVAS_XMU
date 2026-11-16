@@ -155,18 +155,24 @@ void LatHost::build(const Lattice& lat, const std::vector<char>& errUse, const s
     }
     cavTime = lat.fm.cavTime;
     cavPhase = lat.fm.cavPhase;
-    for (const Geometry& g : lat.bnd.geoms) {
+    // one geometry per segment, then the sub-shapes of the composite geometries (shape 0)
+    auto geom_v = [](const Geometry& g, int sub0) {
         kern::GeomV v{};
         v.shape = g.shape;
         v.npar = static_cast<int>(g.par.size());
+        v.sub0 = g.shape == 0 ? sub0 + g.sub0 : 0;
+        v.nsub = g.shape == 0 ? g.nsub : 0;
         v.zStart = g.zStart;
         for (size_t j = 0; j < 6 && j < g.par.size(); ++j) v.par[j] = g.par[j];
         for (int j = 0; j < 6; ++j) v.place[j] = g.place[j];
         dll_sincos(g.place[3], v.s3, v.c3);
         dll_sincos(g.place[5], v.s5, v.c5);
         dll_sincos(g.place[4], v.s4, v.c4);
-        geoms.push_back(v);
-    }
+        return v;
+    };
+    const int nGeom = static_cast<int>(lat.bnd.geoms.size());
+    for (const Geometry& g : lat.bnd.geoms) geoms.push_back(geom_v(g, nGeom));
+    for (const Geometry& g : lat.bnd.subs) geoms.push_back(geom_v(g, nGeom));
     segStart = lat.bnd.segStart;
     segEnd = lat.bnd.segEnd;
     bndZ.clear();

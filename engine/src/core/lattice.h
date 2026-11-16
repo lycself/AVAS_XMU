@@ -79,18 +79,22 @@ struct ErrorSample {
 
 // boundary.txt (spec 10 2.9, spec 40 6.12): pipe geometries along z.
 struct Geometry {
-    int shape = 0;  // 1 straight pipe, 2 bent pipe
+    int shape = 0;  // 1 straight pipe, 2 bent pipe; corrected engine (M10 D5): 3 rectangular pipe (par[1], par[2]
+                    // half width / height), 4 elliptical pipe (semi-axes par[1], par[2]), 0 composite of the
+                    // sub-shapes Boundary::subs[sub0, sub0 + nsub) (superpose block, every sub-shape is a wall)
     int index = 0;
     std::string name;
     double zStart = 0.0;
     std::vector<double> par;            // par[0] length, par[1] radius, bent: par[2] rho, par[3] angle (deg),
                                         // par[4] plane (0 x-z, 1 y-z), par[5] direction
     std::array<double, 6> place{};      // z0, x0, y0 (m), thz, thx, thy (rad) after "RLP"
+    int sub0 = 0, nsub = 0;             // composite (shape 0)
 };
 struct Boundary {
     std::vector<Geometry> geoms;
     std::vector<double> segStart, segLen, segEnd;
     std::vector<std::array<double, 3>> rows;  // per superposeout section: {z offset, first, last geometry}
+    std::vector<Geometry> subs;               // sub-shapes of the composite geometries
 };
 
 struct Lattice {
