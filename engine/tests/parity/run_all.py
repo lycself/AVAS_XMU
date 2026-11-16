@@ -554,6 +554,29 @@ def libpic_keyword_check(work):
     return fails
 
 
+def superpose_rf_check(work):
+    """Default mode: an RF cavity at the start of a superpose block keeps its field (spec 10 2.6.5.2 defect 1;
+    AVAS.dll 2026-04-02 stops with "Scan phase error" or gives phi_s = NaN, and the 2026-07-22 original runs
+    without acceleration, M10-notes 3.5).  V3 = 0 must find phi_s = -33 deg, and the exit gamma*beta_z must be the
+    same with a static magnet (SP2) or a drift (SP3) superposed, and above the entrance value."""
+    print("\nRF cavity at the start of a superpose block, default mode:")
+    fails, exits = 0, []
+    for case in ("SP2_rf_static_dst", "SP2_rf_static_single", "SP3_rf_drift_dst", "SP3_rf_drift_single"):
+        rows = read_rows(os.path.join(work, case, "summary", "synData.txt"))
+        rf = [r for r in rows if len(r) >= 8 and r[1] == "field" and r[6] != "invalid"]
+        phis = num(rf[0][6]) if rf else math.nan
+        g0, g1 = (num(rows[0][5]), num(rows[-1][5])) if rows else (math.nan, math.nan)
+        exits.append(g1)
+        ok = abs(phis + 33.0) < 1e-6 and g1 > g0 * 1.05
+        fails += 0 if ok else 1
+        print(f"{case:<28} {'ok  ' if ok else 'FAIL'} phi_s {phis:.9g} deg, gamma*beta_z {g0:.9g} -> {g1:.12g}")
+    spread = (max(exits) - min(exits)) / min(exits) if all(math.isfinite(e) for e in exits) else math.inf
+    ok = spread < 1e-12
+    fails += 0 if ok else 1
+    print(f"{'same exit energy':<28} {'ok  ' if ok else 'FAIL'} relative spread {spread:.2e}")
+    return fails
+
+
 def m10_check(work):
     """Default mode, M10 (features of the 2026-07-22 original): reference energy of a .dst file (D1), initpos /
     initmom (D2), SingleParticlePlane.txt (D3), named and close output planes (D4), boundary shapes 3 / 4 / 0
@@ -699,6 +722,7 @@ def main():
     bad += secondary_steerer_check(work)
     bad += libpic_keyword_check(work)
     bad += m10_check(os.path.join(work, "none"))
+    bad += superpose_rf_check(os.path.join(work, "none"))
     bad += thread_check(lib, work, ["SC1_spicnic_S1", "SC2_fft_S1", "SC5_spicnic_Z1", "PN1_picnic_S1", "PN2_picnic_Z1", "D_GS_GS",
                                     "ER3_quad_dyn_r2_step31_dst", "ER16_quad_dyn_spicnic_dst",
                                     "LP2_lpboundary_fft_dst", "LB2_boundary_mixed_dst", "M10_D4_close_planes",

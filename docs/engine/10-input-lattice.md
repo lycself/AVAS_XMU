@@ -836,7 +836,7 @@ geoms(+0x00).push(g)
 | A-37 | superpose 参数 3–6 个报错 | lattice | ErrorLog `Abnormal number of parameters for keyword superpose` |
 | A-38 | superposeout 少于 7 词报错；mode 1/2 判定 | lattice | ErrorLog 比较；θx=θy=0 与 θx≠0 两种算例输出坐标变换差异（D） |
 | A-39 | 块中两个 RF 腔、RF + superposeout 报错 | lattice | 两条 ErrorLog 正文 |
-| A-40 | 情形 A（腔在块首）的 RF 片丢失全部子场（缺陷） | lattice | 见第 5 节实验 1；新内核是否“修复”需决策，默认按原内核行为 |
+| A-40 | 情形 A（腔在块首）的 RF 片丢失全部子场（缺陷） | lattice | 见第 5 节实验 1；新内核默认模式写出正确的 20 词片头（M2），腔正常加速（`run_all.py` 的 `superpose_rf_check`），兼容模式同原内核；2026-07-22 版仍丢场（M10-notes 3.5） |
 | A-41 | superpose 子 drift 被跳过 | lattice | 块内放 R 很小的 drift，原内核不在该处丢粒子 |
 | A-42 | multipole 生成 `.bsx/.bsy/.bsz`（6 位有效数字、x 最快）并按 Kb=G 叠乘 | lattice / 场图 | 比较生成文件逐字节；G=1 与 G=2 单粒子偏转比为 4（见实验 3） |
 | A-43 | multipole 极数非 3/4/5 报错 | lattice | ErrorLog `Abnormal setting of the number of magnetic poles` |
@@ -966,5 +966,5 @@ geoms(+0x00).push(g)
 
 ## 实测更正（2026-11-07）
 
-- superpose 含 RF 腔：腔在块首**和块尾**（与一段同长 drift 叠加）两种写法，V3 = 0 时 synData 的 φs、φRF 都是 NaN，束流不加速。V3 = 2 时 AVAS.dll 不扫相位、按绝对相位正常加速（2026-11-15，SP8／SP9）：DLL 的 RF 片头照抄腔的 V3，.so 写 0。文中"情形 B（腔在块尾）正常"的推断与实测不符，需重新读 2.6.5 节的合成规则。
+- superpose 含 RF 腔：腔在块首**和块尾**（与一段同长 drift 叠加）两种写法，V3 = 0 时 synData 的 φs、φRF 都是 NaN，束流不加速。V3 = 2 时 AVAS.dll 不扫相位、按绝对相位正常加速（2026-11-15，SP8／SP9）：DLL 的 RF 片头照抄腔的 V3，.so 写 0。文中"情形 B（腔在块尾）正常"的推断与实测不符，需重新读 2.6.5 节的合成规则。**2026-11-16 澄清**：与“同长 drift”叠加时腔和 drift 都从块首开始（z0_k = 0），按 2.6.5.2 属于情形 A，不是情形 B；腔真正位于块尾或块中间（drift 0.3／0.4 m，腔从 0.09 m 开始，V3 = 0）时，兼容模式与默认模式都正常扫相位并加速（φs −32.93°／−33°，出口 1.86641／1.86655 MeV），推断成立。
 - `scanphase` 1/2 与 scanData.txt 确认无效（DataSet.txt 与不写时逐字节相同）；`secondarybeam 1` 时内核不读 SeParticle.txt；`main_agent(2)` 确认会完整重跑一次。详见 [90-experiments.md](90-experiments.md)。
