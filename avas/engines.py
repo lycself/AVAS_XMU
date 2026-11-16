@@ -43,7 +43,7 @@ INI_SECTION = "engine"
 ENV = {"kernel": "AVAS_ENGINE", "device": "AVAS_ENGINE_DEVICE", "precision": "AVAS_ENGINE_PRECISION",
        "gpus": "AVAS_ENGINE_GPUS", "threads": "AVAS_ENGINE_THREADS", "compat": "AVAS_ENGINE_COMPAT"}
 LIB_ENV = "AVAS_ENGINE_LIB"
-DEFAULTS = {"kernel": "original", "device": "auto", "precision": "auto", "gpus": "all", "threads": 0, "compat": "none"}
+DEFAULTS = {"kernel": "new", "device": "auto", "precision": "auto", "gpus": "all", "threads": 0, "compat": "none"}
 NEW_LIB_NAMES = {"Windows": "avas_engine.dll", "Darwin": "libavas_engine.dylib"}
 BUILD_HINT = ("build it from the source tree (cmake -S engine -B engine/build && cmake --build engine/build; "
               "on macOS with Apple's clang for Metal) or set AVAS_ENGINE_LIB to the library file")
