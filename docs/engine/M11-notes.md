@@ -68,8 +68,7 @@ cases.json 新增 6 个算例：
 
 ## 6. 留待处理
 
-- 上表三个算例的 Windows AVAS.dll 参考（`run_engine.py --reference` 在 XPS 上生成后放入 `refs/`）。
-- `M11_scc_at_start_dst` 的兼容模式按新内核对 AVAS.dll 时间步循环的复现报错，参考生成后核实。
+- 无。三个算例的 AVAS.dll 参考已生成并核实（见下节）；`M11_scc_at_start_dst` 核实后改正了兼容模式（1.1）。预编译库需由 CI 按本次源码重建。
 
 ## Windows 复核（XPS，MSVC + CUDA 12.4，2026-11-17）
 
