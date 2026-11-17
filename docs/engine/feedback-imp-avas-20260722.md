@@ -13,9 +13,9 @@
 
 ## 一、崩溃或结果错误
 
-### 1. boundary.txt 的 superpose 块几乎总是使程序崩溃（实测）
+### 1. boundary.txt 的 superpose 块在常见写法下使程序崩溃（实测）
 
-现象：boundary.txt 只要有 superpose 块，程序就在 “Initialising boundary...” 之后抛出 C++ 异常（Windows 异常码 0xe06d7363），进程直接结束。单个子形状、多个子形状、`superpose` 写 1 个值还是 6 个值都一样。
+现象：boundary.txt 有 superpose 块时，程序在 “Initialising boundary...” 之后抛出 C++ 异常（Windows 异常码 0xe06d7363），进程直接结束。
 
 只有同时满足下面两条时才能运行：
 
@@ -50,7 +50,7 @@ superposeout 0 0 0 0 0 0
 
 ### 2. superpose 块首的射频腔没有场，不加速也不报错（实测）
 
-现象：射频腔放在 superpose 块的第一个、V3 = 0 时，synData.txt 中 φs 和 φRF 都是 NaN，出口能量等于入口能量，没有任何报错。2026-04-02 版在这种输入上报 “Scan phase error”；04-22 以后的各版本时而报错、时而照常运行（05-26 版又报错）。
+现象：射频腔放在 superpose 块的第一个、V3 = 0 时，synData.txt 中 φs 和 φRF 都是 NaN，出口能量等于入口能量，没有任何报错。2026-04-02 版在这种输入上报 “Scan phase error”；04-22、04-28、05-27 版不报错地运行，05-26 版又报错。
 
 复现（读入粒子文件或生成分布均可）：
 
@@ -114,7 +114,7 @@ boundary.txt 的读取没有经过 NormalizeLineEndings，`start\r` 不等于 `s
 
 单粒子偏移的关键字改成了 `initpos`、`initmom`，同时去掉了 ×0.01（`initmom` 的 x′ 单位是 mrad，δ 单位是 1e-3）。旧名字被当作未知关键字忽略，只有一般的未知关键字提示，粒子留在轴上。
 
-用旧名字的项目（包括按旧手册写的项目和其他程序生成的 beam.txt）结果会改变，用户不容易察觉。例如一个经过 HWR 腔和螺线管的离轴单粒子算例，07-22 版的 SingleParticle.txt 第一行 x = y = 0（偏移没有生效），末端能量 1.8674 MeV；偏移生效时末端为 1.8835 MeV。
+用旧名字的项目（包括按旧手册写的项目和其他程序生成的 beam.txt）结果会改变，用户不容易察觉。例如一个经过 HWR 腔和螺线管的单粒子算例（`displacepos 1 0 0`、`displacedpos 300 200 0`）：2026-04-02 版粒子从 x = 1 mm、x′ = 3 mrad、y′ = 2 mrad 出发，末端能量 1.8835 MeV；07-22 版的 SingleParticle.txt 第一行 x = y = 0，偏移没有生效，粒子沿轴线运动。
 
 建议：继续接受旧名字和旧单位；两套都写时以新名字为准，并给出警告。
 
