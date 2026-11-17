@@ -1,7 +1,13 @@
 """Beam page: ``InputFile/beam.txt``, and the secondary beam (``secondarybeam`` in input.txt and its particle file).
 
 Saving rewrites only the keywords the page manages, in place; every other
-line (``randomseed``, ``initpos``, comments ...) is kept as it was.
+line (``randomseed``, comments ...) is kept as it was.
+
+Single-particle mode (``particlenumber 1``): the start offset is shown in the units of ``initpos`` / ``initmom``
+(mm; mrad and 1e-3).  It is read from those keywords when they are present (the new kernel's default mode prefers
+them, M10 D2), else from ``displacepos`` / ``displacedpos``; it is always written as ``displacepos`` /
+``displacedpos``, which every shipped kernel reads (the original kernel 2026-04-02 and the mode "Reproduce AVAS.dll"
+know only these), and ``initpos`` / ``initmom`` lines are removed so that no kernel sees two different offsets.
 """
 import logging
 import os
@@ -23,6 +29,13 @@ DISTRIBUTIONS = ["GS", "WB", "PB", "KV"]
 MANAGED = ("readparticledistribution", "numofcharge", "particlerestmass", "current", "particlenumber",
            "frequency", "kneticenergy", "use_dst", "beamtype", "twissx", "twissy", "twissz", "distribution")
 TWISS_KEYS = [f"{q}_{pl}" for pl in "xyz" for q in ("alpha", "beta", "emit")]
+# single-particle offset: form keys (units of initpos / initmom) and the four keywords the page manages
+OFFSET_POS = ("offset_x", "offset_y", "offset_z")          # mm
+OFFSET_MOM = ("offset_xp", "offset_yp", "offset_dp")       # mrad, mrad, 1e-3
+OFFSET_LINES = ("displacepos", "displacedpos", "initpos", "initmom")
+# displacedpos value = initmom value x 100: the kernels read x' = displacedpos x 1e-5 rad (300 = 3 mrad) and
+# delta = displacedpos x 1e-5; initmom gives x' in mrad and delta in 1e-3
+DISPLACEDPOS_PER_INITMOM = 100.0
 
 
 def _s(v):
@@ -32,6 +45,40 @@ def _s(v):
     if isinstance(v, float) and v.is_integer() and abs(v) < 1e15:
         return str(int(v))
     return str(v)
+
+
+def _three(value):
+    """Three floats from a beam.txt keyword value (missing ones 0), or None when the keyword is absent."""
+    if value is None:
+        return None
+    vals = value if isinstance(value, list) else [value]
+    out = []
+    for i in range(3):
+        try:
+            out.append(float(vals[i]) if i < len(vals) and vals[i] is not None else 0.0)
+        except (TypeError, ValueError):
+            out.append(0.0)
+    return out
+
+
+def _short(v):
+    """A number for the form without float noise (3.0000000000000004 -> 3)."""
+    return _s(float(f"{v:.12g}"))
+
+
+def _offset_form(params):
+    pos = _three(params.get("initpos"))
+    if pos is None:
+        pos = _three(params.get("displacepos"))          # the same unit (mm)
+    mom = _three(params.get("initmom"))
+    if mom is None:
+        old = _three(params.get("displacedpos"))
+        mom = None if old is None else [v / DISPLACEDPOS_PER_INITMOM for v in old]
+    out = {}
+    for keys, vals in ((OFFSET_POS, pos), (OFFSET_MOM, mom)):
+        for k, v in zip(keys, vals or [None] * 3):
+            out[k] = "" if v is None else _short(v)
+    return out
 
 
 def _form(params):
@@ -52,6 +99,7 @@ def _form(params):
     }
     for k in TWISS_KEYS:
         form[k] = _s(params.get(k))
+    form.update(_offset_form(params))
     return form
 
 
@@ -157,6 +205,32 @@ def _format_lines(form):
             out[key] = None                      # the keyword is removed
         else:
             out[key] = f"{key} {text(v)}"
+    out.update(_offset_lines(form))
+    return out
+
+
+def _offset_lines(form):
+    """The single-particle offset lines (``{keyword: line | None}``); empty for a form without the offset fields
+    (the lines are then left as they are).  All zero or empty removes the four keywords."""
+    if not any(k in form for k in OFFSET_POS + OFFSET_MOM):
+        return {}
+    def value(key):
+        text = str(form.get(key, "") or "").strip()
+        if text == "":
+            return 0.0
+        try:
+            return float(text)
+        except ValueError as exc:
+            raise UserError(f"beam.txt: {key} = '{text}' is not a valid number") from exc
+    pos = [value(k) for k in OFFSET_POS]
+    mom = [value(k) * DISPLACEDPOS_PER_INITMOM for k in OFFSET_MOM]
+    out = dict.fromkeys(OFFSET_LINES)
+    def words(vals):
+        return " ".join(f"{v:.12g}" for v in vals)
+    if any(pos):
+        out["displacepos"] = f"displacepos {words(pos)}"
+    if any(mom):
+        out["displacedpos"] = f"displacedpos {words(mom)}"
     return out
 
 
@@ -215,8 +289,8 @@ def save(form, secondary=None, restoredFrom=None):
             result.append(new[key] + comment)
         else:
             result.append(line)
-    for key in MANAGED:
-        if key not in written and new[key] is not None:
+    for key in MANAGED + OFFSET_LINES:
+        if key in new and key not in written and new[key] is not None:
             result.append(new[key])
     write_text(path, "\n".join(result), source="beam", restored_from=restoredFrom or None)
     log.info("saved %s", os.path.basename(path))

@@ -131,3 +131,22 @@ export function AcceptanceFooter({ fig }: { fig: Figure | null }) {
     </div>
   );
 }
+
+/** The table of a lines figure (SingleParticlePlane.txt: one row per output plane). */
+export function TableFooter({ fig }: { fig: Figure | null }) {
+  if (!fig || fig.kind !== "lines" || !fig.table) return null;
+  return (
+    <div className="plot-table">
+      <table className="mini-table">
+        <thead>
+          <tr>{fig.table.columns.map((c) => <th key={c}>{c}</th>)}</tr>
+        </thead>
+        <tbody>
+          {fig.table.rows.map((row, i) => (
+            <tr key={i}>{row.map((v, k) => <td key={k}>{v == null ? "–" : fmtG(v, 7)}</td>)}</tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}

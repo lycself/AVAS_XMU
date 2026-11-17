@@ -8,7 +8,7 @@ import { reportError, toast } from "../components/overlays";
 import { Button, Checkbox, cx, Empty, Icon, IconButton, Radio, Select, Spinner, Tabs, TextInput } from "../components/ui";
 import { runStatusLabel } from "../format";
 import { useT } from "../i18n";
-import { AcceptanceFooter, PlotTab } from "../results/PlotTab";
+import { AcceptanceFooter, PlotTab, TableFooter } from "../results/PlotTab";
 import { PhaseViewer } from "../results/PhaseViewer";
 import { CompareTab, type CompareSource } from "../results/CompareTab";
 import { useApp } from "../store/app";
@@ -28,6 +28,8 @@ type Overview = {
   cavities: string[];
   /** secondary-particle run (secondarybeam 1 in its input snapshot): no envelope */
   secondary?: boolean;
+  /** SingleParticlePlane.txt exists (new kernel default mode, particlenumber 1) */
+  singlePlane?: boolean;
 };
 
 type ItemKey =
@@ -39,6 +41,7 @@ type ItemKey =
   | "phase_advance"
   | "syn_phase"
   | "cavity_voltage"
+  | "single_plane"
   | "dst_viewer"
   | "plt_viewer"
   | "err_emit_loss"
@@ -59,6 +62,7 @@ const TREE: { group: string; items: { key: ItemKey; label: string; icon: string 
       { key: "phase_advance", label: "Phase advance", icon: "graph-line" },
       { key: "syn_phase", label: "Synchronous phase", icon: "graph-scatter" },
       { key: "cavity_voltage", label: "Cavity voltage", icon: "graph" },
+      { key: "single_plane", label: "Single particle at output planes", icon: "target" },
       { key: "compare", label: "Compare runs", icon: "diff" },
     ],
   },
@@ -143,6 +147,7 @@ function TabContent({ tab, ov, refreshKey }: { tab: Tab; ov: Overview; refreshKe
   const [plane, setPlane] = useState("x");
   const [dkind, setDkind] = useState("density");
   const [accKind, setAccKind] = useState(0);
+  const [spQuantity, setSpQuantity] = useState("position");
 
   switch (tab.key) {
     case "envelope":
@@ -316,6 +321,26 @@ function TabContent({ tab, ov, refreshKey }: { tab: Tab; ov: Overview; refreshKe
               </Opt>
             </>
           }
+        />
+      );
+    case "single_plane":
+      return (
+        <PlotTab
+          plot="single_plane"
+          params={{ quantity: spQuantity }}
+          outputDir={out}
+          title="single_particle"
+          refreshKey={refreshKey}
+          options={
+            <Opt label={t("Quantity")}>
+              <span className="radio-row">
+                {[["position", t("Position")], ["angle", t("Angle")], ["energy", t("Energy")]].map(([v, l]) => (
+                  <Radio key={v} checked={spQuantity === v} onChange={() => setSpQuantity(v)} label={l} />
+                ))}
+              </span>
+            </Opt>
+          }
+          footer={(fig) => <TableFooter fig={fig} />}
         />
       );
     case "acceptance":
@@ -755,7 +780,7 @@ export default function ResultsPage() {
           {TREE.map((g) => (
             <div key={g.group}>
               <div className="files-group">{tt(g.group)}</div>
-              {g.items.map((it) => (
+              {g.items.filter((it) => it.key !== "single_plane" || ov?.singlePlane).map((it) => (
                 <div
                   key={it.key}
                   className={cx("files-item", tabs.find((t) => t.id === active)?.key === it.key && "active")}

@@ -22,12 +22,12 @@ log = logging.getLogger("avas.gui")
 # --------------------------------------------------------------------------- schema
 def _param(p):
     return {"key": p.key, "label": list(p.label), "unit": p.unit, "kind": p.kind, "doc": list(p.doc),
-            "choices": [[str(v), list(text)] for v, text in p.choices]}
+            "choices": [[str(v), list(text)] for v, text in p.choices], "newOnly": p.new_only}
 
 
 def _keyword(k):
     return {"key": k.key, "title": list(k.title), "category": k.category, "doc": list(k.doc),
-            "minParams": k.min_params, "params": [_param(p) for p in k.params]}
+            "minParams": k.min_params, "params": [_param(p) for p in k.params], "newOnly": k.new_only}
 
 
 _SCHEMA = None

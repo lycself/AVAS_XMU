@@ -194,9 +194,16 @@ def _run(args, input_dir):
                            "run (AVAS.dll 2026-04-02 stops with an exception while it reads boundary.txt); use the new "
                            "kernel's default mode (--engine new --compat none, or kernel = new and compat = none in "
                            "ini.ini [engine]) or remove the block")
+        shapes = engines.boundary_new_shapes(input_dir)
+        if shapes:
+            raise CliError(engines.BOUNDARY_SHAPE_ERROR.format(lines=", ".join(str(n) for n in shapes))
+                           .replace("Choose the new kernel in its default mode in Simulation settings → Computing kernel.",
+                                    "Use the new kernel's default mode (--engine new --compat none)."))
         warning = engines.rf_superpose_warning(engines.rf_at_superpose_start(input_dir))
         if warning:
             print(f"[avas] warning: {warning[0]}")
+        for note in engines.new_only_inputs(input_dir):
+            print(f"[avas] warning: {note[0]}")
     if choice.is_new:
         # load the library and check a required device before anything is written
         from avas.core.MultiParticleEngine import MultiParticleEngine

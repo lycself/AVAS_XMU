@@ -2,7 +2,8 @@
 import { seriesColor } from "../components/Plot";
 
 export type Trace = { x: ArrayLike<number>; y: ArrayLike<number>; color?: string | null; name?: string | null; markers?: boolean; legend?: boolean; y2?: boolean; dash?: boolean };
-export type LinesFig = { kind: "lines"; traces: Trace[]; xlabel: string; ylabel: string; ylabel2?: string; xlim?: number[] | null; ylim?: number[] | null; legend?: boolean; xdtick?: number; yPlain?: boolean };
+/** table: the numbers behind the curves, shown under the plot (SingleParticlePlane.txt) */
+export type LinesFig = { kind: "lines"; traces: Trace[]; xlabel: string; ylabel: string; ylabel2?: string; xlim?: number[] | null; ylim?: number[] | null; legend?: boolean; xdtick?: number; yPlain?: boolean; table?: { columns: string[]; rows: (number | null)[][] } };
 export type BarFig = { kind: "bar"; traces: Trace[]; xlabel: string; ylabel: string };
 export type DensityFig = { kind: "density"; x: ArrayLike<number>; y: ArrayLike<number>; z: Float32Array; rows: number; cols: number; xlabel: string; ylabel: string; colorscale: [number, string][] };
 export type AcceptanceFig = {

@@ -323,9 +323,94 @@ def _acceptance(p, input_dir, out, kind=0):
     return obj, fig
 
 
+SINGLE_PLANE_FILE = "SingleParticlePlane.txt"
+
+
+def read_single_plane(path):
+    """SingleParticlePlane.txt (M10 D3, new kernel default mode, ``particlenumber 1``): one row per output plane,
+    ``z W x γβx y γβy t`` (m, MeV, m, -, m, -, s).  Returns an (n, 7) array; lines that are not seven numbers are
+    skipped."""
+    rows = []
+    with open(path, encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            parts = line.split()
+            if len(parts) < 7:
+                continue
+            try:
+                rows.append([float(v) for v in parts[:7]])
+            except ValueError:
+                continue
+    return np.asarray(rows, dtype=float).reshape(-1, 7)
+
+
+class _SinglePlanePlot:
+    """matplotlib drawing of :func:`_single_plane` for results.export."""
+
+    def __init__(self, z, series, ylabel):
+        self.z, self.series, self.ylabel = z, series, ylabel
+
+    def run(self, _index, fig):
+        ax = fig.add_subplot(111)
+        for name, y, color in self.series:
+            ax.plot(self.z, y, marker="o", markersize=4, color=color, label=name)
+        ax.set_xlabel("z (m)")
+        ax.set_ylabel(self.ylabel)
+        if len(self.series) > 1:
+            ax.legend()
+
+
+def _single_plane(p, input_dir, out, quantity="position"):
+    path = os.path.join(out, SINGLE_PLANE_FILE)
+    if not os.path.isfile(path):
+        raise UserError("No SingleParticlePlane.txt in this folder: the new kernel's default mode writes it for a single-particle run (particlenumber 1).")  # noqa: E501
+    d = read_single_plane(path)
+    if not len(d):
+        raise UserError("SingleParticlePlane.txt has no rows: the particle reached no output plane.")
+    z, w, x, ux, y, uy, t = d.T
+    rest = _rest_mass(out, input_dir)
+    if rest:
+        g = 1.0 + w / rest
+        uz2 = g * g - 1.0 - ux * ux - uy * uy
+        uz = np.sqrt(np.where(uz2 > 0, uz2, np.nan))
+        xp, yp = 1000.0 * ux / uz, 1000.0 * uy / uz
+    else:
+        xp = yp = np.full_like(z, np.nan)
+    if quantity == "energy":
+        series, ylabel = [("W", w, "r")], "W (MeV)"
+    elif quantity == "angle":
+        series, ylabel = [("x'", xp, "r"), ("y'", yp, "b")], "x', y' (mrad)"
+    else:
+        series, ylabel = [("x", 1000.0 * x, "r"), ("y", 1000.0 * y, "b")], "x, y (mm)"
+    fig = {"kind": "lines", "traces": [{"x": _arr(z), "y": _arr(v), "color": c, "name": n, "markers": True,
+                                        "legend": len(series) > 1} for n, v, c in series],
+           "xlabel": "z (m)", "ylabel": ylabel, "legend": len(series) > 1,
+           "table": {"columns": ["z (m)", "W (MeV)", "x (mm)", "x' (mrad)", "y (mm)", "y' (mrad)", "t (s)"],
+                     "rows": [[_finite(v) for v in row] for row in zip(z, w, 1000.0 * x, xp, 1000.0 * y, yp, t)]}}
+    return _SinglePlanePlot(z, series, ylabel), fig
+
+
+def _finite(v):
+    v = float(v)
+    return v if np.isfinite(v) else None
+
+
+def _rest_mass(out, input_dir):
+    """particlerestmass (MeV) of the run: its inputs/ snapshot (input/ of a research run), else the project's beam.txt."""
+    for folder in (os.path.join(out, "inputs"), os.path.join(os.path.dirname(out), "input"), input_dir):
+        try:
+            with open(os.path.join(folder, "beam.txt"), encoding="utf-8", errors="replace") as fh:
+                for line in fh:
+                    parts = line.split("!", 1)[0].split()
+                    if len(parts) > 1 and parts[0].lower() == "particlerestmass":
+                        return float(parts[1])
+        except (OSError, ValueError):
+            continue
+    return None
+
+
 PLOTS = {"dataset": _dataset, "phase_advance": _phase_advance, "syn_phase": _syn_phase,
          "cavity_voltage": _cavity_voltage, "err_emit_loss": _err_emit_loss, "err_out": _err_out,
-         "density": _density, "acceptance": _acceptance}
+         "density": _density, "acceptance": _acceptance, "single_plane": _single_plane}
 
 
 @rpc("results.figure")
@@ -382,6 +467,7 @@ def overview(outputDir=None):
     return {
         "outputDir": out, "defaultOutput": p.output_dir, "inputDir": input_dir,
         "hasDataSet": "DataSet.txt" in names, "hasPlt": "BeamSet.plt" in names,
+        "singlePlane": SINGLE_PLANE_FILE in names,
         # secondary-particle run (secondarybeam 1 in the input snapshot): no envelope, see outData_*.txt
         "secondary": secondary_run(out),
         "dst": files(lambda n: n.endswith(".dst")) + files(lambda n: n.endswith(".dst"), input_dir),

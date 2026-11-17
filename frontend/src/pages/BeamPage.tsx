@@ -45,6 +45,12 @@ type Data = {
 
 const DISTRIBUTIONS = ["GS", "WB", "PB", "KV"];
 const PLANES = ["x", "y", "z"] as const;
+/** single-particle start offset (avas/gui/services/beam.py): x, y, z in mm; x', y' in mrad; delta in 1e-3 */
+const OFFSET_KEYS = ["offset_x", "offset_y", "offset_z", "offset_xp", "offset_yp", "offset_dp"];
+/** particlenumber 1 without a particle file: the kernels track one particle from the start offset */
+export function singleParticle(f: { use_dst: boolean; particlenumber?: unknown }): boolean {
+  return !f.use_dst && String(f.particlenumber ?? "").trim() !== "" && Number(f.particlenumber) === 1;
+}
 
 function validate(d: Data): string[] {
   const f = d.form;
@@ -54,10 +60,11 @@ function validate(d: Data): string[] {
   if (d.secondary.on && !d.secondary.text.trim()) errors.push(t("Beam: the secondary beam is on but {name} has no particles", { name: d.secondary.name }));
   if (!f.use_dst) {
     const n = Number(f.particlenumber);
-    if (!Number.isFinite(n) || n < 2) errors.push(t("Beam: multi-particle tracking needs at least 2 particles (currently {n})", { n: f.particlenumber || 0 }));
+    // 1 = single-particle mode (displacepos / displacedpos); the engine needs at least one particle
+    if (!Number.isFinite(n) || n < 1) errors.push(t("Beam: the number of particles must be at least 1 (currently {n})", { n: f.particlenumber || 0 }));
   }
   const bad = ["numofcharge", "particlenumber"].filter((k) => String(f[k]).trim() && !isInt(String(f[k])));
-  const badF = ["particlerestmass", "current", "frequency", "kneticenergy", ...PLANES.flatMap((p) => [`alpha_${p}`, `beta_${p}`, `emit_${p}`])].filter(
+  const badF = ["particlerestmass", "current", "frequency", "kneticenergy", ...PLANES.flatMap((p) => [`alpha_${p}`, `beta_${p}`, `emit_${p}`]), ...OFFSET_KEYS].filter(
     (k) => String(f[k]).trim() && !isFloat(String(f[k])),
   );
   if (bad.length || badF.length) errors.push(t("Beam: invalid number in {fields}", { fields: [...bad, ...badF].join(", ") }));
@@ -334,6 +341,23 @@ export default function BeamPage() {
                 </FormRow>
               </fieldset>
             </Section>
+            {singleParticle(f) && (
+              <Section title={tt("Single-particle start offset")} icon="target">
+                <fieldset className="lockable form" disabled={locked}>
+                  {row("x", "offset_x", "mm")}
+                  {row("y", "offset_y", "mm")}
+                  {row("z", "offset_z", "mm")}
+                  {row("x'", "offset_xp", "mrad")}
+                  {row("y'", "offset_yp", "mrad")}
+                  {row("δ = Δp/p", "offset_dp", "1e-3")}
+                  <FormRow>
+                    <span className="muted">
+                      {tt("One particle is tracked from this offset (empty = 0). Saved as displacepos and displacedpos, which every kernel reads; displacedpos holds 100 × the angles in mrad and δ in 1e-3. The rms columns of DataSet.txt are then NaN; the trajectory is in SingleParticle.txt.")}
+                    </span>
+                  </FormRow>
+                </fieldset>
+              </Section>
+            )}
             <Section title={tt("Secondary beam")} icon="combine">
               <fieldset className="lockable form" disabled={locked}>
                 <FormRow>

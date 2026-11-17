@@ -8,6 +8,8 @@ import { deleteUnit, duplicateUnit, moveUnit, moveUnitTo } from "./structureOps"
 import { Checkbox, CommitInput, cx, Icon, Select, Tabs } from "../components/ui";
 import { pick, t, useT } from "../i18n";
 import { ComponentView } from "./ComponentView";
+import { NewKernelTag } from "../components/NewKernelTag";
+import { useEffectiveKernel } from "../store/engine";
 import { PeriodPanel } from "./PeriodPanel";
 import { Beamline } from "./Beamline";
 import { elementType, matchesStatement } from "./elementType";
@@ -333,6 +335,8 @@ function ParamField({ p, value, readOnly, fieldmaps, onCommit }: { p: Param | nu
 export function PropertyPanel({ doc, st, kw, readOnly, fieldmaps, onEdits }: { doc: LatticeDoc; st: Statement | null; kw: Map<string, Keyword>; readOnly?: boolean; fieldmaps: Record<string, string[]>; onEdits: (e: Edit[]) => void }) {
   const tt = useT();
   const schemaField = kw.get("field");
+  // parameters only the new kernel's default mode reads (outputplane name): tag them, warn under another kernel
+  const effective = useEffectiveKernel(!!st && !!kw.get(st.key)?.params.some((p) => p.newOnly));
   if (!st) return <div className="property-empty muted">{tt("Select an element or command in the list, the schematic or the text.")}</div>;
   const spec = kw.get(st.key);
   const n = Math.max(spec?.params.length ?? 0, st.params.length);
@@ -416,6 +420,7 @@ export function PropertyPanel({ doc, st, kw, readOnly, fieldmaps, onEdits }: { d
               <div className="prop-field" data-tip={tip || undefined}>
                 <ParamField p={p} value={value} readOnly={readOnly} fieldmaps={fieldmaps} onCommit={(v) => commitParam(k, v)} />
                 {p?.unit && <span className="unit">{p.unit}</span>}
+                {p?.newOnly && <NewKernelTag kernel={effective?.kernel} compat={effective?.compat} />}
                 {p?.kind === "fieldmap" && fm && (fm.missing || fm.found.length) ? (
                   fm.missing ? (
                     <span className="danger-text nowrap" data-tip={tt("missing: {ext}", { ext: fm.missing })}>

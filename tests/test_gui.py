@@ -149,6 +149,112 @@ def test_beam_page_keeps_unknown_keywords(project):
     assert params["particlenumber"] == "5260" and float(params["emit_x"]) == pytest.approx(0.13768, abs=1e-5)
 
 
+def test_beam_page_single_particle_offset(project):
+    """Single-particle mode: the offset is shown in initpos / initmom units (mm; mrad, 1e-3), read from initpos /
+    initmom first, and always saved as displacepos / displacedpos (displacedpos = 100 x mrad), which every shipped
+    kernel reads; initpos / initmom lines are removed, and an all-zero offset removes the four keywords."""
+    path = os.path.join(project["inputDir"], "beam.txt")
+    with open(path, encoding="utf-8") as fh:
+        before = fh.read()
+
+    def lines(*keys):
+        with open(path, encoding="utf-8") as fh:
+            return [ln.strip() for ln in fh if ln.split() and ln.split()[0] in keys]
+    try:
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write("initpos 1.5 0 0\ndisplacepos 9 9 9\ndisplacedpos 300 0 50\n")
+        form = ok("beam.load")["form"]
+        assert (form["offset_x"], form["offset_y"], form["offset_xp"], form["offset_dp"]) == ("1.5", "0", "3", "0.5")
+        form.update(particlenumber="1", offset_yp="-2")
+        form = ok("beam.save", form=form)["form"]
+        assert lines("particlenumber") == ["particlenumber 1"]
+        assert lines("displacepos", "displacedpos", "initpos", "initmom") == ["displacepos 1.5 0 0", "displacedpos 300 -200 50"]
+        assert form["offset_yp"] == "-2"
+        assert any("number of particles must be at least 1" in k for k in json.load(
+            open(os.path.join(ROOT, "frontend", "src", "i18n", "zh_CN.json"), encoding="utf-8")))
+        for k in ("offset_x", "offset_y", "offset_z", "offset_xp", "offset_yp", "offset_dp"):
+            form[k] = "0" if k != "offset_z" else ""
+        ok("beam.save", form=form)
+        assert lines("displacepos", "displacedpos", "initpos", "initmom") == []
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write("displacepos 2 0 0\n")
+        form = ok("beam.load")["form"]
+        del form["offset_x"], form["offset_y"], form["offset_z"], form["offset_xp"], form["offset_yp"], form["offset_dp"]
+        ok("beam.save", form=form)                         # a form without the offset fields keeps the lines
+        assert lines("displacepos") == ["displacepos 2 0 0"]
+        bad = ok("beam.load")["form"]
+        bad["offset_x"] = "abc"
+        assert rpc("beam.save", form=bad)["ok"] is False
+    finally:
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(before)
+
+
+def test_settings_page_longitudinal_periodic_boundary(project):
+    """lpboundary V1 (fold into one RF period) and V2 (periodic space-charge box, new kernel default mode): V2 is
+    written only when it is on, both off removes the line, and a form without the fields keeps it."""
+    path = os.path.join(project["inputDir"], "input.txt")
+    with open(path, encoding="utf-8") as fh:
+        before = fh.read()
+    try:
+        data = ok("settings.load")
+        assert data["form"]["lpboundary_fold"] is False and data["form"]["lpboundary_periodic"] is False
+        data["form"]["lpboundary_periodic"] = True
+        data = ok("settings.save", form=data["form"], meta=data["meta"])
+        assert input_lines(project, "lpboundary") == ["lpboundary 0 1"] and data["form"]["lpboundary_periodic"] is True
+        data["form"].update(lpboundary_fold=True, lpboundary_periodic=False)
+        data = ok("settings.save", form=data["form"], meta=data["meta"])
+        assert input_lines(project, "lpboundary") == ["lpboundary 1"]
+        form = {k: v for k, v in data["form"].items() if not k.startswith("lpboundary")}
+        ok("settings.save", form=form, meta=data["meta"])
+        assert input_lines(project, "lpboundary") == ["lpboundary 1"]
+        data["form"]["lpboundary_fold"] = False
+        ok("settings.save", form=data["form"], meta=data["meta"])
+        assert input_lines(project, "lpboundary") == []
+    finally:
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(before)
+
+
+def test_schema_marks_inputs_only_the_new_kernel_reads(project):
+    schema = ok("schema.all")
+    keywords = {k["key"] for group in ("beam", "input", "lattice") for k in schema[group] if k["newOnly"]}
+    params = {(k["key"], p["key"]) for group in ("input", "lattice") for k in schema[group] for p in k["params"]
+              if p["newOnly"]}
+    assert keywords == {"initpos", "initmom", "nplanes"}
+    assert params == {("lpboundary", "V2"), ("outputplane", "name")}
+
+
+def test_results_single_particle_planes(project, tmp_path):
+    """SingleParticlePlane.txt (M10 D3, one row per output plane: z W x γβx y γβy t): listed by results.overview,
+    drawn against z (x, y in mm; x', y' in mrad from γβx / γβz; W) with the numbers as a table, exported with
+    matplotlib."""
+    out = tmp_path / "single"
+    out.mkdir()
+    reply = rpc("results.figure", plot="single_plane", params={}, outputDir=str(out))
+    assert reply["ok"] is False and "SingleParticlePlane.txt" in reply["error"]
+    # 1.5 MeV protons (rest mass of the example beam), x = 1 mm, x' = 2 mrad at the second plane
+    rest = 938.272088159928
+    gb = (((1.5 / rest) + 1) ** 2 - 1) ** 0.5
+    (out / "SingleParticlePlane.txt").write_text(
+        f"0.100000000000  1.500000000000  0.000000000000  0.000000000000  0.000000000000  0.000000000000  1.0e-9\n"
+        f"0.200000000000  1.500000000000  0.001000000000  {0.002 * gb:.12f}  -0.000500000000  0.000000000000  2.0e-9\n",
+        encoding="utf-8")
+    assert ok("results.overview", outputDir=str(out))["singlePlane"] is True
+    fig = resolve_blobs(ok("results.figure", plot="single_plane", params={"quantity": "position"}, outputDir=str(out)))
+    assert fig["kind"] == "lines" and [t["name"] for t in fig["traces"]] == ["x", "y"]
+    assert list(fig["traces"][0]["y"]) == pytest.approx([0.0, 1.0]) and list(fig["traces"][1]["y"]) == pytest.approx([0.0, -0.5])
+    fig = resolve_blobs(ok("results.figure", plot="single_plane", params={"quantity": "angle"}, outputDir=str(out)))
+    assert float(fig["traces"][0]["y"][1]) == pytest.approx(2.0, rel=1e-5)
+    table = fig["table"]
+    assert table["columns"][0] == "z (m)" and len(table["rows"]) == 2 and table["rows"][1][2] == pytest.approx(1.0)
+    fig = resolve_blobs(ok("results.figure", plot="single_plane", params={"quantity": "energy"}, outputDir=str(out)))
+    assert list(fig["traces"][0]["y"]) == pytest.approx([1.5, 1.5])
+    png = tmp_path / "single.png"
+    ok("results.export", plot="single_plane", params={"quantity": "position"}, outputDir=str(out), path=str(png))
+    assert png.stat().st_size > 0
+
+
 def test_lattice_page(project):
     info = ok("lattice.list")
     names = [f["name"] for f in info["files"]]

@@ -512,7 +512,7 @@ def boundary_superpose(input_dir):
 
 
 def rf_at_superpose_start(input_dir):
-    """Line numbers of RF cavities (field type 1) at the start of a superpose block in the lattice run from *input_dir*
+    """Line numbers (from 1, as the editor shows them) of RF cavities (field type 1) at the start of a superpose block in the lattice run from *input_dir*
     (the superpose line before the cavity has z0 = 0; "case A" of spec 10 2.6.5.2).  AVAS.dll 2026-04-02 and compat=dll
     load no field for such a block: the phase scan fails ("Scan phase error") or phi_s is NaN and the beam is not
     accelerated (M10-notes 6.5); the new kernel's default mode builds the block correctly."""
@@ -532,7 +532,7 @@ def rf_at_superpose_start(input_dir):
             in_block, z0 = False, None
         elif st.is_element:
             if in_block and z0 == 0.0 and st.field_type() == "1":
-                out.append(st.line_no)
+                out.append(st.line_no + 1)            # line_no counts from 0; the editor shows line_no + 1
             z0 = None
     return out
 
@@ -556,6 +556,91 @@ def rf_superpose_warning(lines):
             "beam is not accelerated. The new kernel's default mode computes this block correctly.",
             f"lattice 第 {at} 行：位于 superpose 块开头的射频腔在原内核和“复现 AVAS.dll”模式（AVAS.dll 2026-04-02）中"
             "没有场：扫相位失败或 φs 为 NaN，束流不加速。新内核的默认模式能正确计算这种叠加块。")
+
+
+# one literal (translated in zh_CN.json); {lines}: boundary.txt line numbers
+BOUNDARY_SHAPE_ERROR = "boundary.txt line {lines}: shapes 3 (rectangular pipe) and 4 (elliptical pipe) are only supported by the new kernel's default mode; the original kernel and the mode “Reproduce AVAS.dll” stop with “Unknown geometric shapes”. Choose the new kernel in its default mode in Simulation settings → Computing kernel."  # noqa: E501
+
+
+def _keyword_lines(path):
+    """``[(line number, [words])]`` of a text input file (comments after ``!`` dropped, blank lines skipped)."""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            lines = fh.read().splitlines()
+    except OSError:
+        return []
+    out = []
+    for number, line in enumerate(lines, 1):
+        words = line.split("!", 1)[0].split()
+        if words:
+            out.append((number, words))
+    return out
+
+
+def boundary_new_shapes(input_dir):
+    """Line numbers of boundary.txt shapes 3 and 4 (rectangular and elliptical pipes, M10 D5) after its ``start`` line,
+    with input.txt ``boundary 1``.  AVAS.dll 2026-04-02 and compat=dll know shapes 1 and 2 only and stop with
+    "Unknown geometric shapes" (case M10_D5_rect_ellipse_dst)."""
+    if input_keywords(input_dir, "input.txt").get("boundary", "0") != "1":
+        return []
+    out, started = [], False
+    for number, words in _keyword_lines(os.path.join(input_dir, "boundary.txt")):
+        if not started:
+            started = words[0] == "start"
+        elif words[0] in ("3", "4"):
+            out.append(number)
+    return out
+
+
+def new_only_inputs(input_dir):
+    """Inputs only the new kernel's default mode reads (schema ``new_only``, M10), which the original kernel and
+    compat=dll silently ignore or handle differently: warnings ``[(en, zh)]`` for a run with :func:`original_kernel_rules`.
+    Boundary shapes 3 and 4 are refused instead (:func:`boundary_new_shapes`)."""
+    out = []
+    beam = sorted({words[0].lower() for _, words in _keyword_lines(os.path.join(input_dir, "beam.txt"))}
+                  & {"initpos", "initmom"})
+    if beam:
+        names = " / ".join(beam)
+        out.append((f"beam.txt has {names}, which the original kernel and the mode “Reproduce AVAS.dll” ignore: they "
+                    "read the single-particle offset from displacepos / displacedpos only. Saving the Beam page writes "
+                    "the offset as displacepos / displacedpos.",
+                    f"beam.txt 写了 {names}，原内核和“复现 AVAS.dll”模式会忽略它们，只从 displacepos／displacedpos "
+                    "读取单粒子偏移。在束流页保存后，偏移会写成 displacepos／displacedpos。"))
+    for number, words in _keyword_lines(os.path.join(input_dir, "input.txt")):
+        if words[0].lower() == "lpboundary" and len(words) > 2 and words[2] == "1":
+            out.append(("input.txt: lpboundary V2 = 1 (periodic space-charge box) is ignored by the original kernel and "
+                        "the mode “Reproduce AVAS.dll”, which read V1 (fold into one RF period) only.",
+                        "input.txt：lpboundary V2 = 1（周期空间电荷盒）会被原内核和“复现 AVAS.dll”模式忽略，"
+                        "它们只读 V1（折叠到一个射频周期）。"))
+            break
+    try:
+        with open(paths.lattice_source_path(input_dir), encoding="utf-8", errors="replace") as fh:
+            text = fh.read()
+    except OSError:
+        text = ""
+    if text:
+        from avas.data.lattice_doc import LatticeDocument
+        named, rf_off = [], []
+        for st in LatticeDocument(text).statements:
+            if not st.active:
+                continue
+            if st.key == "outputplane" and len(st.params) > 1 and str(st.params[1]).strip():
+                named.append(st.line_no + 1)
+            elif st.key == "field" and st.rf_off():
+                rf_off.append(st.line_no + 1)
+        if named:
+            at = ", ".join(str(n) for n in named)
+            out.append((f"Lattice line {at}: the original kernel and the mode “Reproduce AVAS.dll” ignore the name of "
+                        "an output plane and write outData_<z>.dst.",
+                        f"lattice 第 {at} 行：原内核和“复现 AVAS.dll”模式忽略输出面的名称，文件仍为 outData_<z>.dst。"))
+        if rf_off:
+            at = ", ".join(str(n) for n in rf_off)
+            out.append((f"Lattice line {at}: an RF field with Ke = 0 is a drift for the new kernel's default mode only; "
+                        "the original kernel and the mode “Reproduce AVAS.dll” still load the field map and scan its "
+                        "phase, which usually fails.",
+                        f"lattice 第 {at} 行：Ke = 0 的射频场只有新内核默认模式当作漂移段；原内核和“复现 AVAS.dll”"
+                        "模式仍读取场图并扫描相位，通常会失败。"))
+    return out
 
 
 RFQ_CPU_PLAN = {"device": "cpu", "precision": "fp64", "gpus": [], "error": None, "reason_code": "rfq_cpu_only",

@@ -79,6 +79,7 @@
 .twiss-table td:first-child { width: 40px; }
 .twiss-table .input { width: 100%; }
 .unit-inline { color: var(--fg-soft); font-weight: 400; font-size: 12px; margin-left: 4px; }
+.plot-table { max-height: 220px; overflow: auto; padding: 6px 0; flex: none; }
 .mini-table { border-collapse: collapse; font-size: 12px; user-select: text; }
 .mini-table th, .mini-table td { padding: 3px 12px; text-align: right; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
 .mini-table th { color: var(--fg-muted); font-weight: 500; }
@@ -241,6 +242,8 @@
 
 .files-history-list .history-versions { min-height: 0; }
 /* Simulation settings → Computing kernel */
+.new-kernel-tag { gap: 4px; margin-left: 6px; flex: none; }
+.new-kernel-tag .codicon { font-size: 12px; }
 .engine-note { display: inline-flex; align-items: flex-start; gap: 6px; font-size: 12px; line-height: 1.45; }
 .engine-note .codicon { font-size: 14px; margin-top: 1px; flex: none; }
 .engine-advanced { margin-top: 10px; }

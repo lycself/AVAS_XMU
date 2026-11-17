@@ -12,6 +12,7 @@ import { FileHistoryButton } from "../files/FileHistory";
 import { boundaryColumns, TokenTable } from "../files/tables";
 import { formProblems, seedDefect, type EngineForm } from "../engine";
 import { defaultKernelOf, engineKernelOf, EngineSettings, type EngineSettingsData } from "./EngineSettings";
+import { NewKernelTag } from "../components/NewKernelTag";
 
 type Form = {
   sim_type: string;
@@ -28,6 +29,10 @@ type Form = {
   longlimits_phase: string;
   longlimits_energy: string;
   boundary: boolean;
+  /** lpboundary V1: fold the particles into one RF period */
+  lpboundary_fold: boolean;
+  /** lpboundary V2: periodic longitudinal space-charge box (new kernel, default mode) */
+  lpboundary_periodic: boolean;
   pchistogram_start: boolean;
   pchistogram_grid: string;
   error_type: string;
@@ -252,6 +257,25 @@ export default function SettingsPage() {
                       <TextInput key={i} style={{ width: 70 }} disabled={!sc} value={f.meshrms[i]} invalid={!!f.meshrms[i] && !isFloat(f.meshrms[i])} onChange={(e) => setTriple("meshrms", i, e.target.value)} />
                     ))}
                     <span className="hint">{tt("empty = engine default")}</span>
+                  </div>
+                </FormRow>
+                <FormRow label={tt("Longitudinal periodic boundary")} top>
+                  <div className="radio-col">
+                    <Checkbox
+                      checked={f.lpboundary_fold}
+                      onChange={(v) => set("lpboundary_fold", v)}
+                      label={tt("Fold particles into one RF period (lpboundary V1)")}
+                      tip={tt("Particles are folded into one RF period around the synchronous particle and the space-charge box is periodic.")}
+                    />
+                    <span className="inline-group">
+                      <Checkbox
+                        checked={f.lpboundary_periodic}
+                        onChange={(v) => set("lpboundary_periodic", v)}
+                        label={tt("Periodic space-charge box (lpboundary V2)")}
+                        tip={tt("FFT with a longitudinal box one RF period long (γβλ in the beam rest frame); the particles are not folded. For continuous beams and long bunches; V1 is then not used.")}
+                      />
+                      <NewKernelTag kernel={engineKernel} compat={ed.value.engine?.form.compat} />
+                    </span>
                   </div>
                 </FormRow>
               </div>

@@ -143,6 +143,10 @@ def require_ready(input_dir):
     # M11: a superpose block of boundary.txt stops AVAS.dll 2026-04-02 (and compat=dll) before any output
     if engines.original_kernel_rules(choice) and engines.boundary_superpose(input_dir):
         raise UserError(engines.BOUNDARY_SUPERPOSE_ERROR)
+    # boundary shapes 3 and 4 (M10 D5): AVAS.dll 2026-04-02 stops with "Unknown geometric shapes"
+    shapes = engines.boundary_new_shapes(input_dir) if engines.original_kernel_rules(choice) else []
+    if shapes:
+        raise UserError(engines.BOUNDARY_SHAPE_ERROR, lines=", ".join(str(n) for n in shapes))
     if not choice.is_new:
         return {"kernel": "original", "predicted": True}
     data, error = _query(choice)
@@ -176,7 +180,8 @@ def input_warnings(input_dir):
     """Warnings about the inputs that do not stop a run (in the UI language; also logged), for ``run.check``.
     M10 D1: in the new kernel's default mode the synchronous particle of a .dst file starts with beam.txt
     kneticenergy; a value more than 1 % away from the mean energy of the file is probably a mistake.
-    M11: the original kernel and compat=dll give no field to an RF cavity at the start of a superpose block."""
+    M11: the original kernel and compat=dll give no field to an RF cavity at the start of a superpose block, and ignore
+    the inputs only the new kernel's default mode reads (:func:`avas.engines.new_only_inputs`)."""
     from avas.i18n import pick
     from avas.model.beam import dst_energies, reference_energy_note
     out = []
@@ -193,6 +198,7 @@ def input_warnings(input_dir):
         note = engines.rf_superpose_warning(engines.rf_at_superpose_start(input_dir))
         if note:
             out.append(pick(note))
+        out.extend(pick(note) for note in engines.new_only_inputs(input_dir))
     for text in out:
         log.warning("%s", text)
     return out

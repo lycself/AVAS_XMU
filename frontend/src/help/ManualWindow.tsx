@@ -46,10 +46,11 @@ function ManualWindow() {
       ...manualSections(chinese ? casesZh : casesEn, "cases"),
       ...manualSections(chinese ? referenceZh : referenceEn, "reference"),
     ];
+    const newOnly = `*${t("New kernel (default mode) only; the original kernel and the mode “Reproduce AVAS.dll” ignore it.")}*`;
     if (schema) for (const group of ["beam", "input", "lattice"] as const) {
       for (const k of schema[group]) chapters.push({
         category: "reference", id: `${group}-${k.key}`, title: `${group} · ${k.key} — ${pick(k.title)}`,
-        text: [pick(k.doc), ...k.params.map((p, i) => `### ${i + 1}. ${pick(p.label)}${p.unit ? ` (${p.unit})` : ""}\n\n${pick(p.doc)}\n\n${p.choices.map(([v, label]) => `- ${v}: ${pick(label)}`).join("\n")}`)].join("\n\n"),
+        text: [...(k.newOnly ? [newOnly] : []), pick(k.doc), ...k.params.map((p, i) => `### ${i + 1}. ${pick(p.label)}${p.unit ? ` (${p.unit})` : ""}\n\n${p.newOnly ? `${newOnly}\n\n` : ""}${pick(p.doc)}\n\n${p.choices.map(([v, label]) => `- ${v}: ${pick(label)}`).join("\n")}`)].join("\n\n"),
       });
     }
     return chapters;

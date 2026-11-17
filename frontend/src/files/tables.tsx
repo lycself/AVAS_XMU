@@ -300,7 +300,7 @@ export function TokenTable({ text, editable, onChange, columns, wrapStartEnd, ro
 /** boundary.txt shape lines: type name length a b [RLP z0 x0 y0 θz θx θy] (shapes 3, 4: new kernel). */
 export function boundaryColumns(): TokenColumn[] {
   return [
-    { caption: t("type"), tip: t("1 round pipe, 2 bent pipe, 3 rectangular pipe, 4 elliptical pipe (3 and 4: new kernel, default mode)") },
+    { caption: t("type"), tip: t("1 round pipe, 2 bent pipe, 3 rectangular pipe, 4 elliptical pipe (3 and 4: new kernel, default mode). A 'superpose z0 [x0 y0 θz0 θx0 θy0]' row places the shape row after it; several superpose + shape pairs ended by 'superposeend' or 'superposeout' make one composite segment whose aperture is the intersection (new kernel, default mode).") },
     { caption: t("name"), tip: t("material or name, e.g. Copper") },
     { caption: t("length (m)"), tip: t("length along z") },
     { caption: t("a (m)"), tip: t("radius (1, 2); half width in x (3); semi-axis in x (4)") },

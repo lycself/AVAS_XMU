@@ -62,6 +62,21 @@ def _triple(values):
     return [safe_str(vals[i], "") if i < len(vals) else "" for i in range(3)]
 
 
+def _lpboundary(value):
+    """``(fold, periodic)`` from input.txt ``lpboundary V1 [V2]`` (absent = both off)."""
+    vals = value if isinstance(value, (list, tuple)) else ([] if value in (None, "") else [value])
+    flags = [safe_int(v, 0) == 1 for v in vals[:2]]
+    return (flags + [False, False])[0], (flags + [False, False])[1]
+
+
+def _lpboundary_value(fold, periodic):
+    """The ``lpboundary`` value to write: None removes the line; V2 is written only when it is on (the original
+    kernel and the mode "Reproduce AVAS.dll" read V1 only)."""
+    if periodic:
+        return [1 if fold else 0, 1]
+    return 1 if fold else None
+
+
 COMPANIONS = {"boundary": "boundary.txt"}
 
 
@@ -119,6 +134,9 @@ def _read(item, p):
         "longlimits_phase": safe_str(d.get("longlimits_phase"), "0"),
         "longlimits_energy": safe_str(d.get("longlimits_energy"), "0"),
         "boundary": safe_int(d.get("boundary"), 0) == 1,
+        # lpboundary V1 V2 (M10 D7: V2 is read by the new kernel's default mode only)
+        "lpboundary_fold": _lpboundary(d.get("lpboundary"))[0],
+        "lpboundary_periodic": _lpboundary(d.get("lpboundary"))[1],
         "pchistogram_start": safe_int(d.get("pchistogram_start"), 0) == 1,
         "pchistogram_grid": safe_str(d.get("pchistogram_grid"), "300"),
         "error_type": "",
@@ -183,6 +201,8 @@ def save(form, meta, companions=None, restoredFrom=None, engine=None):
         "numofgrid": _read_triple(form.get("numofgrid") or [], int),
         "meshrms": _read_triple(form.get("meshrms") or [], float),
     }
+    if "lpboundary_fold" in form or "lpboundary_periodic" in form:   # a form without them keeps the line
+        values["lpboundary"] = _lpboundary_value(bool(form.get("lpboundary_fold")), bool(form.get("lpboundary_periodic")))
     ensure_ini(p)
     try:
         with capture(p.input_file("input.txt"), "settings", restoredFrom or None):

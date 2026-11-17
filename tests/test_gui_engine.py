@@ -534,6 +534,80 @@ def test_rf_cavity_at_the_start_of_a_superpose_block_warns_for_the_original_kern
         write_engine(project, None)
 
 
+def test_boundary_shapes_3_and_4_are_refused_for_the_original_kernel_and_compat(project, fake_query, monkeypatch):
+    """Rectangular and elliptical pipes (boundary.txt shapes 3 and 4, M10 D5) are read by the new kernel's default mode
+    only; AVAS.dll 2026-04-02 and compat=dll stop with "Unknown geometric shapes".  The check before a run refuses them
+    with the boundary.txt line numbers (translated); ``avas run`` exits with 2."""
+    from avas import engines
+    from avas.cli.main import main as cli_main
+    inp = project / "InputFile"
+    input_txt = (inp / "input.txt").read_text(encoding="utf-8")
+    try:
+        (inp / "boundary.txt").write_text("start\n1 Copper 0.05 0.02\n3 Copper 0.1 0.02 0.01\n4 Copper 0.1 0.02 0.01\nend\n",
+                                          encoding="utf-8")
+        _set_input_key(inp, "boundary", 1)
+        assert engines.boundary_new_shapes(str(inp)) == [3, 4]
+        set_platform(monkeypatch, True)
+        write_engine(project, {"kernel": "original"})
+        reply = rpc("run.check")
+        assert reply["ok"] is False and "boundary.txt line 3, 4" in reply["error"] and "rectangular" in reply["error"]
+        write_engine(project, {"kernel": "new", "device": "cpu", "compat": "dll"})
+        assert rpc("engine.check")["ok"] is False
+        zh = json.load(open(os.path.join(ROOT, "frontend", "src", "i18n", "zh_CN.json"), encoding="utf-8"))
+        assert engines.BOUNDARY_SHAPE_ERROR in zh
+        out = project.parent / "cli_out_shapes"
+        assert cli_main(["run", "--input", str(inp), "--output", str(out), "--engine", "new", "--compat", "dll"]) == 2
+        assert not out.exists()
+        write_engine(project, {"kernel": "new", "device": "cpu"})          # the default mode reads them
+        assert ok("run.check")["kernel"] == "new"
+        write_engine(project, {"kernel": "original"})
+        _set_input_key(inp, "boundary", 0)                                  # boundary.txt is not read
+        assert engines.boundary_new_shapes(str(inp)) == []
+        assert ok("run.check")["kernel"] == "original"
+    finally:
+        (inp / "input.txt").write_text(input_txt, encoding="utf-8")
+        if (inp / "boundary.txt").exists():
+            os.remove(inp / "boundary.txt")
+        write_engine(project, None)
+
+
+def test_new_only_inputs_warn_for_the_original_kernel_and_compat(project, fake_query, monkeypatch):
+    """Inputs only the new kernel's default mode reads (schema ``new_only``: initpos / initmom, lpboundary V2, output
+    plane names, and RF fields with Ke = 0 that it treats as drifts) give ``run.check`` warnings for the original kernel
+    and compat=dll, with lattice line numbers counted from 1 as the editor shows them; the default mode gives none."""
+    from avas import engines, paths
+    inp = project / "InputFile"
+    lattice = paths.lattice_source_path(str(inp))
+    saved = {name: (inp / name).read_text(encoding="utf-8") for name in ("beam.txt", "input.txt")}
+    before = open(lattice, encoding="utf-8").read()
+    try:
+        with open(inp / "beam.txt", "a", encoding="utf-8") as fh:
+            fh.write("initpos 1 0 0\n")
+        _set_input_key(inp, "lpboundary", "0 1")
+        with open(lattice, "w", encoding="utf-8") as fh:
+            fh.write("start\ndrift 0.05 0.02 0\noutputplane 0 MID\nfield 0.21 0.02 0 1 162.5e6 -33 0 0 hwr010\n"
+                     "drift 0.05 0.02 0\nend\n")
+        notes = engines.new_only_inputs(str(inp))
+        assert len(notes) == 4 and all(len(n) == 2 for n in notes)
+        text = " ".join(n[0] for n in notes)
+        assert "initpos" in text and "lpboundary V2" in text and "line 3:" in text and "line 4:" in text
+        set_platform(monkeypatch, True)
+        write_engine(project, {"kernel": "original"})
+        assert len(ok("run.check")["warnings"]) == 4
+        write_engine(project, {"kernel": "new", "device": "cpu", "compat": "dll"})
+        assert len(ok("run.check")["warnings"]) == 4
+        write_engine(project, {"kernel": "new", "device": "cpu"})
+        assert ok("run.check")["warnings"] == []
+        _set_input_key(inp, "lpboundary", "1")                              # V1 only: every kernel reads it
+        assert not any("lpboundary" in n[0] for n in engines.new_only_inputs(str(inp)))
+    finally:
+        for name, text in saved.items():
+            (inp / name).write_text(text, encoding="utf-8")
+        with open(lattice, "w", encoding="utf-8") as fh:
+            fh.write(before)
+        write_engine(project, None)
+
+
 def test_boundary_copy_gets_lf_line_endings_for_the_original_kernel_outside_windows(tmp_path):
     """M11: libAVAS.so reads boundary.txt without normalising line endings and crashes on ``start\\r``.  The staged copy
     of a run (never the user's folder) gets LF line endings when the original kernel runs outside Windows; the new

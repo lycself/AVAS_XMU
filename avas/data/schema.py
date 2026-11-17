@@ -17,15 +17,16 @@ FLOAT, INT, ENUM, FLAG, TEXT, FIELDMAP, FILE, RESERVED = (
 class Param:
     """One positional parameter of a keyword."""
 
-    __slots__ = ("key", "label", "unit", "kind", "doc", "choices")
+    __slots__ = ("key", "label", "unit", "kind", "doc", "choices", "new_only")
 
-    def __init__(self, key, label, unit="", kind=FLOAT, doc=("", ""), choices=None):
+    def __init__(self, key, label, unit="", kind=FLOAT, doc=("", ""), choices=None, new_only=False):
         self.key = key
         self.label = label            # (en, zh)
         self.unit = unit
         self.kind = kind
         self.doc = doc                # (en, zh)
         self.choices = choices or []  # [(value, (en, zh))]
+        self.new_only = new_only      # only the new kernel's default mode reads it (see NEW_ONLY_NOTE)
 
     def choice_value(self, value):
         """The listed choice equal to *value* ("3.0" matches "3"), or None."""
@@ -52,19 +53,27 @@ class Param:
 class Keyword:
     """A lattice command / element, or a keyword of beam.txt / input.txt."""
 
-    __slots__ = ("key", "title", "category", "params", "doc", "min_params")
+    __slots__ = ("key", "title", "category", "params", "doc", "min_params", "new_only")
 
-    def __init__(self, key, title, category, params=(), doc=("", ""), min_params=None):
+    def __init__(self, key, title, category, params=(), doc=("", ""), min_params=None, new_only=False):
         self.key = key
         self.title = title            # (en, zh)
         self.category = category
         self.params = list(params)
         self.doc = doc
         self.min_params = len(self.params) if min_params is None else min_params
+        self.new_only = new_only      # only the new kernel's default mode reads it (see NEW_ONLY_NOTE)
 
 
-def P(key, en, zh, unit="", kind=FLOAT, doc_en="", doc_zh="", choices=None):
-    return Param(key, (en, zh), unit, kind, (doc_en, doc_zh), choices)
+def P(key, en, zh, unit="", kind=FLOAT, doc_en="", doc_zh="", choices=None, new_only=False):
+    return Param(key, (en, zh), unit, kind, (doc_en, doc_zh), choices, new_only)
+
+
+# ``new_only`` keywords and parameters: read by the new kernel in its default mode only.  The original kernel
+# (AVAS.dll / libAVAS.so 2026-04-02) and the mode "Reproduce AVAS.dll" (compat = dll) ignore them; the pages show a
+# tag, and a warning when the project's kernel ignores them (avas.engines.new_only_inputs warns before a run).
+NEW_ONLY_NOTE = ("New kernel (default mode) only; the original kernel and the mode “Reproduce AVAS.dll” ignore it.",
+                 "仅新内核默认模式支持；原内核和“复现 AVAS.dll”模式会忽略。")
 
 
 def reserved(doc_en="reserved, write 0", doc_zh="保留参数，写 0"):
@@ -267,7 +276,7 @@ _LATTICE = [
         P("V1", "Relative position", "相对位置", "m", doc_en="downstream (>0) or upstream (<0) of this line",
           doc_zh="在关键字所在位置的下游（正值）或上游（负值）输出束流分布"),
         P("name", "Name", "名称", kind=TEXT, doc_en="optional: the file is NAME_<z>.dst (new kernel, default mode)",
-          doc_zh="可选：文件名为 NAME_<z>.dst（新内核默认模式）")],
+          doc_zh="可选：文件名为 NAME_<z>.dst（新内核默认模式）", new_only=True)],
         ("Dump the beam distribution at a plane (outData_<z>.dst).  New kernel, default mode (as the 2026-07-22 "
          "original kernel): with a name the file is NAME_<z>.dst, and planes closer together than the bunch length are "
          "recorded at the same time.  The 2026-04-02 original kernel and the compatibility mode ignore the name and stop "
@@ -407,7 +416,7 @@ _BEAM = [
          "kernel and the compatibility mode know only displacepos.  When both are written initpos is used (warning).",
          "单粒子模拟（particlenumber 1）的起点偏移，与 displacepos 相同。新内核（默认模式）和 2026-07-22 版原内核"
          "读取（后者只认这个名字）；2026-04-02 版原内核和兼容模式只认 displacepos。两者都写时用 initpos（给出警告）。"),
-        min_params=1),
+        min_params=1, new_only=True),
     Keyword("initmom", ("Initial angle", "初始角度偏移"), "beam", [
         P("xp", "x'", "x'", "mrad"), P("yp", "y'", "y'", "mrad"),
         P("dp", "δ", "δ", "1e-3", doc_en="relative momentum offset Δp/p in units of 1e-3",
@@ -418,7 +427,7 @@ _BEAM = [
          "When both are written initmom is used (warning).",
          "单粒子模拟的起点角度 x'、y'（mrad）与 Δp/p（1e-3）。新内核（默认模式）和 2026-07-22 版原内核读取"
          "（后者只认这个名字）；2026-04-02 版原内核和兼容模式只认 displacedpos，其数值单位小 100 倍"
-         "（那里的 300 相当于这里的 3 mrad）。两者都写时用 initmom（给出警告）。"), min_params=1),
+         "（那里的 300 相当于这里的 3 mrad）。两者都写时用 initmom（给出警告）。"), min_params=1, new_only=True),
     Keyword("displacepos", ("Single-particle offset", "单粒子位置偏移"), "beam", [
         P("dx", "dx", "dx", "m"), P("dy", "dy", "dy", "m"), P("dz", "dz", "dz", "m")],
         ("Single-particle mode (particlenumber 1).  The manual gives metres, but the engine was found to "
@@ -478,7 +487,7 @@ _INPUT = [
         P("V2", "Periodic space-charge box", "周期空间电荷盒", kind=ENUM, choices=_ONOFF,
           doc_en="1 (new kernel, default mode): FFT with a periodic longitudinal box of one RF period, the particles "
                  "are not folded (continuous beams, long bunches)",
-          doc_zh="1（新内核默认模式）：FFT，纵向用一个射频周期长的周期盒，粒子不折叠（连续束、长束团）")],
+          doc_zh="1（新内核默认模式）：FFT，纵向用一个射频周期长的周期盒，粒子不折叠（连续束、长束团）", new_only=True)],
         ("V2 = 1: the space-charge box is one RF period long in the beam rest frame, γβλ of the synchronous particle "
          "(the 2026-07-22 original kernel uses βλ, which is γ times too short); V1 is then not used.  The 2026-04-02 "
          "original kernel and the compatibility mode read V1 only.",
@@ -490,7 +499,7 @@ _INPUT = [
          "new kernel accepts it in the default mode and records as many planes as needed; the 2026-04-02 original "
          "kernel and the compatibility mode do not know it.",
          "2026-07-22 版原内核的关键字（间距小于束长的输出面预分配数，默认 3）。新内核默认模式接受但不需要，"
-         "按需记录；2026-04-02 版原内核和兼容模式不认识。")),
+         "按需记录；2026-04-02 版原内核和兼容模式不认识。"), new_only=True),
     Keyword("boundary", ("Separate loss boundary", "单独设置损失边界"), "input", [
         P("V1", "Use boundary.txt", "使用 boundary.txt", kind=ENUM, choices=[("0", ("no", "否")), ("1", ("yes", "是"))])],
         ("When on, lattice apertures are ignored and boundary.txt is used.",

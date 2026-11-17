@@ -43,8 +43,9 @@ export type LatticeDoc = {
   issueCount: number;
 };
 
-export type Param = { key: string; label: Bi; unit: string; kind: string; doc: Bi; choices: [string, Bi][] };
-export type Keyword = { key: string; title: Bi; category: string; doc: Bi; minParams: number; params: Param[] };
+/** newOnly: read by the new kernel's default mode only (schema.NEW_ONLY_NOTE); the pages show NewKernelTag */
+export type Param = { key: string; label: Bi; unit: string; kind: string; doc: Bi; choices: [string, Bi][]; newOnly?: boolean };
+export type Keyword = { key: string; title: Bi; category: string; doc: Bi; minParams: number; params: Param[]; newOnly?: boolean };
 export type Schema = {
   lattice: Keyword[];
   beam: Keyword[];
