@@ -79,6 +79,7 @@ WebView2 安装程序），如果安装了 [Inno Setup 6](https://jrsoftware.org
    脚本校验每个文件的 SHA-256、构建戳的源码哈希等于本地 `engine/` 的哈希、本平台的库能加载并报告同一哈希、三个平台齐全，任何一项不符就拒绝、不改动 `avas/engine/new/`。
    已经下载的产物可以用 `--from-dir 目录`。
 3. `python -m pytest tests/test_design_rules.py`，再把 `avas/engine/new/` 和变更记录一起提交。不要提交自己本地构建的库（编译器与哈希都和 CI 不同）。
+4. 合并：推送 `engine-rebuild`，开 PR 到 `main`，CI 通过后快进合并（`git push origin engine-rebuild:main`，PR 自动标为已合并）。main 的每次推送都会自动发布新版本。
 
 **本地构建**（开发和调试；`avas run --engine new` 依次在 `AVAS_ENGINE_LIB`、`avas/engine/new/`、`engine/build/` 中找库）：
 
@@ -133,6 +134,10 @@ pytest
 `tests/test_gui.py`、`tests/test_segment.py` 会真正运行内核，较慢，只改动对应部分时建议单独跑那个文件。
 更多约定（环境、常用命令、修改前的检查清单）见 [AGENTS.md](AGENTS.md)。
 
+### README 截图
+
+`python tools/readme_screenshots.py [--lang zh en] [--pages lattice lattice3d run results learn]` 在临时目录里建入门教程的演示项目（6 个周期、2 万宏粒子）并用新内核运行，启动 `avas serve`，用本机的 Chrome／Edge 无头模式截图，写入 `docs/images/<页面>-zh/en.webp`（浅色主题，本机路径替换为 `~/AVAS/demo`）。界面明显改变后重新生成，并检查 README 中的说明文字是否仍然对应。
+
 ### 线性预览与内核对比
 
 `tools/compare_preview_engine.py` 用真实内核检查线性包络预览：在临时文件夹里复制示例项目、引导教程的多周期束线（`sol` + HWR，第 3 步参数 `periods` 与第 4 步默认值 `periods-new` 各一条）和若干低能 V3 = 0 腔，运行内核，并与**旧**预览（修复前的 `avas/sim/linear_optics.py`，默认取提交 `63085a9~1`，作为独立模块载入，不用切换分支）和**新**预览（当前检出的代码）比较末端与最大 rms x / y / z、DataSet 的平均能量，以及 synData.txt 中同步粒子的能量、第一个腔的入口相位和同步相位（相位比较的是度数差）。示例项目和用户项目都不会被改动。需要能运行内核的 Windows 机器（Mac 只能用 `--no-engine` 比较两个预览）。
@@ -180,7 +185,7 @@ git switch claude/preview-followups
 
 ### Environment
 
-Build `.venv` as in [README's Source installation section](README.md#source-installation) first, then add the development extras:
+Build `.venv` as in [README's Source installation section](README.en.md#source-installation) first, then add the development extras:
 
 ```bash
 pip install -e .[dev]
@@ -249,6 +254,7 @@ rebuilt. Packaging (`packaging/avas.spec` collects all of `avas/engine/`), the u
    It checks every SHA-256, that the stamp's source hash equals the hash of your `engine/`, that this platform's library loads and reports the same hash,
    and that all three platforms are present; otherwise it refuses and leaves `avas/engine/new/` alone. `--from-dir DIR` uses a downloaded artifact.
 3. `python -m pytest tests/test_design_rules.py`, then commit `avas/engine/new/` with a change record. Never commit a locally built library.
+4. Merge: push `engine-rebuild`, open a PR to `main` and, when CI passes, fast-forward main (`git push origin engine-rebuild:main`; the PR is marked merged). Every push to main publishes a release.
 
 **Local builds** (development; `avas run --engine new` looks in `AVAS_ENGINE_LIB`, `avas/engine/new/`, then `engine/build/`):
 
@@ -350,6 +356,10 @@ pytest
 
 `tests/test_gui.py` and `tests/test_segment.py` actually run the engine and are slow; run just that file when your change only
 touches it. More conventions (environment, common commands, the pre-change checklist) are in [AGENTS.md](AGENTS.md).
+
+### README screenshots
+
+`python tools/readme_screenshots.py [--lang zh en] [--pages lattice lattice3d run results learn]` builds the primer tutorial's demo project (six periods, 20 000 macro-particles) in a temporary folder, runs it with the new kernel, starts `avas serve`, captures the pages with the local Chrome / Edge in headless mode and writes `docs/images/<page>-zh/en.webp` (light theme, local paths shown as `~/AVAS/demo`). Regenerate them after visible interface changes and check that the README captions still match.
 
 ### Linear preview against the engine
 

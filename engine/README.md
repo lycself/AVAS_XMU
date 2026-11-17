@@ -1,6 +1,8 @@
-# 新计算内核（重建中）
+# 新计算内核
 
-原 C++ 内核（`avas/engine/AVAS.dll`、`libAVAS.so`）和 GPU 内核（`libPIC.so`）的源码已丢失。这里是按原二进制逆向整理出规格后重写的新内核，在 `engine-rebuild` 分支开发，完成全部功能对齐前不合并到 main。
+原 C++ 内核（`avas/engine/AVAS.dll`、`libAVAS.so`）和 GPU 内核（`libPIC.so`）的源码已丢失。这里是按原二进制逆向整理出规格后重写的新内核。
+
+**状态（2026-11-17）**：M1–M11 全部完成并合并到 main，自 M8b（2026-11-16）起是所有平台的默认内核。280 个对齐项中 279 个有算例或检验（剩下的 E-01 是 Linux 原内核用到的 glibc 随机数序列，不适用）；“复现 AVAS.dll”模式（`compat=dll`）在 Windows 上与 AVAS.dll 2026-04-02 逐字节相同，CUDA fp64 无空间电荷时与 CPU 逐位相同，CUDA fp32、Metal 与 CPU fp32 模拟逐字节相同。RFQ 元件没有原内核参考，只有自洽检验。平时在 `engine-rebuild` 分支开发，经 PR 快进合并到 main（main 会自动发布）。用户怎样在各平台用 CPU／GPU 见 [README](../README.md) 和 AGENTS.md 第 3 节。
 
 目标：同一份 C++ 物理代码（`__host__ __device__`，设备修饰只经 `src/core/hd.h` 的中性宏）编译成 CPU 版和 CUDA 版；macOS 的 GPU 走 Metal（M6c）。支持 macOS（CPU）、Windows 和 Linux（CPU、NVIDIA GPU，最低 Pascal sm_61），包括 CentOS 7 / glibc 2.17 的离线集群。精度分 `auto`／`fp64`／`fp32` 三档，`auto` 在 fp64 全速的卡上用 fp64，其余用 fp32 相对参考粒子坐标。
 
@@ -68,7 +70,7 @@ CUDA fp32 档（M6c 第五阶段）用显式显存与批量复制，单卡不用
 
 ## 接入 AVAS（M7a）
 
-新内核是**可选**内核，默认仍用原内核。Python 侧的选择层是 `avas/engines.py`（设计与检查结果见 [docs/engine/M7-notes.md](../docs/engine/M7-notes.md)）：
+新内核起初是可选内核（M7a），自 M8b（2026-11-16）起是所有平台的默认内核，原内核仍可选择。Python 侧的选择层是 `avas/engines.py`（设计与检查结果见 [docs/engine/M7-notes.md](../docs/engine/M7-notes.md)）：
 
 - 每个设置的优先级：`avas run` 的命令行（`--engine original|new --device auto|cpu|cuda|metal --precision auto|fp64|fp32 --gpus all|0,1 --threads N --compat none|dll`）
   > 环境变量（`AVAS_ENGINE`、`AVAS_ENGINE_DEVICE`、`AVAS_ENGINE_PRECISION`、`AVAS_ENGINE_GPUS`、`AVAS_ENGINE_THREADS`、`AVAS_ENGINE_COMPAT`）

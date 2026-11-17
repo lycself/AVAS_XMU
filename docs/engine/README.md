@@ -2,6 +2,8 @@
 
 原内核源码已丢失。本目录是按 `libAVAS.so`（GCC 4.8.5，带 C++ 符号，214 个非库函数）和 `AVAS.dll`（MSVC，无符号，734 个函数）的反编译结果整理的规格，是新内核的实现依据。伪代码本身不进仓库，项目期间放在 L40S 服务器 `/data/public/lycself/avas_engine_work/decomp/`，结束后归档到 `AVAS_NEW/archive/recovered/`。
 
+**状态（2026-11-17）**：新内核 M1–M11 已全部完成并合并到 main（默认内核）；对齐清单 280 项中 279 项有算例或检验，1 项不适用，见 [coverage.md](coverage.md)。给原作者的问题反馈已提交为 [IMP-AVAS/AVAS#3](https://github.com/IMP-AVAS/AVAS/issues/3)。
+
 规格来自读代码；已经用原内核运行核实的结论记在 [90-experiments.md](90-experiments.md)，下文表格的"实测"列标出状态。文中"推测"字样表示证据不足。实现每一部分前要先跑对应的比对实验。
 
 ## 文档
@@ -24,7 +26,7 @@
 | [M9-notes.md](M9-notes.md) | RFQ 元件在新内核默认模式中的实现（输入格式、修正的场与同步相位、验证）与原作者仓库 IMP-AVAS/AVAS 的发现 | — | — |
 | [M10-notes.md](M10-notes.md) | 原作者 2026-07-22 版原内核与 04-02 基准的差别（逐版本定位、按函数对比）、跟进决定 D1–D8 与默认模式中的实现（参考能量、initpos／initmom、单粒子输出面、命名与紧邻输出面、新边界形状、Ke = 0 射频场、纵向周期盒）及检验 | — | — |
 | [M11-notes.md](M11-notes.md) | M11：硬边元件前的 spacechargecomp 在默认模式生效、superposeout 块内反射粒子不再使运行挂起、停滞判丢不重复记录；Python 侧对原内核的防护（libAVAS.so 的 CRLF boundary.txt、boundary.txt 的 superpose 块、块首射频腔提示）；D-28、B-21、D-13、D-14、E-05、H-24 的补测 | — | — |
-| [feedback-imp-avas-20260722.md](feedback-imp-avas-20260722.md) | 给原作者 IMP-AVAS 的 2026-07-22 版问题反馈（崩溃与错误结果、旧项目静默改变、输出与一致性问题），每条注明实测或代码阅读 | — | — |
+| [feedback-imp-avas-20260722.md](feedback-imp-avas-20260722.md) | 给原作者 IMP-AVAS 的 2026-07-22 版问题反馈（崩溃与错误结果、旧项目静默改变、输出与一致性问题），每条注明实测或代码阅读；已提交为 IMP-AVAS/AVAS#3 | — | — |
 | [M8-plan.md](M8-plan.md) | 第二阶段方案：新内核设为默认（切换前的比对与性能测量、切换内容、原内核保留期、待定点） | — | — |
 
 合计 280 个对齐项；`.so` 的 214 个函数全部出现在各文档的函数覆盖表中。每份文档的结构相同：概述、规格正文、对齐清单、函数覆盖表、未解决的问题、对结构表的更正。

@@ -7,7 +7,7 @@
 
 AVAS（Advanced Virtual Accelerator Software）是直线加速器束流动力学模拟程序：
 
-- C++ 计算内核：`avas/engine/AVAS.dll`（Linux 为 `libAVAS.so`），只有二进制，没有源码，不要修改。新内核（`engine/` 源码，预编译库在 `avas/engine/new/`）自 M8b（2026-11-16）起是所有平台的默认内核（`avas/engines.py` 的 `default_kernel()`，见第 5.4 节“内核选择”）；原内核在 Windows、Linux x86-64 上仍可选择，界面标“将淘汰”，按 docs/engine/M8-plan.md 第 4 节的条件在以后删除。
+- 计算内核有两个。**新内核**：原内核源码丢失后逆向重建（2026-11，M1–M11 已全部完成并合并 main），源码在 `engine/`，预编译库在 `avas/engine/new/`，CPU、NVIDIA GPU（CUDA）、Mac GPU（Metal）；**原内核**：`avas/engine/AVAS.dll`（Linux 为 `libAVAS.so`）2026-04-02 版，只有二进制，不要修改。新内核自 M8b（2026-11-16）起是所有平台的默认内核（`avas/engines.py` 的 `default_kernel()`，见第 5.4 节“内核选择”）；原内核在 Windows、Linux x86-64 上仍可选择，界面标“将淘汰”，按 docs/engine/M8-plan.md 第 4 节的条件在以后删除。
 - Python 包 `avas/`：模拟流程、前后处理、命令行 `avas run / plot / gui / serve / info / doctor`。
 - 界面：React 网页前端（`frontend/`）+ Python 后端（`avas/gui/services/`），二者只通过 HTTP / WebSocket 通信（`avas/gui/server.py`）。
   `avas gui` 把页面放进 pywebview + Edge WebView2 桌面窗口；`avas serve` 不开窗口，在浏览器里用同一个页面（将来部署到服务器的基础，
@@ -55,8 +55,8 @@ frontend/src/
   i18n/zh_CN.json 中文翻译（英文原文 → 中文）
   styles/tokens.css 全部颜色变量（浅色 + 深色）
 tests/            pytest；test_gui.py 覆盖页面调用的每个接口；前端 vitest（frontend/src/**/*.test.ts）
-tools/            手动运行的开发工具（不属于快速 pytest）：compare_preview_engine.py 用真实内核对比新旧线性预览，compare_centroid_engine.py 用单粒子运行核对线性模型的质心，compare_response_engine.py 用小发射度多粒子束核对轨道响应矩阵（步骤见 CONTRIBUTING.md）
-engine/           新计算内核（重建中，原内核源码已丢失；在 engine-rebuild 分支开发，全部功能对齐前不合并 main，说明见 engine/README.md，规格在 docs/engine/）：src/ C++ 源码（CMake 构建），tests/parity/ 与原 AVAS.dll 的比对，docker/ Linux 构建环境（manylinux2014 + CUDA 12.4），tools/ 工具链检查、原内核比对实验与 Ghidra 导出脚本，cmake/source_hash.cmake 引擎源码哈希；逆向导出的伪代码不进仓库。从源码运行时 `avas run --engine new`（或 `AVAS_ENGINE=new`、ini.ini `[engine] kernel = new`）加载 engine/build 下的新库，`--compat dll` 复现原内核缺陷
+tools/            手动运行的开发工具（不属于快速 pytest）：compare_preview_engine.py 用真实内核对比新旧线性预览，compare_centroid_engine.py 用单粒子运行核对线性模型的质心，compare_response_engine.py 用小发射度多粒子束核对轨道响应矩阵（步骤见 CONTRIBUTING.md），readme_screenshots.py 用无头 Chrome／Edge 重新生成 README 截图（docs/images/）
+engine/           新计算内核（原内核源码丢失后逆向重建，已完成并合并 main；平时在 engine-rebuild 分支开发，经 PR 快进合并；说明见 engine/README.md，规格在 docs/engine/）：src/ C++ 源码（CMake 构建），tests/parity/ 与原 AVAS.dll 的比对，docker/ Linux 构建环境（manylinux2014 + CUDA 12.4），tools/ 工具链检查、原内核比对实验与 Ghidra 导出脚本，cmake/source_hash.cmake 引擎源码哈希；逆向导出的伪代码不进仓库。新内核按 `AVAS_ENGINE_LIB` > `avas/engine/new/` > `engine/build` 查找库，`--compat dll` 复现原内核缺陷
 .github/workflows/ci.yml  CI：ruff + 快速 pytest（Windows，含 smoke）、npm test + build
 .github/workflows/engine.yml  新内核三平台（Windows、Linux、macOS）构建与比对，产物供 `engine/tools/fetch_ci_engine.py` 取用；engine/tools/ci_engine.py 是 CI 的检查与构建记录
 examples/cluster/ Linux 集群（Slurm）运行新内核的示例脚本
@@ -80,6 +80,21 @@ packaging/        PyInstaller + Inno Setup 打包
 - 打包：`python packaging/build.py`。生成的 exe 不会随源码更新，改代码后要重新打包。
 - 模拟结果每次运行略有差别（内核多线程），比较 DataSet.txt 要带容差，不能要求完全相同。
 
+### 各平台怎样用 CPU / GPU 计算（给用户解答时以此为准）
+
+| 平台 | 安装 | 设备 |
+| --- | --- | --- |
+| Windows 10/11 x64 | 安装包 `AVAS-版本-setup.exe`／`avas-windows.zip`（两个内核都在包里）或源码 | CPU；NVIDIA CUDA，只需显卡驱动 ≥ 527.41 |
+| Linux x86-64，glibc ≥ 2.17（含 CentOS 7） | 只能源码安装（`python3.11 -m venv .venv && .venv/bin/python -m pip install -e .`），预编译 `libavas_engine.so` 在仓库里 | CPU；NVIDIA CUDA，只需驱动 ≥ 525.60.13 |
+| macOS（Apple 芯片） | 只能源码安装，只有新内核 | CPU；Metal（只有 fp32） |
+
+- CUDA 12.4 运行库静态链接进新内核库：**不需要装 CUDA 工具包**，用户装的 CUDA 版本无关，集群上不用 `module load cuda`。
+- 预编译库的机器码：sm_61（GTX 10、P40）、75（T4、RTX 20、GTX 16）、80（A100）、86（RTX 30、A40）、89（L40S、RTX 40）、90（H100）并附 compute_90 PTX（更新架构由驱动 JIT，未实测）。
+  **P100（sm_60）、V100（sm_70）及更老的卡不能用预编译库的 GPU**（M7c 为缩小体积去掉；需要时用 CMake + CUDA 12.x 加 `-DCMAKE_CUDA_ARCHITECTURES` 重新构建，CUDA 13 不支持 Pascal）。ARM Linux 不支持。
+- 命令：`avas run --input DIR --output DIR --engine new --device auto|cpu|cuda|metal --precision auto|fp64|fp32 --gpus all|0,1 --threads N`；`avas info` 看找到的库、设备和 auto 的选择，`avas doctor` 自检；
+  Slurm 示例 `examples/cluster/avas_slurm.sh`；服务器上的界面用 `avas serve` + SSH 端口转发。
+- 这些事实同时写在 README（中英文）、界面使用说明 `guide-gpu`／`guide-linux` 两节和 AI 助手的 `avas/ai/kernel_guide.py`（`kernel_info` 工具）里，改动时四处一起改。
+
 ## 4. 修改完成前的检查清单
 
 1. 相关的 pytest 通过；前端有改动时 `npm run build` 成功，且 `tests/test_design_rules.py` 通过（颜色、翻译、构建是否过期）。
@@ -87,7 +102,7 @@ packaging/        PyInstaller + Inno Setup 打包
 3. 新增颜色只加在 `styles/tokens.css`，浅色和深色两套都要给。
 4. 新增或修改的后端接口在 `tests/test_gui.py`（或对应测试文件）里有测试。
 5. 改动物理计算时，用示例项目跑内核对比，并说明误差。
-6. 用户能感觉到的行为变化写进 `README.md`（中英文两部分）；设计规则变化写进本文件。README 中英文采用相同章节结构，依次为下载与快速开始、主要功能、源码安装、命令行与浏览器、更新与常见问题、文档与反馈。新增说明并入对应章节，保持入口简明；详细操作放使用说明，构建与发布步骤放 `CONTRIBUTING.md`，历次修复放新变更记录，不在 README 末尾追加零散段落。
+6. 用户能感觉到的行为变化写进 README：中文 `README.md` 与英文 `README.en.md`（2026-11-17 起分成两个文件，顶部互相链接），设计规则变化写进本文件。两份结构相同：顶部居中的图标、名称、徽章与语言切换，一句简介、主截图和六条亮点，然后依次是 下载与快速开始（含“在 CPU 和 GPU 上计算”的平台与 GPU 架构表）、主要功能（页面表、截图墙、各功能小节）、源码安装、命令行与浏览器、更新与常见问题（折叠的问答）、文档与反馈（含引用）。新增说明并入对应章节，保持入口简明；细节较多的内容放进 `<details>` 折叠块，详细操作放使用说明，构建与发布步骤放 `CONTRIBUTING.md`，历次修复放新变更记录，不在 README 末尾追加零散段落。截图放 `docs/images/`（浅色主题、1440×900 视口、WebP，中英文界面各一套，文件名 `<页面>-zh/en.webp`），界面明显改变时用 `tools/readme_screenshots.py` 重新生成；截图中不得出现本机路径或个人信息。
 7. 不要自行 `git commit` / `push`，除非用户要求。
 
 ## 5. 不能破坏的设计
@@ -185,9 +200,8 @@ packaging/        PyInstaller + Inno Setup 打包
   全局默认内核（M8 决定 5，2026-11-15：菜单“设置 → 默认计算内核”，gui.json 的 `engine/defaultKernel` = original / new，未设为内置默认；`engines.read_preference` /
   `default_choice_kernel`，来源标签 `preference`；文件取环境变量 `AVAS_GUI_SETTINGS`，否则用户数据目录的 gui.json——与 `avas.gui.settings.default_path` 同一规则；
   GUI 进程在创建设置对象时把 `AVAS_GUI_SETTINGS` 设为它的路径，`avas run` 子进程、研究层与 AI 沙盒因此读同一个文件，单独用命令行时读用户的 gui.json；
-  在没有原内核的平台上偏好为 original 时回落到内置默认并在 `sources["note"]` 说明（CLI 打印 note），不报错；测试由 tests/conftest.py 指向临时文件，不读开发者的 gui.json）> 内置默认（kernel 按平台：
-  有原内核的平台 original，没有的平台 new——`engines.original_available()` 只认 Windows / Linux 的 x86-64，`default_kernel()`；新内核 auto / auto / all / 0 / none）。
-  这与“默认仍用原内核”不冲突：那是对有原内核的平台（M7b，2026-11-11）。没有原内核的平台上**显式**选原内核（ini、`--engine original`、`AVAS_ENGINE`）在运行前报错
+  在没有原内核的平台上偏好为 original 时回落到内置默认并在 `sources["note"]` 说明（CLI 打印 note），不报错；测试由 tests/conftest.py 指向临时文件，不读开发者的 gui.json）> 内置默认（kernel 在所有平台都是 new，M8b 2026-11-15 起，`default_kernel()`；此前有原内核的平台默认 original；
+  `engines.original_available()` 只认 Windows / Linux 的 x86-64；新内核 auto / auto / all / 0 / none）。没有原内核的平台上**显式**选原内核（ini、`--engine original`、`AVAS_ENGINE`）在运行前报错
   （`engines.check_platform`，CLI 退出码 2；GUI 的 `kernels.require_ready`），`avas info`、设置页、运行记录都体现平台默认。原内核被选中时忽略其余键；旧的 `[input] device = gpu`（libPIC.so）只对原内核有效，M8 起运行时记弃用警告（`MultiParticle.LEGACY_GPU_DEPRECATION`，改用 `--engine new --device cuda`），第三阶段删除。不写 input.txt（原内核要能读同一项目）。
   新内核库的查找：`AVAS_ENGINE_LIB` > `avas/engine/new/` > `engine/build`（`Release`、`RelWithDebInfo`），路径来自 `avas.paths`。
   所有内核运行都经 `avas run` 子进程，各入口拿到 `[engine]` 的方式：完整运行 / 误差研究直接用项目 InputFile；分段运行、AI 沙盒、参数扫描、入门教程复制的文本输入含 ini.ini；
