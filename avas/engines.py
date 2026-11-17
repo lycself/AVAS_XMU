@@ -559,7 +559,7 @@ def rf_superpose_warning(lines):
 
 
 # one literal (translated in zh_CN.json); {lines}: boundary.txt line numbers
-BOUNDARY_SHAPE_ERROR = "boundary.txt line {lines}: shapes 3 (rectangular pipe) and 4 (elliptical pipe) are only supported by the new kernel's default mode; the original kernel and the mode “Reproduce AVAS.dll” stop with “Unknown geometric shapes”. Choose the new kernel in its default mode in Simulation settings → Computing kernel."  # noqa: E501
+BOUNDARY_SHAPE_ERROR = "boundary.txt line {lines}: shapes 3 (rectangular pipe) and 4 (elliptical pipe) are only supported by the new kernel's default mode; the original kernel and the mode “Reproduce AVAS.dll” stop with “Undefined shape exists, check boundary.txt”. Choose the new kernel in its default mode in Simulation settings → Computing kernel."  # noqa: E501
 
 
 def _keyword_lines(path):
@@ -580,7 +580,7 @@ def _keyword_lines(path):
 def boundary_new_shapes(input_dir):
     """Line numbers of boundary.txt shapes 3 and 4 (rectangular and elliptical pipes, M10 D5) after its ``start`` line,
     with input.txt ``boundary 1``.  AVAS.dll 2026-04-02 and compat=dll know shapes 1 and 2 only and stop with
-    "Unknown geometric shapes" (case M10_D5_rect_ellipse_dst)."""
+    "Undefined shape exists, check boundary.txt" while reading boundary.txt (ErrorLog of case M10_D5_rect_ellipse_dst)."""
     if input_keywords(input_dir, "input.txt").get("boundary", "0") != "1":
         return []
     out, started = [], False

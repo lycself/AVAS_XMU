@@ -536,7 +536,7 @@ def test_rf_cavity_at_the_start_of_a_superpose_block_warns_for_the_original_kern
 
 def test_boundary_shapes_3_and_4_are_refused_for_the_original_kernel_and_compat(project, fake_query, monkeypatch):
     """Rectangular and elliptical pipes (boundary.txt shapes 3 and 4, M10 D5) are read by the new kernel's default mode
-    only; AVAS.dll 2026-04-02 and compat=dll stop with "Unknown geometric shapes".  The check before a run refuses them
+    only; AVAS.dll 2026-04-02 and compat=dll stop with "Undefined shape exists, check boundary.txt".  The check before a run refuses them
     with the boundary.txt line numbers (translated); ``avas run`` exits with 2."""
     from avas import engines
     from avas.cli.main import main as cli_main

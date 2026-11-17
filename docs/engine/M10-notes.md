@@ -172,7 +172,7 @@
 - **设备**（Mac M2，`run_gpu.py`，35 个相关算例）：emu fp64 与 CPU 逐字节相同 30/30（另 5 个空间电荷算例与以前一样只差舍入），Metal 与 emu fp32 逐字节相同 35/35、重跑相同；全部 203 个算例 Metal 与 emu fp32 逐字节相同。
 - **Windows**（XPS，MSVC 17.12 + CUDA 12.4，2026-11-16）：`run_all.py --strict` 兼容模式与 AVAS.dll 参考逐字节相同（ALL IDENTICAL，含下面新增的 11 个参考），默认模式各项检查与单线程对多线程全部通过；GTX 1650 上 fp64 无空间电荷算例与 CPU 逐字节相同 172/172，fp32 与 CPU 上的 fp32 参考逐字节相同 203/203、重跑相同；rfq_check 通过。
 - **L40S**（Linux，CI 预编译库 233ba61，2026-11-16）：`run_all.py` 与 rfq_check 通过；CUDA fp64 无空间电荷算例与 CPU 逐字节相同 172/172，fp32 与 CPU 上的 fp32 参考逐字节相同 203/203、重跑相同。当时没有完全空闲的卡，用了计算占用为 0 但显存只剩约 3.8 GB 的 1 号卡：7 个二次粒子算例（SB*）在 fp64 下报 `CUDA error: out of memory (cudaDeviceSetLimit(cudaLimitStackSize, 16384))`（每线程 16 KB 栈乘以整卡的驻留线程数约需 3.5 GB），换到显存空闲的 5 号卡后 7/7 逐字节相同。这是显存不足时的明确报错，不是计算错误。
-- **兼容模式参考**：11 个 `M10_*` 算例（D1_dst_mean、D1_dst_far、D2_initpos_single、D2_both_single、D4_named_planes、D4_close_planes、D5_rect_ellipse_dst、D5_composite_dst、D5_thin_collimator_dst、D6_ke0_cavity_dst、D7_periodic_fft_dst）的 `refs/` 由 Windows 上的 AVAS.dll 2026-04-02（SHA-1 9f6331949208）生成，新内核兼容模式与之逐字节相同：D2 两套名字都被当作未知关键字（粒子在轴上）、D4 两例报 “interval less than the bunch length”、D5 矩形报 “Unknown geometric shapes” 退出、D5 复合段在 stoi 异常处结束（`windows_process_end`，其他平台以信号结束）、D6 扫相失败、D7 忽略 V2。
+- **兼容模式参考**：11 个 `M10_*` 算例（D1_dst_mean、D1_dst_far、D2_initpos_single、D2_both_single、D4_named_planes、D4_close_planes、D5_rect_ellipse_dst、D5_composite_dst、D5_thin_collimator_dst、D6_ke0_cavity_dst、D7_periodic_fft_dst）的 `refs/` 由 Windows 上的 AVAS.dll 2026-04-02（SHA-1 9f6331949208）生成，新内核兼容模式与之逐字节相同：D2 两套名字都被当作未知关键字（粒子在轴上）、D4 两例报 “interval less than the bunch length”、D5 矩形报 “Undefined shape exists, check boundary.txt” 退出、D5 复合段在 stoi 异常处结束（`windows_process_end`，其他平台以信号结束）、D6 扫相失败、D7 忽略 V2。
 
 ### 6.3 默认模式输出的变化
 

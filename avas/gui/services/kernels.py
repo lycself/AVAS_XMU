@@ -143,7 +143,7 @@ def require_ready(input_dir):
     # M11: a superpose block of boundary.txt stops AVAS.dll 2026-04-02 (and compat=dll) before any output
     if engines.original_kernel_rules(choice) and engines.boundary_superpose(input_dir):
         raise UserError(engines.BOUNDARY_SUPERPOSE_ERROR)
-    # boundary shapes 3 and 4 (M10 D5): AVAS.dll 2026-04-02 stops with "Unknown geometric shapes"
+    # boundary shapes 3 and 4 (M10 D5): AVAS.dll 2026-04-02 stops with "Undefined shape exists"
     shapes = engines.boundary_new_shapes(input_dir) if engines.original_kernel_rules(choice) else []
     if shapes:
         raise UserError(engines.BOUNDARY_SHAPE_ERROR, lines=", ".join(str(n) for n in shapes))

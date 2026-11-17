@@ -1623,7 +1623,7 @@
   "Particles are folded into one RF period around the synchronous particle and the space-charge box is periodic.": "粒子折叠到同步粒子前后一个射频周期内，空间电荷用周期盒。",
   "Periodic space-charge box (lpboundary V2)": "周期空间电荷盒（lpboundary V2）",
   "FFT with a longitudinal box one RF period long (γβλ in the beam rest frame); the particles are not folded. For continuous beams and long bunches; V1 is then not used.": "FFT 求解，纵向用一个射频周期长的周期盒（束流静止系中的 γβλ），粒子不折叠。适用于连续束和长束团；此时不用 V1。",
-  "boundary.txt line {lines}: shapes 3 (rectangular pipe) and 4 (elliptical pipe) are only supported by the new kernel's default mode; the original kernel and the mode “Reproduce AVAS.dll” stop with “Unknown geometric shapes”. Choose the new kernel in its default mode in Simulation settings → Computing kernel.": "boundary.txt 第 {lines} 行：形状 3（矩形管）和 4（椭圆管）只有新内核默认模式支持，原内核和“复现 AVAS.dll”模式会报 “Unknown geometric shapes” 并停止。请在 模拟设置 → 计算内核 中选择新内核的默认模式。",
   "No SingleParticlePlane.txt in this folder: the new kernel's default mode writes it for a single-particle run (particlenumber 1).": "此文件夹中没有 SingleParticlePlane.txt：新内核默认模式在单粒子运行（particlenumber 1）时才写这个文件。",
-  "SingleParticlePlane.txt has no rows: the particle reached no output plane.": "SingleParticlePlane.txt 没有数据行：粒子没有到达任何输出面。"
+  "SingleParticlePlane.txt has no rows: the particle reached no output plane.": "SingleParticlePlane.txt 没有数据行：粒子没有到达任何输出面。",
+  "boundary.txt line {lines}: shapes 3 (rectangular pipe) and 4 (elliptical pipe) are only supported by the new kernel's default mode; the original kernel and the mode “Reproduce AVAS.dll” stop with “Undefined shape exists, check boundary.txt”. Choose the new kernel in its default mode in Simulation settings → Computing kernel.": "boundary.txt 第 {lines} 行：形状 3（矩形管）和 4（椭圆管）只有新内核默认模式支持，原内核和“复现 AVAS.dll”模式会报 “Undefined shape exists, check boundary.txt” 并停止。请在 模拟设置 → 计算内核 中选择新内核的默认模式。"
 }
