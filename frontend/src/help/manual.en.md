@@ -78,6 +78,39 @@ The kernel each run actually used is recorded in the `engine` entry of avas_run.
 
 **Help → About AVAS** lists both kernels' versions, the new kernel's build options and this computer's devices; Copy version information includes them.
 
+## Differences between the new and the original kernel {#guide-kernel-differences}
+
+The original kernel's source code (AVAS.dll / libAVAS.so) was lost; the new kernel was rewritten from a specification reverse-engineered from the original binaries. Of the 280 items of the parity list, 279 have a test case or check, and the new kernel's mode “Reproduce AVAS.dll” gives byte-identical output to AVAS.dll 2026-04-02 on Windows, so the calculations the two share are the same. The new kernel's default mode also corrects defects of the original kernel, which is why default-mode results differ slightly from before. The differences fall into four groups:
+
+**1. Programming errors of the original kernel (corrected; certain)**
+
+- With a fixed random seed (`randomseed` not 0) the original kernel's initial distribution has x fully correlated with the phase (correlation −1), although the planes should be independent. Old results with the original kernel and a fixed seed may have emittances and losses affected by this.
+- With multithreading, space charge in matrix elements such as quadrupoles is too strong and differs from run to run (a data race between threads).
+- The asymmetry correction of SPICNIC depends on the number of CPU cores; an odd number of mesh cells makes the program hang.
+- A superpose block in boundary.txt crashes the program; a boundary.txt with Windows line endings crashes libAVAS.so on Linux; particles reflected inside a superposeout block keep the run from ever ending; an RF cavity at the start of a superpose block gets no field and no error; some outputs contain uninitialised memory.
+
+**2. More accurate space charge (checked against analytic solutions)**
+
+- **SPICNIC**: the original Green's-function table is badly undersampled for elongated mesh cells (long bunches, continuous beams) and truncates the kernel at 0.75 of the mesh, so the space-charge growth of a DC KV beam was only 38–81 % of the analytic envelope and changed strongly with the mesh. The new kernel integrates 1/r analytically over each cell and covers the whole mesh: the field of a uniformly charged ellipsoid is within 0.34 % of the analytic one, and the growth of a DC KV beam within 1 % of the analytic envelope. For nearly cubic cells the old approximation is adequate and the difference small; for long bunches emittances and sizes may differ by 1–2 %.
+- **PICNIC** (formerly libPIC.so on Linux): the new kernel converges to the analytic ellipsoid field (0.19 % at 32³); the original library's field is about 3.3 % weaker, traced to three defects in its coefficient table, truncation and boundary nodes.
+- **Synchronous phase**: the original kernel finds the phase by scanning, about 0.07° off (−33° set, −32.93° obtained); the new kernel solves for the set value exactly.
+
+**3. Different conventions (neither is wrong)**
+
+- With a `.dst` particle file the new kernel takes beam.txt `kneticenergy` as the synchronous particle's energy (as the authors' 2026-07-22 version; a negative value takes the mean energy of the file), the original kernel the mean energy of the file. A difference of more than 1 % is pointed out before the run.
+- `spacechargecomp` written before a quadrupole, solenoid, dipole or edge (or before the first element) takes effect from there in the new kernel and has no effect in the original kernel.
+- Inputs that only the new kernel reads (output plane names, `lpboundary` V2, `initpos` / `initmom`, …) are tagged “New kernel only” in the interface.
+
+**4. Not yet verified**
+
+- Neither kernel has been compared systematically with an independent code such as TraceWin or with measured beam data; “more accurate” means consistent with the physical definitions and converging to analytic solutions.
+- Both kernels share the same approximations: PIC mesh resolution, hard-edge models, the conducting walls and periodic images of FFT.
+- The cell-by-cell `rfq` element runs only in the new kernel and has no reference results; check it against another code before relying on it.
+
+**Comparing on your own project**: choose the original and the new kernel (or the new kernel's mode “Reproduce AVAS.dll”) in turn in **Simulation settings → Computing kernel**, run once with each and Keep this run after each, then overlay envelopes, emittances and energy with Compare runs on the Results page. The new kernel's random numbers differ from the original kernel's, so multi-particle results differ by statistical fluctuations: use enough particles and several seeds. Runs that read a particle file and single-particle runs have no statistical fluctuation, so their differences come from the kernel only. In a source installation `python tools/compare_kernels.py --input <project>` runs and compares several runs automatically (on copies, without touching the project).
+
+**Going back to the original kernel**: on Windows and Linux choose the original kernel for one project in **Simulation settings → Computing kernel**, or for all projects in **Settings → Default computing kernel**; on the command line use `--engine original`. The original kernel will be removed from the release packages later; the mode “Reproduce AVAS.dll” will still give its results bit for bit.
+
 ## CPU and GPU on each platform {#guide-gpu}
 
 | Platform | Installation | CPU | GPU |
