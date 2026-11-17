@@ -2,8 +2,8 @@
 // requests): read the lattice being edited, apply an approved change to the
 // open editor (one undo step) and save it, reload pages after a file changed,
 // start a run exactly like the Run button (or only prepare one that Python
-// starts, e.g. a segment run), switch pages and show an element, and search,
-// read or show the primer (its texts load on first use).
+// starts, e.g. a segment run), switch pages and show an element, search, read
+// or show the primer, and search or read the user guide (texts load on first use).
 import { call, on } from "../bridge";
 import { prepareRun, runSimulation } from "../actions";
 import { isZh } from "../i18n";
@@ -13,6 +13,24 @@ import { fileSaved, getPage, useDirty } from "../store/pages";
 import { showLearn, useLearn } from "../learn/store";
 
 const PRIMER_TEXT = 6000; // characters of one section returned to the model
+const GUIDE_SNIPPET = 700; // characters of a guide section in search results
+
+/** The in-app user guide (help/*.md: guide, cases, reference) in one language, loaded on first use. */
+async function guide(lang?: string) {
+  const l = lang === "en" || lang === "zh" ? lang : isZh() ? "zh" : "en";
+  const [content, docs] = await Promise.all([
+    import("../help/content"),
+    l === "zh"
+      ? Promise.all([import("../help/manual.zh.md?raw"), import("../help/cases.zh.md?raw"), import("../help/reference.zh.md?raw")])
+      : Promise.all([import("../help/manual.en.md?raw"), import("../help/cases.en.md?raw"), import("../help/reference.en.md?raw")]),
+  ]);
+  const sections = [
+    ...content.manualSections(docs[0].default, "guide"),
+    ...content.manualSections(docs[1].default, "cases"),
+    ...content.manualSections(docs[2].default, "reference"),
+  ];
+  return { content, sections };
+}
 
 async function primer(lang?: string) {
   const content = await import("../learn/content");
@@ -116,6 +134,19 @@ const handlers: Record<string, Handler> = {
     };
   },
   "learn.show": ({ id }: { id: string }) => showLearn(id),
+  "manual.search": async ({ query, lang, limit }: { query: string; lang?: string; limit?: number }) => {
+    const { content, sections } = await guide(lang);
+    return content.rankManual(sections, query, Math.min(limit ?? 5, 8)).map(({ section }) => ({
+      id: section.id, title: section.title, part: section.category,
+      snippet: section.text.length > GUIDE_SNIPPET ? section.text.slice(0, GUIDE_SNIPPET) + " …" : section.text,
+    }));
+  },
+  "manual.read": async ({ id, lang }: { id: string; lang?: string }) => {
+    const { sections } = await guide(lang);
+    const section = sections.find((s) => s.id === id);
+    if (!section) return { error: `No guide section '${id}'.` };
+    return { id, title: section.title, part: section.category, text: section.text.length > PRIMER_TEXT ? section.text.slice(0, PRIMER_TEXT) + "\n… (truncated)" : section.text };
+  },
   "ui.page": ({ page }: { page: PageId }) => {
     setPage(page);
     return true;

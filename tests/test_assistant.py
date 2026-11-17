@@ -384,3 +384,43 @@ def test_segment_run_results_can_be_read_back(project):
     assert any(e.get("kind") == "chart" for e in events)
     with pytest.raises(ToolError, match="No segment run 'nope'"):
         tools["segment_results"].handler({"source": "nope"}, ctx)
+
+
+def test_kernel_info_and_manual_search(project, monkeypatch):
+    """kernel_info gives this computer's kernels and devices, the open project's choice and the guide for every
+    platform; search_manual searches the in-app guide through the page and the Word manual, and read_manual reads a
+    guide section (both from the page; without a page only the Word manual is searched)."""
+    from avas.ai import ToolContext, ToolError
+    from avas.ai.avas_tools import build_tools
+    from avas.gui.services import assistant
+    conv = assistant.Conversation(project)
+    host = assistant.Host(conv)
+    tools = {t.name: t for t in build_tools(host)}
+    ctx = ToolContext(call_id="t", emit=lambda e: None, stop_event=threading.Event(), agent=None)
+    info = tools["kernel_info"].handler({}, ctx)
+    assert info["computer"]["platform"] and info["computer"]["default_kernel"] == "new"
+    assert isinstance(info["project"], dict) and info["project"]["effective"]["kernel"] in ("new", "original")
+    guide = info["guide"]
+    assert guide["this_platform"] and len(guide["other_platforms"]) == 2
+    text = " ".join(guide["all_platforms"] + guide["nvidia_gpus"] + sum(guide["other_platforms"].values(), []))
+    assert "525.60.13" in text and "V100" in text and "Metal" in text and "--device" in text
+
+    calls = []
+
+    def front(method, params=None, timeout=5.0):
+        calls.append((method, params))
+        if method == "manual.search":
+            return [{"id": "guide-gpu", "title": "GPU", "part": "guide", "snippet": "driver"}]
+        if method == "manual.read":
+            return {"id": params["id"], "title": "GPU", "part": "guide", "text": "body"}
+        return None
+    monkeypatch.setattr(host, "front", front)
+    res = tools["search_manual"].handler({"query": "GPU 驱动", "lang": "zh"}, ctx)
+    assert res["guide"][0]["id"] == "guide-gpu" and "sections" in res["word_manual"]
+    assert calls[0] == ("manual.search", {"query": "GPU 驱动", "lang": "zh", "limit": 4})
+    assert tools["read_manual"].handler({"id": "guide-gpu"}, ctx)["text"] == "body"
+    monkeypatch.setattr(host, "front", lambda *a, **k: None)
+    res = tools["search_manual"].handler({"query": "superpose"}, ctx)
+    assert isinstance(res["guide"], str) and res["word_manual"]["sections"]
+    with pytest.raises(ToolError):
+        tools["read_manual"].handler({"id": "guide-gpu"}, ctx)

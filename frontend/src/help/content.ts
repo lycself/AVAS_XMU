@@ -28,3 +28,33 @@ export function searchManual(sections: ManualSection[], category: ManualCategory
     ? words.every(word => `${s.title}\n${s.text}`.toLocaleLowerCase().includes(word))
     : s.category === category);
 }
+
+/** Query terms for ranking: latin words and numbers, and Chinese runs plus their character pairs (the same rule as
+ *  the Word-manual search in avas/ai/manual.py, so "GPU 计算" and "显卡驱动" both find sections without a tokenizer). */
+export function manualTerms(query: string): string[] {
+  const terms: string[] = [];
+  for (const word of query.toLocaleLowerCase().match(/[a-z_][a-z_0-9']*|\d+(?:\.\d+)?|[一-鿿]+/g) ?? []) {
+    if (/[一-鿿]/.test(word)) {
+      terms.push(word);
+      for (let i = 0; i + 1 < word.length; i++) terms.push(word.slice(i, i + 2));
+    } else if (word.length > 1) terms.push(word);
+  }
+  return [...new Set(terms)];
+}
+
+/** Sections ranked for the assistant (title matches count three times, longer terms more), best first. */
+export function rankManual(sections: ManualSection[], query: string, limit = 5): { section: ManualSection; score: number }[] {
+  const terms = manualTerms(query);
+  if (!terms.length) return [];
+  const count = (text: string, term: string) => text.split(term).length - 1;
+  return sections
+    .map((section) => {
+      const title = section.title.toLocaleLowerCase();
+      const body = section.text.toLocaleLowerCase();
+      const score = terms.reduce((sum, term) => sum + (count(body, term) + 3 * count(title, term)) * (term.length > 2 ? 3 : 1), 0);
+      return { section, score };
+    })
+    .filter((h) => h.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+}

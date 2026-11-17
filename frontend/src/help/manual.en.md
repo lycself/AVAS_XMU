@@ -78,6 +78,56 @@ The kernel each run actually used is recorded in the `engine` entry of avas_run.
 
 **Help → About AVAS** lists both kernels' versions, the new kernel's build options and this computer's devices; Copy version information includes them.
 
+## CPU and GPU on each platform {#guide-gpu}
+
+| Platform | Installation | CPU | GPU |
+| --- | --- | --- | --- |
+| Windows 10 / 11 x64 | Installer `AVAS-version-setup.exe` or `avas-windows.zip`; both kernels included | new and original kernel | NVIDIA (CUDA), only the graphics driver >= 527.41 |
+| Linux x86-64 (glibc >= 2.17, CentOS 7 included) | From source, no installer (see “Linux servers and clusters”) | new and original kernel | NVIDIA (CUDA), only the driver >= 525.60.13 |
+| macOS (Apple silicon) | From source, new kernel only | new kernel | Mac GPU (Metal, fp32 only) |
+
+**No CUDA installation is needed.** The CUDA 12.4 runtime is linked into the new kernel's library, so the installed CUDA toolkit version (11.x, 12.x, 13) does not matter and Linux clusters need no `module load cuda`; only the NVIDIA driver version in the table is required.
+
+**Supported NVIDIA GPUs** (the prebuilt library contains machine code for these architectures):
+
+| Architecture | Typical GPUs |
+| --- | --- |
+| Pascal sm_61 | GTX 10 series, Tesla P40, P4 |
+| Turing sm_75 | T4, RTX 20 series, GTX 16 series |
+| Ampere sm_80 / 86 | A100, A30; RTX 30 series, A40, A10, RTX A6000 |
+| Ada sm_89 | L40S, L4, RTX 40 series |
+| Hopper sm_90 | H100, H200 |
+
+Newer architectures run the embedded intermediate code (compute_90 PTX), compiled by the driver; not tested yet. **P100 (sm_60), V100 (sm_70), Maxwell and older GPUs cannot use the prebuilt library's GPU code**: choosing the GPU stops the run before it starts with the reason, Auto uses the CPU and says so in the log. If needed, rebuild the new kernel with CMake and CUDA 12.x including these architectures (CUDA 13 no longer supports Pascal). Linux on ARM (Jetson, Kunpeng, ...) is not supported.
+
+**Choosing the device**: in the interface with **Simulation settings → Computing kernel** (see “Computing kernels”); on the command line with
+
+```bash
+avas run --input proj/InputFile --output proj/Results_001 --engine new --device cuda --precision auto --gpus all
+```
+
+`--device` is `auto`, `cpu`, `cuda` or `metal`, `--precision` `auto`, `fp64` or `fp32`, `--gpus` `all` or `0,1`, and `--threads` sets the CPU threads (0 = all). The same keys can be written to the `[engine]` section of the project's ini.ini so that they need not be given every time; priority: command line > environment > ini.ini > default computing kernel. `avas info` shows the kernel library found, this computer's GPUs and driver, and what Auto would use; `avas doctor` checks the installation. The kernel, device and precision a run actually used are recorded in avas_run.json in its output folder.
+
+Auto chooses CUDA when an NVIDIA GPU is present and the run has at least 1000 particles; Metal on a Mac with space charge, at least 60 000 particles and at least half a particle per space-charge mesh cell; otherwise the CPU. Precision Auto is fp64 on the CPU and on GPUs with full-rate fp64 (A100, H100, ...), fp32 on other GPUs.
+
+## Linux servers and clusters {#guide-linux}
+
+On Linux, install from source (clone the repository or download `avas-source.zip` of a release); the new kernel's prebuilt library `avas/engine/new/libavas_engine.so` is part of the repository:
+
+```bash
+python3.11 -m venv .venv
+.venv/bin/python -m pip install -e .
+source .venv/bin/activate
+avas info
+avas run --input /path/proj/InputFile --output /path/proj/Results_001
+```
+
+- **CPU**: `--engine new --device cpu --threads 32`. Limit the threads on a shared server.
+- **GPU**: `--engine new --device cuda --gpus 0`; several GPUs of one node with `--gpus all`, driven by one process. A Slurm job example is `examples/cluster/avas_slurm.sh` in the repository.
+- **Original kernel**: `--engine original` uses libAVAS.so on the CPU only; ini.ini `[input] device = gpu` (the old libPIC.so) is deprecated.
+- **Clusters without internet access**: Python 3.11 can be installed in the home folder with Miniforge, the Python packages downloaded elsewhere and installed offline; no Docker, administrator rights or CUDA module are needed.
+- **Graphical interface**: run `avas serve` on the server and open the address it prints (with its access token) in a local browser through an SSH tunnel. The server listens on 127.0.0.1 only and has no user management yet; use it on trusted networks only.
+
 ## Running and keeping results
 
 Only one task can run at a time. Starting checks and saves modified pages. If the previous completed result has not been kept, choose Keep and run, Run directly or Cancel.

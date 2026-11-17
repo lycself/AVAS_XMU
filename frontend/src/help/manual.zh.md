@@ -78,6 +78,56 @@ Linux 上原内核的旧 GPU 途径（ini.ini `[input] device = gpu`，调用 li
 
 **帮助 → 关于 AVAS** 列出两个内核的版本、新内核的构建选项和本机设备，“复制版本信息”包含这些内容。
 
+## 在各平台上用 CPU 或 GPU 计算 {#guide-gpu}
+
+| 平台 | 安装 | CPU | GPU |
+| --- | --- | --- | --- |
+| Windows 10／11 x64 | 安装包 `AVAS-版本-setup.exe` 或 `avas-windows.zip`，两个内核都已包含 | 新内核、原内核 | NVIDIA（CUDA），只需显卡驱动 ≥ 527.41 |
+| Linux x86-64（glibc ≥ 2.17，含 CentOS 7） | 源码安装，没有安装包（见“在 Linux 服务器或集群上运行”） | 新内核、原内核 | NVIDIA（CUDA），只需驱动 ≥ 525.60.13 |
+| macOS（Apple 芯片） | 源码安装，只有新内核 | 新内核 | Mac GPU（Metal，只有 fp32） |
+
+**不需要安装 CUDA。** 新内核的库已经静态链接 CUDA 12.4 运行库，电脑里装的是哪个版本的 CUDA 工具包（11.x、12.x、13）都没有关系，Linux 集群上也不需要 `module load cuda`，只要求上表中的 NVIDIA 驱动版本。
+
+**支持的 NVIDIA GPU**（预编译库带有这些架构的机器码）：
+
+| 架构 | 典型显卡 |
+| --- | --- |
+| Pascal sm_61 | GTX 10 系列、Tesla P40、P4 |
+| Turing sm_75 | T4、RTX 20 系列、GTX 16 系列 |
+| Ampere sm_80／86 | A100、A30；RTX 30 系列、A40、A10、RTX A6000 |
+| Ada sm_89 | L40S、L4、RTX 40 系列 |
+| Hopper sm_90 | H100、H200 |
+
+更新的架构由库中附带的中间代码（compute_90 PTX）在驱动中即时编译，尚未实测。**P100（sm_60）、V100（sm_70）、Maxwell 及更老的卡不能用预编译库的 GPU**：选 GPU 时运行前报错并说明原因，选“自动”时改用 CPU 并在日志中注明；需要时可用 CMake 和 CUDA 12.x 加上这些架构重新编译新内核（CUDA 13 已不支持 Pascal）。ARM 架构的 Linux（Jetson、鲲鹏等）不支持。
+
+**怎样选设备**：在界面中用 **模拟设置 → 计算内核**（见“计算内核”）；在命令行中用
+
+```bash
+avas run --input 项目/InputFile --output 项目/Results_001 --engine new --device cuda --precision auto --gpus all
+```
+
+`--device` 可为 `auto`、`cpu`、`cuda`、`metal`，`--precision` 可为 `auto`、`fp64`、`fp32`，`--gpus` 写 `all` 或 `0,1`，`--threads` 设 CPU 线程数（0 = 全部）。也可以写进项目 ini.ini 的 `[engine]` 段，以后不必每次写参数；优先级为命令行 > 环境变量 > ini.ini > 默认计算内核。`avas info` 显示找到的内核库、本机的 GPU 与驱动，以及“自动”会用什么；`avas doctor` 检查安装。每次运行实际使用的内核、设备与精度记在输出目录的 avas_run.json 中。
+
+“自动”的选择规则：有 NVIDIA 卡且粒子数不少于 1000 时用 CUDA；Mac 上有空间电荷、粒子数至少 6 万且不少于空间电荷网格单元数的一半时用 Metal；其他情况用 CPU。精度“自动”在 CPU 和 fp64 全速的 GPU（A100、H100 等）上用 fp64，其他 GPU 上用 fp32。
+
+## 在 Linux 服务器或集群上运行 {#guide-linux}
+
+Linux 上从源码安装（git 克隆仓库，或下载正式版本中的 `avas-source.zip`），新内核的预编译库 `avas/engine/new/libavas_engine.so` 已包含在仓库中：
+
+```bash
+python3.11 -m venv .venv
+.venv/bin/python -m pip install -e .
+source .venv/bin/activate
+avas info
+avas run --input /path/proj/InputFile --output /path/proj/Results_001
+```
+
+- **CPU**：`--engine new --device cpu --threads 32`。在多人共用的服务器上请限制线程数。
+- **GPU**：`--engine new --device cuda --gpus 0`；同一节点多张卡用 `--gpus all`，由一个进程管理。Slurm 作业示例见仓库的 `examples/cluster/avas_slurm.sh`。
+- **原内核**：`--engine original` 使用 libAVAS.so，只能在 CPU 上运行；ini.ini `[input] device = gpu`（旧的 libPIC.so）已弃用。
+- **不能上外网的集群**：Python 3.11 可用 Miniforge 装在家目录，Python 依赖需在别处下载后离线安装；不需要 Docker、管理员权限或 CUDA 模块。
+- **图形界面**：在服务器上运行 `avas serve`，通过 SSH 端口转发在本地浏览器打开它打印的地址（带访问令牌）。服务器默认只监听 127.0.0.1，目前没有用户管理，只在可信网络中使用。
+
 ## 运行与保留结果
 
 同一时间只允许一个运行任务。开始前软件检查并保存有修改的页面；上次结果完成但尚未保留时，会询问保留并运行、直接运行或取消。

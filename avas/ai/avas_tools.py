@@ -329,8 +329,55 @@ def build_tools(host):
         return hits
 
     def search_manual(args, ctx):
+        """The in-app user guide (help/manual, cases, reference; read from the open page, in the UI language unless
+        *lang*) and the original Word manual (physics reference, Chinese)."""
         from avas.ai.manual import search
-        return search(str(args.get("query") or ""), int(args.get("max_results") or 4))
+        query = str(args.get("query") or "")
+        limit = int(args.get("max_results") or 4)
+        guide = host.front("manual.search", {"query": query, "lang": args.get("lang"), "limit": max(1, min(limit, 8))},
+                           timeout=8)
+        out = {"guide": guide if isinstance(guide, list) else
+               "The in-app guide is read from the open page, which did not answer; only the Word manual was searched.",
+               "word_manual": search(query, limit)}
+        if isinstance(guide, list) and guide:
+            out["hint"] = "read_manual with a guide section id gives the whole section."
+        return out
+
+    def read_manual(args, ctx):
+        r = host.front("manual.read", {"id": str(args.get("id") or ""), "lang": args.get("lang")}, timeout=8)
+        if r is None:
+            raise ToolError("The AVAS window did not answer; the guide is read from the open page.")
+        if isinstance(r, dict) and r.get("error"):
+            raise ToolError(r["error"])
+        return r
+
+    def kernel_info(args, ctx):
+        """This computer's kernels and devices, the open project's choice and how to compute on each platform."""
+        import platform as _platform
+        from avas.ai.kernel_guide import guide
+        from avas.gui.bridge import UserError
+        from avas.gui.services import kernels
+        info = kernels.info(bool(args.get("refresh")))
+        out = {"computer": {"platform": info["platform"], "original_kernel_available": info["originalAvailable"],
+                            "default_kernel": info["defaultKernel"], "default_from": info.get("defaultSource"),
+                            "new_kernel": info["new"], "devices": info["devices"], "auto_plan": info["auto"],
+                            "error": info["error"]}}
+        try:
+            p = host.project()
+        except ToolError:
+            p = None
+        if p is not None:
+            proj = {"effective": kernels.effective()}
+            try:
+                proj["expected_run"] = kernels.require_ready(p.input_dir)
+            except UserError as exc:
+                proj["cannot_run"] = str(exc)
+            proj["warnings"] = kernels.input_warnings(p.input_dir)
+            out["project"] = proj
+        else:
+            out["project"] = "No project is open."
+        out["guide"] = guide(_platform.system())
+        return out
 
     def get_beam(args, ctx):
         return _keyword_file(project().input_file("beam.txt"), schema.BEAM_KEYWORDS)
@@ -1289,8 +1336,14 @@ def build_tools(host):
         T("get_element", "All parameters of one lattice statement with meanings and units, position, issues, field-map information.", TARGET, get_element),
         T("keyword_help", "Meaning and parameters of a keyword of the lattice, beam.txt or input.txt (from the user manual).",
           {"keyword": {"type": "string"}}, keyword_help, required=["keyword"]),
-        T("search_manual", "Search the AVAS user manual (Chinese) for a topic; returns matching sections.",
-          {"query": {"type": "string"}, "max_results": {"type": "integer"}}, search_manual, required=["query"]),
+        T("search_manual", "Search the user documentation for a topic: the in-app user guide (how to use the pages, computing kernels, CPU/GPU, Linux servers, cases, parameter and file reference; Chinese or English) and the original Word manual (physics reference, Chinese). Returns matching sections.",
+          {"query": {"type": "string"}, "max_results": {"type": "integer"},
+           "lang": {"type": "string", "enum": ["zh", "en"], "description": "guide language; default the UI language"}},
+          search_manual, required=["query"]),
+        T("read_manual", "Read one section of the in-app user guide by the id search_manual returned.",
+          {"id": {"type": "string"}, "lang": {"type": "string", "enum": ["zh", "en"]}}, read_manual, required=["id"]),
+        T("kernel_info", "The computing kernels and devices of this computer (new-kernel library, NVIDIA GPUs with their architecture, Metal, CPU threads, what device auto would use), the open project's kernel choice and whether it can run, and how to compute on CPU or GPU on Windows, Linux and macOS (requirements, commands). Use it for any question about kernels, GPUs, CUDA, drivers, speed or platforms. Works without a project.",
+          {"refresh": {"type": "boolean", "description": "query the devices again (new driver, external GPU)"}}, kernel_info),
         T("get_beam", "Keywords and values of beam.txt (initial beam).", {}, get_beam),
         T("get_settings", "Keywords of input.txt (tracking options) and ini.ini (GUI/run options).", {}, get_settings),
         T("results_summary", "Figures of merit of the last full run (project OutputFile): transmission, energy, emittances in/out and growth, largest sizes and where, loss locations, warnings. Segment runs: use segment_results.",

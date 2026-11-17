@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { manualSections, searchManual } from "./content";
+import { manualSections, manualTerms, rankManual, searchManual } from "./content";
 import zh from "./manual.zh.md?raw";
 import en from "./manual.en.md?raw";
 import cz from "./cases.zh.md?raw";
@@ -26,5 +26,19 @@ describe("manual navigation", () => {
     const results = searchManual(sections,"guide","DataSet 41");
     expect(results.some(s=>s.id==="ref-dataset")).toBe(true);
     expect(searchManual(sections,"guide","no-such-manual-word")).toEqual([]);
+  });
+});
+
+describe("guide ranking for the assistant", () => {
+  it("splits Chinese runs into character pairs and keeps latin words", () => {
+    expect(manualTerms("GPU 计算")).toEqual(["gpu", "计算"]);
+    expect(manualTerms("显卡驱动")).toEqual(["显卡驱动", "显卡", "卡驱", "驱动"]);
+  });
+  it("finds the kernel, GPU and Linux sections in both languages", () => {
+    for (const [doc, query] of [[zh, "GPU 驱动"], [en, "GPU driver"], [zh, "Linux 服务器"], [en, "Linux server"]] as const) {
+      const ids = rankManual(manualSections(doc, "guide"), query, 3).map((h) => h.section.id);
+      expect(ids.some((id) => id === "guide-gpu" || id === "guide-linux" || id === "guide-kernels")).toBe(true);
+    }
+    expect(rankManual(manualSections(zh, "guide"), "   ")).toEqual([]);
   });
 });
