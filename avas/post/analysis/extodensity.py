@@ -519,10 +519,10 @@ class MergeDensityData(ExtoDensity):
         self.write_file(self.target_path, data)
 
 if __name__ == "__main__":
-    exdata_path = r"C:\Users\wangh\Desktop\hiaf_v2\result\output_0\PCHistogram.dat"
-    dataset_path = r"C:\Users\wangh\Desktop\hiaf_v2\result\output_0\DataSet.txt"
-    target_density_path = r"C:\Users\wangh\Desktop\hiaf_v2\result\density_par_2_100.dat"
-    normal_density_path = r"C:\Users\wangh\Desktop\hiaf_v2\result\density_par_0_0.dat"
+    exdata_path = r"C:\path\to\project\result\output_0\PCHistogram.dat"
+    dataset_path = r"C:\path\to\project\result\output_0\DataSet.txt"
+    target_density_path = r"C:\path\to\project\result\density_par_2_100.dat"
+    normal_density_path = r"C:\path\to\project\result\density_par_0_0.dat"
 
     obj = ExtoDensity(exdata_path, dataset_path, target_density_path, normal_density_path)
 

@@ -1,7 +1,7 @@
 """Recognise what a file in InputFile/ is by its content, not only its name.
 
 ``detect(path)`` returns one of the ``KIND_*`` constants.  A lattice exported
-under an arbitrary name (``lattice_init.txt``, ``48Ca_280MeV.txt``) is still a
+under an arbitrary name (``lattice_init.txt``, ``linac_280MeV.txt``) is still a
 lattice; a TraceWin ``.dat`` is recognised by its upper-case keywords and
 millimetre units.
 """

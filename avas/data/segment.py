@@ -36,7 +36,7 @@ bunch centroid of a ``twiss`` beam (which is generated centred).  For a
 ``segment`` entry T is when the earlier run's own reference particle reached
 its end (its time origin plus its ``exitPlane`` time): that particle is defined
 by the mean energy of its entry beam and drifts from the design timing, by
-0.4° of RF phase after two cryomodules of the CAFe lattice.
+0.4° of RF phase after two cryomodules of a real heavy-ion linac.
 
 Checked against full runs on 2026-09-17 (HWR cavity, 5260 particles, space
 charge): particle-file entries reproduced the exit energy to 2e-5 and rms sizes

@@ -147,7 +147,7 @@ M3 已实现上面的第 4、5 项（spacechargecomp 截断与警告；越过段
 
 ## 更正（2026-11-15）：superpose 块内 RF 腔的 V3
 
-用户的真实项目（48Ca MEBT + HWR，19 个 HWR 腔、2 个聚束器放在 superpose 块尾，V3 = 2）上，compat=dll 与 AVAS.dll 的 DataSet.txt 行数不同。从第一个块内腔的入口（z = 0.734 m）起分开。
+用户的一个真实项目（重离子 MEBT + HWR，HWR 腔和聚束器放在 superpose 块尾，V3 = 2）上，compat=dll 与 AVAS.dll 的 DataSet.txt 行数不同。从第一个块内腔的入口（z = 0.734 m）起分开。
 - **原因**：本文和规格 10 §2.6.5.2 按 .so 写成“腔不在块首时 RF 片头 [3] 写 0”。AVAS.dll 实际照抄腔自己的 V3：在 synData 中，DLL 的块内腔 φs 是按 V3 = 2 的绝对相位得到的（51.2°、83.1° …），compat 则按 V3 = 0 扫成了目标相位（−90°、−45° …）。
 - **为什么以前没发现**：已有算例 SP2／SP3 都是腔在块首、V3 = 0，两种写法结果相同，所以这个分支从未被核对过。
 - **修正**：`lattice.cpp` 的 rfHead 去掉 compat 下的 “0”，[3] 一律照抄腔的 V3；默认模式本来就照抄，不受影响。

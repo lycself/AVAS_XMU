@@ -178,7 +178,7 @@ struct DevicePlan {
 constexpr double kMetalParticlesPerCell = 0.5;
 constexpr long long kMetalMinParticles = 60000;
 // auto with CUDA: the CPU below this many particles (single-particle tracking above all: one particle per step
-// on a GPU costs far more than on the CPU; L40S HIAF, one particle: CUDA 129 s, CPU 16 s).  From about 5000
+// on a GPU costs far more than on the CPU; a real linac on an L40S, one particle: CUDA 129 s, CPU 16 s).  From about 5000
 // particles CUDA was 2-3x faster in every case measured (2026-11-16, M8-plan 13).
 constexpr long long kCudaMinParticles = 1000;
 // nParticles < 1: no memory estimate (query without a run).  meshCells: cells of the space-charge mesh

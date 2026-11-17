@@ -43,7 +43,7 @@ public:
     bool recording() const { return rec_ == 1; }
     // rho from the summed fixed-point deposit, times the space-charge factor.
     // threaded: on the solve's pool (the CPU solve); the device path converts its deposit serially,
-    // where waking the pool costs more than it saves (CUDA IF1 25 % slower, 2026-11-15)
+    // where waking the pool costs more than it saves (CUDA 25 % slower on a real project, 2026-11-15)
     void set_rho(const std::vector<long long>& acc, double factor, bool threaded = false);
     int method() const { return method_; }
     // SPICNIC: Green table, threshold and the asymmetric correction list (host part of spicnic()).

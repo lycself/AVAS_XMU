@@ -29,7 +29,7 @@ CANDIDATES = [
     "examples/hwr010/InputFile/match_no_command.txt",
     "tests/_output_gui/project/InputFile/lattice_mulp.txt",
     "tests/_output_gui/project/InputFile/lattice_env.txt",
-    "InputFile1/InputFile/lattice_mulp.txt",          # CAFe 48Ca linac, when the user's copy is present
+    "InputFile1/InputFile/lattice_mulp.txt",          # a real heavy-ion linac, when the user's copy is present
     "InputFile1/InputFile/lattice_init.txt",
     "tests/fixtures/lattice_odd_cases.txt",           # BOM, CRLF, tabs, !name, sections, periods, superpose
     "tests/fixtures/lattice_no_start.txt",
