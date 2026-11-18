@@ -147,7 +147,9 @@ def engine_choice_from_args(args, input_dir):
                        "kernel's libPIC.so)")
     new_only = {k: getattr(args, k, None) for k in ("precision", "gpus", "threads", "compat")}
     try:
-        first = engines.resolve_choice(cli={"kernel": getattr(args, "engine", None)}, input_dir=input_dir)
+        # --threads applies to both kernels (the original kernel: OMP_NUM_THREADS, engines.original_thread_env)
+        first = engines.resolve_choice(cli={"kernel": getattr(args, "engine", None), "threads": new_only["threads"]},
+                                       input_dir=input_dir)
         kernel = first.kernel
         if kernel == "new":
             if device == "gpu":
@@ -156,7 +158,7 @@ def engine_choice_from_args(args, input_dir):
             choice = engines.resolve_choice(cli=dict(new_only, kernel="new", device=device), input_dir=input_dir)
             choice.sources.update({k: v for k, v in first.sources.items() if k in ("kernel", "note")})
             return choice, "cpu"
-        given = [f"--{k}" for k, v in new_only.items() if v is not None]
+        given = [f"--{k}" for k, v in new_only.items() if v is not None and k != "threads"]
         if device in NEW_ONLY_DEVICES:
             given.insert(0, f"--device {device}")
         if given:
@@ -617,7 +619,7 @@ def engine_arguments(p):
     g.add_argument("--precision", choices=["auto", "fp64", "fp32"],
                    help="new kernel: auto = fp64 on full-rate fp64 GPUs and the CPU, fp32 on other GPUs and Metal")
     g.add_argument("--gpus", metavar="LIST", help="new kernel: all (default) or GPU numbers such as 0,1")
-    g.add_argument("--threads", type=int, metavar="N", help="new kernel: CPU threads, 0 = automatic (default)")
+    g.add_argument("--threads", type=int, metavar="N", help="CPU threads, 0 = automatic (default); the original kernel gets it as OMP_NUM_THREADS")
     g.add_argument("--compat", choices=["none", "dll"],
                    help="new kernel: none = defects of the original corrected (default); dll = reproduce AVAS.dll "
                         "(CPU only)")

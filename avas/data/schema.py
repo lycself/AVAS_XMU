@@ -448,11 +448,14 @@ _INPUT = [
         P("V1", "Model", "模型", kind=ENUM, choices=[("mulp", ("multi-particle", "多粒子")),
                                                      ("env", ("envelope", "包络"))])]),
     Keyword("multithreading", ("Multithreading", "多线程"), "input", [P("V1", "On", "开关", kind=ENUM, choices=_ONOFF)],
-            doc=("Write 'multithreading 1' to track on several CPU threads, or leave the keyword out to run "
-                 "single-threaded. 1 is the only value the engine accepts: with 'multithreading 0' (or 2, 3, ...) it "
-                 "loses every particle at the start (manual says 0 = off; checked with the engine 2026-09-19).",
-                 "写 multithreading 1 使用多线程跟踪，单线程请直接不写这个关键字。内核只接受 1：写 multithreading 0"
-                 "（以及 2、3 等）都会在起点丢失全部粒子（手册写 0 = 关闭，2026-09-19 用内核核实）。")),
+            doc=("Write 'multithreading 1' or leave the keyword out: both kernels treat a missing line as 1, so it "
+                 "cannot switch multithreading off (the number of threads is CPU threads under Computing kernel, "
+                 "ini.ini [engine] threads). With 'multithreading 0' (or 2, 3, ...) the engine loses every particle "
+                 "at the start (manual says 0 = off; checked 2026-09-19 with the original kernel, 2026-11-19 with the "
+                 "new kernel).",
+                 "写 multithreading 1 或不写：两个内核在不写时都按 1 处理，所以它不能关闭多线程（线程数由“计算内核”"
+                 "的“CPU 线程数”即 ini.ini [engine] threads 设置）。写 multithreading 0（以及 2、3 等）都会在起点丢失"
+                 "全部粒子（手册写 0 = 关闭；原内核 2026-09-19、新内核 2026-11-19 核实）。")),
     Keyword("steppercycle", ("Steps per RF period", "推进步长"), "input", [
         P("V1", "Main beam V1", "主束 V1", kind=INT, doc_en="Δt = 1/T × 1/V1", doc_zh="Δt = 1/T × 1/V1"),
         P("V2", "Secondary V2", "次级粒子 V2", doc_en="Δt = V2/Vb (secondary particles)", doc_zh="Δt = V2/Vb（次级粒子传输）")],

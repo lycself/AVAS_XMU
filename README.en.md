@@ -88,7 +88,7 @@ The sidebar follows the simulation workflow — Project, Beam, Lattice, Simulati
 | Project | Create or open projects; review inputs and the last run |
 | Beam | Particles, energy, distributions and Twiss parameters; single-particle start offset; read a `.dst` file and show its particles; the secondary beam switch and SeParticle.txt |
 | Lattice | Linked text/parameter editing, keyword checks, 2D layout and 3D beamline view |
-| Simulation settings | Computing kernel, device and precision; simulation type, step, space charge, longitudinal periodic boundary, multithreading and error studies; the loss boundary boundary.txt |
+| Simulation settings | Computing kernel, device and precision; simulation type, step, space charge, longitudinal periodic boundary, CPU threads and error studies; the loss boundary boundary.txt |
 | Files | File browser for InputFile: raw text, field-map curves and slices, particle files, import, copy, rename |
 | Run | Start, pause and stop runs; live envelopes, run records and replay |
 | Results | Envelope, emittance, losses, energy, phase space and single-particle trajectories; compare runs; export PNG/PDF/SVG |

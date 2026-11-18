@@ -103,7 +103,7 @@ New kernel, default mode (2026-11, as the authors' 2026-07-22 original kernel): 
 
 beam.txt describes the beam, input.txt simulation settings, and the ini.ini-selected lattice describes elements. Keywords are case-insensitive and ! begins comments. Full/error runs generate engine lattice.txt in the output inputs/ snapshot without rewriting original inputs.
 
-The live input entries replace the original keyword table. In particular, write multithreading 1 or omit the line to disable; 0 is unsafe for this engine. The original stepPerCycle time formula is dimensionally questionable and is not reproduced as a verified equation.
+The live input entries replace the original keyword table. In particular, write multithreading 1 or omit the line (the two are the same); 0 is unsafe; the thread count is CPU threads under Computing kernel. The original stepPerCycle time formula is dimensionally questionable and is not reproduced as a verified equation.
 
 randomseed: with the original kernel or the new kernel's compatibility mode (compat = dll) and randomseed ≠ 0, the generated initial distribution has x fully correlated with the phase (correlation −1), a defect of the original kernel. Simulation settings warns next to the random seed, and the scan and response tabs of the Study page (fixed seed 12345) warn too. The new kernel's default mode does not have the defect.
 

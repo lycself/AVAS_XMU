@@ -8,8 +8,12 @@ computing kernel" preference (gui.json, :func:`default_choice_kernel`; "original
 does not exist falls back to the built-in default with a note), the defaults (kernel new on every
 platform since M8b, 2026-11-15: :func:`default_kernel`; the original kernel stays selectable on Windows and
 Linux x86-64; for the new kernel device auto, precision auto, gpus all, threads 0 = automatic, compat none).  With the
-original kernel the other keys are ignored; choosing it explicitly on a platform without it is an error
-before the run (:func:`check_platform`).  input.txt is never changed (the original kernel reads the same
+original kernel only ``threads`` applies (as ``OMP_NUM_THREADS`` of the process that loads it,
+:func:`original_thread_env`); the other keys are ignored; choosing it explicitly on a platform without it is an
+error before the run (:func:`check_platform`).
+
+input.txt ``multithreading`` does not choose the thread count: both kernels default to ``multithreading 1``
+(absent = 1; 0, 2, 3 lose every particle at the start), so the CPU threads are only ``threads``.  input.txt is never changed (the original kernel reads the same
 project).
 
 The new kernel's library is found at ``AVAS_ENGINE_LIB``, then in ``avas/engine/new/`` (the prebuilt
@@ -112,20 +116,20 @@ class EngineChoice:
 
     def to_dict(self):
         if not self.is_new:
-            return {"kernel": "original"}
+            return {"kernel": "original", **({"threads": int(self.threads)} if self.threads else {})}
         return {"kernel": "new", "device": self.device, "precision": self.precision, "gpus": self.gpus,
                 "threads": int(self.threads), "compat": self.compat}
 
     def cli_args(self):
         """``avas run`` arguments that select exactly this choice."""
         if not self.is_new:
-            return ["--engine", "original"]
+            return ["--engine", "original"] + (["--threads", str(int(self.threads))] if self.threads else [])
         return ["--engine", "new", "--device", self.device, "--precision", self.precision, "--gpus", self.gpus,
                 "--threads", str(int(self.threads)), "--compat", self.compat]
 
     def label(self):
         if not self.is_new:
-            return "original kernel"
+            return "original kernel" + (f" ({int(self.threads)} threads)" if self.threads else "")
         parts = [self.device, self.precision] + (["compat=dll"] if self.compat == "dll" else [])
         return "new kernel (" + ", ".join(parts) + ")"
 
@@ -263,7 +267,9 @@ def resolve_choice(cli=None, input_dir=None, env=None, preference=None):
     if note:
         sources["note"] = note
     if kernel == "original":
-        return EngineChoice(kernel="original", sources=sources)
+        value, src, origin = raw("threads")
+        sources["threads"] = src
+        return EngineChoice(kernel="original", threads=parse_value("threads", value, origin), sources=sources)
     values = {}
     for key in KEYS[1:]:
         value, src, origin = raw(key)
@@ -285,6 +291,19 @@ def validate(choice):
         raise EngineChoiceError("Metal computes in fp32 only; choose precision auto or fp32 (or device cpu for fp64)")
     if choice.device == "cpu" and choice.precision == "fp32":
         raise EngineChoiceError("the CPU computes in fp64 only; choose precision auto or fp64 (fp32 runs on a GPU)")
+
+
+def original_thread_env(choice, environ=None):
+    """Set ``OMP_NUM_THREADS`` in *environ* (default ``os.environ``) for the original kernel with a thread
+    count (``threads`` > 0); must run before the library is loaded -- the OpenMP runtime (libgomp, vcomp)
+    reads it once.  AVAS.dll / libAVAS.so cap every entry of their task table at ``omp_get_max_threads()``,
+    so 1 runs single-threaded, which also avoids AVAS.dll's data race in the space charge of matrix elements
+    (docs/engine/90-experiments.md).  Returns the value set, or None (threads 0 = the runtime's default)."""
+    if choice is None or choice.is_new or not choice.threads:
+        return None
+    environ = os.environ if environ is None else environ
+    environ["OMP_NUM_THREADS"] = str(int(choice.threads))
+    return environ["OMP_NUM_THREADS"]
 
 
 def check_platform(choice):

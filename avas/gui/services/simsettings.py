@@ -124,7 +124,6 @@ def _read(item, p):
         "steppercycle": safe_str(d.get("steppercycle"), "100"),
         "dumpperiodicity": safe_str(d.get("dumpperiodicity"), "0"),
         "randomseed": safe_str(d.get("randomseed"), "0"),
-        "multithreading": safe_int(d.get("multithreading"), 0) == 1,
         "spacecharge": safe_int(d.get("spacecharge"), 1) == 1,
         "scmethod": d.get("scmethod") or "SPICNIC",
         "numofgrid": _triple(d.get("numofgrid")),
@@ -149,7 +148,10 @@ def _read(item, p):
         form["error_seed"] = safe_str(err.get("seed"), "50")
     meta = {
         "device": d.get("device") or "cpu",
-        "hadThreadsKey": d.get("multithreading") is not None,
+        # the multithreading line as written (None: absent).  It does not choose the thread count -- both
+        # kernels default to 1, the threads are the kernel settings' "CPU threads" --; values other than 1
+        # lose every particle at the start, the page warns and saving removes them.
+        "threadsLine": None if d.get("multithreading") is None else safe_str(d.get("multithreading"), ""),
         # neither kernel reads it; the page says so and saving removes the line
         "hasScanphase": d.get("scanphase") is not None,
         "inputPath": p.input_file("input.txt"),
@@ -194,9 +196,10 @@ def save(form, meta, companions=None, restoredFrom=None, engine=None):
         "spacechargetype": None,
         "device": meta.get("device") or "cpu",
         # keywords absent from input.txt keep the engine's default: only write them
-        # when the user asked for a value.  "multithreading 0" is never written: the
-        # engine then loses every particle (checked 2026-09-19), so "off" removes the line.
-        "multithreading": 1 if form.get("multithreading") else None,
+        # when the user asked for a value.  multithreading: absent and 1 are the same in both kernels
+        # (the thread count is [engine] threads); a "multithreading 1" line is kept, any other value
+        # (0, 2, 3 lose every particle at the start, checked 2026-09-19 / 2026-11-19) is removed.
+        "multithreading": 1 if str(meta.get("threadsLine") or "").strip() == "1" else None,
         "scanphase": None,                              # no kernel reads it: the line is removed
         "numofgrid": _read_triple(form.get("numofgrid") or [], int),
         "meshrms": _read_triple(form.get("meshrms") or [], float),

@@ -1677,7 +1677,7 @@
   "Positions to scale; the particles are spread along the beam by their place in the bunch and drawn larger than life · drag to rotate, wheel to zoom, right-drag to pan": "位置按真实比例；粒子按在束团中的前后位置沿束流方向错开，画得比实际大 · 拖动旋转，滚轮缩放，右键拖动平移",
   "Field lines with cones for the direction of the field: where the particles are, or all through a solenoid or cavity": "带方向小锥的场线：画在粒子所在处，螺线管和射频腔则画出整个元件的场",
   "Electric field E (the cones show its direction at this moment)": "电场 E（小锥指出此刻的方向）",
-  "Lets the engine use several CPU cores for one run.": "允许引擎在一次运行中使用多个 CPU 核心。",
-  "Multi-threaded tracking (multithreading)": "多线程模拟 (multithreading)",
-  "Multithreading": "多线程"
+  "automatic": "自动",
+  "input.txt has 'multithreading {value}': the kernel would lose every particle at the start. It is removed when you save; the number of threads is set by CPU threads under Computing kernel.": "input.txt 中写有“multithreading {value}”：内核会在起点丢失全部粒子。保存时将删去这一行；线程数由“计算内核”中的“CPU 线程数”设置。",
+  "0 = automatic (all cores). Passed to the original kernel as OMP_NUM_THREADS. With 1 thread it avoids the original kernel's data race in the space charge of matrix elements (results then repeat exactly), but runs slower.": "0 表示自动（使用全部核心）。以 OMP_NUM_THREADS 传给原内核。设为 1 时可避开原内核在矩阵元件空间电荷中的多线程数据竞争（结果可以完全重复），但运行更慢。"
 }

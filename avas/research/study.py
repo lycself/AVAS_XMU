@@ -30,6 +30,7 @@ import re
 import shutil
 import subprocess
 import uuid
+from dataclasses import replace
 
 from avas import engines, paths
 from avas.data.inputs import copy_text_inputs
@@ -244,6 +245,8 @@ class Study:
     def _engine_part(self, choice, space_charge):
         profile = self.engine_profile(space_charge, choice)
         if profile["tier"] == engines.TIER_ORIGINAL:
+            if choice.threads:                     # AVAS.dll's results depend on its threads (data race)
+                return {"sha1": profile["sha1"], "threads": int(choice.threads)}
             return profile["sha1"]                 # as before M7: caches of the original kernel stay valid
         return {"tier": profile["tier"], "version": profile["version"]}
 
@@ -277,22 +280,28 @@ class Study:
                     break
         return hashlib.sha1(json.dumps(parts, sort_keys=True).encode("utf-8")).hexdigest()
 
-    def _stage(self, variant, single_thread, choice=None, gpus=None):
+    def _stage(self, variant, choice=None, gpus=None):
         tmp = os.path.join(self.root, ".staging", uuid.uuid4().hex)
         inp = os.path.join(tmp, "input")
         copy_text_inputs(self.input_dir, inp)
-        apply(variant, inp, self.lattice_name, self.model, self.seed, single_thread)
+        apply(variant, inp, self.lattice_name, self.model, self.seed)
         write_engine_section(inp, choice or self.engine_choice(), gpus)
         return tmp, inp
 
-    def engine(self, variant=None, force=False, single_thread=False, progress=None, stop=None, gpus=None):
+    def engine(self, variant=None, force=False, single_thread=False, progress=None, stop=None, gpus=None, threads=None):
         """:class:`EngineRun` of *variant*: the cached one when its fingerprint exists (unless *force*),
         else a new engine run.  A failed run is recorded (status "failed", the error) and returned.
         *gpus*: the new kernel's GPUs for this run (parallel batches bind one each; not part of the
-        fingerprint).  A kernel or device that cannot run raises :class:`~avas.engines.EngineChoiceError`."""
+        fingerprint).  *threads*: CPU threads of this run (parallel batches), *single_thread* = threads 1;
+        the new kernel's results do not depend on it (not part of the fingerprint), the original kernel's
+        do (part of it).  A kernel or device that cannot run raises :class:`~avas.engines.EngineChoiceError`."""
         variant = variant or Variant()
         choice = self.engine_choice()
-        tmp, inp = self._stage(variant, single_thread, choice, gpus)
+        if single_thread and not threads:
+            threads = 1
+        if threads:
+            choice = replace(choice, threads=int(threads))
+        tmp, inp = self._stage(variant, choice, gpus)
         try:
             sc = engines.input_space_charge(inp)
             profile = self.engine_profile(sc, choice)
@@ -316,7 +325,7 @@ class Study:
             engine_rec["bound_gpus"] = str(gpus)
         record = {"fingerprint": fp, "status": "running", "fidelity": "engine", "variant": variant.to_dict(),
                   "label": variant.label, "seed": variant.seed if variant.seed is not None else self.seed,
-                  "single_thread": single_thread, "engine": engine_rec, "avas_commit": _avas_commit(),
+                  "single_thread": choice.threads == 1, "engine": engine_rec, "avas_commit": _avas_commit(),
                   "project": self.input_dir, "lattice": self.lattice_name, "field_dir": field_dir,
                   "started": datetime.datetime.now().isoformat(timespec="seconds")}
         _write(record_path, record)

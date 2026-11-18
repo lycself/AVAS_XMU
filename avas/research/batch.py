@@ -1,15 +1,27 @@
 """Many runs: sequential or in parallel child processes, resumable through the study's cache."""
+import os
 import queue
 from concurrent.futures import ThreadPoolExecutor
 
 from avas.research.runs import EngineRun
 
 
+def threads_per_run(choice, workers, cpus=None):
+    """CPU threads of each of *workers* parallel runs: the original kernel 1 (its results depend on the
+    thread count, and one thread avoids AVAS.dll's data race), the new kernel an equal share of the cores
+    (at least 1; a positive ``threads`` of the choice is the total to share)."""
+    if not choice.is_new:
+        return 1
+    total = int(choice.threads) or int(cpus or os.cpu_count() or 1)
+    return max(1, total // max(1, int(workers)))
+
+
 def run_many(study, variants, fidelity="engine", workers=1, force=False, progress=None, stop=None, **evaluate):
     """Runs of *variants* in their order (identical variants run once).
 
-    *workers* > 1 runs that many engines at once, each single-threaded (``multithreading`` is removed
-    from input.txt: the fingerprint differs from a multi-threaded run).  New-kernel runs on CUDA GPUs
+    *workers* > 1 runs that many engines at once with :func:`threads_per_run` CPU threads each (the kernel
+    choice's ``threads``: the new kernel's results do not depend on it, so parallel and sequential runs share
+    the cache; the original kernel runs single-threaded).  New-kernel runs on CUDA GPUs
     bind one GPU each (``gpus`` of the run), with no more workers than GPUs; with one GPU (or Metal)
     the runs go one at a time (:meth:`Study.parallel_plan`, noted in the log).  *progress(done, total, run)*
     is called after each run; *stop* (``threading.Event``) skips the runs not started yet and stops the
@@ -39,6 +51,7 @@ def run_many(study, variants, fidelity="engine", workers=1, force=False, progres
             report(key, study.linear(unique[key], **evaluate))
     elif fidelity == "engine":
         workers, slots = study.parallel_plan(workers) if workers > 1 else (workers, None)
+        per_run = threads_per_run(study.engine_choice(), workers) if workers > 1 else None
         free = None
         if slots:
             free = queue.Queue()
@@ -49,10 +62,10 @@ def run_many(study, variants, fidelity="engine", workers=1, force=False, progres
             if stop is not None and stop.is_set():
                 return key, None
             if free is None:
-                return key, study.engine(unique[key], force=force, single_thread=workers > 1, stop=stop)
+                return key, study.engine(unique[key], force=force, threads=per_run, stop=stop)
             slot = free.get()
             try:
-                return key, study.engine(unique[key], force=force, single_thread=workers > 1, stop=stop, gpus=slot)
+                return key, study.engine(unique[key], force=force, threads=per_run, stop=stop, gpus=slot)
             finally:
                 free.put(slot)
 

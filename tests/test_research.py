@@ -112,16 +112,32 @@ def test_failures_are_recorded_and_do_not_stop_a_batch(project):
     assert study.run_many([Variant(beam={"current": 3.0})], "engine", stop=stop) == [None]
 
 
-def test_parallel_batch_dedupes_and_runs_single_threaded(project):
+def test_parallel_batch_dedupes_and_shares_the_cores(project):
     study = make_study(project)
     variants = [Variant(beam={"current": float(c)}, input={"multithreading": 1}) for c in (1, 2, 3, 1, 2, 4)]
     seen = []
     runs = study.run_many(variants, "engine", workers=3, progress=lambda d, t, r: seen.append((d, t)))
     assert calls(study) == 4 and len(runs) == 6 and runs[0].folder == runs[3].folder
     assert seen[-1] == (4, 4)
+    # the inputs stay as they are (multithreading cannot switch threads off); the threads go to [engine]
     text = open(os.path.join(runs[0].folder, "input", "input.txt")).read()
-    assert "multithreading" not in text and runs[0].record["single_thread"]
+    assert "multithreading 1" in text
+    # the stand-in runs as the original kernel: one thread per parallel run (its results depend on the thread
+    # count -- AVAS.dll's data race --, so the fingerprint holds it and a sequential run is another entry)
+    assert runs[0].record["engine"]["requested"]["threads"] == 1 and runs[0].record["single_thread"]
+    assert "threads = 1" in open(os.path.join(runs[0].folder, "input", "ini.ini")).read()
+    again = study.run(variants[0], "engine")
+    assert calls(study) == 5 and again.folder != runs[0].folder
     assert [r.rms("x")[0] for r in runs] == pytest.approx([1.01e-3, 1.02e-3, 1.03e-3, 1.01e-3, 1.02e-3, 1.04e-3])
+
+
+def test_threads_per_parallel_run():
+    from avas.engines import EngineChoice
+    from avas.research.batch import threads_per_run
+    assert threads_per_run(EngineChoice(kernel="original", threads=8), 4) == 1
+    assert threads_per_run(EngineChoice(kernel="new"), 3, cpus=8) == 2
+    assert threads_per_run(EngineChoice(kernel="new", threads=12), 4, cpus=64) == 3
+    assert threads_per_run(EngineChoice(kernel="new"), 16, cpus=8) == 1
 
 
 def test_fingerprint_follows_inputs_field_maps_and_strictness(project):

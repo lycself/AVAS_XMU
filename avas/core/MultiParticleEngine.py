@@ -164,6 +164,7 @@ class MultiParticleEngine:
             self.dll_path = engines.new_library_path()
         else:
             self.dll_path = os.path.join(ENGINE_DIR, "AVAS.dll" if _WINDOWS else "libAVAS.so")
+            engines.original_thread_env(self.choice)     # OMP_NUM_THREADS before the OpenMP runtime loads
         self.dll_dir = os.path.dirname(os.path.abspath(self.dll_path))
         self.so_path = self.dll_path                     # old name, kept for callers that print it
         self.library = _load(self.dll_path)

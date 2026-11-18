@@ -19,7 +19,6 @@ type Form = {
   steppercycle: string;
   dumpperiodicity: string;
   randomseed: string;
-  multithreading: boolean;
   spacecharge: boolean;
   scmethod: string;
   numofgrid: string[];
@@ -38,8 +37,10 @@ type Form = {
   error_type: string;
   error_seed: string;
 };
-/** hasScanphase: input.txt has a scanphase line (no kernel reads it; saving removes it) */
-type Meta = { device: string; hadThreadsKey: boolean; hasScanphase: boolean; inputPath: string; iniPath: string };
+/** hasScanphase: input.txt has a scanphase line (no kernel reads it; saving removes it);
+ *  threadsLine: the value of its multithreading line (null: none) -- it does not choose the thread count
+ *  (CPU threads of the computing kernel do); values other than 1 lose every particle, saving removes them */
+type Meta = { device: string; threadsLine: string | null; hasScanphase: boolean; inputPath: string; iniPath: string };
 type Companion = { path: string; name: string; exists: boolean; text: string };
 type Data = {
   form: Form;
@@ -196,14 +197,16 @@ export default function SettingsPage() {
                     </span>
                   </FormRow>
                 )}
-                <FormRow>
-                  <Checkbox
-                    checked={f.multithreading}
-                    onChange={(v) => set("multithreading", v)}
-                    label={tt("Multi-threaded tracking (multithreading)")}
-                    tip={tt("Lets the engine use several CPU cores for one run.")}
-                  />
-                </FormRow>
+                {ed.value.meta.threadsLine != null && ed.value.meta.threadsLine.trim() !== "1" && (
+                  <FormRow>
+                    <span className="engine-note warning-text">
+                      <Icon name="warning" /> {tt("input.txt has 'multithreading {value}': the kernel would lose every particle at the start. It is removed when you save; the number of threads is set by CPU threads under Computing kernel.", { value: ed.value.meta.threadsLine })}{" "}
+                      <Button variant="ghost" small disabled={locked} onClick={() => ed.setValue((d) => ({ ...d, meta: { ...d.meta, threadsLine: null } }))}>
+                        {tt("Remove it")}
+                      </Button>
+                    </span>
+                  </FormRow>
+                )}
                 {ed.value.meta.hasScanphase && (
                   <FormRow>
                     <span className="engine-note warning-text">

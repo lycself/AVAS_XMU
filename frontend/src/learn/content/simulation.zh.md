@@ -308,7 +308,7 @@ input:spacecharge input:scmethod input:numofgrid input:meshrms
 input:multithreading input:dumpperiodicity input:boundary input:longlimits input:pchistogram input:scanphase
 ```
 
-- **多线程**：`multithreading` 只写 1 或不写，两者等价（新内核实测；原内核按逆向得到的规格默认也是 1）。手册说 0 表示关闭，但内核遇到 `multithreading 0`（以及 2、3 等）会在起点丢失全部粒子（原内核 2026-09-19、新内核 2026-11-19 用示例项目核实）。新内核用几个线程由模拟设置页“计算内核”中的“CPU 线程数”决定（命令行 `--threads`，0 表示全部核心），结果与线程数无关，只影响速度。原内核在含四极铁等矩阵元件、开空间电荷时有多线程数据竞争：空间电荷偏强，即使固定种子每次结果也不同（2026-11-07 Windows 实测，末端 rms x 偏大 14–19 %）。
+- **多线程**：`multithreading` 只写 1 或不写，两者等价（新内核与 Linux 上的原内核实测；Windows 上的原内核按逆向得到的规格默认也是 1）。手册说 0 表示关闭，但内核遇到 `multithreading 0`（以及 2、3 等）会在起点丢失全部粒子（原内核 2026-09-19、新内核 2026-11-19 用示例项目核实）。用几个线程由模拟设置页“计算内核”中的“CPU 线程数”决定（命令行 `--threads`，0 表示全部核心），两个内核都适用。新内核的结果与线程数无关，只影响速度。原内核在含四极铁等矩阵元件、开空间电荷时有多线程数据竞争：空间电荷偏强，即使固定种子每次结果也不同（2026-11-07 Windows 实测，末端 rms x 偏大 14–19 %）；把 CPU 线程数设为 1 可以避开它（AVAS 以 `OMP_NUM_THREADS` 传给原内核；Linux 上实测设为 1 后两次运行逐字节相同），代价是更慢。
 - **损失边界**：粒子超出元件孔径 `R` 记为损失；`boundary 1` 时改用 `boundary.txt` 中的边界，lattice 中的半径不再生效，损失粒子写入 `CollisionData.txt`。`longlimits 1 相位 能量` 打开纵向损失判定，与 [纵向动力学](#longitudinal) 中的分界线概念对应。
 - **粒子数据**：`dumpperiodicity V1` 每 $V_1$ 步把全部粒子写入 `Beamset.plt`（0 表示不写）；文件可能很大。`pchistogram 1 份数` 生成 `pchistogram.dat`。
 - **相位扫描**：原手册称 `scanphase` 控制射频腔的相位扫描或从 `scanData.txt` 读取相位，但没有任何内核读取它们；腔的相位只由 field 行的 `phase` 与 V3 决定（见 [纵向动力学](#longitudinal)），模拟设置页保存时会删除残留的 `scanphase` 行。

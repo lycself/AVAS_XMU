@@ -47,9 +47,13 @@ def test_defaults_and_priority_cli_env_ini(tmp_path, monkeypatch):
     assert (c.device, c.threads, c.gpus) == ("metal", 2, "1,0") and c.sources["device"] == "env"
     c = engines.resolve_choice(cli={"device": "auto", "threads": None}, input_dir=str(tmp_path), env=env)
     assert (c.device, c.threads) == ("auto", 2) and c.sources["device"] == "cli"
-    # the original kernel ignores the other keys, even invalid ones
+    # the original kernel ignores the other keys, even invalid ones -- except threads (OMP_NUM_THREADS)
     c = engines.resolve_choice(cli={"kernel": "original"}, input_dir=str(tmp_path), env={"AVAS_ENGINE_DEVICE": "bad"})
+    assert c == engines.EngineChoice(kernel="original", threads=3) and c.to_dict() == {"kernel": "original", "threads": 3}
+    assert c.cli_args() == ["--engine", "original", "--threads", "3"] and c.sources["threads"] == "ini"
+    c = engines.resolve_choice(cli={"kernel": "original"}, env={})
     assert c == engines.EngineChoice(kernel="original") and c.to_dict() == {"kernel": "original"}
+    assert c.cli_args() == ["--engine", "original"]
     assert engines.resolve_choice(env={"AVAS_ENGINE": "NEW"}).device == "auto"           # new-kernel defaults
 
 
@@ -300,8 +304,8 @@ def test_run_options_of_the_wrong_kernel_are_refused(project, tmp_path):
     write_engine_settings(str(project / "InputFile" / "ini.ini"), {"kernel": "original"})
     res = _run_cli("run", "-i", str(project), "-o", str(out), "--device", "metal")
     assert res.returncode == 2 and "applies only to the new kernel" in res.stderr and not out.exists()
-    res = _run_cli("run", "-i", str(project), "-o", str(out), "--precision", "fp32", "--threads", "2")
-    assert res.returncode == 2 and "--precision, --threads apply only to the new kernel" in res.stderr
+    res = _run_cli("run", "-i", str(project), "-o", str(out), "--precision", "fp32", "--gpus", "0", "--threads", "2")
+    assert res.returncode == 2 and "--precision, --gpus apply only to the new kernel" in res.stderr   # --threads: both
     res = _run_cli("run", "-i", str(project), "-o", str(out), "--engine", "new", "--device", "gpu")
     assert res.returncode == 2 and "--device cuda" in res.stderr
     res = _run_cli("run", "-i", str(project), "-o", str(out), "--engine", "new", "--device", "warp")
@@ -317,6 +321,23 @@ def test_explicit_original_kernel_is_refused_where_it_does_not_run(project, tmp_
     assert not out.exists() and "Traceback" not in res.stderr
     res = _run_cli("info", "-i", str(project))
     assert res.returncode == 0 and "original kernel: not available on" in res.stdout
+
+
+def test_threads_of_the_original_kernel_become_omp_num_threads():
+    """multithreading in input.txt cannot switch threads off (absent = 1 in both kernels); the original kernel
+    gets the CPU threads as OMP_NUM_THREADS before its OpenMP runtime loads."""
+    env = {}
+    assert engines.original_thread_env(engines.EngineChoice(kernel="original", threads=1), env) == "1"
+    assert env == {"OMP_NUM_THREADS": "1"}
+    env = {"OMP_NUM_THREADS": "6"}
+    assert engines.original_thread_env(engines.EngineChoice(kernel="original"), env) is None    # 0 = runtime default
+    assert engines.original_thread_env(engines.EngineChoice(kernel="new", threads=2), env) is None
+    assert env == {"OMP_NUM_THREADS": "6"}
+    parser = cli.build_parser()
+    args = parser.parse_args(["run", "-i", "x", "-o", "y", "--engine", "original", "--threads", "2"])
+    choice, legacy = cli.engine_choice_from_args(args, None)
+    assert choice == engines.EngineChoice(kernel="original", threads=2) and legacy == "cpu"
+    assert engines.EngineChoice(kernel="original", threads=2).label() == "original kernel (2 threads)"
 
 
 def test_run_record_of_the_original_kernel(monkeypatch):
@@ -447,25 +468,30 @@ def test_research_cache_is_per_result_tier(rproject):
     orig = make_study(rproject, engine="original")
     run_o = orig.run(Variant(particles=100), "engine")
     assert run_o.ok and run_o.record["engine"]["tier"] == "original" and ncalls(orig) == 1
+    # the original kernel's threads are part of the fingerprint (AVAS.dll's results depend on them)
+    orig1 = make_study(rproject, engine="original", threads=1)
+    run_o1 = orig1.run(Variant(particles=100), "engine")
+    assert run_o1.folder != run_o.folder and ncalls(orig1) == 2
+    assert "threads = 1" in open(os.path.join(run_o1.folder, "input", "ini.ini")).read()
     cpu = make_study(rproject, engine="new", device="cpu", engine_query=q)
     run_c = cpu.run(Variant(particles=100), "engine")
-    assert run_c.ok and ncalls(cpu) == 2 and run_c.folder != run_o.folder            # not the original's cache
+    assert run_c.ok and ncalls(cpu) == 3 and run_c.folder != run_o.folder            # not the original's cache
     assert run_c.record["engine"]["tier"] == "new-cpu-fp64"
     assert run_c.record["engine"]["actual"]["tier"] == "new-cpu-fp64" and "warnings" not in run_c.record
     # threads are not part of the fingerprint
     cpu4 = make_study(rproject, engine="new", device="cpu", threads=4, engine_query=q)
-    assert cpu4.run(Variant(particles=100), "engine").folder == run_c.folder and ncalls(cpu4) == 2
+    assert cpu4.run(Variant(particles=100), "engine").folder == run_c.folder and ncalls(cpu4) == 3
     # fp32: Metal and emu share the cache entry
     metal = make_study(rproject, engine="new", device="metal", engine_query=q)
     run_m = metal.run(Variant(particles=100), "engine")
-    assert run_m.record["engine"]["tier"] == "new-fp32" and ncalls(metal) == 3 and run_m.folder != run_c.folder
+    assert run_m.record["engine"]["tier"] == "new-fp32" and ncalls(metal) == 4 and run_m.folder != run_c.folder
     emu = make_study(rproject, engine="new", device="emu", precision="fp32", engine_query=q)
     run_e = emu.run(Variant(particles=100), "engine")
-    assert run_e.folder == run_m.folder and ncalls(emu) == 3
+    assert run_e.folder == run_m.folder and ncalls(emu) == 4
     assert run_m.rms("x")[0] == pytest.approx(run_c.rms("x")[0] * 1.001)
     # auto resolves before the run (with space charge: Metal) and lands in the fp32 entry too
     auto = make_study(rproject, engine="new", engine_query=q)
-    assert auto.run(Variant(particles=100), "engine").folder == run_m.folder and ncalls(auto) == 3
+    assert auto.run(Variant(particles=100), "engine").folder == run_m.folder and ncalls(auto) == 4
     # the project's [engine] is the default of a study; the run's ini.ini carries the choice
     write_engine_settings(str(rproject / "InputFile" / "ini.ini"), {"kernel": "new", "device": "cpu"})
     proj = make_study(rproject, engine_query=q)

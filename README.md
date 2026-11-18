@@ -88,7 +88,7 @@ avas run --input 项目/InputFile --output 项目/Results_001 --engine new --dev
 | 项目 Project | 新建、打开项目，查看输入与上次运行摘要 |
 | 束流 Beam | 配置粒子、能量、分布、Twiss 参数；单粒子初始偏移；读取 `.dst` 粒子文件并显示其粒子分布；二次粒子开关与 SeParticle.txt |
 | 结构 Lattice | 文本与参数联动编辑、关键字检查、二维布局与三维束线视图 |
-| 模拟设置 Simulation settings | 选择计算内核、设备与精度；配置模拟类型、步长、空间电荷、纵向周期边界、多线程与误差研究；编辑损失边界 boundary.txt |
+| 模拟设置 Simulation settings | 选择计算内核、设备与精度；配置模拟类型、步长、空间电荷、纵向周期边界、CPU 线程数与误差研究；编辑损失边界 boundary.txt |
 | 文件 Files | InputFile 的文件浏览器：原始文本、场图曲线与切片、粒子文件，导入、复制、重命名 |
 | 运行 Run | 启动、暂停、停止模拟，查看实时包络、运行记录与回放 |
 | 结果 Results | 分析包络、发射度、损失、能量、相空间与单粒子轨迹，对比运行并导出 PNG／PDF／SVG |

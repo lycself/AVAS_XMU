@@ -111,22 +111,34 @@ def test_server_serves_page_and_blobs():
 def test_settings_page_round_trip(project):
     data = ok("settings.load")
     assert data["form"]["steppercycle"] == "50" and data["form"]["dumpperiodicity"] == "5"
-    data["form"]["multithreading"] = True
+    assert "multithreading" not in data["form"]          # the thread count is [engine] threads (CPU threads)
     data["form"]["error_type"] = "stat"
     data["form"]["error_seed"] = "7"
     saved = ok("settings.save", form=data["form"], meta=data["meta"])
-    assert saved["form"]["multithreading"] is True and saved["form"]["error_type"] == "stat"
+    assert saved["form"]["error_type"] == "stat"
     from avas.gui.services.runner import ini_error_mode
     from avas.gui import context
     assert ini_error_mode(context.project()) == "stat"
-    assert input_lines(project, "multithreading") == ["multithreading 1"]
+    # a multithreading 1 line (the same as none in both kernels) is kept as it is ...
+    path = os.path.join(project["inputDir"], "input.txt")
+    with open(path, encoding="utf-8") as fh:
+        original = fh.read()
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write("".join(ln for ln in original.splitlines(True) if not ln.lower().startswith("multithreading"))
+                 + "multithreading 1\n")
+    saved = ok("settings.load")
+    assert saved["meta"]["threadsLine"] == "1"
     saved["form"]["error_type"] = ""
-    saved["form"]["multithreading"] = False
     saved = ok("settings.save", form=saved["form"], meta=saved["meta"])
-    # "multithreading 0" makes the engine lose every particle (AGENTS.md 6): off = no line,
-    # so the scan / run tests that follow on this project still work
-    assert saved["form"]["multithreading"] is False and saved["meta"]["hadThreadsKey"] is False
-    assert input_lines(project, "multithreading") == []
+    assert input_lines(project, "multithreading") == ["multithreading 1"]
+    # ... any other value loses every particle at the start (AGENTS.md 6): saving removes it, so the scan /
+    # run tests that follow on this project still work
+    with open(path, "a", encoding="utf-8") as fh:
+        fh.write("multithreading 0\n")
+    data = ok("settings.load")
+    assert data["meta"]["threadsLine"] == "0"
+    saved = ok("settings.save", form=data["form"], meta=data["meta"])
+    assert saved["meta"]["threadsLine"] is None and input_lines(project, "multithreading") == []
 
 
 def input_lines(project, keyword):

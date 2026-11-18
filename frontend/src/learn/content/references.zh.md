@@ -106,7 +106,7 @@
 
 1. **多粒子模式的 lattice 首尾不要直接放矩阵元件**：`quad`、`solenoid`、`bend`、`edge`、`steerer` 等矩阵元件放在多粒子 lattice 的第一个或最后一个元件时，内核的场边界与步进处理可能异常；首尾各加一段短 `drift`（例如 0.02–0.05 m）即可避免（见 [多粒子模拟要点](#simulation-in-avas)）。
 2. **`outputplane` 距 lattice 末端需留出 $> 2\ \mathrm{cm}$ 余量**：输出平面过于靠近 lattice 终点时可能无法触发记录（见 [多粒子模拟要点](#simulation-in-avas)）。
-3. **`input.txt` 的 `multithreading` 只写 `1` 或不写**：两者等价；写 0、2、3 会让内核在起点丢失全部粒子（原内核与新内核都已核实）。新内核的线程数用模拟设置页的“CPU 线程数”或 `--threads` 设置（见 [多粒子模拟要点](#simulation-in-avas)）。
+3. **`input.txt` 的 `multithreading` 只写 `1` 或不写**：两者等价；写 0、2、3 会让内核在起点丢失全部粒子（原内核与新内核都已核实）。线程数用模拟设置页的“CPU 线程数”或 `--threads` 设置，两个内核都适用（见 [多粒子模拟要点](#simulation-in-avas)）。
 4. **`steerer` 长度必须写 `0`，作用在紧随其后的元件上**：校正铁在 lattice 中不占长度，与下游紧邻元件叠加生效；若把长度写成非零，几何位置会错位（见 [校正磁铁](#steerer-in-avas)）。
 5. **单粒子模式 `displacepos` 的位置单位按 mm 读取**：在 `input.txt` 切换单粒子轨道模式时注意单位转换（见 [误差与校正](#errors-in-avas)）。
 6. **`DataSet.txt` 质心与纵向坐标的合成列**：无二极铁时，全局纵向位置 $z$ 为第 5 列加第 33 列；横向束团质心 $x, y$ 为第 29 列加第 1 列、第 31 列加第 3 列（见 [多粒子模拟要点](#simulation-in-avas)）。

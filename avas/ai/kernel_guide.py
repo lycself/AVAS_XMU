@@ -19,6 +19,10 @@ COMMON = [
     "precision auto|fp64|fp32, gpus, threads, compat), for all projects in Settings -> Default computing kernel, or per "
     "run on the command line: avas run --input DIR --output DIR --engine new --device cuda --precision auto --gpus all "
     "--threads N. Priority: command line > environment (AVAS_ENGINE, AVAS_ENGINE_DEVICE, ...) > ini.ini > default.",
+    "The CPU threads are only 'threads' (Simulation settings -> Computing kernel -> Advanced -> CPU threads, 0 = all "
+    "cores), for both kernels: the original kernel gets them as OMP_NUM_THREADS, and 1 thread avoids its data race in "
+    "the space charge of matrix elements. input.txt 'multithreading' is not a switch: a missing line counts as 1 in "
+    "both kernels, and 0, 2, 3 lose every particle at the start.",
     "A device chosen explicitly that this computer does not have stops the run before it starts (no silent fallback "
     "to the CPU); with device auto the reason for using the CPU is written to the log. avas_run.json 'engine' records "
     "the kernel, device and precision actually used.",

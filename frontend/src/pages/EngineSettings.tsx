@@ -322,10 +322,15 @@ export function EngineSettings({
       <div className="engine-advanced">
         <Collapsible title={t("Advanced")} open={f.threads.trim() !== "0" || f.compat === "dll"}>
           <div className="form">
-            <FormRow label={t("CPU threads")} tip={t("0 = automatic (all cores). Only affects the speed: results of the new kernel do not depend on the thread count.")}>
+            <FormRow
+              label={t("CPU threads")}
+              tip={isNew
+                ? t("0 = automatic (all cores). Only affects the speed: results of the new kernel do not depend on the thread count.")
+                : t("0 = automatic (all cores). Passed to the original kernel as OMP_NUM_THREADS. With 1 thread it avoids the original kernel's data race in the space charge of matrix elements (results then repeat exactly), but runs slower.")}
+            >
               <TextInput
                 style={{ width: 80 }}
-                disabled={!isNew || locked}
+                disabled={locked}
                 value={f.threads}
                 invalid={!/^\d+$/.test(f.threads.trim())}
                 onChange={(e) => set("threads", e.target.value)}

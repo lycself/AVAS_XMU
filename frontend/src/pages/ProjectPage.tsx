@@ -323,7 +323,7 @@ function Overview() {
                   [t("Model"), st.sim_type === "env" ? t("envelope") : t("multi-particle")],
                   [t("Space charge"), st.spacecharge ? `${t("on")} · ${st.scmethod}` : t("off")],
                   [t("Steps per RF period"), st.steppercycle],
-                  [t("Multithreading"), st.multithreading ? t("on") : t("off")],
+                  [t("CPU threads"), !st.threads || String(st.threads) === "0" ? t("automatic") : String(st.threads)],
                   [t("Error study"), st.error_type ? st.error_type : t("off")],
                 ]}
               />

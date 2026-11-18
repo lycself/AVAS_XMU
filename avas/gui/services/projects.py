@@ -136,7 +136,11 @@ def settings_summary(p):
     from avas.gui.services import simsettings
     stamps = (_stamp(p.input_file("input.txt")), _stamp(p.input_file("ini.ini")))
     try:
-        return _cached("settings", stamps, lambda: simsettings.load()["form"])
+        def read():
+            data = simsettings.load()
+            # CPU threads of the computing kernel ([engine] threads, "0" = automatic)
+            return dict(data["form"], threads=(data.get("engine") or {}).get("form", {}).get("threads", "0"))
+        return _cached("settings", stamps, read)
     except Exception as exc:  # noqa: BLE001 - a broken input.txt must not break the overview
         return {"error": str(exc)}
 

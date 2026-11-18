@@ -102,12 +102,12 @@ def _edit_keywords(path, values):
         fh.write(text)
 
 
-def apply(variant, input_dir, lattice_name, model, seed=None, single_thread=False):
+def apply(variant, input_dir, lattice_name, model, seed=None):
     """Write the changes of *variant* into the copied inputs in *input_dir*.
 
     *model*: the study's :class:`~avas.model.LinearModel` (its ``with_knobs`` writes the lattice);
-    *seed*: used when the variant has none; *single_thread* removes ``multithreading`` from input.txt
-    (parallel runs: one engine per core).
+    *seed*: used when the variant has none.  The thread count is not an input: it is the kernel choice's
+    ``threads`` (input.txt ``multithreading`` cannot switch threads off, see :mod:`avas.engines`).
     """
     if variant.lattice:
         with open(os.path.join(input_dir, lattice_name), "w", encoding="utf-8", newline="\n") as fh:
@@ -123,11 +123,3 @@ def apply(variant, input_dir, lattice_name, model, seed=None, single_thread=Fals
         inputs["randomseed"] = int(chosen)
     if inputs:
         _edit_keywords(os.path.join(input_dir, "input.txt"), inputs)
-    if single_thread:
-        path = os.path.join(input_dir, "input.txt")
-        with open(path, encoding="utf-8", errors="replace") as fh:
-            lines = fh.read().splitlines()
-        kept = [ln for ln in lines if (ln.split("!", 1)[0].split() or [""])[0].lower() != "multithreading"]
-        if len(kept) != len(lines):
-            with open(path, "w", encoding="utf-8", newline="\n") as fh:
-                fh.write("\n".join(kept) + "\n")
