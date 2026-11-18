@@ -1,5 +1,5 @@
 // Turn the backend's figure descriptions (avas/gui/services/results.py) into Plotly data/layout.
-import { seriesColor } from "../components/Plot";
+import { LEGEND_TOP, seriesColor } from "../components/Plot";
 
 export type Trace = { x: ArrayLike<number>; y: ArrayLike<number>; color?: string | null; name?: string | null; markers?: boolean; legend?: boolean; y2?: boolean; dash?: boolean };
 /** table: the numbers behind the curves, shown under the plot (SingleParticlePlane.txt) */
@@ -38,7 +38,7 @@ export function toPlotly(fig: Figure, dark: boolean): { data: any[]; layout: any
       xaxis: { title: { text: fig.xlabel }, ...(fig.xlim ? { range: fig.xlim } : {}), ...(fig.xdtick ? { dtick: fig.xdtick } : {}) },
       yaxis: { title: { text: fig.ylabel }, ...(fig.ylim ? { range: fig.ylim } : {}), exponentformat: "none" },
       showlegend: !!fig.legend,
-      legend: { x: 1, xanchor: "right", y: 1 },
+      legend: LEGEND_TOP,
       hovermode: "closest",
     };
     if (fig.ylabel2) {
@@ -67,6 +67,6 @@ export function toPlotly(fig: Figure, dark: boolean): { data: any[]; layout: any
       { type: "scattergl", mode: "markers", x: fig.scatter.x, y: fig.scatter.y, name: "lost particles (at the entrance)", marker: { size: 3, color: seriesColor("fg", dark), opacity: 0.8 } },
       { type: "scatter", mode: "lines", x: fig.ellipse.x, y: fig.ellipse.y, name: "acceptance", line: { color: seriesColor("r", dark), width: 2 } },
     ],
-    layout: { xaxis: { title: { text: fig.xlabel } }, yaxis: { title: { text: fig.ylabel } }, legend: { x: 1, xanchor: "right", y: 1 } },
+    layout: { xaxis: { title: { text: fig.xlabel } }, yaxis: { title: { text: fig.ylabel } }, legend: LEGEND_TOP },
   };
 }

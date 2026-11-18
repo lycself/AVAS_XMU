@@ -35,7 +35,7 @@ avas/
                   新内核库的查找、结果档 `result_tier`、引擎源码哈希 `engine_source_hash`（与 engine/cmake/source_hash.cmake 同一算法）、avas_run.json 的 `engine` 字段
   research/       notebook / 脚本研究接口：variant.py 变体，study.py `Study`（运行、指纹缓存、记录、table），engine.py 内核子进程，runs.py 两种保真度的统一结果，
                   batch.py 批量与并行，scan.py 多维扫描与拉丁超立方，compare.py 线性模型对内核、多种子统计、内核响应矩阵，export.py npz/CSV，plots.py 作图
-  learn/          加速器入门的后端：labs.py 交互实验（复用 linear_optics），tutorial.py 引导教程（示例场图搭 lattice、另存为项目）
+  learn/          加速器入门的后端：labs.py 交互实验（复用 linear_optics），control.py 控制部分的实验（BPM、逐脉冲反馈、LLRF、可控性、Hénon 映射、混沌控制，登记进 labs.LABS），motion.py 粒子动画（按束流 rms 矩阵抽样的粒子经 LinearModel 推动，含撞墙丢失），tutorial.py 引导教程（示例场图搭 lattice、另存为项目）
   data/           schema.py（全部关键字的参数、单位、中英文说明）、lattice_doc.py（lattice 解析与检查）、segment.py（分段运行物理）、
                   lattice_edit.py（按名称 / 行号定位元件并改一个参数，beam/input 关键字改值；AI 工具、扫描、命令行共用）、inputs.py（复制文本输入）
   sim/            模拟流程；linear_optics.py 线性包络预览（`avas.model` 之上的薄包装，并重新导出旧名称）；error.py 误差研究；scan.py 参数扫描（GUI 与命令行共用）
@@ -49,7 +49,7 @@ frontend/src/
   components/     ui.tsx（按钮、输入框等基础组件）、overlays.tsx（菜单、对话框、toast）、Plot.tsx（Plotly 封装）、FileDialog.tsx（浏览器模式的文件选择器）
   pages/          九个页面（StudyPage 是研究页，页面 id 仍为 "scan"；LearnPage 是加速器入门）
   study/          研究页的四个标签：ScanTab（一维／二维扫描）、ChartTab（稳定区图谱）、ControlTab（响应与可控性、反馈）
-  learn/          入门：content/*.zh.md / *.en.md 章节，chapters.ts 章节表与审核状态，directives.ts 内嵌块，LabView / TutorialView / FieldView / ParamsTable / BeamlineView，MathView（temml）
+  learn/          入门：content/*.zh.md / *.en.md 章节，chapters.ts 章节表与审核状态，directives.ts 内嵌块，LabView / MotionView（粒子动画，motionDraw.ts 画 2D）/ TutorialView / FieldView / ParamsTable / BeamlineView，MathView（temml）
   lattice/        文本编辑器（Monaco）、结构编辑器、可视化编辑器、2D 布局、3D 视图（Beamline3D.tsx 只是 React 壳，b3dViewer.ts / b3dHud.ts / b3dGeometry.ts 单向依赖）
   results/ files/ assistant/ shell/ store/（zustand）；util.ts（basename、cssColor、niceStep、debounce）；shell/shortcuts.ts（全部快捷键的唯一表）；results/CompareTab.tsx 运行对比
   i18n/zh_CN.json 中文翻译（英文原文 → 中文）
@@ -78,7 +78,7 @@ packaging/        PyInstaller + Inno Setup 打包
   加 `--fake-engine 60 [--fake-lose 0.1]` 时运行不调用内核，而是重放输出目录里已有的 DataSet.txt（`avas/gui/fake_engine.py`），用来检查实时显示。
   **不要在用户的真实项目上用假引擎**（它会改写 OutputFile），先把项目复制到临时目录。
 - 打包：`python packaging/build.py`。生成的 exe 不会随源码更新，改代码后要重新打包。
-- 模拟结果每次运行略有差别（内核多线程），比较 DataSet.txt 要带容差，不能要求完全相同。
+- 模拟结果的重复性取决于随机种子和内核（2026-11-19 在 Mac 上实测）：新内核固定非零 `randomseed` 时两次运行的 DataSet.txt、inData.dst、outData 逐字节相同，与线程数（1、2、3、8）、空间电荷算法（FFT、SPICNIC、PICNIC）无关，Metal 上同样可重复；`randomseed 0` 按当前时间（秒）取种子（记在 `inData.seed.txt`，同一秒内开始的两次运行种子相同），结果有统计起伏。原内核在含矩阵元件、开空间电荷时有多线程数据竞争（docs/engine/90-experiments.md 第二批），固定种子也每次不同。比较 `randomseed 0` 或原内核的结果要带容差。
 
 ### 各平台怎样用 CPU / GPU 计算（给用户解答时以此为准）
 
@@ -163,6 +163,7 @@ packaging/        PyInstaller + Inno Setup 打包
 
 - 场的图形一律区分**数据**与**示意**。场图文件的切片是数据：读取、缓存与切面集中在 `avas/gui/fieldcache.py`（`files.fieldSlice` 按路径、`lattice.fieldSlice` 按场图名字，两个 service 都调它，彼此不互相 import），整个 cube 留在后端，只把要看的那一个平面按 `bridge.blob` 传出，同一 family（`bs`／`es`／`bd`／`ed`）中网格相同的分量一起切，供模与面内箭头使用；色标用 `Plot.tsx` 的 `fieldScale()`，有符号分量必须配 `zmid: 0`。矩阵模型元件孔径内的场由 `lattice/analyticField.ts` 按元件参数算出，是示意图，必须用 `.cv-schematic` 或视图里的说明标注，不得与场图数据混为一谈；螺线管横向无场，横截面不画网格。
 - 两种来源经 `files/slice.ts` 归一成同一个 `Slice`（后端 payload 走 `fromPayload`，解析场走 `analyticSlice`），`files/FieldSlice.tsx` 一套视图渲染两者，文件页和元件场分布窗口共用。解析场按**硬边界**生成：元件外恒为零，纵切面向两端各留 14 % 余量把这条边画出来；零长度元件（校正铁）只有 `xy` 一个平面，请求别的平面时由 `analyticSlice` 改回来，所以渲染一律用 `data.plane` 而不是组件 state。
+- 场切片的箭头要一眼看清方向：少而大（每轴最多 14／9 个，最长箭头约 1.5 倍间距，线宽 2.2 加背景描边）。入门里的解析场（螺线管除外）默认打开 x–y 横截面并等比例显示，绘图区至少 380 px 高；等比例时两个轴都用 `constrain: "domain"`，横截面保持正方形而不是在拉宽的范围里缩成一条。
 - 场分布窗口开着时由 `ComponentView` 推送更新（`useFieldWindow`）：换元件换内容，改参数实时重画。窗口内容的 React key 只能用元件标题，不能用 source 全量，否则拖一下滑块就把用户选的切面和分量重置了。箭头位移在数据坐标下正比于场分量（`files/quiver.ts`），因此屏幕方向随坐标轴拉伸，只有等比例时才是真实方向，界面要说明这一点。**所有横截面一律从下游往上游看，束流垂直屏幕向外**（2026-09-21 统一；校正铁原先按射入屏幕画受力，已改号）：这样同一张图里的场箭头和受力箭头可以直接用 F = qv × B 相互核对。圆心的 ⊙ 记号（`BeamOut`、`.cv-beam-ring`）标出这个方向，新的横截面都要带上它，不要再引入别的观察方向。校正磁铁倒三角加竖线符号提供图例，场图类型的文件名识别依据在详情说明中标明。
 
 - 可视化编辑器 2D / 3D 选中元件时，列表展开其全部祖先分组并滚动到高亮行；重复点击同一元件也触发定位。搜索或筛选挡住目标时只清除阻挡目标的条件；手动折叠、输入筛选本身不触发重新展开。
@@ -268,12 +269,16 @@ packaging/        PyInstaller + Inno Setup 打包
 ### 5.5 加速器入门
 
 - 入门页（`pages/LearnPage.tsx`）不需要打开项目。章节是 `frontend/src/learn/content/<id>.zh.md` 与 `<id>.en.md`，中英文同结构；`##` 小节必须带 `{#<章节id>-…}` 稳定 ID，两种语言 ID 相同，链接写 `[文字](#id)`。章节顺序、所属部分和审核状态只写在 `learn/chapters.ts`；内容由 AI 撰写时状态为 `ai-draft`，页面显示“AI 撰写，待审核”，物理人员审核后改为 `reviewed`。章节文字只由入门页懒加载（`learn/content.ts`），壳层和元件视图只引用 `chapters.ts`。
+- **读者按完全的初学者对待，高中物理就能看懂**（2026-11-18 与用户商定，漂移段、四极铁、轨道校正三章试点后，全部章节已按同样写法重写）：每章分三层，先是直观层（问题、生活类比、`avas-motion` 动画，不用公式或只用中学代数），再是原理层（用冲量、洛伦兹力、一次方程组这类中学工具推出结论并代入示例束流的数值），推导、矩阵与 Twiss 参数放进 `## 深入：… {#<章节id>-deep…}` 小节（深入层同样要让高中生能跟上：从中学知识起步，按“第一步、第二步……”逐级推进，每步只比上一步多一点，新符号出现时先解释，并用示例束流的数值验算；矩阵乘法、完全平方展开、简谐振动、光线追迹、回归直线的最小二乘这类中学工具优先，紧凑的矢量分析、线性代数或微积分写法放在每个深入小节末尾的“给学过……的读者”段落）（id 以 `<章节id>-deep` 开头的小节由入门页渲染成默认收起的“深入一层（可选）”折叠块，跳转到其中时自动展开，正文不得依赖其中内容），最后是“在 AVAS 中”参考小节。术语第一次出现时要解释；技术事实只能移到深入层，不能删去。小节标题里不写 `$…$` 公式（目录按纯文本显示）。每个元件章节都要有 `avas-motion` 动画，说明读者在动画里应当看什么、可以拖哪个参数验证正文结论，正文引用的数值要与动画默认参数算出的一致。
 - 写法按费曼学习法（2026-11-01 与用户商定）：每章先提出问题、给出物理图像，逐步推出方程并代入示例束流的数值，在需要验证处放实验或束线，设“想一想”与“容易误解的地方”；AVAS 关键字、参数表与约定集中在最后的参考小节 `## 在 AVAS 中 {#<章节id>-in-avas}`（页面以虚线和“参考”标签与理解部分分开），不能为了易读删去技术事实。第一部分是故事线“跟着一个质子走”（`journey-*` 六章：全貌、离子源与 LEBT、RFQ、MEBT、超导段、HEBT），解释加速器为什么分段、每段由什么组成；讲原理时可以介绍 AVAS 不模拟的段，但必须标明“AVAS 不模拟”并说明束流如何交给 AVAS。元件章节仍只介绍 AVAS 的元件。初始分布单独成章（`distributions`），配 `distribution` 实验：按教科书四维定义抽样 KV／WB／PB／GS，标注内核实际生成方式以 `inData.dst` 为准。
 - 公式写 LaTeX（`$…$`、单独成行的 `$$…$$`），由 temml 转成 MathML（`learn/MathView.tsx`，`trust: false`），入门章节和 AI 回答共用；`learn/content.test.ts` 编译全部章节公式并检查 ID、链接、内嵌块和中英文一致，公式错误要让 `npm test` 失败而不是显示成代码。
-- 章节中的交互只用五种内嵌块（`learn/directives.ts`）：`avas-lab`（实验）、`avas-params`（参数表直接取自 `schema.all`，不要在章节里重抄参数表）、`avas-field`（解析示意场或示例场图切片，沿用数据／示意的区分）、`avas-tutorial`、`avas-beamline`（块内直接写 lattice 行，可省略 start／end，后端 `learn.beamline` 补齐并用示例束流算线性预览）。实验的参数、范围和全部数值都在后端 `avas/learn/labs.py`，物理计算复用 `avas/sim/linear_optics.py` 的矩阵和预览，不要在前端另写物理公式；实验结果属于线性模型，界面要注明以内核为准。`tests/test_learn.py` 检查章节里的实验预设和关键字确实存在，每个元件章节都有中英文相同、解析无问题、预览可算的 `avas-beamline`。
+- 章节中的交互只用六种内嵌块（`learn/directives.ts`）：`avas-lab`（实验）、`avas-motion`（粒子动画：后端 `avas/learn/motion.py` 定义动画、参数与范围，按束流 rms 矩阵以固定种子抽样约 60 个粒子并逐平面白化，使画出的粒子 rms 与模型包络逐点一致，用 `LinearModel` 的步矩阵（含线性空间电荷）和质心推动；粒子横向位置超过当地孔径即判为丢失，之后坐标为 NaN，界面标红叉；前端 `MotionView` 只做 2D 侧视／横截面／相空间与 3D 元件特写的播放（3D 不用整条束线的 `Beamline3D`，而是 `learn/closeupScene.ts`：按真实比例画元件本身——四极铁的四个双曲面磁极（N `--pole-n`、S `--pole-s`）、线圈、铁轭，默认剖开右上四分之一（磁极、线圈和铁轭一起去掉）以便看进孔径，真空管、BPM 按钮电极；粒子按真实横向位置画成带明暗的小球，并按各自在束团中的纵向位置（后端 `z`，示例束团 rms 约 1.3 mm）沿束流方向前后错开，像真实束团一样是立体的一团；小球直径约 0.64 mm（跟踪粒子 1.2 mm），比粒子间距小，球与球之间留有空隙，镜头拉远时在屏幕上不小于 6／10 像素，位置不放大；默认镜头贴近束流（斜视约 2 倍孔径半径，位于剖开的四分之一里，关闭剖开时自动退到铁轭外），箭头和场线按这个近景比例画得比粒子细（场线半径 0.004 R，受力箭杆 0.005 R）；在四极铁内，粒子所在平面上画 B = G·(y, x) 的细管状场线，方向用场线上的小锥表示（没有箭杆，颜色 `--field-arrow`）；两个跟踪粒子上画 F = qv × B 的受力箭头（细箭杆加箭头，颜色 `--force-arrow`，旁标“F”，画在束团前面不被遮挡），两者形状、颜色都不同，视图右下角有图例；镜头默认跟随束流，可选斜视／迎着束流／侧视／整段。WebGL 线条只有 1 像素，需要看清的箭头和场线一律用实体几何。播放速度按每米约 8 秒、至少 12 秒一遍），动画遵守 视图 → 动效，“关闭”时不自动播放；横截面一律从下游看，四极铁磁极按 B = G·(y, x) 标 N／S，`motionDraw.test.ts` 核对极性）、`avas-params`（参数表直接取自 `schema.all`，不要在章节里重抄参数表）、`avas-field`（解析示意场或示例场图切片，沿用数据／示意的区分）、`avas-tutorial`、`avas-beamline`（块内直接写 lattice 行，可省略 start／end，后端 `learn.beamline` 补齐并用示例束流算线性预览）。实验的参数、范围和全部数值都在后端 `avas/learn/labs.py`，物理计算复用 `avas/sim/linear_optics.py` 的矩阵和预览，不要在前端另写物理公式；实验结果属于线性模型，界面要注明以内核为准。`tests/test_learn.py` 检查章节里的实验预设和关键字确实存在，每个元件章节都有中英文相同、解析无问题、预览可算的 `avas-beamline`。
+- 粒子动画（`MOTIONS`）现有 `drift`、`quad`、`fodo`、`orbit`、`solenoid`、`steerer`、`dipole`、`cavity`，`directives.ts` 的 `MOTION_IDS` 与之一致（测试核对）。后端除坐标外还送出束团内纵向位置 `z` 与 δ（`dp`）、跟踪粒子的出发平面 `marks`（`cavity` 的两个跟踪粒子在束团中心前后 1.5 rms）、元件参数（螺线管 B、校正铁 Bx/By 与它作用的下一个元件 `span`、二极铁 α/ρ/N/hv 与参考轨道上的 By、射频场图的轴上 Ke·Ez 剖面与每个采样点的射频相位 `phase`）。腔内场是驻波 Ke·Ez(z)·cos φ，`tests/test_learn.py` 用它积分复现模型的能量增益。2D 与 3D 的场和受力只用 `learn/fields.ts` 的同一套公式（四极 G·(y, x)、螺线管 Bz、校正铁均匀场、二极铁 By = B0(1 − N·x/ρ)、腔 Ez·cos φ；F/(qv) = E/v + v̂ × B），方向约定与线性模型相同（By > 0、α > 0 都把正粒子推向 −x）。3D 特写经 `learn/closeupPath.ts` 把 (s, x, y) 映射到世界坐标，二极铁处管道、磁铁、粒子与跟随镜头一起沿圆弧转弯（直线上为恒等映射）；各元件的特写：螺线管是剖开的铜线圈（带匝间线）、铁壳与端板，场线沿轴并经铁壳返回；校正铁与二极铁是窗框／H 形磁铁，By > 0 时 N 极在下；射频腔是半透明竖直腔筒、穿过束流的内导体与漂移管、两个间隙，间隙里的电场小锥随此刻的射频相位翻转和缩放。螺线管与射频腔的默认镜头在线圈／腔筒外（`OUTSIDE`），其余贴近束流。
+- 入门里的 3D 视图（`BeamlineView`、`MotionView`）各自包在 `ErrorBoundary` 里，3D 加载失败不影响整章；页面打开后界面被重新构建（懒加载的文件名变了）时，`ErrorBoundary` 识别这类错误，提示重新载入页面而不是“重试”。
 - 束线示意一律复用结构页的 `LayoutView` 与 `Beamline3D`（`learn/BeamlineView.tsx`，2D／3D 切换、默认 2D，3D 只在接近可视区时挂载以节省 WebGL 上下文），lattice 经 `lattice.parse` 解析（不需要项目），点击元件显示只读 `ComponentView`；实验结果的 `beamline` 字段和教程预览提供包络。不要在入门里另画束线图。入门页左侧章节目录与右侧“本页内容”的开关都在正文上方的固定顶栏（“章节”按钮、当前位置、“本页内容”按钮），收起时面板宽度滑动为零，不留窄条；页面宽度不足时（章节目录 < 720 px、本页内容 < 1060 px，`LearnPage.tsx` 的 `NAV_DOCK_WIDTH`／`TOC_DOCK_WIDTH`）改为浮在正文上的抽屉，选择条目、点正文或 Esc 关闭，抽屉状态不保存；停靠状态保存在 `localStorage` `avas.learn.panels`。
 - 引导教程第 4、5 步（多周期）的默认值是 Kb 0.30、Ke 0.8（`PERIOD_DEFAULTS`，第 3 步单腔仍是 Kb 0.35、Ke 1.36）：沿用 0.35／1.36 时第一个周期纵向相移约 128°，内核在 8 个周期上丢失粒子（2026-11-02 Windows 核实，rms z 涨到十几毫米）；0.30／0.8 时每个周期横向、纵向都低于 90°（第一个周期约 75°／86°）。页面换步时只带走读者改过的值，其余用该步自己的默认值。
 - 引导教程（`avas/learn/tutorial.py`）只用示例项目 `examples/hwr010` 的 `hwr010`、`sol` 场图和漂移段，首尾不放矩阵元件，lattice 文字保持 ASCII。示例项目由 `avas.paths.example_input_dir()` 定位，打包时 `packaging/avas.spec` 随附它的 beam/input/ini 与这两组场图。内核运行用 `Sandbox`（source `learn`）在 `<用户数据>/learn/runs/` 中进行，只保留最近 3 次，不需要也不触碰任何项目，与其他模拟互斥；结果事件 `learn.tutorial` 不带曲线，页面再用 `learn.tutorial.state` 取 blob。“另存为新项目”只写入新的或空的文件夹。
+- 入门第五部分“加速器控制”（`PARTS` 的 `control`，排在“组成加速器”之后，章节表里放在参考文献之后，使翻页顺序与目录一致）：章节依次为《为什么需要控制》（`control-intro`）、《束流诊断》（`diagnostics`，实验 `bpm`）、《轨道校正》（`orbit-correction`，动画 `orbit`：6 周期 FODO、每块四极铁后一个 BPM、每块四极铁上一个校正铁，响应矩阵按 `avas.dynamics.response` 计算并缓存，SVD 截断校正，校正铁限幅 5 mT）、《反馈》（`feedback`，实验 `feedback` 在同一条轨道校正通道上用 `avas.dynamics.feedback.simulate` 做逐脉冲积分反馈，`llrf` 是单腔基带模型加比例积分反馈，标明 AVAS 不模拟 LLRF）、《可控性与可观性》（`controllability`，实验 `controllability` 选用部分 BPM／校正铁）、《真实装置的控制系统》（`control-systems`）、《混沌与混沌控制》（`chaos-control`，实验 `henon`：线性一圈加薄六极铁的 Hénon 映射，`chaos-control`：逻辑斯谛映射的 OGY 控制，两者都是教科书模型，界面注明）。实验代码在 `avas/learn/control.py`，`tests/test_learn.py` 核对反馈的稳定边界（无延迟 g < 2、一个脉冲延迟 g < 1）、LLRF 相位裕度、可控性实验的“看不见／消不掉”的轨道和 OGY 捕获。
 - 讲解员是 AI 助手本身：`primer_contents / primer_search / primer_read / primer_show` 通过页面（`assistant/front.ts` 的 `learn.*`）读取章节，`primer_lab` 直接调用后端实验；这些工具不需要项目，助手在未打开项目时也可以对话。页面的 `ui.state` 带当前章节，提示词里有讲解员的规则。
 - 助手面板把一次回答之前的思考、中间说明和普通工具调用合并成一个默认收起的“思考过程”块（`assistant/steps.ts` 的 `layoutItems`），运行中标题显示当前步骤；修改提案、通知、错误以及带进度、图表或表格结果的工具调用仍单独显示。
 
@@ -331,7 +336,7 @@ packaging/        PyInstaller + Inno Setup 打包
 - **Ke = 0 的射频 field 行**（|Ke| < 1e-6，M10 D6）：新内核默认模式按漂移段处理（不读场图、不占腔号、不扫相位，superpose 块内同样），synData 中这一行是 drift；线性模型（`Statement.rf_off()`）与分段运行的重定相位同样跳过它。
 - **spacechargecomp V**（lattice，2026-11-15 由 AVAS.dll 反汇编与新内核兼容模式逐字符比对核实，docs/engine/60-space-charge.md F-28、M4-notes）：从这一行所在位置起空间电荷乘以 (1 − V)。原内核只有 Windows 的 AVAS.dll 认识（Linux libAVAS.so 忽略），V ≥ 1 时忽略这一行、V < 0 时放大空间电荷，且只在 t 段（场图、漂移）元件入口生效；新内核默认模式把 1 − V 限制在 [0, 1]，写在硬边元件前或第一个元件前也从该处生效（M11），兼容模式与 AVAS.dll 相同。说明写在 schema。
 - **`main_agent` 不读参数**：每次调用都完整运行一次模拟，旧的 `MultiParticle.stop()`（`main_agent(2)`）会让原内核把模拟重跑一遍，已删除；停止运行一律结束 `avas run` 子进程。
-- **randomseed**：原内核与新内核兼容模式在种子非 0 时生成的初始分布 x 与相位完全相关（相关系数 −1，C 库 rand() 横向、纵向各自用同一种子 srand）；新内核默认模式没有这个缺陷。beam.txt 的 randomseed 覆盖 input.txt。研究层默认种子 12345，用原内核时发射度、空间电荷类结果受影响，界面在研究页与模拟设置页提示。
+- **randomseed**：原内核与新内核兼容模式在种子非 0 时生成的初始分布 x 与相位完全相关（相关系数 −1，C 库 rand() 横向、纵向各自用同一种子 srand；2026-11-18 Windows 原内核实测示例项目 GS GS、5260 个粒子：`randomseed 12345` 时 corr(x, φ) = −1.0000、corr(x′, W) = 0.81，两次运行逐粒子相同，`randomseed 0` 时约为 0；各平面自身的 rms 与发射度不受影响）；新内核默认模式没有这个缺陷，入门《模拟》一章已写明。beam.txt 的 randomseed 覆盖 input.txt。研究层默认种子 12345，用原内核时发射度、空间电荷类结果受影响，界面在研究页与模拟设置页提示。
 - **RF 相位 V3**：V3=2 是 t=0 时刻的绝对相位；synData.txt 的 φRF = phase_t0 + 360·f·t_in。分段运行把中段单独拿出来时，要用 φRF − 360·f·(t_in − T_entry) 重新换算（`segment.rephase`），不能直接沿用或改成 V3=0。
 - **输出面**：超出 lattice 末端会报错；离末端太近（5 mm）也会失败，2 cm 可以，所以分段 lattice 会去掉离末端 5 cm 以内的输出面。内核结束时总会写 `outData_<末端>.dst`。
 - **单粒子运行**（particlenumber 1 或关闭空间电荷）同步粒子数据相同但 rms 列为 NaN，属正常（原内核与新内核兼容模式；新内核默认模式单粒子的 rms 为 0、质心为有限值）。
@@ -353,7 +358,7 @@ packaging/        PyInstaller + Inno Setup 打包
   - 场是 8 项势的 −∇U，带完整 Bessel 因子；同步粒子入口射频相位 ±90°，取出口能量高者，主阶段计入渡越时间。
   - 没有参考结果，只有单元测试（数值梯度）与 `engine/tests/physics/rfq_check.py`（合成 RFQ）的自洽核对；线性预览按漂移段处理。
 - **GPU**：`avas/gpu/` 只封装了 Linux 预编译的 `libPIC.so`，没有源码；不要提议做 Windows GPU 版本。多线程（input.txt `multithreading 1`）是 CPU 上的加速手段。
-- **`multithreading` 只能写 1 或不写**：手册写 0 = 关闭，但内核遇到 `multithreading 0`（2、3 也一样）会在起点丢失全部粒子，报 `End of simulation, all particles lost`（2026-09-19 用示例项目核实，与 particlenumber 无关）。关闭多线程就删掉这一行；设置页（`services/simsettings.py`）已按此处理，`avas/utils/inputconfig.py` 对值为 None 的关键字不写行。新内核两种模式保留了这一行为（M6-notes：为保持 CPU 结果不变未改），所以这条规则对两个内核都适用。
+- **`multithreading` 只能写 1 或不写**：手册写 0 = 关闭，但内核遇到 `multithreading 0`（2、3 也一样）会在起点丢失全部粒子，报 `End of simulation, all particles lost`（2026-09-19 用示例项目核实，与 particlenumber 无关）。**不写这一行不等于单线程**：两个内核的默认值都是 1（新内核 2026-11-19 实测：不写与写 1 打印相同的 cores 表、用相同线程数、输出逐字节相同；原内核按逆向规格 docs/engine/10-input-lattice.md 默认也是 1，未在 Windows 上实测），所以设置页“多线程”开关（`services/simsettings.py` 关闭时删掉这一行）与研究层 `workers > 1` 时删掉这一行（`research/variant.py`）都不能让内核单线程运行；新内核的线程数由 `[engine] threads`／`--threads` 决定。`avas/utils/inputconfig.py` 对值为 None 的关键字不写行。新内核两种模式保留了这一行为（M6-notes：为保持 CPU 结果不变未改），所以这条规则对两个内核都适用。
 - **运行不写 InputFile**：`basic_mulp` 和误差研究（`api/basic._error_study`）都把文本输入复制到 `<输出>/inputs/`，`lattice.txt`（误差研究还有每个种子的 lattice）生成在那里，内核以副本为输入、原目录为场图目录。原内核在非 Windows 上运行时副本里的 boundary.txt 改为 LF（`inputs.prepare_for_original_kernel`：libAVAS.so 不规范换行，`start\r` 时崩溃，M11）。`tests/test_error_study.py` 用固定 randomseed 的示例做回归（误差参数文件必须逐字节相同）。
 
 ## 7. 协作习惯

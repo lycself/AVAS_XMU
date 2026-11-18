@@ -55,6 +55,12 @@ export function fieldScale(dark: boolean, diverging: boolean): [number, string][
     : [[0, "#440154"], [0.25, "#3b528b"], [0.5, "#21918c"], [0.75, "#5ec962"], [1, "#fde725"]];
 }
 
+/**
+ * The legend of every line plot: one row (wrapping when needed) above the plotting area, left-aligned, so
+ * it never sits on the curves or the axis titles.  Plotly widens the top margin to make room for it.
+ */
+export const LEGEND_TOP = { orientation: "h" as const, x: 0, xanchor: "left" as const, y: 1.02, yanchor: "bottom" as const };
+
 export function themeLayout(dark: boolean): Partial<Plotly.Layout> {
   const fg = cssColor("--fg", dark ? "#cccccc" : "#3b3b3b");
   const grid = dark ? "#333333" : "#e6e6e6";

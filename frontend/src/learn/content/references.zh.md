@@ -86,7 +86,7 @@
 |---|---|---|
 | 六维相空间坐标 | $(x, x', y, y', z, \delta)$，其中 $x' = p_x/p_0$，$y' = p_y/p_0$，$\delta = \Delta p/p_0$；$z > 0$ 表示粒子走在参考粒子**前方**（早到），相位差 $\Delta\varphi = -2\pi z/(\beta\lambda)$ | [AVAS 怎样描述一束粒子](#intro-reference)、[相空间与发射度](#phase-space-longitudinal) |
 | 横截面观察方向 | 所有横截面（束斑、四极铁 / 螺线管 / 校正铁截面）一律**从下游往上游看**，束流垂直屏幕向外（$\odot$），便于直接用 $\boldsymbol F = q\boldsymbol v \times \boldsymbol B$ 核对受力与场箭头 | [四极磁铁](#quadrupole-field)、[螺线管](#solenoid-field)、[校正磁铁](#steerer-field) |
-| 四极铁梯度 $G$ 符号 | 对正电荷，$G > 0$ 在水平（$x$）方向聚焦、垂直（$y$）方向散焦；对负电荷相反 | [四极磁铁](#quadrupole-matrix) |
+| 四极铁梯度 $G$ 符号 | 对正电荷，$G > 0$ 在水平（$x$）方向聚焦、垂直（$y$）方向散焦；对负电荷相反 | [四极磁铁](#quadrupole-field) |
 | 螺线管磁场 $B$ 符号 | 聚焦强度正比于 $B^2$，与 $B$ 和 $q$ 的正负无关（始终双向聚焦）；拉莫尔旋转角 $\theta = \int [qB/(2p)]\,\dd s$ 的转向随 $qB$ 改变 | [螺线管](#solenoid-busch) |
 | 射频腔时变因子与相位 | 电场乘 $K_e\cos(\omega t + \varphi_0)$，磁场乘 $K_b\sin(\omega t + \varphi_0)$；既加速又纵向聚焦的同步相位在 $\varphi_s \in (-90^\circ, 0^\circ)$（波峰左侧）；半波长腔等场图常取 $K_b = -K_e$ 以对齐驻波电磁场相位 | [射频腔](#rf-cavity-modes)、[纵向动力学](#longitudinal-stability)、[场图元件](#field-maps-in-avas) |
 | 射频腔相位参数 `V3` | `V3 = 0`：第六个参数是相对腔有效中心的同步相位 $\varphi_s$（内核自动求入口相位 $\varphi_0$）；`V3 = 1`：相对几何中心的相位；`V3 = 2`：入口绝对相位 $\varphi_0$ | [射频腔](#rf-cavity-in-avas)、[场图元件](#field-maps-in-avas) |
@@ -106,7 +106,7 @@
 
 1. **多粒子模式的 lattice 首尾不要直接放矩阵元件**：`quad`、`solenoid`、`bend`、`edge`、`steerer` 等矩阵元件放在多粒子 lattice 的第一个或最后一个元件时，内核的场边界与步进处理可能异常；首尾各加一段短 `drift`（例如 0.02–0.05 m）即可避免（见 [多粒子模拟要点](#simulation-in-avas)）。
 2. **`outputplane` 距 lattice 末端需留出 $> 2\ \mathrm{cm}$ 余量**：输出平面过于靠近 lattice 终点时可能无法触发记录（见 [多粒子模拟要点](#simulation-in-avas)）。
-3. **含射频腔时 `input.txt` 的 `multithreading` 固定设 `1`**：当前内核在 `multithreading > 1` 时射频腔纵向跟踪会失真（见 [多粒子模拟要点](#simulation-in-avas)）。
+3. **`input.txt` 的 `multithreading` 只写 `1` 或不写**：两者等价；写 0、2、3 会让内核在起点丢失全部粒子（原内核与新内核都已核实）。新内核的线程数用模拟设置页的“CPU 线程数”或 `--threads` 设置（见 [多粒子模拟要点](#simulation-in-avas)）。
 4. **`steerer` 长度必须写 `0`，作用在紧随其后的元件上**：校正铁在 lattice 中不占长度，与下游紧邻元件叠加生效；若把长度写成非零，几何位置会错位（见 [校正磁铁](#steerer-in-avas)）。
 5. **单粒子模式 `displacepos` 的位置单位按 mm 读取**：在 `input.txt` 切换单粒子轨道模式时注意单位转换（见 [误差与校正](#errors-in-avas)）。
 6. **`DataSet.txt` 质心与纵向坐标的合成列**：无二极铁时，全局纵向位置 $z$ 为第 5 列加第 33 列；横向束团质心 $x, y$ 为第 29 列加第 1 列、第 31 列加第 3 列（见 [多粒子模拟要点](#simulation-in-avas)）。

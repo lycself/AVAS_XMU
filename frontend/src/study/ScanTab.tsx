@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { call, on } from "../bridge";
 import { openPath } from "../host";
-import { Plot, fieldScale } from "../components/Plot";
+import { Plot, fieldScale, LEGEND_TOP } from "../components/Plot";
 import { confirmDialog, reportError, toast } from "../components/overlays";
 import { Badge, Button, Checkbox, CommitInput, Empty, Field, IconButton, Section, Segmented, Select, Spinner, cx } from "../components/ui";
 import { fmtG, fmtSeconds, runStatusLabel } from "../format";
@@ -411,7 +411,7 @@ function PointView({ scan, row, data, onClose }: { scan: Scan; row: Row; data: P
         { type: "scatter" as const, mode: "lines" as const, x: z, y: mm(data.cx), name: t("centroid x"), line: { dash: "dot" as const } },
         { type: "scatter" as const, mode: "lines" as const, x: z, y: mm(data.cy), name: t("centroid y"), line: { dash: "dot" as const } },
       ],
-      layout: { xaxis: { title: { text: "z (m)" } }, yaxis: { title: { text: "mm" } }, margin: { t: 16 }, legend: { orientation: "h" as const } },
+      layout: { xaxis: { title: { text: "z (m)" } }, yaxis: { title: { text: "mm" } }, margin: { t: 16 }, legend: LEGEND_TOP },
     };
   }, [data, t]);
   return (

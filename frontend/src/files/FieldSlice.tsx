@@ -26,14 +26,16 @@ export type FieldSource =
 
 const sourceKey = (s: FieldSource) => JSON.stringify(s);
 
-export function FieldSliceView({ source }: { source: FieldSource }) {
+/** *plotHeight*: least height of the plot (the primer gives a cross-section room to be a readable square).
+ *  *initialPlane*: the plane shown first (the primer opens a quadrupole on its cross-section, where the arrows are). */
+export function FieldSliceView({ source, initialPlane = "zx", plotHeight = 200 }: { source: FieldSource; initialPlane?: Plane; plotHeight?: number }) {
   const t = useT();
   const dark = useApp((s) => s.resolvedTheme === "dark");
-  const [plane, setPlane] = useState<Plane>("zx");
+  const [plane, setPlane] = useState<Plane>(initialPlane);
   const [at, setAt] = useState<number | null>(null); // null: the default plane
   const [show, setShow] = useState(""); // "": the component the source picks
   const [withArrows, setWithArrows] = useState(true);
-  const [equal, setEqual] = useState(false);
+  const [equal, setEqual] = useState(initialPlane === "xy");
   const [remote, setRemote] = useState<Slice | null>(null);
   const [error, setError] = useState<string | null>(null);
   const key = sourceKey(source);
@@ -101,10 +103,10 @@ export function FieldSliceView({ source }: { source: FieldSource }) {
     const fu = data.components[data.arrows[0]]?.values;
     const fv = data.components[data.arrows[1]]?.values;
     if (!fu || !fv) return null;
-    // one arrow per two grid lines at most: a map with a coarse grid would
-    // otherwise get an arrow per point and turn into a thicket
-    const density = (n: number, most: number) => Math.min(most, Math.max(6, Math.round(n / 2)));
-    const q = quiver({ u: data.u, v: data.v, fu, fv }, { nu: density(data.u.length, 24), nv: density(data.v.length, 13) });
+    // few, large arrows: one per two grid lines at most (a coarse map would otherwise get an arrow per point),
+    // and the longest one longer than the spacing so that the direction reads at a glance
+    const density = (n: number, most: number) => Math.min(most, Math.max(5, Math.round(n / 2)));
+    const q = quiver({ u: data.u, v: data.v, fu, fv }, { nu: density(data.u.length, 14), nv: density(data.v.length, 9), fill: 1.5 });
     return q.count ? q : null;
   }, [data, withArrows]);
 
@@ -148,7 +150,7 @@ export function FieldSliceView({ source }: { source: FieldSource }) {
       hoverinfo: "skip",
       showlegend: false,
     });
-    traces.push(arrow(cssColor("--editor-bg"), 3), arrow(cssColor("--fg"), 1.1));
+    traces.push(arrow(cssColor("--editor-bg"), 5), arrow(cssColor("--fg"), 2.2));
   }
   const inPlaneZero = !arrowsTrace && withArrows && drawn !== "xy";
 
@@ -187,12 +189,14 @@ export function FieldSliceView({ source }: { source: FieldSource }) {
         data={traces}
         layout={
           {
-            xaxis: { title: { text: `${uName} (m)` } },
+            // with equal scales both axes keep their ranges and give up width or height instead, so a
+            // cross-section stays a square in the middle rather than a sliver in a widened range
+            xaxis: { title: { text: `${uName} (m)` }, ...(equal ? { constrain: "domain" } : {}) },
             yaxis: { title: { text: `${vName} (m)` }, ...(equal ? { scaleanchor: "x", constrain: "domain" } : {}) },
             margin: { l: 64, r: 16, t: 16, b: 52 },
           } as any
         }
-        style={{ flex: 1, minHeight: 200 }}
+        style={{ flex: 1, minHeight: plotHeight }}
       />
       {data.schematic && (
         <div className="hint">

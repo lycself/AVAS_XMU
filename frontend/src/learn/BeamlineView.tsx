@@ -13,6 +13,7 @@ import { LayoutView, type EnvelopeCurves, type LayoutShow } from "../lattice/Lay
 import { keywordMap, loadSchema, type Bi, type LatticeDoc, type Schema } from "../lattice/types";
 import type { Preview } from "../lattice/usePreview";
 import { useApp } from "../store/app";
+import { ErrorBoundary } from "../components/ErrorBoundary";
 import { useLatest } from "./useLatest";
 
 const Beamline3D = lazy(() => import("../lattice/Beamline3D"));
@@ -28,7 +29,7 @@ type Mode = "2d" | "3d";
 const H2D = { min: 240, max: 420 };
 const H3D = 340;
 
-function useSchema() {
+export function useSchema() {
   const [schema, setSchema] = useState<Schema | null>(null);
   useEffect(() => {
     let alive = true;
@@ -39,7 +40,7 @@ function useSchema() {
 }
 
 /** Only mount the 3D view while it is near the screen: a chapter can hold several, and WebGL contexts are scarce. */
-function useNearScreen(ref: React.RefObject<HTMLElement | null>) {
+export function useNearScreen(ref: React.RefObject<HTMLElement | null>) {
   const [near, setNear] = useState(false);
   useEffect(() => {
     const el = ref.current;
@@ -135,9 +136,11 @@ export function BeamlineView({ text, fieldDirs, preview, engine, caption }: {
             onPreferredHeight={(h) => setHeight2d(Math.min(H2D.max, Math.max(H2D.min, h - 80)))}
           />
         ) : near ? (
-          <Suspense fallback={<div className="empty-state"><Spinner size={20} /></div>}>
+          <ErrorBoundary name="3D view">
+              <Suspense fallback={<div className="empty-state"><Spinner size={20} /></div>}>
             <Beamline3D doc={doc} selected={selected} onSelect={select} envelope={envelope3d} theme={theme} />
           </Suspense>
+              </ErrorBoundary>
         ) : (
           <div className="empty-state soft">{t("3D view")}</div>
         )}

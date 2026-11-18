@@ -2,7 +2,7 @@
 // Monitors and knobs are shared by both tabs and saved in Research/diagnostics.json.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { call, on } from "../bridge";
-import { Plot, fieldScale } from "../components/Plot";
+import { Plot, fieldScale, LEGEND_TOP } from "../components/Plot";
 import { confirmDialog, reportError, toast } from "../components/overlays";
 import { Badge, Button, Checkbox, CommitInput, Empty, Field, IconButton, NumberInput, Section, Select, Spinner, TextInput } from "../components/ui";
 import { fmtG } from "../format";
@@ -329,7 +329,7 @@ export function FeedbackTab({ spec }: { spec: Spec | null }) {
       { type: "scatter", mode: "lines", y: result.openRms.map((v) => v * 1e6), name: t("without feedback") },
       { type: "scatter", mode: "lines", y: result.rms.map((v) => v * 1e6), name: t("with feedback") },
     ],
-    layout: { margin: { t: 16 }, xaxis: { title: { text: t("pulse") } }, yaxis: { title: { text: t("rms of the readings (µm)") } }, legend: { orientation: "h" as const } },
+    layout: { margin: { t: 16 }, xaxis: { title: { text: t("pulse") } }, yaxis: { title: { text: t("rms of the readings (µm)") } }, legend: LEGEND_TOP },
   };
   return (
     <>

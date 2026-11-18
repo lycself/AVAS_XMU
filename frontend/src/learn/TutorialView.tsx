@@ -5,7 +5,7 @@
 // (avas/gui/services/learn.py) and overlays its result.
 import { useEffect, useMemo, useState } from "react";
 import { call, on } from "../bridge";
-import { Plot } from "../components/Plot";
+import { Plot, LEGEND_TOP } from "../components/Plot";
 import { reportError, toast } from "../components/overlays";
 import { Button, Icon, ProgressBar, Spinner, cx } from "../components/ui";
 import { fmtG, fmtSeconds } from "../format";
@@ -112,8 +112,8 @@ export function TutorialView() {
     const layout = (y: string) => ({
       xaxis: { title: { text: "z (m)" } },
       yaxis: { title: { text: y } },
-      legend: { orientation: "h" as const, y: 1.16, x: 0 },
-      margin: { l: 60, r: 16, t: 30, b: 46 },
+      legend: LEGEND_TOP,
+      margin: { l: 60, r: 16, t: 12, b: 46 },
     });
     return [
       { key: "env", title: t("Transverse rms envelope"), data: env, layout: layout(t("rms size (mm)")) },

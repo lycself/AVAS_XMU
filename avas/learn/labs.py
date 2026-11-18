@@ -33,25 +33,9 @@ PROTON = 938.272088
 ELECTRON = 0.51099895
 EXAMPLE_FREQ = 162.5e6            # Hz, the example HWR cavity
 CAVITY_MAP, CAVITY_LENGTH = "hwr010", 0.21
+from avas.learn.labkit import Lab, LabError, Param, _axis, _plot, _series, _value  # noqa: F401,E402 (re-exported)
+
 APERTURE = 0.02                   # m, the bore of the labs' elements
-
-
-class LabError(Exception):
-    """The parameters cannot be evaluated (a message for the page)."""
-
-
-class Param:
-    __slots__ = ("key", "label", "unit", "default", "min", "max", "step", "log", "integer", "doc")
-
-    def __init__(self, key, label, unit, default, lo_, hi, step, log=False, integer=False, doc=("", "")):
-        self.key, self.label, self.unit = key, label, unit
-        self.default, self.min, self.max, self.step = default, lo_, hi, step
-        self.log, self.integer, self.doc = log, integer, doc
-
-    def public(self):
-        return {"key": self.key, "label": list(self.label), "unit": self.unit, "default": self.default,
-                "min": self.min, "max": self.max, "step": self.step, "log": self.log, "integer": self.integer,
-                "doc": list(self.doc)}
 
 
 def _mass(default=PROTON):
@@ -82,15 +66,6 @@ def _fodo_params(G=4.0, I=0.0):
     ]
 
 
-class Lab:
-    def __init__(self, id_, title, params, fn, summary):
-        self.id, self.title, self.params, self.fn, self.summary = id_, title, params, fn, summary
-
-    def public(self):
-        return {"id": self.id, "title": list(self.title), "summary": list(self.summary),
-                "params": [p.public() for p in self.params]}
-
-
 # =========================================================================== helpers
 def _kin(W, mass, q):
     if not (mass > 0 and W > 0):
@@ -99,22 +74,6 @@ def _kin(W, mass, q):
         raise LabError("The charge state must not be zero.")
     gamma, bg, beta, p = (float(v) for v in lo._kin(W, mass))
     return gamma, bg, beta, p, p / (lo.MEV_TM * q)
-
-
-def _value(key, en, zh, unit, value):
-    return {"key": key, "label": (en, zh), "unit": unit, "value": None if value is None else float(value)}
-
-
-def _series(en, zh, x, y, **style):
-    return {"name": (en, zh), "x": np.asarray(x, dtype=float), "y": np.asarray(y, dtype=float), **style}
-
-
-def _plot(id_, title, x, y, series, **opts):
-    return {"id": id_, "title": title, "x": x, "y": y, "series": series, **opts}
-
-
-def _axis(en, zh, unit="", **opts):
-    return {"label": (en, zh), "unit": unit, **opts}
 
 
 def _ellipse(sigma, n=121):
@@ -678,6 +637,12 @@ LABS = {lab.id: lab for lab in [
 ]}
 
 
+# the labs of the "accelerator control" part live in their own module (it uses the definitions above)
+from avas.learn import control as _control  # noqa: E402
+
+LABS.update(_control.LABS)
+
+
 def definitions():
     return [lab.public() for lab in LABS.values()]
 
@@ -719,9 +684,23 @@ def run(lab_id, params=None):
     lab = LABS.get(lab_id)
     if lab is None:
         raise LabError(f"Unknown lab: {lab_id}")
+    args = clip_params(lab.params, params)
+    with np.errstate(all="ignore"):
+        out = lab.fn(**args)
+    out.setdefault("matrices", [])
+    out.setdefault("warnings", [])
+    out.setdefault("lattice", None)
+    out.setdefault("beamline", None)
+    out["params"] = args
+    return out
+
+
+def clip_params(defs, params=None):
+    """*params* checked against the :class:`Param` list *defs*: missing ones take their defaults,
+    values are clipped to the ranges and integers rounded."""
     params = params or {}
     args = {}
-    for p in lab.params:
+    for p in defs:
         raw = params.get(p.key, p.default)
         try:
             v = float(raw)
@@ -731,11 +710,4 @@ def run(lab_id, params=None):
             raise LabError(f"{p.label[0]}: not a number")
         v = min(max(v, p.min), p.max)
         args[p.key] = int(round(v)) if p.integer else v
-    with np.errstate(all="ignore"):
-        out = lab.fn(**args)
-    out.setdefault("matrices", [])
-    out.setdefault("warnings", [])
-    out.setdefault("lattice", None)
-    out.setdefault("beamline", None)
-    out["params"] = args
-    return out
+    return args

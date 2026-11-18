@@ -75,6 +75,13 @@
   --curve-previous: #9aa0a6;
   --curve-segment: #8e5bd0;
   --bunch: #e8590c;
+  /* element close-up 3D of the primer (learn/closeupScene.ts) */
+  --pole-n: #d64541;
+  --pole-s: #3a6fd8;
+  --coil: #b8742e;
+  --iron: #8d949c;
+  --field-arrow: #2b2b2b;
+  --force-arrow: #d6336c;
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
@@ -152,4 +159,10 @@
   --curve-previous: #7d838a;
   --curve-segment: #b38af0;
   --bunch: #ff8a3d;
+  --pole-n: #ff6b66;
+  --pole-s: #6b9bff;
+  --coil: #d99550;
+  --iron: #5f666e;
+  --field-arrow: #e8e8e8;
+  --force-arrow: #ff6b9a;
 }

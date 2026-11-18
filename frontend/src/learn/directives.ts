@@ -2,6 +2,8 @@
 // fenced blocks whose language names the kind and whose body is one line:
 //
 //   ```avas-lab            fodo G=4 Ld=0.3        an interactive lab (labs run on the back end)
+//   ```avas-motion         quad G=10              particles of the example beam animated in 2D / 3D
+//                                                 (trajectories from the back end's linear model)
 //   ```avas-params         quad beam:twissx       parameter tables from the keyword schema
 //   ```avas-field          quadrupole G=4 L=0.1   field picture of a matrix-model element (schematic)
 //   ```avas-field          map hwr010             a slice of one of the example field maps (data)
@@ -12,12 +14,17 @@
 // Lab parameters are checked against the back end's lab definitions by
 // tests/test_learn.py; this module only knows the names.
 
-export type DirectiveKind = "lab" | "params" | "field" | "tutorial" | "beamline";
+export type DirectiveKind = "lab" | "motion" | "params" | "field" | "tutorial" | "beamline";
 /** *text* is the body of an ``avas-beamline`` block (lattice lines); the other kinds take one line of words. */
 export type Directive = { kind: DirectiveKind; id: string; args: Record<string, string>; items: string[]; text?: string };
 
-export const LAB_IDS = ["kinematics", "phase-space", "distribution", "fodo", "solenoid", "dipole", "rf-cavity", "space-charge"] as const;
+export const LAB_IDS = [
+  "kinematics", "phase-space", "distribution", "fodo", "solenoid", "dipole", "rf-cavity", "space-charge",
+  "bpm", "feedback", "llrf", "controllability", "henon", "chaos-control",
+] as const;
 export type LabId = (typeof LAB_IDS)[number];
+/** Particle animations (avas/learn/motion.py). */
+export const MOTION_IDS = ["drift", "quad", "fodo", "orbit", "solenoid", "steerer", "dipole", "cavity"] as const;
 
 /** Matrix-model fields drawn from parameters (lattice/analyticField.ts) and the parameters each takes. */
 export const FIELD_MODELS: Record<string, string[]> = {
@@ -33,6 +40,7 @@ export const PARAM_GROUPS = ["lattice", "beam", "input"] as const;
 
 const KINDS: Record<string, DirectiveKind> = {
   "avas-lab": "lab",
+  "avas-motion": "motion",
   "avas-params": "params",
   "avas-field": "field",
   "avas-tutorial": "tutorial",
@@ -77,6 +85,11 @@ export function directiveProblems(d: Directive): string[] {
     case "lab":
       if (!(LAB_IDS as readonly string[]).includes(d.id)) out.push(`unknown lab '${d.id}' (known: ${LAB_IDS.join(", ")})`);
       if (d.items.length) out.push(`lab ${d.id}: write parameters as key=value, not '${d.items.join(" ")}'`);
+      for (const [k, v] of Object.entries(d.args)) numeric(k, v);
+      break;
+    case "motion":
+      if (!(MOTION_IDS as readonly string[]).includes(d.id)) out.push(`unknown animation '${d.id}' (known: ${MOTION_IDS.join(", ")})`);
+      if (d.items.length) out.push(`motion ${d.id}: write parameters as key=value, not '${d.items.join(" ")}'`);
       for (const [k, v] of Object.entries(d.args)) numeric(k, v);
       break;
     case "params":

@@ -1,7 +1,7 @@
 // The primer's chapter list (small, imported by the shell and the element views).
 // The texts are in ./content and only the primer page loads them (./content.ts).
 
-export type PartId = "journey" | "basics" | "elements" | "assembly";
+export type PartId = "journey" | "basics" | "elements" | "assembly" | "control";
 /** "ai-draft": written by the AI assistant, not yet checked by a physicist. */
 export type ReviewStatus = "ai-draft" | "reviewed";
 export type ChapterMeta = { id: string; part: PartId; status: ReviewStatus; keywords?: string[] };
@@ -11,6 +11,7 @@ export const PARTS: { id: PartId; title: string }[] = [
   { id: "basics", title: "Fundamentals" },
   { id: "elements", title: "Components" },
   { id: "assembly", title: "Building an accelerator" },
+  { id: "control", title: "Accelerator control" },
 ];
 
 /** In reading order.  *keywords*: lattice keywords whose element details link here. */
@@ -43,6 +44,13 @@ export const CHAPTERS: ChapterMeta[] = [
   { id: "simulation", part: "assembly", status: "ai-draft", keywords: ["outputplane", "automaticoutput", "spacechargecomp"] },
   { id: "tutorial", part: "assembly", status: "ai-draft" },
   { id: "references", part: "assembly", status: "ai-draft" },
+  { id: "control-intro", part: "control", status: "ai-draft" },
+  { id: "diagnostics", part: "control", status: "ai-draft" },
+  { id: "orbit-correction", part: "control", status: "ai-draft" },
+  { id: "feedback", part: "control", status: "ai-draft" },
+  { id: "controllability", part: "control", status: "ai-draft" },
+  { id: "control-systems", part: "control", status: "ai-draft" },
+  { id: "chaos-control", part: "control", status: "ai-draft" },
 ];
 
 export function chapterForKeyword(keyword: string): string | null {

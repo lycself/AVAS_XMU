@@ -3,7 +3,7 @@
 // "lattice … lattice_end" period, and the phase advance of every period along the line.
 import { useEffect, useMemo, useState } from "react";
 import { call } from "../bridge";
-import { Plot } from "../components/Plot";
+import { Plot, LEGEND_TOP } from "../components/Plot";
 import { toast } from "../components/overlays";
 import { Badge, Button, CommitInput, Field, Icon, Select, Spinner } from "../components/ui";
 import { fmtG } from "../format";
@@ -75,7 +75,7 @@ export function PeriodPanel({ getText, fieldDirs, revision }: { getText: () => s
     const line = (a: Float64Array, name: string, dash?: "dot") => ({ type: "scatter", mode: "lines+markers", x: z, y: Array.from(a, (v) => (Number.isFinite(v) ? v : null)), name, line: dash ? { dash } : undefined });
     return {
       data: [line(table.mu0_x, "σ0 x"), line(table.mu0_y, "σ0 y"), line(table.mu0_z, "σ0 z"), line(table.mu_x, "σ x", "dot"), line(table.mu_y, "σ y", "dot"), line(table.mu_z, "σ z", "dot")],
-      layout: { margin: { t: 12 }, xaxis: { title: { text: t("period entry z (m)") } }, yaxis: { title: { text: t("phase advance per period (deg)") } }, legend: { orientation: "h" as const } },
+      layout: { margin: { t: 12 }, xaxis: { title: { text: t("period entry z (m)") } }, yaxis: { title: { text: t("phase advance per period (deg)") } }, legend: LEGEND_TOP },
     };
   }, [table, t]);
 

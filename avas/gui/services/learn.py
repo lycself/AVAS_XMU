@@ -24,6 +24,7 @@ from avas import paths
 from avas.gui import bridge
 from avas.gui.bridge import UserError, rpc
 from avas.learn import labs as lab_core
+from avas.learn import motion as motion_core
 from avas.learn import tutorial as tut
 
 log = logging.getLogger("avas.gui")
@@ -63,6 +64,20 @@ def labs():
 def lab(id, params=None):  # noqa: A002 - the page's name for it
     try:
         return _wire(lab_core.run(id, params))
+    except lab_core.LabError as exc:
+        raise _user_error(exc) from exc
+
+
+@rpc("learn.motions")
+def motions():
+    return motion_core.definitions()
+
+
+@rpc("learn.motion")
+def motion(id, params=None):  # noqa: A002 - the page's name for it
+    """Particle trajectories of a primer animation (``avas-motion`` block)."""
+    try:
+        return _wire(motion_core.run(id, params))
     except lab_core.LabError as exc:
         raise _user_error(exc) from exc
 

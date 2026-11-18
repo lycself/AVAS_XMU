@@ -3,7 +3,7 @@
 // preview's own code), recomputed while a slider moves.
 import { useEffect, useMemo, useState } from "react";
 import { call } from "../bridge";
-import { Plot } from "../components/Plot";
+import { Plot, LEGEND_TOP } from "../components/Plot";
 import { Button, Icon, NumberInput, Spinner } from "../components/ui";
 import { fmtG } from "../format";
 import { pick, useLang, useT } from "../i18n";
@@ -103,11 +103,13 @@ export function LabPlotView({ plot }: { plot: LabPlot }) {
   );
   const layout = useMemo(
     () => ({
-      xaxis: axis(plot.x),
-      yaxis: { ...axis(plot.y), ...(plot.equal ? { scaleanchor: "x" as const, scaleratio: 1 } : {}) },
+      // equal scales keep both ranges and give up width instead, so a phase portrait stays a square in the
+      // middle rather than a sliver in a widened range (as the field slices do)
+      xaxis: { ...axis(plot.x), ...(plot.equal ? { constrain: "domain" as const } : {}) },
+      yaxis: { ...axis(plot.y), ...(plot.equal ? { scaleanchor: "x" as const, scaleratio: 1, constrain: "domain" as const } : {}) },
       showlegend: plot.series.length > 1,
-      legend: { orientation: "h" as const, y: 1.14, x: 0 },
-      margin: { l: 60, r: 16, t: 30, b: 46 },
+      legend: LEGEND_TOP,
+      margin: { l: 60, r: 16, t: 12, b: 46 },
     }),
     [plot, lang],
   );

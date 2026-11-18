@@ -1,7 +1,7 @@
 // Results page: one quantity of several runs (OutputFile, archived runs, segment runs) in one figure.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { call } from "../bridge";
-import { Plot, seriesColor } from "../components/Plot";
+import { Plot, seriesColor, LEGEND_TOP } from "../components/Plot";
 import { Checkbox, Icon, IconButton, Select, Spinner } from "../components/ui";
 import { useT } from "../i18n";
 import { useApp } from "../store/app";
@@ -92,7 +92,7 @@ export function CompareTab({
     });
     return {
       data,
-      layout: { xaxis: { title: { text: xlabel } }, yaxis: { title: { text: ylabel }, exponentformat: "none" as const }, showlegend: true, legend: { x: 1, xanchor: "right" as const, y: 1 }, hovermode: "closest" as const },
+      layout: { xaxis: { title: { text: xlabel } }, yaxis: { title: { text: ylabel }, exponentformat: "none" as const }, showlegend: true, legend: LEGEND_TOP, hovermode: "closest" as const },
     };
   }, [figs, selected, usable, alignZ, dark, t]);
 

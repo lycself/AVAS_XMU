@@ -22,12 +22,12 @@ import { persist, useApp } from "../store/app";
 import "../styles/beamline3d.css";
 import { pointerDevice } from "../components/pointer";
 import { ViewNavigation } from "./ViewNavigation";
-import { Viewer, type Envelope3D, type PointerDevice } from "./b3dViewer";
+import { Viewer, type Envelope3D, type Particles3D, type PointerDevice } from "./b3dViewer";
 import { autoExaggeration, buildModel, roundNice, structureKey } from "./beamline3dModel";
 import { subscribeBunch, useMotion, type BunchFrame } from "./bunchPlayer";
 import type { LatticeDoc } from "./types";
 
-export type { Envelope3D, PointerDevice } from "./b3dViewer";
+export type { Envelope3D, Particles3D, PointerDevice, Viewer } from "./b3dViewer";
 export type Beamline3DProps = {
   doc: LatticeDoc;
   onElementContextMenu?: (line: number, x: number, y: number) => void;
@@ -38,6 +38,10 @@ export type Beamline3DProps = {
   className?: string;
   /** show the schematic bunch of these run kinds (replays always, a live run while it runs) */
   bunchKinds?: BunchFrame["kind"][];
+  /** particle trajectories of a primer animation; the caller moves them with viewer.setParticleS (onViewer) */
+  particles?: Particles3D;
+  trails?: boolean;
+  onViewer?: (viewer: Viewer | null) => void;
 };
 
 const EX_MIN = 1;
@@ -47,7 +51,7 @@ const EX_MAX = 500;
 const exToSlider = (ex: number) => Math.round((1000 * Math.log(ex / EX_MIN)) / Math.log(EX_MAX / EX_MIN));
 const sliderToEx = (v: number) => roundNice(EX_MIN * Math.exp((v / 1000) * Math.log(EX_MAX / EX_MIN)));
 
-export default function Beamline3D({ doc, selected, onSelect, onElementContextMenu, envelope, theme, className, bunchKinds }: Beamline3DProps): JSX.Element {
+export default function Beamline3D({ doc, selected, onSelect, onElementContextMenu, envelope, theme, className, bunchKinds, particles, trails, onViewer }: Beamline3DProps): JSX.Element {
   const tr = useT();
   const hostRef = useRef<HTMLDivElement>(null);
   const labelsRef = useRef<HTMLDivElement>(null);
@@ -58,6 +62,8 @@ export default function Beamline3D({ doc, selected, onSelect, onElementContextMe
   const viewerRef = useRef<Viewer | null>(null);
   const onSelectRef = useRef(onSelect);
   const contextRef = useRef(onElementContextMenu);
+  const onViewerRef = useRef(onViewer);
+  onViewerRef.current = onViewer;
   contextRef.current = onElementContextMenu;
   const [failed, setFailed] = useState(false);
   const [lost, setLost] = useState(false);
@@ -127,11 +133,14 @@ export default function Beamline3D({ doc, selected, onSelect, onElementContextMe
     }
     viewerRef.current = viewer;
     (hostRef.current as any).__b3d = viewer; // for automated checks
+    onViewerRef.current?.(viewer);
     return () => {
+      onViewerRef.current?.(null);
       viewer.dispose();
       viewerRef.current = null;
     };
   }, []);
+  useEffect(() => viewerRef.current?.setParticles(particles ?? null, trails ?? true), [particles, trails]);
 
   useEffect(() => viewerRef.current?.setModel(model, ex), [model, ex]);
   useEffect(() => viewerRef.current?.setSelected(selected), [selected]);

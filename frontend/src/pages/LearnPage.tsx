@@ -10,6 +10,7 @@ import { BeamlineBlock } from "../learn/BeamlineView";
 import { parseDirective } from "../learn/directives";
 import { FieldView } from "../learn/FieldView";
 import { LabView } from "../learn/LabView";
+import { MotionView } from "../learn/MotionView";
 import { ParamsTable } from "../learn/ParamsTable";
 import { learnLang, setLearnPanel, showLearn, useLearn } from "../learn/store";
 import { TutorialView } from "../learn/TutorialView";
@@ -22,6 +23,8 @@ const renderFence: FenceRenderer = (lang, body, key) => {
   switch (d.kind) {
     case "lab":
       return <LabView key={key} id={d.id} presets={d.args} />;
+    case "motion":
+      return <MotionView key={key} id={d.id} presets={d.args} />;
     case "params":
       return <ParamsTable key={key} directive={d} />;
     case "field":
@@ -32,6 +35,30 @@ const renderFence: FenceRenderer = (lang, body, key) => {
       return <BeamlineBlock key={key} text={d.text ?? ""} />;
   }
 };
+
+/** "Going deeper" sections (id ``<chapter>-deep…``): the derivations, folded so that a beginner can skip them. */
+function isDeep(chapterId: string, sectionId: string) {
+  return sectionId.startsWith(`${chapterId}-deep`);
+}
+
+function DeepSection({ id, title, text, anchor, nonce }: { id: string; title: string; text: string; anchor: string | null; nonce: number }) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (anchor === id) setOpen(true);
+  }, [anchor, id, nonce]);
+  return (
+    <details id={`learn-${id}`} className="learn-section learn-deep" open={open} onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}>
+      <summary>
+        <span className="learn-deep-label">
+          <Icon name="telescope" /> {t("Going deeper (optional)")}
+        </span>
+        <span className="learn-deep-title">{title}</span>
+      </summary>
+      {open && <Markdown text={text} fence={renderFence} />}
+    </details>
+  );
+}
 
 function StatusBadge({ chapter }: { chapter: Chapter }) {
   const t = useT();
@@ -200,7 +227,10 @@ export default function LearnPage() {
               </div>
             </header>
             {chapter.intro.trim() && <Markdown text={chapter.intro} fence={renderFence} />}
-            {chapter.sections.map((s) => (
+            {chapter.sections.map((s) =>
+              isDeep(chapter.id, s.id) ? (
+                <DeepSection key={s.id} id={s.id} title={s.title} text={s.text} anchor={anchor} nonce={nonce} />
+              ) : (
               <section key={s.id} id={`learn-${s.id}`} className={cx("learn-section", s.id === `${chapter.id}-in-avas` && "learn-reference")}>
                 {s.id === `${chapter.id}-in-avas` && (
                   <div className="learn-reference-label">
@@ -210,7 +240,8 @@ export default function LearnPage() {
                 <h2>{s.title}</h2>
                 <Markdown text={s.text} fence={renderFence} />
               </section>
-            ))}
+              ),
+            )}
             <footer className="learn-foot">
               {prev ? (
                 <Button icon="arrow-left" onClick={() => go(prev.id)}>

@@ -1,130 +1,259 @@
 # Multi-particle simulation essentials
 
-One bunch of the example project contains about 7 million protons; AVAS represents them by 5260 macro-particles and advances them in steps of 0.12 ns. Can such a result be trusted? Why does the same input give slightly different results on two runs, and how large a difference is a real one? Starting from these questions, this chapter explains where the errors of a multi-particle simulation come from — statistical errors and numerical noise from the finite number of macro-particles, the time step, the space-charge mesh — how convergence tests tell you whether a result can be trusted, and what the linear preview and the engine can each tell you. It ends with AVAS's run settings, output files, single-particle runs and the most common causes of failure.
+A bunch of the example project contains about 7 million protons; AVAS represents them by only 5260 "macro-particles" and advances them in steps of 0.12 ns. Can results computed this way be trusted? Why do two runs of the same input not give exactly the same result? How large must a difference be to be real? This chapter starts from these questions and explains how the AVAS engine "computes" a beam, where the errors come from and how to judge whether a result can be trusted.
 
-The physics background is in [space charge](#space-charge) and [longitudinal dynamics](#longitudinal), initial distributions in [initial distributions](#distributions), the overall structure of the input files in [accelerators and AVAS](#intro).
+First, what the engine does, in a nutshell. It splits the beam into a few thousand representatives and then does the same thing over and over:
+
+1. **Count**: see where all representatives are at this moment and work out the charge distribution;
+2. **Work out the forces**: the force on each representative = the elements' electromagnetic fields + the field of the charges of all other particles (space charge);
+3. **Take a small step**: push each representative forward by a small interval of time according to its force;
+4. **Write it down**: collect this step's mean energy, beam size, emittance and number of surviving particles in a record file; at chosen positions, take a "group photo" of the coordinates of all representatives.
+
+Going on like this to the end of the beam line is one multi-particle simulation. Each section below covers one part of it: the number of representatives (macro-particles), how long each step is (the time step), how the push between particles is computed (the space-charge mesh), what is recorded (output), how to judge whether results can be trusted (convergence), and what the linear preview and the engine can each tell you. At the end come AVAS's run settings, output files, single-particle runs and common reasons for failure.
+
+For the physics see [space charge](#space-charge) and [longitudinal dynamics](#longitudinal), for initial distributions [initial distributions](#distributions), and for the overall structure of the input files [accelerators and AVAS](#intro).
 
 ## Macro-particles and statistics {#simulation-macroparticles}
 
-### What a macro-particle stands for
+### What a macro-particle represents
 
-The real number of particles in a bunch is $Q/q$ ($Q = I/f$ the bunch charge), typically $10^6$–$10^{10}$, far too many to compute all their mutual forces. The engine represents them by `particlenumber` **macro-particles**: each carries the charge $Q/N$ and a mass scaled by the same factor, so its charge-to-mass ratio equals that of a real particle. Motion in external fields depends only on the charge-to-mass ratio, so every macro-particle follows exactly the trajectory of one real particle; only space charge is computed from the total charge. Think of an opinion poll: a few thousand people stand for millions; if the sample is representative the averages are right, but every statistic carries a sampling error.
+The real number of particles in a bunch is the bunch charge divided by the charge of one particle. The bunch charge is $Q = I/f$: the average current $I$ divided by the number of bunches per second $f$ (the RF frequency). The example project has $I = 0.184\ \mathrm{mA}$ and $f = 162.5\ \mathrm{MHz}$, so $Q = 1.13\ \mathrm{pC}$, which is $7.07\times 10^6$ protons. Real machines usually have $10^6$ to $10^{10}$; computing the forces between every pair of them is more than a computer can manage.
 
-The example project has $Q = 1.133\ \mathrm{pC}$ ($7.07\times 10^6$ protons) and `particlenumber 5260`, so each macro-particle stands for about 1340 protons.
+The engine instead represents them by `particlenumber` **macro-particles**. Each macro-particle carries the charge $Q/N$, and its mass is scaled up in the same proportion, so its charge-to-mass ratio is that of a real particle. In applied electromagnetic fields, how a particle moves depends only on the charge-to-mass ratio (the force is proportional to the charge, acceleration = force ÷ mass), so every macro-particle follows exactly the trajectory of one real particle; only the push between particles (space charge) is computed from the total charge. The example project uses 5260 macro-particles, each standing for about 1340 protons.
+
+Think of an **opinion poll**: a few thousand people stand for millions; as long as the sample is representative, the average is right, but every statistic carries a "sampling error".
 
 ### How large the statistical error is
 
-Estimating the variance $\sigma^2$ of a Gaussian from $N$ samples, the estimate itself has the variance $2\sigma^4/N$. The rms size is the square root of the variance, which halves the relative error, so
+The sampling error follows a simple rule: **as the number of samples $N$ grows, the error shrinks as $1/\sqrt N$**. To make the error 10 times smaller, the number of macro-particles must grow 100 times. For the Gaussian distribution used by the example, the relative statistical error of the rms size is $1/\sqrt{2N}$:
 
-$$
-\frac{\delta\sigma}{\sigma} \approx \frac{1}{2}\sqrt{\frac{2}{N}} = \frac{1}{\sqrt{2N}}
-$$
-
-It falls as $1/\sqrt N$: to reduce the error tenfold, the number of macro-particles must grow a hundredfold. The factor 2 belongs to the Gaussian, which is what the example uses (`distribution GS GS`). For a general distribution the variance of the variance estimate is $(\mu_4 - \sigma^4)/N$, so $\delta\sigma/\sigma \approx \sqrt{(\kappa - 1)/(4N)}$ with the kurtosis $\kappa = \mu_4/\sigma^4$: distributions with sharp edges are estimated more precisely (a uniform projection, $\kappa = 1.8$, gives $0.45/\sqrt N$ instead of $0.71/\sqrt N$), heavy tails less precisely.
-
-| $N$ | Relative statistical error of the rms size |
+| Macro-particles $N$ | Relative statistical error of the rms size |
 |---|---|
 | 5260 (example) | 0.97 % |
 | $10^4$ | 0.71 % |
 | $10^5$ | 0.22 % |
 | $10^6$ | 0.07 % |
 
-The statistical error of the rms emittance is of the same order, about $1/\sqrt N$ for a Gaussian (1.4 % for the example). The resolution of the loss rate is $1/N$: in the example, losing one macro-particle is 0.019 %; studying losses below $10^{-4}$ or halo requires far more macro-particles, or a dedicated study of the distribution tails.
+The statistical error of the rms emittance is of the same order, about $1/\sqrt N$ for a Gaussian (1.4 % in the example). The smallest step of the **loss rate** is $1/N$: in the example, losing one macro-particle is 0.019 %. Studying losses below $10^{-4}$, or the sparse "halo" around the beam, requires far more macro-particles or a dedicated study of the distribution tails. Where the formula comes from is in "Going deeper: why the statistical error is 1/√N".
 
-> **Think about it**: with 5260 macro-particles the exit rms size changes by 1 % when you change a parameter. Can you conclude that the parameter matters?
->
-> Answer: not for certain. If the initial distributions of the two runs are independent samples, each result has a statistical error of about 0.97 %, and their difference has a standard deviation of about $\sqrt2 \times 0.97\ \% = 1.4\ \%$; a 1 % difference lies within it. If both runs start from the same sample (same `randomseed`; check that the two `inData.dst` files agree, since the manual does not say how the seed is used), the sampling error is common to both and largely cancels in the difference — what remains is the run-to-run scatter of the engine itself. Either way, increase the number of macro-particles, or repeat the runs to measure the run-to-run spread, before drawing a conclusion.
+See the sampling error for yourself in the lab below. It draws N particles with the parameters of the example beam (the same Twiss parameters) and computes the rms size from those particles. The theoretical value is $\sqrt{\beta\varepsilon} = 0.954\ \mathrm{mm}$. The number of particles is set to 300, and the lab's "rms x" is 0.914 mm, 4 % below the theory; drag N to 5260 and it becomes 0.949 mm (0.5 % off); at 20000 it is 0.956 mm. Now look at "Gaussian (GS): share beyond 2 rms": the theory says 4.55 %; with 300 particles the count gives only 3.3 %, with 20000 it is 4.4 %. The tails of a distribution hold very few particles and are counted even less accurately.
+
+```avas-lab
+distribution N=300
+```
 
 ### Numerical noise
 
-A second source of error is **numerical noise**: with far fewer macro-particles than real particles, each carrying a much larger charge, the space-charge field fluctuates more than in the real beam; particles receive small random kicks, which causes spurious emittance growth (numerical heating). It decreases as the number of macro-particles per mesh cell increases, see [space-charge mesh](#simulation-sc-mesh).
+Few macro-particles have another consequence. With far fewer macro-particles than real particles, each macro-particle has a far larger charge, so the push between them is "grainier" than in a real beam, and particles receive small random pushes that cause spurious emittance growth. This is called **numerical heating** (also numerical noise). It decreases as the number of macro-particles per mesh cell increases; see [the space-charge mesh](#simulation-sc-mesh).
 
-> **Note**: the engine computes with several threads, and the same input gives slightly different results on every run. When comparing two runs (to judge the effect of a parameter, say), allow a tolerance; conclusions drawn from differences smaller than the statistical error are unreliable.
+> **Note**: whether the same input gives the same result twice depends on the random seed, not on multithreading. The example project has `randomseed 0`: the seed is taken from the current time (in seconds), the initial particles differ every run and the results scatter statistically (two runs of the example end with rms x 1.800 and 1.828 mm, about 1.6 % apart). With a non-zero seed the new kernel's output is identical byte for byte, whatever the number of threads and the space-charge method. To compare two runs (for example to judge the effect of a parameter), either fix the seed or use the statistical error as the tolerance; conclusions from differences below the statistical error are unreliable.
 
 ## Initial distributions {#simulation-distributions}
 
-The engine can generate four distributions from Twiss parameters with `twissx`, `twissy`, `twissz` and `distribution` — KV, GS (Gaussian), PB (parabolic), WB (waterbag) — or read an existing particle file (for example an RFQ exit distribution) with `readparticledistribution`. For the same rms parameters the edges and tails of these distributions differ greatly, and with strong space charge they decide the emittance growth of the first stretch; make sure the distributions agree when comparing codes. How these distributions are defined, how they differ and how to check which distribution a simulation actually used is explained in the [initial distributions](#distributions) chapter; the keywords are listed in [In AVAS](#simulation-in-avas).
+Before the simulation starts, the engine must first "set up" its few thousand representatives: the position, angle and energy deviation of each macro-particle. It can generate four distributions from Twiss parameters with `twissx`, `twissy`, `twissz` and `distribution` — KV, GS (Gaussian), PB (parabolic) and WB (waterbag) — or read an existing particle file with `readparticledistribution` (for example the distribution at the RFQ exit). For the same rms size, different distributions have very different edges and tails, and with strong space charge they also decide the emittance growth at the start; when comparing results of different codes, make sure the distributions agree. How these distributions are defined, how they differ, and how to check which distribution a simulation actually used is covered in the [initial distributions](#distributions) chapter; the keywords are listed in [In AVAS](#simulation-in-avas).
 
 ## Time step {#simulation-stepping}
 
 ### Why the step must be small
 
-The engine cannot solve the equations of motion continuously; it advances step by step: in each step it computes the force from the present fields and moves the particles a little. It is like tracing a curve with straight segments: the shorter the segments, the more accurate the tracing; the more the field changes within one step, the larger the error.
+The engine cannot solve the motion continuously; it advances step by step: each step computes the force from the current fields, assumes the force stays constant for that short time, and pushes the particle a little further. It is like tracing a curve with short straight segments: the shorter the segments, the more accurate the tracing; the more sharply the curve bends (the more the field changes within one step), the larger the error. It is also like recording a runner with burst photos: the denser the shots, the better you see the motion.
 
-Field-map elements and drifts integrate the equations of motion in time with the t-code (see [accelerators and AVAS](#intro-tracking)). `steppercycle V1` in `input.txt` divides one RF period into $V_1$ steps:
+Field-map elements and drifts are advanced in time by the **t-code** (see [accelerators and AVAS](#intro-tracking)). `steppercycle V1` in `input.txt` divides one RF period into $V_1$ steps, so the time of each step and the distance a particle travels per step are
 
 $$
 \Delta t = \frac{1}{f\,V_1},\qquad \Delta s \approx \beta c\,\Delta t = \frac{\beta\lambda}{V_1} .
 $$
 
-For the example, `steppercycle 50`, 162.5 MHz, $\beta = 0.057$: $\Delta t = 0.123\ \mathrm{ns}$ and each step advances about 2.1 mm, while the `hwr010` map has a grid spacing of 2 mm along $z$, about the same. Crossing the 0.21 m HWR takes about 100 steps, one 0.76 m period of the [hands-on tutorial](#tutorial) about 360. Note that $\Delta s$ is proportional to β: with the same `steppercycle`, faster particles travel farther per step.
+Here $\lambda = c/f$ is the RF wavelength (1.845 m at 162.5 MHz) and $\beta = v/c$ the particle's speed relative to the speed of light; $\beta\lambda$ is the distance the particle travels in one RF period. Example: `steppercycle 50`, 162.5 MHz, $\beta = 0.057$: $\Delta t = 1/(162.5\times 10^6 \times 50) = 0.123\ \mathrm{ns}$, and each step advances $0.057 \times 1.845\ \mathrm{m}/50 \approx 2.1\ \mathrm{mm}$; the `hwr010` field map has a grid spacing along $z$ of 2 mm, comparable. Crossing the 0.21 m long HWR cavity takes about 100 steps, one 0.76 m period of the [hands-on tutorial](#tutorial) about 360.
+
+Note that $\Delta s$ is proportional to β: with the same `steppercycle`, faster particles travel farther per step. When the beam of step 4 of the tutorial reaches 4.1 MeV, $\beta \approx 0.094$ and each step covers 3.5 mm.
 
 Rules for choosing the step:
 
-- the distance per step must be much smaller than the scale on which the fields change (map grid, gap length, $\beta\lambda$);
-- much smaller than the transverse, synchrotron and plasma oscillation wavelengths (the space-charge kick is integrated with the same step; how often the engine recomputes the space-charge field is not described in the manual);
-- check by doubling the number of steps: the step is small enough when the results no longer change (within the statistical error).
+- the distance per step must be much smaller than the scale on which the fields change (field-map grid, gap length, $\beta\lambda$);
+- much smaller than the distance of one transverse oscillation, one longitudinal (synchrotron) oscillation and the oscillation caused by space charge (the space-charge push is integrated with the same step; how often the engine recomputes the space-charge field is not described in the manual);
+- check by **doubling the number of steps**: when the result no longer changes (within the statistical error), the step is small enough.
 
 ### z-code elements
 
-`quad`, `solenoid`, `bend`, `edge` and `steerer` are matrix elements: the z-code transforms the particle coordinates by longitudinal position instead of advancing in time steps. The t-code records the bunch at the time of the synchronous particle, the z-code at a position (see the manual's description of `Beamset.plt`); how the engine converts at the boundary between the two kinds of elements is not described in the manual — the engine's behaviour is the reference. The schema's advice for matrix elements: **avoid matrix elements as the first and last element** of a multi-particle lattice; put a short drift at each end.
+`quad`, `solenoid`, `bend`, `edge` and `steerer` are matrix elements: the **z-code** transforms the particle coordinates by longitudinal position in one go instead of advancing in time steps. The t-code records the bunch at the time of the synchronous particle, the z-code at a position (see the manual's description of `Beamset.plt`); how the transition between the two kinds of element works is not described in the manual, the engine is authoritative. The schema says of matrix elements: in a multi-particle lattice, **avoid matrix elements as the first and the last element**; put a short drift at each end.
 
-## Space-charge mesh {#simulation-sc-mesh}
+## The space-charge mesh {#simulation-sc-mesh}
 
 ### What the mesh does
 
-Computing the Coulomb force between every pair of $N$ macro-particles takes $N^2$ operations. The particle–mesh method does it differently: first distribute the charge of all macro-particles onto a 3D mesh, giving the charge density on the mesh; solve Poisson's equation on the mesh for the field; then interpolate the field back to every particle. It is a bit like estimating the density of a crowd: divide the square into cells and count the people in each, instead of measuring the distance between every two people. Cells too large, and you cannot see the shape of the crowd; cells too small, and each holds only a stray person or two, so the counted density is all fluctuation.
+Particles of the same charge repel each other. Computing the Coulomb force between every pair of $N$ macro-particles takes about $N^2/2$ pairs: for 5260 macro-particles that is 14 million pairs per step, for $10^6$ macro-particles $5\times 10^{11}$ — too many.
 
-With `spacecharge 1` the engine solves the beam's self-field on a mesh. `numofgrid Nx Ny Nz` is the number of mesh cells, `meshrms V1 V2 V3` sets the mesh size $L_x = 2V_1\sigma_x$ (likewise for $y$, $z$), so the cell size is
+The **particle–mesh method** works differently: divide space into a three-dimensional grid of cells (the mesh), share the charge of all macro-particles among the cells to get the charge density, solve for the electric field on the mesh, and finally hand the field back to each particle. It is a bit like estimating the density of a crowd on a square: divide the square into cells and count the people in each, instead of measuring the distance between every two people. Cells too large hide the shape of the crowd; cells too small hold only a person or two each, and the counted density is nothing but chance fluctuation.
+
+With `spacecharge 1` the engine solves the beam's own field (self-field) on the mesh. `numofgrid Nx Ny Nz` is the number of cells in the three directions, `meshrms V1 V2 V3` sets the total mesh length $L_x = 2V_1\sigma_x$ ($\sigma_x$ being the beam's rms size; likewise for $y$, $z$), so each cell is
 
 $$
-h_x = \frac{2V_1\sigma_x}{N_x} .
+h_x = \frac{2V_1\sigma_x}{N_x}
 $$
 
-For example, $V_1 = 4$ and $N_x = 32$ cover $\pm 4\sigma_x$ with cells of $h_x = 0.25\,\sigma_x$.
+long. For example, with $V_1 = 4$ and $N_x = 32$ the mesh covers $\pm 4\sigma_x$ and each cell is $h_x = 8\sigma_x/32 = 0.25\,\sigma_x$ long.
 
-### Three requirements that pull against each other
+### Three competing requirements
 
-- **Coverage**: the mesh should contain almost all particles. Too small a $V_1$ cuts off the tails; for a Gaussian take $V_1$ at least 3–5. What happens to particles outside the mesh is not described in the manual.
-- **Resolution**: the core needs enough mesh points, $h_x$ clearly smaller than $\sigma_x$; the larger $V_1$, the poorer the resolution at the same $N_x$.
-- **Particles per cell**: the mean number of macro-particles per cell is about $N/(N_xN_yN_z)$, more in the core. A $32\times 32\times 32$ mesh with 5260 macro-particles has only 0.16 per cell on average, and the field is very noisy; such a mesh needs $10^5$–$10^6$ macro-particles.
+- **Coverage**: the mesh must cover nearly all particles. Too small a $V_1$ cuts off the tails; for a Gaussian, take $V_1$ at least 3–5. How particles outside the mesh are treated is not described in the manual.
+- **Resolution**: the beam core needs enough cells, $h_x$ clearly smaller than $\sigma_x$; the larger $V_1$, the coarser the cells for the same $N_x$.
+- **Particles per cell**: the average number of macro-particles per cell is about $N/(N_xN_yN_z)$, more in the beam core. For example, $32\times 32\times 32 = 32768$ cells with 5260 macro-particles have only 0.16 per cell on average, and the computed field is all fluctuation; such a mesh needs $10^5$–$10^6$ macro-particles.
 
-The conflict: better resolution needs more cells, and more cells need more macro-particles. The number of macro-particles and the mesh must therefore be chosen together. After changing the mesh or the algorithm, compare results as described under [convergence](#simulation-convergence).
+The conflict: higher resolution needs more cells, and more cells need more macro-particles. So **the number of macro-particles and the mesh must be chosen together**. After changing the mesh or the method, compare results as in [judging convergence](#simulation-convergence). The method step by step is in "Going deeper: the particle–mesh method step by step".
+
+## What a simulation gives you: records and output planes {#simulation-output}
+
+A multi-particle simulation leaves two kinds of things behind, which can be compared to a "health record" and a "group photo":
+
+- **Health record**: `DataSet.txt`. Each time the engine records a step it writes one line of statistics: mean energy, beam centre, rms and maximum sizes in the three directions, Twiss parameters and emittances, and the number of remaining macro-particles. The envelope, energy and emittance curves along the beam line all come from it. It holds only statistics; single particles cannot be seen.
+- **Group photo**: the particle distribution at an output plane, `outData_<position>.dst`. Put an `outputplane` at a position in the lattice, and when the beam passes there the engine saves the coordinates of all macro-particles; afterwards you can plot phase spaces and distributions or use it as the initial distribution of the next simulation. `automaticoutput` places many of them at equal spacing in one go. At the end the engine always takes a photo at the end of the beam line; no extra plane is needed.
+
+Output planes have one common pitfall: a plane **beyond the end of the lattice** is an error, and one **within 5 mm of the end** also fails, while 2 cm from the end works. So usually a short drift is left at the end of the line.
+
+There are also `Phase.txt` with the entrance and exit of every RF cavity, `synParticle.txt` with the synchronous particle along the line, and, on request, `Beamset.plt` with all particle data (the file can be very large). The complete list and the meaning of every column of DataSet.txt are in [In AVAS](#simulation-in-avas).
 
 ## Judging convergence {#simulation-convergence}
 
-A multi-particle result is credible only if it is shown to be insensitive to the numerical parameters: making them finer no longer changes the result beyond the statistical error. A suggested procedure:
+For a multi-particle result to be trusted, it must at least be shown to be insensitive to the "numerical parameters": when the number of macro-particles, the step and the mesh — parameters that affect only the accuracy of the computation — are made finer, the result stops changing within the statistical error. This is called **convergence**. A suggested procedure:
 
-1. First get the lattice right with the linear preview and few macro-particles ($10^3$–$10^4$): energy, phases and envelope should be roughly reasonable.
-2. **Number of macro-particles**: at the design parameters raise `particlenumber` by a factor of 4 or more (e.g. $10^4 \to 10^5$) and compare the exit rms sizes, the rms emittance growth and the loss rate. The statistical error falls as $1/\sqrt N$; if the emittance growth drops clearly as $N$ grows, the original result was contaminated by numerical noise.
-3. **Step**: double `steppercycle` (e.g. 50 → 100); the results should not change beyond the statistical error.
+1. First tune the lattice with the linear preview and few macro-particles ($10^3$–$10^4$); check that energy, phase and envelope are roughly reasonable.
+2. **Macro-particles**: at the design parameters, increase `particlenumber` four times or more (e.g. $10^4 \to 10^5$) and compare the exit rms size, the rms emittance growth and the loss rate. The statistical error drops as $1/\sqrt N$; if the emittance growth decreases clearly as $N$ grows, the original result was contaminated by numerical noise.
+3. **Step**: double `steppercycle` (e.g. 50 → 100); the result should stay the same within the statistical error.
 4. **Mesh**: change `numofgrid` and `meshrms` together while keeping enough macro-particles per cell; if needed, compare different `scmethod`s.
-5. **Repeat runs**: repeat the same input two or three times to estimate the random run-to-run difference, the tolerance for deciding whether something changed.
+5. **Repeated runs**: repeat the same input two or three times to estimate the random run-to-run difference, the tolerance for judging "changed or not".
 
-The criterion depends on the question: matching and envelope design care about rms sizes (at the 1 % level); emittance growth about the relative growth; losses and halo need high statistics, maximum sizes and the tails. When reporting results, state the number of macro-particles, the step and the mesh used.
+The criterion depends on the question: matching and envelope design care about rms sizes (of order 1 %); emittance growth about the relative growth; beam loss and halo need high statistics and look at maximum sizes and distribution tails. When reporting results, give the number of macro-particles, the step and the mesh used.
 
 ## Linear preview and engine {#simulation-preview}
 
-The visual editor's **linear envelope preview** (`avas.sim.linear_optics`) does not track particles; it advances the beam's second moments (the sigma matrix) with 6×6 matrices: the reference particle integrates energy and time along the field maps, field maps are sliced into 4 mm pieces for linear focusing and bunching, and space charge is a linear kick of the rms-equivalent uniform ellipsoid (see [space charge](#space-charge)). One computation advances a single 6×6 matrix, so results appear almost instantly while you drag parameters, which suits matching and preliminary design. The price is that it knows only second moments and cannot see changes in the shape of the distribution.
+The **linear envelope preview** of the visual editor (`avas.sim.linear_optics`) does not track individual particles; it directly advances a few averages that describe the beam's shape (the beam's "second moments", arranged as a 6×6 σ matrix): the reference particle integrates energy and time along the field maps, field maps are sliced at 4 mm to compute linear focusing and bunching, and space charge is computed as the linear push of an "equivalent uniform ellipsoid" (see [space charge](#space-charge)). One evaluation advances a single 6×6 matrix, so it responds almost immediately while you drag parameters, which suits matching and first designs. The price is that it only knows how "wide" the beam is and cannot see changes of the distribution's shape.
 
 | Item | Linear preview | Multi-particle engine |
 |---|---|---|
-| Energy | reference particle within about 0.01 % (against the engine's synchronous particle); the engine's DataSet gives the macro-particle mean, which feels the off-axis field: about 5 % of the gain in the example cavity | reference |
-| rms sizes | usually within 1–2 %, up to 13 % where multi-particle effects are strong | reference |
-| Non-linearities, emittance growth, halo | not included | included |
-| Losses | only a warning when 3 × rms exceeds the aperture | decided particle by particle |
-| Dipole / steering components of field maps | no deflection (a warning is given) | included |
+| Energy | reference particle within about 0.01 % (against the engine's synchronous particle); the engine's DataSet is the mean energy of the macro-particles, affected by off-axis fields, about 5 % difference in gain for the example cavity | reference |
+| rms size | usually 1–2 % off, up to 13 % with strong multi-particle effects | reference |
+| Nonlinearity, emittance growth, halo | not included | included |
+| Losses | only warns when 3 × rms exceeds the aperture | decided particle by particle |
+| Dipole / steering components of field maps | no deflection (with a warning) | included |
 
-> **Note**: the preview does not include the longitudinal non-linearity of low-energy cavities, chromatic effects or the offsets of `superposeout`. Design conclusions rest on the engine; a large difference between preview and engine usually means strong non-linear or space-charge effects — exactly when a multi-particle simulation is needed.
+> **Note**: the preview does not include longitudinal nonlinearity in low-energy cavities, chromatic effects or the offsets of `superposeout`. Design conclusions follow the engine; a large difference between preview and engine usually means strong nonlinear or space-charge effects — exactly when a multi-particle simulation is needed.
+
+## Think about it {#simulation-think}
+
+> **Think about it 1**: with 5260 macro-particles, the exit rms size differs by 1 % before and after changing a parameter. Can you conclude that the parameter matters?
+>
+> Answer: not for sure. If the two runs sample their initial distributions independently, each result has a statistical error of about 0.97 % and their difference a standard deviation of about $\sqrt2 \times 0.97\ \% = 1.4\ \%$, which covers 1 %. If both runs start from the same sample (the same non-zero `randomseed`: the engine then generates exactly the same initial particles, see [In AVAS](#simulation-in-avas)), the sampling error is shared and mostly cancels in the difference: the new kernel has no other random differences, so the 1 % is the effect of the change on this one sample; the original kernel adds run-to-run differences from multithreading where matrix elements such as quadrupoles meet space charge. A conclusion that holds for one sample need not hold for another, so repeat with a few seeds, or use more macro-particles, before concluding.
+
+> **Think about it 2**: none of the 5260 macro-particles was lost. Is the loss rate zero?
+>
+> Answer: no. One macro-particle is 0.019 %; zero losses only say that the loss rate is below that order.
+
+> **Think about it 3**: the particles are accelerated from 1.5 MeV to 4 MeV with the same `steppercycle`. How does the distance per step change?
+>
+> Answer: the time per step stays the same (1/50 of an RF period), but the particles are faster and travel farther per step: $\beta$ grows from 0.057 to about 0.094, and the step from 2.1 mm to about 3.5 mm.
+
+> **Think about it 4**: refining the mesh from $16^3$ to $32^3$ with the same number of macro-particles — does the result get more accurate?
+>
+> Answer: not necessarily. Eight times as many cells mean one eighth of the macro-particles per cell, larger field fluctuations and possibly worse numerical heating. Resolution and particles per cell must be considered together.
 
 ## Common misconceptions {#simulation-misconceptions}
 
-- **More macro-particles are better, but only together with the mesh**: adding macro-particles without changing the mesh does not improve the resolution; adding cells without macro-particles makes the noise worse.
-- **Differences below the statistical error mean nothing**: with 5260 macro-particles the rms size is uncertain by about 1 %; smaller changes are no basis for a conclusion.
-- **No loss is not zero loss**: none of 5260 macro-particles lost only says that the loss rate is below the order of $1/5260$.
+- **More macro-particles are better, but only together with the mesh**: adding macro-particles with the same mesh does not improve resolution; adding cells with the same macro-particles increases noise.
+- **Differences below the statistical error mean nothing**: with 5260 macro-particles the rms size error is about 1 %; smaller changes are not conclusions.
+- **Zero losses are not no losses**: none of 5260 macro-particles lost only says the loss rate is below about $1/5260$.
 - **`steppercycle` is steps per RF period**, not a fixed spatial step: after acceleration each step covers more distance.
-- **`multithreading 0` does not switch multithreading off**: it makes the engine lose all particles at the start; to run single-threaded, delete the line (see below).
-- **NaN in single-particle runs**: with `particlenumber 1` the rms columns of DataSet are NaN, which is normal.
+- **`multithreading 0` does not switch multithreading off**: it makes the engine lose all particles at the start; leaving the line out is not single-threaded either, both kernels default to `multithreading 1` (see below).
+- **NaN in single-particle runs**: with `particlenumber 1` the rms columns of DataSet are NaN; that is normal.
+
+## Going deeper: why the statistical error is 1/√N {#simulation-deep-statistics}
+
+The main text said "the relative statistical error of the rms size is $1/\sqrt{2N}$". This section derives this formula step by step, starting from a coin toss: the first four steps use only school algebra, the last paragraph is for readers who know probability.
+
+### Step one: the error of a mean is σ/√N
+
+Toss a coin, counting heads as $+1$ and tails as $-1$. Toss $N$ times and average: the mean should be close to 0, but not exactly 0. How far off? Adding $N$ independent numbers of zero mean, the average of "the square of the sum" is the sum of the averages of the squares (the cross terms are positive and negative and average to zero); here each square is 1, so the mean square of the sum is $N$, the typical size of the sum $\sqrt N$, and the typical size of the mean $\sqrt N/N = 1/\sqrt N$.
+
+In general: if a single sample has the spread (standard deviation) $\sigma$, the mean of $N$ samples spreads by $\sigma/\sqrt N$. After 100 tosses the mean is usually within $\pm 0.1$.
+
+### Step two: the rms size is also a mean
+
+The square of the rms size, $\sigma_x^2$, is the mean of $x^2$ over the particles (taking the beam centre as 0). Estimating $\sigma_x^2$ from $N$ macro-particles therefore means averaging $N$ numbers $x^2$. By step one, its error is "the spread of $x^2$ itself ÷ $\sqrt N$".
+
+How much does $x^2$ itself spread? Its variance is $\langle x^4\rangle - \langle x^2\rangle^2$ ("mean of the square minus square of the mean"). For a Gaussian, $\langle x^4\rangle = 3\sigma^4$ (check it with a normal-distribution table or with the integral under "For readers who know probability" below). So the variance of $x^2$ is $3\sigma^4 - \sigma^4 = 2\sigma^4$ and its standard deviation $\sqrt2\,\sigma^2$. Hence
+
+$$
+\frac{\delta(\sigma^2)}{\sigma^2} = \frac{\sqrt2\,\sigma^2/\sqrt N}{\sigma^2} = \sqrt{\frac{2}{N}} .
+$$
+
+### Step three: from the error of σ² to the error of σ
+
+$\sigma$ is the square root of $\sigma^2$. The school approximation $\sqrt{1 + \epsilon} \approx 1 + \epsilon/2$ (for small $\epsilon$; for example $\sqrt{1.02} = 1.00995$) tells us: a 2 % difference in the square is only 1 % after the square root. So
+
+$$
+\frac{\delta\sigma}{\sigma} \approx \frac{1}{2}\sqrt{\frac{2}{N}} = \frac{1}{\sqrt{2N}} .
+$$
+
+With the example: $N = 5260$, $1/\sqrt{10520} = 0.0097$, i.e. 0.97 %. For the 300 particles of the lab in the main text $1/\sqrt{600} = 4.1\ \%$, and the 4 % deviation the lab showed is of just this order (the lab's rms x is computed from KV particles, whose error formula, in the next step, gives about 2.9 %; a single sample 1.4 standard deviations off is quite common).
+
+### Step four: other distributions, emittance and loss rate
+
+The "3" used in step two belongs to the Gaussian. In general $\langle x^4\rangle = \kappa\,\sigma^4$, where $\kappa$, the **kurtosis**, measures how "peaked and long-tailed" a distribution is. The variance of $x^2$ is then $(\kappa - 1)\sigma^4$, and
+
+$$
+\frac{\delta\sigma}{\sigma} \approx \sqrt{\frac{\kappa - 1}{4N}} .
+$$
+
+A Gaussian has $\kappa = 3$, giving back $1/\sqrt{2N}$. Distributions with steep edges are estimated better: a uniform projection has $\kappa = 1.8$ and an error of $0.45/\sqrt N$ instead of $0.71/\sqrt N$ (the projection of a KV distribution on $x$ has $\kappa = 2$ and an error of $0.5/\sqrt N$). Heavy-tailed distributions are estimated worse.
+
+The rms emittance combines the three means $\langle x^2\rangle$, $\langle x'^2\rangle$ and $\langle xx'\rangle$, and its error is of the same order, about $1/\sqrt N$ for a Gaussian (1.4 % in the example). The loss rate is "number lost ÷ $N$", with the smallest step $1/N$. The error of the difference of two independent runs is $\sqrt2$ times that of one run (variances add).
+
+### For readers who know probability
+
+The variance of the sample variance $s^2$ is $(\mu_4 - \sigma^4)/N$ (for large $N$); the delta method $\delta\sigma \approx \delta(\sigma^2)/(2\sigma)$ then gives $\sqrt{(\kappa-1)/(4N)}$. For a Gaussian $\mu_4 = \int x^4\,e^{-x^2/2\sigma^2}\dd x/\sqrt{2\pi}\sigma = 3\sigma^4$. The estimation error of the two-dimensional rms emittance $\varepsilon^2 = \langle x^2\rangle\langle x'^2\rangle - \langle xx'\rangle^2$ can be expanded the same way; the result depends on the correlation coefficient and is $\delta\varepsilon/\varepsilon \approx 1/\sqrt N$ for an uncorrelated Gaussian. All this assumes independently sampled macro-particles; distributions generated with quasi-random sequences or symmetrization can have smaller errors. How the AVAS engine generates them: see [initial distributions](#distributions) (`inData.dst` is authoritative).
+
+## Going deeper: the particle–mesh method step by step {#simulation-deep-pic}
+
+The main text explained the mesh by "counting people on a square". This section goes step by step through how the particle–mesh method computes the space-charge force, and why too few particles per cell produce noise. What is described here is the general approach of this family of methods; for which deposition and solver the AVAS engine uses, the manual only lists the names of `scmethod`.
+
+### Step one: why not add up all pairs
+
+$N$ particles form $N(N-1)/2$ pairs. 5260 macro-particles make $1.4\times 10^7$ pairs; crossing one HWR cavity takes about 100 steps, i.e. $1.4\times 10^9$ Coulomb-force evaluations. With $10^6$ macro-particles each step needs $5\times 10^{11}$ pairs. The work grows as $N^2$, and slightly larger numbers of macro-particles become impossible.
+
+### Step two: share the charge among the cells
+
+The simplest way is "head counting": each macro-particle gives all its charge to the nearest grid point. A smoother way shares by distance: a particle between two grid points, 30 % of the spacing from the left point, gives 70 % of its charge to the left point and 30 % to the right (in three dimensions it is shared this way among the 8 surrounding grid points). This step takes work proportional to $N$ only.
+
+### Step three: from the charge to the electric field
+
+With the charge in each cell, the electric field must be found. High-school physics uses Gauss's law for the simplest case: an infinitely long, uniformly charged cylinder of radius $a$ with charge $\lambda$ per metre; inside it, at distance $r$ from the axis, the field is
+
+$$
+E = \frac{\lambda\,r}{2\pi\varepsilon_0 a^2}\quad (r < a),
+$$
+
+proportional to $r$: the farther from the axis, the harder the push, and linearly so. That is where the "uniform ellipsoid" space charge of the linear preview comes from. A real beam's charge is not uniform, so its field is no longer linear; the mesh method solves for the field numerically at every grid point without assuming the shape of the distribution.
+
+### Step four: hand the field back to the particles and step
+
+Each macro-particle takes the field back from the surrounding grid points with the same weights as in step two, adds the elements' external field to get its force, and is advanced by one time step. Then back to step two, and repeat.
+
+### Step five: why too few particles per cell make noise
+
+The number of macro-particles in a cell is like a coin toss too: if a cell should hold $n$ on average, the actual count fluctuates randomly around $n$ by about $\sqrt n$, a relative fluctuation of $1/\sqrt n$.
+
+- 5260 macro-particles on $32^3 = 32768$ cells: on average $n = 0.16$; most cells are empty, a few hold one or two, and the counted "density" is almost pure chance.
+- $10^6$ macro-particles on the same mesh: on average $n \approx 30$, a relative fluctuation of about 18 %; cells in the beam core hold more particles and fluctuate less.
+
+Random fluctuations of the density become random fluctuations of the field, and particles get a random push at every step: that is the **numerical heating** of the main text. A real beam has far more particles and these fluctuations are negligible, so the heating is an artefact of the simulation.
+
+### Step six: the size of the cells
+
+The cell length is $h_x = 2V_1\sigma_x/N_x$. With $V_1 = 4$ and $N_x = 32$, $h_x = 0.25\sigma_x$: the beam core ($\pm\sigma_x$) spans 8 cells and the shape of the distribution can be resolved; the mesh covers $\pm 4\sigma_x$, and for a Gaussian only about six in a hundred thousand particles lie beyond $4\sigma$ in one direction. With $V_1 = 8$ and the same $N_x$ the cells are $0.5\sigma_x$ long and the core spans only 4 cells.
+
+### For readers who know electrodynamics
+
+On the mesh one solves Poisson's equation $\nabla^2\phi = -\rho/\varepsilon_0$. A common approach is to compute the electrostatic field in the beam's rest frame and transform back to the laboratory frame: the transverse electric and magnetic forces partly cancel, and the net transverse force is $1/\gamma^2$ of the electric force alone. Convolving the charge density with the Green's function by FFT takes work of about $M\log M$ ($M$ being the number of grid points), far less than the $N^2$ of direct summation. Numerical heating weakens as the number of macro-particles per cell (more precisely, per Debye length scale) increases, so the number of macro-particles and the mesh must converge together. AVAS's `scmethod` can be `FFT`, `PICNIC` or `SPICNIC`; the manual only lists the names.
 
 ## In AVAS {#simulation-in-avas}
 
@@ -134,7 +263,16 @@ The visual editor's **linear envelope preview** (`avas.sim.linear_optics`) does 
 beam:particlenumber beam:randomseed beam:current beam:frequency
 ```
 
-`randomseed` seeds the random numbers that generate the initial beam. The manual lists it among the `beam.txt` keywords, while the example project writes `randomseed 0` in `input.txt` (the schema accepts it in both files); which one the engine uses when both are present, and whether 0 has a special meaning, is not documented — the engine is the reference. Mind a defect of the original kernel: with `randomseed` ≠ 0, the original kernel (and the new kernel's compatibility mode, compat = dll) generates an initial distribution with $x$ fully correlated with the phase (correlation −1), so the initial distribution is wrong; the Simulation settings page warns next to the random seed. The new kernel's default mode does not have this defect.
+`randomseed` seeds the random numbers that generate the initial beam. The manual lists it among the `beam.txt` keywords, while the example project writes `randomseed 0` in `input.txt` (the schema accepts it in both files); when both are present the value in `beam.txt` overrides the one in `input.txt` (not documented in the manual; found in the analysis for the kernel rebuild, the same in both kernels).
+
+**The new kernel's default mode** (the default on every platform): a non-zero seed generates exactly the same initial particles every time, with independent random numbers for each plane, so the distribution is right: a fixed seed is reproducible and safe for studying space charge and emittance growth. With `randomseed 0` the seed is taken from the current time, and the seed actually used is written to `OutputFile/inData.seed.txt`, so the run can be reproduced if needed.
+
+**The original kernel and the new kernel's compatibility mode (compat = dll) have a defect.** Measured (2026-11-18, Windows original kernel, example project with `distribution GS GS`, 5260 particles, seed written in `input.txt`, read from `inData.dst`):
+
+- With `randomseed 12345` two runs generate exactly the same initial particles, but the correlation between $x$ and the phase $\varphi$ is $-1.0000$ and between $x'$ and the energy $W$ $0.81$: the transverse and longitudinal planes use the same random numbers, so each particle's longitudinal position is fixed by its transverse one. Each plane's own rms size and emittance are right, but the six-dimensional distribution is unphysical. According to the disassembly analysis done for the engine rebuild, the transverse and longitudinal generators each reseed with the same seed at their start.
+- With `randomseed 0` both correlations are about 0 (0.005 and 0.000); by the same analysis 0 means seeding from the current time, so every run draws different particles.
+
+So with the original kernel or the compatibility mode a non-zero seed is fine for comparing results "same beam, different parameters", but conclusions about space charge, coupling between the planes or emittance growth should use `randomseed 0` (with several runs for statistics if needed), or the new kernel's default mode. The research layer (`avas.research`) uses seed 12345 by default and is affected in the same way in these two cases. The Simulation settings page warns next to the random seed, and the scan and response tabs of the Study page show a note too.
 
 ### Keywords of the initial distribution
 
@@ -162,7 +300,7 @@ The manual writes the step formula as "Δt = 1/T × 1/V1"; the second parameter 
 input:spacecharge input:scmethod input:numofgrid input:meshrms
 ```
 
-`scmethod` can be `FFT`, `PICNIC` or `SPICNIC`; the manual only lists the names. The example project's `input.txt` uses `spacecharge 1` and `scmethod FFT`.
+`scmethod` can be `FFT`, `PICNIC` or `SPICNIC`; the manual only lists the names. The example project's `input.txt` uses `spacecharge 1` and `scmethod FFT` and does not write `numofgrid` or `meshrms`. `spacechargecomp V` (a lattice keyword, space-charge compensation) multiplies the space charge by $(1 - V)$ from that line on; how the kernels differ is described in [Space charge](#space-charge-in-avas).
 
 ### Run settings
 
@@ -170,7 +308,7 @@ input:spacecharge input:scmethod input:numofgrid input:meshrms
 input:multithreading input:dumpperiodicity input:boundary input:longlimits input:pchistogram input:scanphase
 ```
 
-- **Multithreading**: write `multithreading 1` to use several threads; for a single thread **leave the line out**. The manual says 0 means off, but the engine loses all particles at the start with `multithreading 0` (and 2, 3 …) (verified with the example project). The Settings page handles this.
+- **Multithreading**: write `multithreading 1` or leave the line out; the two are the same (measured with the new kernel; by the reverse-engineered specification the original kernel also defaults to 1). The manual says 0 means off, but the engine loses all particles at the start with `multithreading 0` (and 2, 3 …) (verified with the example project: original kernel 2026-09-19, new kernel 2026-11-19). How many threads the new kernel uses is set by “CPU threads” under “Computing kernel” on the Settings page (command line `--threads`, 0 = all cores); its results do not depend on it, only the speed does. The original kernel has a multithreading data race where matrix elements such as quadrupoles meet space charge: the space charge comes out too strong and the results differ every run even with a fixed seed (measured on Windows 2026-11-07: end rms x 14–19 % too large).
 - **Loss boundary**: a particle beyond the element aperture `R` counts as lost; with `boundary 1` the boundary in `boundary.txt` is used instead, the radii in the lattice no longer apply, and lost particles are written to `CollisionData.txt`. `longlimits 1 phase energy` enables longitudinal loss detection, corresponding to the separatrix of [longitudinal dynamics](#longitudinal).
 - **Particle data**: `dumpperiodicity V1` writes all particles to `Beamset.plt` every $V_1$ steps (0 = never); the file can become very large. `pchistogram 1 bins` produces `pchistogram.dat`.
 - **Phase scan**: the original manual says `scanphase` controls a phase scan of the RF cavities or reads phases from `scanData.txt`, but no kernel reads them; a cavity's phase comes only from `phase` and V3 of its field line (see [longitudinal dynamics](#longitudinal)), and the Simulation settings page removes a leftover `scanphase` line when saved.
@@ -248,7 +386,7 @@ Single-particle runs are good for checking orbits: steerer kicks, dipole dispers
 - **Only lines between `start` and `end` are simulated**: only lines after the first `start` and before the first `end` take effect; everything after `!` is a comment. Elements after `end` are not computed — a common slip after temporarily truncating a lattice while debugging.
 - **Energy drops to zero or the beam turns back**: a wrong RF phase (the sign of the synchronous phase reversed, V3 misunderstood) decelerates the reference particle; the preview stops there with a warning.
 - **NaN in rms columns**: normal in single-particle runs; in multi-particle runs it means too few surviving particles.
-- **Results differ slightly every time**: normal with multithreaded computation; compare within the statistical error.
+- **Results differ slightly every time**: usually the statistical scatter of `randomseed 0`, which samples new particles every run; compare within the statistical error. To reproduce a run byte for byte, write a non-zero seed and use the new kernel. Two runs started within the same second get the same seed with `randomseed 0` (the seed is written to `OutputFile/inData.seed.txt`).
 
 ## Further reading {#simulation-reading}
 

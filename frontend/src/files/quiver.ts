@@ -21,7 +21,7 @@ export type QuiverOptions = {
 /** A polyline with NaN gaps, plus the longest sampled vector in field units. */
 export type Quiver = { x: number[]; y: number[]; max: number; count: number };
 
-const HEAD = 0.3; // head length as a fraction of the shaft
+const HEAD = 0.34; // head length as a fraction of the shaft
 const HEAD_ANGLE = 0.42; // rad, half the opening of the head
 
 /**

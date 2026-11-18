@@ -1,4 +1,4 @@
-"""Primer: labs (avas/learn/labs.py), the guided tutorial (avas/learn/tutorial.py),
+"""Primer: labs (avas/learn/labs.py), particle animations (avas/learn/motion.py), the guided tutorial (avas/learn/tutorial.py),
 their RPC service (avas/gui/services/learn.py) and the assistant's primer tools.
 
 The tutorial's engine run is replaced by a stand-in that writes a DataSet.txt, so
@@ -17,7 +17,7 @@ import pytest
 
 from avas import paths
 from avas.data.lattice_doc import LatticeDocument
-from avas.learn import labs, tutorial
+from avas.learn import labs, motion, tutorial
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONTENT = os.path.join(ROOT, "frontend", "src", "learn", "content")
@@ -519,3 +519,251 @@ def test_threads_do_not_leak():
     # the tutorial's worker thread is a daemon and ends with its run
     time.sleep(0.05)
     assert all(t.daemon for t in threading.enumerate() if t.name == "avas-learn")
+
+
+# =========================================================================== particle animations
+def _tracks(res, key):
+    return np.asarray(res[key], dtype=float).reshape(res["n"], len(res["s"]))
+
+
+@pytest.mark.parametrize("motion_id", list(motion.MOTIONS))
+def test_every_motion_runs_with_its_defaults(motion_id):
+    res = motion.run(motion_id)
+    ns = len(res["s"])
+    assert ns > 10 and res["n"] == motion.N_PARTICLES and res["marked"] == [0, 1]
+    for key in ("x", "xp", "y", "yp", "z"):
+        assert len(res[key]) == res["n"] * ns
+    for key in ("cx", "cy", "rms_x", "rms_y", "energy"):
+        assert len(res[key]) == ns
+    assert len(res["lost"]) == res["n"] and res["values"] and res["model"]
+    LatticeDocument(res["lattice"])                                # a lattice the editor can parse
+    m = motion.MOTIONS[motion_id]
+    assert set(res["params"]) == {p.key for p in m.params}
+    for p in m.params:
+        assert p.min <= p.default <= p.max, p.key
+
+
+def test_drawn_particles_have_the_model_rms_everywhere():
+    """The particles are whitened to the beam's rms matrix and moved by the model's own maps,
+    so their spread follows the model's rms envelope (with space charge, as the model has it)."""
+    for motion_id in ("drift", "quad", "fodo"):
+        res = motion.run(motion_id)
+        for plane in ("x", "y"):
+            tr = _tracks(res, plane)[2:]                              # the random particles
+            spread = np.sqrt(np.mean((tr - np.mean(tr, axis=0)) ** 2, axis=0) * len(tr) / (len(tr) - 1))
+            assert np.allclose(spread, res[f"rms_{plane}"], rtol=1e-6), (motion_id, plane)
+
+
+def test_drawn_particles_have_the_bunch_length_and_the_tracked_ones_sit_at_its_centre():
+    """The 3D view spreads the particles along the beam by their place in the bunch: the example
+    bunch's rms length at the entrance, sqrt(β·ε/(βγ)) with the normalised emittance of beam.txt."""
+    res = motion.run("quad")
+    z = _tracks(res, "z")
+    assert np.all(z[:2] == 0)                                       # the tracked ones stay in the field plane
+    beam, _dirs = motion.example_beam()
+    _alpha, beta, emit = beam["twiss"]["z"]
+    gamma = 1 + beam["energy"] / beam["mass"]
+    bg = math.sqrt(gamma ** 2 - 1)
+    assert np.std(z[2:, 0], ddof=1) == pytest.approx(math.sqrt(beta * emit / bg), rel=1e-4)
+
+
+def test_drift_particles_fly_straight_and_the_waist_is_where_alpha_puts_it():
+    res = motion.run("drift", {"I": 0, "alpha": 1.0})
+    s = np.asarray(res["s"])
+    x = _tracks(res, "x")[0]
+    assert np.allclose(np.diff(x) / np.diff(s), (x[-1] - x[0]) / (s[-1] - s[0]), rtol=1e-4)   # a straight line (float32)
+    beam, _dirs = motion.example_beam()
+    beta = beam["twiss"]["x"][1]
+    v = values(res)
+    assert v["waist"] == pytest.approx(1.0 / ((1 + 1.0) / beta), abs=0.011)                 # s_w = α/γ
+
+
+def test_quad_motion_focuses_x_and_defocuses_y_for_positive_gradient():
+    pos, neg = values(motion.run("quad", {"G": 10})), values(motion.run("quad", {"G": -10}))
+    assert pos["rx"] < 2 < 5 < pos["ry"]
+    assert neg["ry"] < 2 < 5 < neg["rx"]
+    beam, _dirs = motion.example_beam()
+    assert pos["f"] == pytest.approx(values(motion.run("quad"))["brho"] / (10 * 0.1))
+
+
+def test_unstable_fodo_loses_particles_on_the_wall():
+    stable, unstable = motion.run("fodo"), motion.run("fodo", {"G": 10})
+    assert all(k < 0 for k in stable["lost"]) and values(stable)["through"] == 100
+    lost = [i for i, k in enumerate(unstable["lost"]) if k >= 0]
+    assert len(lost) > 40 and values(unstable)["through"] < 30
+    x, y = _tracks(unstable, "x"), _tracks(unstable, "y")
+    i, k = lost[0], unstable["lost"][lost[0]]
+    assert math.hypot(x[i, k], y[i, k]) > 20 - 1e-6                # hits the 20 mm bore there …
+    assert np.all(np.isnan(x[i, k + 1:]))                           # … and is gone afterwards
+    assert any("wall" in w[0] for w in unstable["warnings"])
+
+
+def test_orbit_correction_reduces_the_orbit_until_the_noise_wins():
+    v0, v6 = values(motion.run("orbit", {"svs": 0})), values(motion.run("orbit", {"svs": 6}))
+    assert v0["kick"] == 0 and v0["ax"] == v0["bx"]
+    assert v6["ax"] < 0.05 * v0["bx"] and v6["ay"] < 0.05 * v0["by"]
+    all12 = motion.run("orbit", {"svs": 12, "noise": 50})
+    assert values(all12)["kick"] == pytest.approx(motion.ORBIT_MAX_KICK * 1e3)
+    assert any("singular" in w[0] for w in all12["warnings"])
+    assert all12["ghosts"] and not motion.run("orbit", {"svs": 0})["ghosts"]
+
+
+def test_orbit_response_matrix_is_causal():
+    beam, dirs = motion.example_beam()
+    _text, _model, monitors, knobs, matrix, _quads = motion._orbit_setup(beam, dirs)
+    rx = matrix[::2, ::2]                                            # x readings against the By knobs
+    assert rx.shape == (2 * motion.ORBIT_CELLS, 2 * motion.ORBIT_CELLS)
+    assert np.allclose(np.triu(rx, 1), 0.0, atol=1e-12)               # nothing upstream of a steerer moves
+    assert np.all(np.abs(np.diag(rx)) > 0.01)
+    assert [k.param for k in knobs[:2]] == ["By", "Bx"]
+
+
+def test_motion_parameters_are_clipped_and_checked():
+    assert motion.run("fodo", {"cells": 1000})["params"]["cells"] == 30
+    with pytest.raises(labs.LabError):
+        motion.run("quad", {"G": "abc"})
+    with pytest.raises(labs.LabError):
+        motion.run("nope")
+
+
+def test_front_end_knows_the_same_motions():
+    with open(DIRECTIVES, encoding="utf-8") as fh:
+        text = fh.read()
+    ids = re.search(r"MOTION_IDS = \[([^\]]*)\]", text).group(1)
+    assert sorted(re.findall(r'"([\w-]+)"', ids)) == sorted(motion.MOTIONS)
+
+
+def test_chapter_motion_presets_name_real_parameters():
+    problems = []
+    for name in _chapter_files():
+        with open(os.path.join(CONTENT, name), encoding="utf-8") as fh:
+            text = fh.read()
+        for body in re.findall(r"^\s*```avas-motion[ \t]*\n(.*?)\n\s*```", text, re.M | re.S):
+            words = body.split()
+            m = motion.MOTIONS.get(words[0])
+            if m is None:
+                problems.append(f"{name}: unknown animation {words[0]}")
+                continue
+            params = {p.key: p for p in m.params}
+            for w in words[1:]:
+                key, _, value = w.partition("=")
+                p = params.get(key)
+                if p is None:
+                    problems.append(f"{name}: animation {m.id} has no parameter {key}")
+                elif not p.min <= float(value) <= p.max:
+                    problems.append(f"{name}: animation {m.id} {key}={value} outside {p.min}…{p.max}")
+    assert not problems, "\n".join(problems)
+
+
+def test_motion_rpc_sends_trajectories_as_blobs():
+    from avas.gui import bridge
+    defs = ok("learn.motions")
+    assert {d["id"] for d in defs} == set(motion.MOTIONS)
+    res = ok("learn.motion", id="quad", params={"G": 8})
+    assert "__blob__" in res["x"] and res["n"] == motion.N_PARTICLES
+    assert len(bridge.take_blob(res["x"]["__blob__"])) == res["n"] * res["s"]["shape"][0]
+    assert not rpc("learn.motion", id="quad", params={"G": "abc"})["ok"]
+
+
+def test_solenoid_motion_turns_the_particles_and_focuses_both_planes():
+    """Entering a solenoid with Bz > 0, the radial fringe field kicks a positive particle at +x towards −y
+    (clockwise seen from downstream); B < 0 turns it the other way.  Both planes are focused alike."""
+    for B, sign in ((1.5, -1), (-1.5, 1)):
+        res = motion.run("solenoid", {"B": B})
+        s = np.asarray(res["s"])
+        y = _tracks(res, "y")[0]
+        inside = (s > 0.06) & (s < 0.24)
+        assert np.all(np.sign(y[inside][5:]) == sign), B
+    v = values(motion.run("solenoid"))
+    assert v["rx"] == pytest.approx(v["ry"], rel=0.05)
+    assert v["theta"] == pytest.approx(math.degrees(1.5 / (2 * v["brho"]) * 0.2))
+
+
+def test_steerer_motion_moves_the_beam_centre_the_documented_way():
+    res = motion.run("steerer", {"By": 3, "Bx": 2})
+    v = values(res)
+    assert v["cx"] < 0 < v["cy"]                       # By > 0 → −x, Bx > 0 → +y (positive particles)
+    assert v["tx"] == pytest.approx(-3e-3 * motion.STEERER_LENGTH / v["brho"] * 1e3)
+    st = next(e for e in res["elements"] if e["key"] == "steerer")
+    assert st["span"] == pytest.approx([0.1, 0.1 + motion.STEERER_LENGTH]) and res["centre"]
+
+
+@needs_example
+def test_dipole_motion_has_dispersion_and_the_field_of_its_bend():
+    res = motion.run("dipole", {"alpha": 30, "rho": 0.5})
+    plus, minus = (np.asarray(g["y"]) for g in res["ghosts"])
+    assert plus[-1] > 0 > minus[-1]                    # more momentum: outside of the bend (+x)
+    v = values(res)
+    assert v["D"] == pytest.approx(plus[-1], rel=1e-6)
+    bend = next(e for e in res["elements"] if e["key"] == "bend")
+    assert bend["B"] == pytest.approx(v["B"]) and bend["alpha"] == 30 and bend["rho"] == 0.5
+    assert next(e for e in motion.run("dipole", {"alpha": -30})["elements"] if e["key"] == "bend")["B"] < 0
+
+
+@needs_example
+def test_cavity_motion_exports_the_field_the_reference_particle_sees():
+    """Ke·Ez(z)·cos(rfPhase) integrated along the cavity gives the model's energy gain, so the page can draw
+    the RF field and the forces from these two arrays."""
+    res = motion.run("cavity")
+    s, w, phase = (np.asarray(res[k], dtype=float) for k in ("s", "energy", "rfPhase"))
+    cav = next(e for e in res["elements"] if e["key"] == "field")
+    ez = np.interp(s - cav["z0"], cav["ez"]["z"], cav["ez"]["e"], left=0, right=0)
+    inside = np.isfinite(phase)
+    gain = np.trapezoid(np.where(inside, ez * np.cos(np.radians(np.where(inside, phase, 0))), 0), s)
+    assert gain == pytest.approx(w[-1] - w[0], rel=0.02)
+    z = _tracks(res, "z")
+    assert res["marks"] == [["z", 1], ["z", -1]] and z[0, 0] > 0 > z[1, 0]
+    assert len(res["dp"]) == len(res["z"])
+
+
+# ---------------------------------------------------------------- control labs
+@pytest.mark.parametrize("lab_id", ["bpm", "feedback", "llrf", "controllability", "henon", "chaos-control"])
+def test_control_labs_run_with_their_defaults(lab_id):
+    res = labs.run(lab_id, {})
+    assert res["values"] and res["plots"] and res["model"]
+
+
+def test_bpm_reads_the_position_to_first_order():
+    v = values(labs.run("bpm", {"x": 0.5, "y": 0, "a": 20}))
+    assert v["xest"] == pytest.approx(0.5, rel=0.01)
+    v = values(labs.run("bpm", {"x": 10, "y": 0, "a": 20}))
+    assert v["xest"] < 10                              # Δ/Σ saturates far from the centre
+
+
+@needs_example
+def test_feedback_lab_is_stable_below_the_theoretical_gain_limit():
+    """Integral feedback with one pulse of delay is stable for g < 1 (z² − z + g = 0)."""
+    ok_, bad = values(labs.run("feedback", {"gain": 0.5, "delay": 1})), values(labs.run("feedback", {"gain": 1.2, "delay": 1}))
+    assert ok_["closed"] < ok_["open"] and ok_["modulus"] < 1
+    assert bad["modulus"] > 1 and bad["closed"] > bad["open"]
+    assert ok_["limit"] == pytest.approx(1.0, abs=0.03)
+    assert values(labs.run("feedback", {"delay": 0}))["limit"] == pytest.approx(2.0, abs=0.03)
+
+
+def test_llrf_feedback_holds_the_field_until_the_delay_eats_the_phase_margin():
+    v = values(labs.run("llrf", {}))
+    assert v["closed_a"] < 0.1 * v["open_a"] and v["closed_p"] < 0.1 * v["open_p"]
+    bad = labs.run("llrf", {"gain": 200, "delay": 20})
+    assert values(bad)["margin"] < 0 and bad["warnings"]
+
+
+@needs_example
+def test_controllability_lab_shows_unseen_and_uncorrectable_orbit():
+    full = values(labs.run("controllability", {}))
+    few_bpms = values(labs.run("controllability", {"bpms": 4}))
+    few_steerers = values(labs.run("controllability", {"steerers": 4}))
+    assert full["all"] < 0.05 * full["before"]
+    assert few_bpms["used"] < 1e-3 < few_bpms["all"]                 # zero where we look, not elsewhere
+    assert few_steerers["used"] > 0.1 and few_steerers["rank"] == 4  # four knobs cannot cancel twelve readings
+
+
+def test_henon_lab_has_a_finite_dynamic_aperture():
+    v = values(labs.run("henon", {"amp": 1.2}))
+    assert 0.1 < v["da"] < 1.2 and v["lost"] > 0
+
+
+def test_chaos_control_catches_and_holds_the_unstable_fixed_point():
+    v = values(labs.run("chaos-control", {}))
+    assert v["slope"] < -1                                           # unstable without control
+    assert v["caught"] is not None and v["spread"] < 0.01 and v["nudge"] <= 0.1
+    assert values(labs.run("chaos-control", {"dmax": 0}))["caught"] is None

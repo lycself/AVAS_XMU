@@ -84,7 +84,7 @@ export function FieldView({ directive }: { directive: Directive }) {
       <figcaption>
         <Icon name="symbol-field" /> {t("Field computed from the element parameters (schematic)")}
       </figcaption>
-      <FieldSliceView source={source} />
+      <FieldSliceView source={source} initialPlane={directive.id === "solenoid" ? "zx" : "xy"} plotHeight={380} />
     </figure>
   );
 }

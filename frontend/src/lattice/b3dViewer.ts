@@ -26,6 +26,8 @@ import type { BunchFrame, MotionMode } from "./bunchPlayer";
 import { fmt6, schemaNow, statementSummary } from "./types";
 
 export type Envelope3D = { z: ArrayLike<number>; x: ArrayLike<number>; y: ArrayLike<number>; label: string } | null; // z in m, rms sizes in mm
+/** Particle trajectories of a primer animation: *x*, *y* (mm) are particle-major, *s* (m) shared; *marked* are highlighted. */
+export type Particles3D = { s: ArrayLike<number>; n: number; x: ArrayLike<number>; y: ArrayLike<number>; marked: number[] } | null;
 export type { PointerDevice } from "../components/pointer";
 
 /* ================================================================== constants & helpers */
@@ -141,6 +143,20 @@ export class Viewer {
   private keptFrac = 1;
   private lossAnim: { from: number; to: number; at: number } | null = null;
   private followBunch = false;
+  // ---- particle trajectories of a primer animation (beam coordinates, in root)
+  private parts3: Particles3D = null;
+  private partS = 0;
+  private partTrails = true;
+  private partMats = {
+    dot: new THREE.PointsMaterial({ size: 5, sizeAttenuation: false, transparent: true, opacity: 0.95, depthWrite: false }),
+    mark: new THREE.PointsMaterial({ size: 10, sizeAttenuation: false, transparent: true, opacity: 1, depthWrite: false }),
+    trail: new THREE.LineBasicMaterial({ transparent: true, opacity: 0.5, depthWrite: false }),
+    markTrail: new THREE.LineBasicMaterial({ transparent: true, opacity: 0.9, depthWrite: false }),
+  };
+  private partGroup = new THREE.Group();
+  private partDots: THREE.Points | null = null;
+  private partMarks: THREE.Points | null = null;
+  private partLines: THREE.Line[] = [];
   private selBox: THREE.LineSegments;
   private hoverBox: THREE.LineSegments;
   private envMesh: THREE.Mesh | null = null;
@@ -168,7 +184,7 @@ export class Viewer {
   private sceneRadius = 1;
   private aTyp = 0.02; // median aperture x exaggeration
 
-  private dirty = { content: false, env: false };
+  private dirty = { content: false, env: false, parts: false };
   private frameReq = 0;
   private hoverReq = 0;
   private tween: Tween | null = null;
@@ -240,6 +256,7 @@ export class Viewer {
     this.bunchDot.visible = false;
     this.bunchDot.renderOrder = 5;
     this.scene.add(this.bunchDot);
+    this.root.add(this.partGroup);
 
     this.camera.position.set(-3, 2, 3);
     this.controls = new OrbitControls(this.camera, canvas);
@@ -301,6 +318,7 @@ export class Viewer {
     this.ex = ex;
     this.dirty.content = true;
     this.dirty.env = true;
+    this.dirty.parts = true;
     requestAnimationFrame(() => !this.disposed && this.resize()); // the position bar appears or disappears with the elements
     this.invalidate();
   }
@@ -335,6 +353,21 @@ export class Viewer {
       this.keptFrac = frac;
     }
     this.invalidate();
+  }
+
+  /** Particle trajectories (null removes them); *trails* draws the path each particle has flown. */
+  setParticles(p: Particles3D, trails: boolean) {
+    if (p === this.parts3 && trails === this.partTrails) return;
+    this.parts3 = p;
+    this.partTrails = trails;
+    this.dirty.parts = true;
+    this.invalidate();
+  }
+
+  /** Arc length (m) the particles have reached. */
+  setParticleS(s: number) {
+    this.partS = s;
+    if (this.parts3) this.invalidate();
   }
 
   /** Camera follows the bunch (like the fly-through) until the user moves the view. */
@@ -606,7 +639,9 @@ export class Viewer {
     this.dotGeom.dispose();
     this.cloudGeom.dispose();
     this.lostGeom.dispose();
+    this.clearParticles();
     for (const m of Object.values(this.mats)) m.dispose();
+    for (const m of Object.values(this.partMats)) m.dispose();
     this.labels.dispose();
     this.renderer.dispose();
     this.renderer.forceContextLoss();
@@ -629,6 +664,11 @@ export class Viewer {
       this.dirty.env = false;
       this.buildEnvelope();
     }
+    if (this.dirty.parts) {
+      this.dirty.parts = false;
+      this.buildParticles();
+    }
+    this.updateParticles();
     let again = false;
     if (this.tween) again = this.stepTween(now) || again;
     if (this.fly) again = this.stepFly(now) || again;
@@ -687,6 +727,10 @@ export class Viewer {
     this.mats.cloud.color.copy(c("--bunch"));
     this.mats.bunchDot.color.copy(c("--bunch"));
     this.mats.lost.color.copy(c("--danger"));
+    this.partMats.dot.color.copy(c("--bunch"));
+    this.partMats.trail.color.copy(c("--bunch"));
+    this.partMats.mark.color.copy(c("--accent"));
+    this.partMats.markTrail.color.copy(c("--accent"));
     this.mats.hover.color.copy(c("--fg"));
     const dark = c("--beamline-bg").getHSL({ h: 0, s: 0, l: 0 }).l < 0.3;
     this.hemi.intensity = dark ? 1.6 : 2.0;
@@ -1235,6 +1279,99 @@ export class Viewer {
       return false;
     }
     return true;
+  }
+
+  private clearParticles() {
+    for (const child of [...this.partGroup.children]) {
+      this.partGroup.remove(child);
+      (child as THREE.Points | THREE.Line).geometry.dispose();
+    }
+    this.partDots = this.partMarks = null;
+    this.partLines = [];
+  }
+
+  /** Root coordinates of particle *i* at sample *k* (offsets exaggerated like the envelope tube). */
+  private particlePoint(i: number, k: number, out: Float32Array, o: number) {
+    const p = this.parts3!;
+    const ns = p.s.length;
+    const P = this.model!.orbit.pose(Math.max(0, Math.min(this.model!.total, p.s[k])));
+    const u = p.x[i * ns + k] * 1e-3 * this.ex;
+    const v = p.y[i * ns + k] * 1e-3 * this.ex;
+    out[o] = P.p[0] + P.x[0] * u + P.y[0] * v;
+    out[o + 1] = P.p[1] + P.x[1] * u + P.y[1] * v;
+    out[o + 2] = P.p[2] + P.x[2] * u + P.y[2] * v;
+  }
+
+  private buildParticles() {
+    this.clearParticles();
+    const p = this.parts3;
+    if (!p || !this.model || !p.n || !p.s.length) return;
+    const ns = p.s.length;
+    const marked = new Set(p.marked);
+    if (this.partTrails) {
+      for (let i = 0; i < p.n; i++) {
+        const pos = new Float32Array(ns * 3);
+        for (let k = 0; k < ns; k++) this.particlePoint(i, k, pos, 3 * k);
+        const g = new THREE.BufferGeometry();
+        g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+        const line = new THREE.Line(g, marked.has(i) ? this.partMats.markTrail : this.partMats.trail);
+        line.frustumCulled = false;
+        line.renderOrder = marked.has(i) ? 7 : 6;
+        this.partGroup.add(line);
+        this.partLines.push(line);
+      }
+    }
+    const make = (count: number, mat: THREE.PointsMaterial) => {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(Math.max(1, count) * 3), 3));
+      const pts = new THREE.Points(g, mat);
+      pts.frustumCulled = false;
+      pts.renderOrder = 8;
+      this.partGroup.add(pts);
+      return pts;
+    };
+    this.partDots = make(p.n - marked.size, this.partMats.dot);
+    this.partMarks = make(marked.size, this.partMats.mark);
+  }
+
+  /** Move the particles to the arc length set by setParticleS. */
+  private updateParticles() {
+    const p = this.parts3;
+    if (!p || !this.partDots || !this.partMarks || !this.model) return;
+    const ns = p.s.length;
+    // sample index below partS and the fraction to the next one
+    let lo = 0;
+    let hi = ns - 1;
+    if (this.partS <= p.s[0]) hi = 0;
+    else if (this.partS >= p.s[ns - 1]) lo = hi = ns - 1;
+    else {
+      while (hi - lo > 1) {
+        const mid = (lo + hi) >> 1;
+        if (p.s[mid] <= this.partS) lo = mid;
+        else hi = mid;
+      }
+    }
+    const f = hi > lo ? (this.partS - p.s[lo]) / (p.s[hi] - p.s[lo]) : 0;
+    const a = new Float32Array(3);
+    const b = new Float32Array(3);
+    const marked = new Set(p.marked);
+    const dots = this.partDots.geometry.getAttribute("position") as THREE.BufferAttribute;
+    const marks = this.partMarks.geometry.getAttribute("position") as THREE.BufferAttribute;
+    let od = 0;
+    let om = 0;
+    for (let i = 0; i < p.n; i++) {
+      this.particlePoint(i, lo, a, 0);
+      this.particlePoint(i, hi, b, 0);
+      const arr = (marked.has(i) ? marks : dots).array as Float32Array;
+      const o = marked.has(i) ? om : od;
+      for (let c = 0; c < 3; c++) arr[o + c] = a[c] + (b[c] - a[c]) * f;
+      if (marked.has(i)) om += 3;
+      else od += 3;
+    }
+    dots.needsUpdate = marks.needsUpdate = true;
+    this.partDots.geometry.setDrawRange(0, od / 3);
+    this.partMarks.geometry.setDrawRange(0, om / 3);
+    for (const line of this.partLines) line.geometry.setDrawRange(0, Math.max(0, lo + 1 + (f > 0 ? 1 : 0)));
   }
 
   /** Place the bunch at its arc length; returns whether a loss animation still runs. */
