@@ -96,3 +96,16 @@ M4 收紧物理检验时发现：原内核 SPICNIC（默认空间电荷方法）
 AVAS.dll 两次之间 20 个输出文件里有 10 个不同（outData.dst 约 40 个粒子相对差约 5e-15，BeamSet.plt 不同），DataSet 全部相同。新内核 compat=dll 两次逐字节相同，1 线程与 12 线程也相同；
 它与 AVAS.dll 的差别同样只在 dst 末位（约 90 个粒子，≤ 1.5e-13）与 BeamSet.plt。原因未深究，可能与第二批的多线程空间电荷数据竞争同源。
 结论：“compat=dll 与 AVAS.dll 逐字节一致”只对 AVAS.dll 自身可重复的算例成立；parity 算例都是可重复的（参考在同一台机器上多次生成一致）。
+
+## 第五批：原内核遵守 `OMP_NUM_THREADS`（2026-11-19，XPS Windows 11，12 个逻辑处理器）
+
+经 `avas run --engine original --threads N`（2.1.1，`engines.original_thread_env` 在载入 AVAS.dll 前设 `OMP_NUM_THREADS`）重跑第二批的算例（示例 hwr010 生成分布，`randomseed 12345`，current 20 mA，`scmethod SPICNIC`，lattice 同第二批）：
+
+| 运行 | 内核打印的 cores 表 | 末端 rms x / y / z（mm） | DataSet.txt |
+|---|---|---|---|
+| threads 0（不设变量），3 次 | `12 12 12 12 1 12 11 9 12 12` | x 依次为 2.916、2.852、2.898（每次不同） | 三次都不同 |
+| threads 1，2 次 | `1 1 1 1 1 1 2 2 1 1` | 2.5911 / 3.9965 / 3.5143 | 两次逐字节相同 |
+| threads 4，1 次 | `4 4 4 4 1 4 4 4 4 4` | 2.760 / 4.075 / 3.594 | — |
+| 不写 `multithreading` 行，threads 0 / 1 | 与写 `multithreading 1` 相同 | threads 1 与上面逐字节相同 | — |
+
+结论：AVAS.dll 与 Linux libAVAS.so 一样把任务表截到 `omp_get_max_threads()`（第 6、7 项按粒子数查表，1 线程时仍为 2，但结果可重复），CPU 线程数设为 1 即避开第二批的数据竞争；不写 `multithreading` 与写 1 相同。
