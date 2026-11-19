@@ -1,5 +1,5 @@
 ; Inno Setup script for AVAS (compile through packaging\build.py, or:
-;   ISCC.exe /DAppVersion=2.1.0 /DSourceDir=..\dist\AVAS /DOutputDir=..\dist\installer packaging\avas.iss)
+;   ISCC.exe /DAppVersion=2.1.1 /DSourceDir=..\dist\AVAS /DOutputDir=..\dist\installer packaging\avas.iss)
 ;
 ; Installs dist\AVAS\ (AVASGui.exe, AVAS.exe and their files) for the current
 ; user without administrator rights by default (the setup offers "all users"
@@ -8,7 +8,7 @@
 ; bootstrapper when the runtime is missing.
 
 #ifndef AppVersion
-  #define AppVersion "2.1.0"
+  #define AppVersion "2.1.1"
 #endif
 #ifndef AppCommit
   #define AppCommit ""

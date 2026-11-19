@@ -51,7 +51,7 @@ python packaging/build.py
 第一条命令（只需一次）从微软官方地址下载 WebView2 安装程序（约 1.7 MB）。第二条命令写入构建信息（时间、git 提交，显示在
 **帮助 → 关于** 和 `AVAS.exe info` 中），用 PyInstaller 生成 `dist/AVAS/`（`AVAS.exe` 命令行、`AVASGui.exe` 界面、
 WebView2 安装程序），如果安装了 [Inno Setup 6](https://jrsoftware.org/isinfo.php)（`winget install JRSoftware.InnoSetup`），
-再生成安装包 `dist/installer/AVAS-2.1.0-setup.exe`：默认为当前用户安装（无需管理员），开始菜单和桌面快捷方式，
+再生成安装包 `dist/installer/AVAS-2.1.1-setup.exe`：默认为当前用户安装（无需管理员），开始菜单和桌面快捷方式，
 可选把 `AVAS.exe` 加入 PATH，缺少 WebView2 时自动安装。界面源码有改动时加 `--frontend` 先重新编译前端。
 **exe 不会随源码自动更新**，修改代码后需要重新运行 `build.py`。安装后可运行 `AVAS.exe doctor` 自检。
 
